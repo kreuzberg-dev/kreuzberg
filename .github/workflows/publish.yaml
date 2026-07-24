@@ -2715,6 +2715,8 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
 
       - uses: xberg-io/actions/publish-maven@v1
         with:
@@ -3506,6 +3508,8 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
       - name: Wait for core artifact on Maven Central
         if: needs.prepare.outputs.dry_run != 'true'
         env:

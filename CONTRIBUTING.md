@@ -48,6 +48,7 @@ Xberg is a polyglot project with many areas where you can help:
 - [Git](https://git-scm.com/)
 - [Task](https://taskfile.dev/installation/) — our task runner for all build and test workflows
 - [Rust](https://rustup.rs/) stable (via `rustup`) — the `wasm32-unknown-unknown` target is configured automatically via `rust-toolchain.toml`
+- [poly](https://github.com/goldziher/homebrew-tap) — our lint/format/pre-commit tool: `brew install goldziher/tap/poly` (`task setup` installs it automatically if missing)
 
 **Required for WASM builds** (tree-sitter and tesseract compile C/C++ to wasm):
 

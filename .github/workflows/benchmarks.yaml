@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Git branch to benchmark"
+        description: "Optional branch or commit (defaults to the dispatched revision)"
         required: false
-        default: "main"
+        default: ""
         type: string
       timeout:
         description: "Timeout per document in seconds"
@@ -51,13 +51,17 @@ jobs:
       id-token: write
     outputs:
       artifact-name: benchmarks-target
+      source-sha: ${{ steps.source-revision.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ github.event.inputs.branch || github.sha }}
 
           submodules: recursive
           lfs: true
+      - name: Pin benchmark source revision
+        id: source-revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -174,7 +178,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -243,8 +247,8 @@ jobs:
 
   bench-docling:
     name: docling (${{ matrix.output_format }}, ${{ matrix.mode }}, ${{ matrix.cohort }})
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -258,7 +262,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -329,8 +333,8 @@ jobs:
 
   bench-markitdown:
     name: markitdown (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -345,7 +349,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -410,8 +414,8 @@ jobs:
 
   bench-unstructured:
     name: unstructured (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -424,7 +428,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -494,8 +498,8 @@ jobs:
 
   bench-tika:
     name: tika (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -510,7 +514,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -580,8 +584,8 @@ jobs:
 
   bench-pymupdf4llm:
     name: pymupdf4llm (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -596,7 +600,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -667,8 +671,8 @@ jobs:
 
   bench-mineru:
     name: mineru (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -681,7 +685,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -751,8 +755,8 @@ jobs:
 
   bench-liteparse:
     name: liteparse (${{ matrix.output_format }}, ${{ matrix.mode }}, ${{ matrix.cohort }})
-    needs: bench-rust
-    if: ${{ !cancelled() }}
+    needs: [setup, bench-rust]
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -766,7 +770,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
           lfs: true
@@ -842,6 +846,7 @@ jobs:
     name: Aggregate & Release Results
     needs:
       [
+        setup,
         bench-rust,
         bench-docling,
         bench-markitdown,
@@ -854,7 +859,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
-    if: ${{ !cancelled() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ needs.setup.result == 'success' && !cancelled() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
     steps:
       - name: Create GitHub App token (if credentials available)
         id: app-token
@@ -867,6 +872,7 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.setup.outputs.source-sha }}
           submodules: recursive
           lfs: true
 
@@ -1072,7 +1078,8 @@ jobs:
 
           echo "=== Creating GitHub Release with benchmark results ==="
 
-          SHORT_SHA="${{ github.sha }}"
+          SOURCE_SHA="${{ needs.setup.outputs.source-sha }}"
+          SHORT_SHA="${SOURCE_SHA}"
           SHORT_SHA="${SHORT_SHA:0:7}"
           TAG="benchmark-run-${{ github.run_id }}"
           DATE=$(date -u +"%Y-%m-%d")
@@ -1081,7 +1088,7 @@ jobs:
           cat > consolidated-output/metadata.json <<EOF
           {
             "updated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "commit": "${{ github.sha }}",
+            "commit": "${SOURCE_SHA}",
             "run_id": "${{ github.run_id }}",
             "run_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           }
@@ -1089,10 +1096,11 @@ jobs:
 
           gh release create "$TAG" \
             --prerelease \
+            --target "${SOURCE_SHA}" \
             --title "Benchmark Results ${DATE} (${SHORT_SHA})" \
             --notes "Comparative benchmark results from workflow run [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
-          **Commit:** ${{ github.sha }}
+          **Commit:** ${SOURCE_SHA}
           **Date:** ${DATE}" \
             consolidated-output/aggregated.json \
             consolidated-output/metadata.json

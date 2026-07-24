@@ -119,6 +119,8 @@ jobs:
 
       - name: Setup Maven
         uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
 
       - name: Build and stage Java binding
         run: task integrations:ci:build:java-binding
@@ -271,6 +273,8 @@ jobs:
 
       - name: Setup Maven
         uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
 
       - name: Download local Java binding
         uses: actions/download-artifact@v8
