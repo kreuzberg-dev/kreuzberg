@@ -98,13 +98,15 @@ impl InternalDocumentExtractor for CsvExtractor {
         let has_header = detect_header(&rows);
         let column_types = infer_column_types(&rows, has_header);
 
-        let markdown = build_markdown_table(&rows);
+        let markdown = build_markdown_table(&rows, has_header);
+        let columns = has_header.then(|| rows.first().cloned()).flatten();
 
         let table = Table {
             cells: rows,
             markdown,
             page_number: 1,
             bounding_box: None,
+            columns,
             ..Default::default()
         };
 
@@ -125,22 +127,15 @@ impl InternalDocumentExtractor for CsvExtractor {
         };
 
         let mut builder = InternalDocumentBuilder::new("csv");
-
         let content_text = if has_header {
             render_csv_embedding_text(&table.cells)
         } else {
             render_table_plain_csv(&table.cells)
         };
-        builder.push_paragraph(&content_text, vec![], None, None);
+        let table_element = builder.push_table(table, None, None);
+        builder.set_text(table_element, &content_text);
 
         let mut doc = builder.build();
-        doc.tables.push(Table {
-            cells: table.cells.clone(),
-            markdown: table.markdown.clone(),
-            page_number: table.page_number,
-            bounding_box: table.bounding_box,
-            ..Default::default()
-        });
         doc.mime_type = mime_type.to_string();
 
         doc.metadata = Metadata {
@@ -504,7 +499,7 @@ fn render_table_plain_csv(cells: &[Vec<String>]) -> String {
 }
 
 /// Build a Markdown table from parsed rows.
-fn build_markdown_table(rows: &[Vec<String>]) -> String {
+fn build_markdown_table(rows: &[Vec<String>], has_header: bool) -> String {
     if rows.is_empty() {
         return String::new();
     }
@@ -515,6 +510,18 @@ fn build_markdown_table(rows: &[Vec<String>]) -> String {
     }
 
     let mut markdown = String::new();
+    if !has_header {
+        markdown.push('|');
+        for _ in 0..col_count {
+            markdown.push_str("  |");
+        }
+        markdown.push('\n');
+        markdown.push('|');
+        for _ in 0..col_count {
+            markdown.push_str(" --- |");
+        }
+        markdown.push('\n');
+    }
 
     for (i, row) in rows.iter().enumerate() {
         markdown.push('|');
@@ -526,7 +533,7 @@ fn build_markdown_table(rows: &[Vec<String>]) -> String {
         }
         markdown.push('\n');
 
-        if i == 0 {
+        if has_header && i == 0 {
             markdown.push('|');
             for _ in 0..col_count {
                 markdown.push_str(" --- |");
@@ -584,10 +591,24 @@ mod tests {
             vec!["Name".to_string(), "Age".to_string()],
             vec!["Alice".to_string(), "30".to_string()],
         ];
-        let md = build_markdown_table(&rows);
+        let md = build_markdown_table(&rows, true);
         assert!(md.contains("| Name | Age |"));
         assert!(md.contains("| --- | --- |"));
         assert!(md.contains("| Alice | 30 |"));
+    }
+
+    #[test]
+    fn should_build_markdown_with_empty_header_for_headerless_rows() {
+        let rows = vec![
+            vec!["Alice".to_string(), "NYC".to_string()],
+            vec!["Bob".to_string(), "LA".to_string()],
+        ];
+
+        let markdown = build_markdown_table(&rows, false);
+
+        assert!(markdown.starts_with("|  |  |\n| --- | --- |\n"));
+        assert!(markdown.contains("| Alice | NYC |"));
+        assert!(markdown.contains("| Bob | LA |"));
     }
 
     #[tokio::test]
@@ -614,12 +635,48 @@ mod tests {
             .expect("CSV extraction should succeed");
 
         assert!(!result.tables.is_empty());
+        assert!(matches!(
+            result.elements.as_slice(),
+            [crate::types::internal::InternalElement {
+                kind: crate::types::internal::ElementKind::Table { table_index: 0 },
+                ..
+            }]
+        ));
+        let markdown = crate::rendering::render_markdown(&result);
+        assert!(markdown.contains("| Name | Age | City |"));
+        assert!(markdown.contains("| Alice | 30 | NYC |"));
+        assert!(!markdown.contains("Row 1:"));
+
+        let plain = crate::rendering::render_plain(&result);
+        assert!(plain.contains("Row 1:\nName: Alice\nAge: 30\nCity: NYC"));
+        assert!(plain.contains("Row 2:\nName: Bob\nAge: 25\nCity: LA"));
+        assert!(!plain.contains('|'));
 
         if let Some(FormatMetadata::Csv(csv_meta)) = &result.metadata.format {
             assert!(csv_meta.has_header);
         } else {
             panic!("Expected FormatMetadata::Csv");
         }
+    }
+
+    #[tokio::test]
+    async fn should_render_headerless_csv_without_promoting_first_data_row() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig::default();
+        let csv_data = b"Alice,NYC,Engineer\nBob,LA,Designer\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction should succeed");
+
+        let markdown = crate::rendering::render_markdown(&result);
+        assert!(markdown.starts_with("|  |  |  |\n| --- | --- | --- |\n"));
+        assert!(markdown.contains("| Alice | NYC | Engineer |"));
+        assert!(markdown.contains("| Bob | LA | Designer |"));
+
+        let plain = crate::rendering::render_plain(&result);
+        assert_eq!(plain, "Alice NYC Engineer\nBob LA Designer");
     }
 
     #[tokio::test]

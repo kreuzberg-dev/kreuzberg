@@ -10,7 +10,7 @@ include = ["src/langchain_xberg", "CHANGELOG.md", "LICENSE", "README.md", "pypro
 
 [project]
 name = "langchain-xberg"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "LangChain document loader for Xberg — extract 88+ file formats into Documents with async, batching, chunking, and rich metadata"
 readme = "README.md"
 license = "MIT"
@@ -47,7 +47,7 @@ classifiers = [
   "Topic :: Text Processing :: Indexing",
   "Typing :: Typed",
 ]
-dependencies = ["langchain-core>=1.0,<2.0", "xberg>=1.0.0rc36,<2"]
+dependencies = ["langchain-core>=1.0,<2.0", "xberg>=1.0.0rc37,<2"]
 
 [dependency-groups]
 dev = ["pytest>=9.0", "pytest-asyncio>=0.24", "pytest-cov>=6.0", "ruff>=0.14", "mypy>=1.19", "pre-commit>=4.0"]

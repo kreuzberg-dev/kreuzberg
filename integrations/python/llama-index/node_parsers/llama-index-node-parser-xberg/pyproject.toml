@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "llama-index-node-parser-xberg"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "Structure-aware LlamaIndex node parser that turns xberg native chunks and elements into nodes"
 readme = "README.md"
 keywords = ["ai", "chunking", "document-structure", "xberg", "llamaindex", "llm", "node-parser", "rag"]

@@ -2460,29 +2460,29 @@ typedef struct XBERGYearRange XBERGYearRange;
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergOcrBackendVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Process an image and extract text via OCR.
    *
    * # Arguments
@@ -2537,13 +2537,13 @@ typedef struct XBERGXbergOcrBackendVTable {
    * }
    * ```
    */
-    int32_t (*process_image)(const void *user_data,
-        const uint8_t *image_bytes,
-        uintptr_t image_bytes_len,
-        const char *config,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*process_image)(const void *user_data,
+                           const uint8_t *image_bytes,
+                           uintptr_t image_bytes_len,
+                           const char *config,
+                           char **out_result,
+                           char **out_error);
+  /**
    * Process a file and extract text via OCR.
    *
    * Default implementation reads the file and calls `process_image`.
@@ -2558,12 +2558,12 @@ typedef struct XBERGXbergOcrBackendVTable {
    *
    * Same as `process_image`, plus file I/O errors.
    */
-    int32_t (*process_image_file)(const void *user_data,
-        const char *path,
-        const char *config,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*process_image_file)(const void *user_data,
+                                const char *path,
+                                const char *config,
+                                char **out_result,
+                                char **out_error);
+  /**
    * Check if this backend supports a given language code.
    *
    * # Arguments
@@ -2582,9 +2582,9 @@ typedef struct XBERGXbergOcrBackendVTable {
    * }
    * ```
    */
-    int32_t (*supports_language)(const void *user_data,
-        const char *lang);
-    /**
+  int32_t (*supports_language)(const void *user_data,
+                               const char *lang);
+  /**
    * Get the backend type identifier.
    *
    * # Returns
@@ -2599,30 +2599,30 @@ typedef struct XBERGXbergOcrBackendVTable {
    * }
    * ```
    */
-    int32_t (*backend_type)(const void *user_data,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*backend_type)(const void *user_data,
+                          char **out_result,
+                          char **out_error);
+  /**
    * Optional: Get a list of all supported languages.
    *
    * Defaults to empty list. Override to provide comprehensive language support info.
    */
-    int32_t (*supported_languages)(const void *user_data,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*supported_languages)(const void *user_data,
+                                 char **out_result,
+                                 char **out_error);
+  /**
    * Optional: Check if the backend supports table detection.
    *
    * Defaults to `false`. Override if your backend can detect and extract tables.
    */
-    int32_t (*supports_table_detection)(const void *user_data);
-    /**
+  int32_t (*supports_table_detection)(const void *user_data);
+  /**
    * Check if the backend supports direct document-level processing (e.g. for PDFs).
    *
    * Defaults to `false`. Override if the backend has optimized document processing.
    */
-    int32_t (*supports_document_processing)(const void *user_data);
-    /**
+  int32_t (*supports_document_processing)(const void *user_data);
+  /**
    * Declare that this backend emits structured markdown directly (tables, headings, lists)
    * and downstream layout reconstruction should be skipped.
    *
@@ -2630,8 +2630,8 @@ typedef struct XBERGXbergOcrBackendVTable {
    * plain text per detected region. End-to-end VLM backends (PaddleOCR-VL, GOT-OCR 2.0)
    * emit markdown in one forward pass and should override this to `true`.
    */
-    int32_t (*emits_structured_markdown)(const void *user_data);
-    /**
+  int32_t (*emits_structured_markdown)(const void *user_data);
+  /**
    * Process a document file directly via OCR.
    *
    * Only called if `supports_document_processing` returns `true`.
@@ -2641,19 +2641,19 @@ typedef struct XBERGXbergOcrBackendVTable {
    * * `path` - Path to the document file (e.g. .pdf)
    * * `config` - OCR configuration
    */
-    int32_t (*process_document)(const void *user_data,
-        const char *_path,
-        const char *_config,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*process_document)(const void *user_data,
+                              const char *_path,
+                              const char *_config,
+                              char **out_result,
+                              char **out_error);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergOcrBackendVTable;
 
 /**
@@ -2666,29 +2666,29 @@ typedef struct XBERGXbergOcrBackendVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergPostProcessorVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Process an extraction result.
    *
    * Transform or enrich the extraction result. Can modify:
@@ -2747,11 +2747,11 @@ typedef struct XBERGXbergPostProcessorVTable {
    * }
    * ```
    */
-    int32_t (*process)(const void *user_data,
-        const char *result,
-        const char *config,
-        char **out_error);
-    /**
+  int32_t (*process)(const void *user_data,
+                     const char *result,
+                     const char *config,
+                     char **out_error);
+  /**
    * Get the processing stage for this post-processor.
    *
    * Determines when this processor runs in the pipeline.
@@ -2768,10 +2768,10 @@ typedef struct XBERGXbergPostProcessorVTable {
    * }
    * ```
    */
-    int32_t (*processing_stage)(const void *user_data,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*processing_stage)(const void *user_data,
+                              char **out_result,
+                              char **out_error);
+  /**
    * Optional: Check if this processor should run for a given result.
    *
    * Allows conditional processing based on MIME type, metadata, or content.
@@ -2795,10 +2795,10 @@ typedef struct XBERGXbergPostProcessorVTable {
    * }
    * ```
    */
-    int32_t (*should_process)(const void *user_data,
-        const char *_result,
-        const char *_config);
-    /**
+  int32_t (*should_process)(const void *user_data,
+                            const char *_result,
+                            const char *_config);
+  /**
    * Optional: Estimate processing time in milliseconds.
    *
    * Used for logging and debugging. Defaults to 0 (unknown).
@@ -2811,24 +2811,24 @@ typedef struct XBERGXbergPostProcessorVTable {
    *
    * Estimated processing time in milliseconds.
    */
-    uint64_t (*estimated_duration_ms)(const void *user_data,
-        const char *_result);
-    /**
+  uint64_t (*estimated_duration_ms)(const void *user_data,
+                                    const char *_result);
+  /**
    * Execution priority within the processing stage.
    *
    * Higher values run first within the same `ProcessingStage`. Defaults to 50.
    * Use 0-49 for fallback processors, 50 for normal processors, and 51-255
    * for high-priority processors that should run early in their stage.
    */
-    int32_t (*priority)(const void *user_data);
-    /**
+  int32_t (*priority)(const void *user_data);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergPostProcessorVTable;
 
 /**
@@ -2841,29 +2841,29 @@ typedef struct XBERGXbergPostProcessorVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergValidatorVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Validate an extraction result.
    *
    * Check the extraction result and return `Ok(())` if valid, or an error
@@ -2951,11 +2951,11 @@ typedef struct XBERGXbergValidatorVTable {
    * }
    * ```
    */
-    int32_t (*validate)(const void *user_data,
-        const char *result,
-        const char *config,
-        char **out_error);
-    /**
+  int32_t (*validate)(const void *user_data,
+                      const char *result,
+                      const char *config,
+                      char **out_error);
+  /**
    * Optional: Check if this validator should run for a given result.
    *
    * Allows conditional validation based on MIME type, metadata, or content.
@@ -2979,10 +2979,10 @@ typedef struct XBERGXbergValidatorVTable {
    * }
    * ```
    */
-    int32_t (*should_validate)(const void *user_data,
-        const char *_result,
-        const char *_config);
-    /**
+  int32_t (*should_validate)(const void *user_data,
+                             const char *_result,
+                             const char *_config);
+  /**
    * Optional: Get the validation priority.
    *
    * Higher priority validators run first. Useful for ordering validation checks
@@ -3003,15 +3003,15 @@ typedef struct XBERGXbergValidatorVTable {
    * }
    * ```
    */
-    int32_t (*priority)(const void *user_data);
-    /**
+  int32_t (*priority)(const void *user_data);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergValidatorVTable;
 
 /**
@@ -3024,40 +3024,40 @@ typedef struct XBERGXbergValidatorVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergDocumentExtractorVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Binding-safe extraction entry point for foreign-language plugin bridges.
    *
    * Accepts the same unified input shape as the public extraction API and
    * returns one extracted document result.
    */
-    int32_t (*extract)(const void *user_data,
-        const char *input,
-        const char *config,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*extract)(const void *user_data,
+                     const char *input,
+                     const char *config,
+                     char **out_result,
+                     char **out_error);
+  /**
    * Get the list of MIME types supported by this extractor.
    *
    * Can include exact MIME types and prefix patterns:
@@ -3068,10 +3068,10 @@ typedef struct XBERGXbergDocumentExtractorVTable {
    *
    * A slice of MIME type strings.
    */
-    int32_t (*supported_mime_types)(const void *user_data,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*supported_mime_types)(const void *user_data,
+                                  char **out_result,
+                                  char **out_error);
+  /**
    * Get the priority of this extractor.
    *
    * Higher priority extractors are preferred when multiple extractors
@@ -3089,8 +3089,8 @@ typedef struct XBERGXbergDocumentExtractorVTable {
    *
    * Priority value (default: 50)
    */
-    int32_t (*priority)(const void *user_data);
-    /**
+  int32_t (*priority)(const void *user_data);
+  /**
    * Optional: Check if this extractor can handle a specific file.
    *
    * Allows for more sophisticated detection beyond MIME types.
@@ -3105,17 +3105,17 @@ typedef struct XBERGXbergDocumentExtractorVTable {
    *
    * `true` if the extractor can handle this file, `false` otherwise.
    */
-    int32_t (*can_handle)(const void *user_data,
-        const char *_path,
-        const char *_mime_type);
-    /**
+  int32_t (*can_handle)(const void *user_data,
+                        const char *_path,
+                        const char *_mime_type);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergDocumentExtractorVTable;
 
 /**
@@ -3128,34 +3128,34 @@ typedef struct XBERGXbergDocumentExtractorVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergEmbeddingBackendVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Embedding vector dimension. Must be `> 0` and must match the length of
    * every vector returned by `embed`.
    */
-    uintptr_t (*dimensions)(const void *user_data);
-    /**
+  uintptr_t (*dimensions)(const void *user_data);
+  /**
    * Embed a batch of texts, returning one vector per input in order.
    *
    * # Errors
@@ -3164,18 +3164,18 @@ typedef struct XBERGXbergEmbeddingBackendVTable {
    * backend-specific failures. The dispatcher layers its own validation
    * (length, per-vector dimension) on top.
    */
-    int32_t (*embed)(const void *user_data,
-        const char *texts,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*embed)(const void *user_data,
+                   const char *texts,
+                   char **out_result,
+                   char **out_error);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergEmbeddingBackendVTable;
 
 /**
@@ -3188,45 +3188,45 @@ typedef struct XBERGXbergEmbeddingBackendVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergRendererVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Binding-safe rendering entry point for foreign-language plugin bridges.
    *
    * Accepts one public extraction result and returns the rendered output.
    */
-    int32_t (*render_result)(const void *user_data,
-        const char *result,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*render_result)(const void *user_data,
+                           const char *result,
+                           char **out_result,
+                           char **out_error);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergRendererVTable;
 
 /**
@@ -3239,29 +3239,29 @@ typedef struct XBERGXbergRendererVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergRerankerBackendVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Score a list of documents against a query.
    *
    * Returns one raw logit per document in the same order as the input.
@@ -3273,19 +3273,19 @@ typedef struct XBERGXbergRerankerBackendVTable {
    * backend-specific failures. The dispatcher validates the returned length
    * against `documents.len()` before sorting.
    */
-    int32_t (*rerank)(const void *user_data,
-        const char *query,
-        const char *documents,
-        char **out_result,
-        char **out_error);
-    /**
+  int32_t (*rerank)(const void *user_data,
+                    const char *query,
+                    const char *documents,
+                    char **out_result,
+                    char **out_error);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergRerankerBackendVTable;
 
 /**
@@ -3298,41 +3298,41 @@ typedef struct XBERGXbergRerankerBackendVTable {
  * when the bridge is dropped.
  */
 typedef struct XBERGXbergTokenizerBackendVTable {
-    /**
+  /**
    * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-    int32_t (*name_fn)(const void *user_data,
-        char **out_name,
-        char **out_error);
-    /**
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
+  /**
    * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-    int32_t (*version_fn)(const void *user_data,
-        char **out_version,
-        char **out_error);
-    /**
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
+                        char **out_error);
+  /**
    * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*initialize_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
+  /**
    * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-    int32_t (*shutdown_fn)(const void *user_data,
-        char **out_error);
-    /**
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
+  /**
    * Count the tokens in `text` according to this backend's tokenizer.
    */
-    uintptr_t (*count_tokens)(const void *user_data,
-        const char *text);
-    /**
+  uintptr_t (*count_tokens)(const void *user_data,
+                            const char *text);
+  /**
    * Optional string destructor: called for strings returned by vtable callbacks.
    */
-    void (*free_string)(char*);
-    /**
+  void (*free_string)(char*);
+  /**
    * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-    void (*free_user_data)(void*);
+  void (*free_user_data)(void*);
 } XBERGXbergTokenizerBackendVTable;
 
 /**
@@ -3367,8 +3367,8 @@ void xberg_free_string(char *ptr);
  * out-params), or be null. The len and cap values must be unchanged since the call.
  */
 void xberg_free_bytes(uint8_t *ptr,
-    uintptr_t len,
-    uintptr_t cap);
+                      uintptr_t len,
+                      uintptr_t cap);
 
 /**
  * Return the library version string. The pointer is static and must NOT be freed.
@@ -4476,7 +4476,7 @@ XBERGExtractInputKind *xberg_extract_input_kind(const XBERGExtractInput *ptr);
  * Pointer must be a valid handle returned by this library.
  */
 uint8_t *xberg_extract_input_bytes(const XBERGExtractInput *ptr,
-    uintptr_t *out_len);
+                                   uintptr_t *out_len);
 
 /**
  * Get the `uri` field from a `ExtractInput`.
@@ -4518,9 +4518,9 @@ XBERGExtractInput *xberg_extract_input_default(void);
  * freed with the appropriate free function.
  */
 XBERGExtractInput *xberg_extract_input_from_bytes(const uint8_t *bytes,
-    uintptr_t bytes_len,
-    const char *mime_type,
-    const char *filename);
+                                                  uintptr_t bytes_len,
+                                                  const char *mime_type,
+                                                  const char *filename);
 
 /**
  * Build a URI input from a local path, `file://` URI, or HTTP(S) URL.
@@ -6486,7 +6486,7 @@ XBERGRedactionTerm *xberg_redaction_term_literal(const char *value);
  * freed with the appropriate free function.
  */
 XBERGRedactionTerm *xberg_redaction_term_labeled(const char *label,
-    const char *value);
+                                                 const char *value);
 
 /**
  * Create a `RedactionPattern` from a JSON string. Returns null on failure.
@@ -6538,7 +6538,7 @@ int32_t xberg_redaction_pattern_case_sensitive(const XBERGRedactionPattern *ptr)
  * freed with the appropriate free function.
  */
 XBERGRedactionPattern *xberg_redaction_pattern_labeled(const char *label,
-    const char *pattern);
+                                                       const char *pattern);
 
 /**
  * Create a `RerankerConfig` from a JSON string. Returns null on failure.
@@ -7207,7 +7207,7 @@ int32_t xberg_server_config_cors_allows_all(const XBERGServerConfig *this_);
  * \endcode
  */
 int32_t xberg_server_config_is_origin_allowed(const XBERGServerConfig *this_,
-    const char *origin);
+                                              const char *origin);
 
 /**
  * Get maximum request body size in megabytes (rounded up).
@@ -8063,7 +8063,7 @@ XBERGFootnoteConfig *xberg_footnote_config_default(void);
  * freed with the appropriate free function.
  */
 XBERGFootnoteConfig *xberg_footnote_config_with_parse_citations(XBERGFootnoteConfig *this_,
-    int32_t enabled);
+                                                                int32_t enabled);
 
 /**
  * Create a `FootnoteAnchor` from a JSON string. Returns null on failure.
@@ -9829,7 +9829,7 @@ void xberg_extracted_image_free(XBERGExtractedImage *ptr);
  * Pointer must be a valid handle returned by this library.
  */
 uint8_t *xberg_extracted_image_data(const XBERGExtractedImage *ptr,
-    uintptr_t *out_len);
+                                    uintptr_t *out_len);
 
 /**
  * Get the `format` field from a `ExtractedImage`.
@@ -10685,7 +10685,7 @@ int32_t xberg_email_attachment_is_image(const XBERGEmailAttachment *ptr);
  * Pointer must be a valid handle returned by this library.
  */
 uint8_t *xberg_email_attachment_data(const XBERGEmailAttachment *ptr,
-    uintptr_t *out_len);
+                                     uintptr_t *out_len);
 
 /**
  * Create a `OcrExtractionResult` from a JSON string. Returns null on failure.
@@ -15676,8 +15676,8 @@ float xberg_page_signals_layout_text_density(const XBERGPageSignals *ptr);
  * freed with the appropriate free function.
  */
 XBERGPageSignals *xberg_page_signals_from_page_text(uint32_t page_number,
-    const char *text,
-    float layout_text_density);
+                                                    const char *text,
+                                                    float layout_text_density);
 
 /**
  * Create a `DocumentBoundary` from a JSON string. Returns null on failure.
@@ -15789,9 +15789,9 @@ XBERGMetaSchema *xberg_meta_schema_compile(const char *meta_schema_json);
  * freed with the appropriate free function.
  */
 XBERGPreset *xberg_meta_schema_parse_preset(const XBERGMetaSchema *this_,
-    const char *path,
-    const uint8_t *raw,
-    uintptr_t raw_len);
+                                            const char *path,
+                                            const uint8_t *raw,
+                                            uintptr_t raw_len);
 
 /**
  * Free a `Registry` handle.
@@ -15808,7 +15808,7 @@ XBERGRegistry *xberg_registry_load_embedded(void);
  * freed with the appropriate free function.
  */
 XBERGPreset *xberg_registry_get(const XBERGRegistry *this_,
-    const char *id);
+                                const char *id);
 
 /**
  * Materialize a `PresetSummary` list for the public registry endpoint.
@@ -15838,8 +15838,8 @@ int32_t xberg_registry_is_empty(const XBERGRegistry *this_);
  * freed with the appropriate free function.
  */
 uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
-    const char *preset_id,
-    const char *name);
+                                     const char *preset_id,
+                                     const char *name);
 
 /**
  * Load additional preset files from a runtime directory and insert them
@@ -15861,7 +15861,7 @@ uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
  * freed with the appropriate free function.
  */
 uintptr_t xberg_registry_extend_from_dir(XBERGRegistry *this_,
-    const char *dir);
+                                         const char *dir);
 
 /**
  * Create a `ResolvedPreset` from a JSON string. Returns null on failure.
@@ -16321,7 +16321,7 @@ char *xberg_paddle_ocr_config_model_version(const XBERGPaddleOcrConfig *ptr);
  * \endcode
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfig *this_,
-    const char *path);
+                                                             const char *path);
 
 /**
  * Enables or disables table structure detection.
@@ -16336,7 +16336,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfi
  * \endcode
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOcrConfig *this_,
-    int32_t enable);
+                                                                   int32_t enable);
 
 /**
  * Enables or disables angle classification for rotated text.
@@ -16345,7 +16345,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOc
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfig *this_,
-    int32_t enable);
+                                                             int32_t enable);
 
 /**
  * Sets the database threshold for text detection.
@@ -16354,7 +16354,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfi
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrConfig *this_,
-    float threshold);
+                                                                 float threshold);
 
 /**
  * Sets the box threshold for text bounding box refinement.
@@ -16363,7 +16363,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrC
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddleOcrConfig *this_,
-    float threshold);
+                                                                     float threshold);
 
 /**
  * Sets the unclip ratio for expanding text bounding boxes.
@@ -16372,7 +16372,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddle
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPaddleOcrConfig *this_,
-    float ratio);
+                                                                       float ratio);
 
 /**
  * Sets the maximum side length for detection images.
@@ -16381,7 +16381,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPadd
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddleOcrConfig *this_,
-    uint32_t length);
+                                                                      uint32_t length);
 
 /**
  * Sets the batch size for recognition inference.
@@ -16390,7 +16390,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddl
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrConfig *this_,
-    uint32_t batch_size);
+                                                                 uint32_t batch_size);
 
 /**
  * Sets the minimum recognition confidence threshold.
@@ -16399,7 +16399,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrC
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConfig *this_,
-    float score);
+                                                              float score);
 
 /**
  * Sets padding in pixels added around images before detection.
@@ -16408,7 +16408,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConf
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig *this_,
-    uint32_t padding);
+                                                           uint32_t padding);
 
 /**
  * Sets the model tier controlling detection/recognition model size.
@@ -16418,7 +16418,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig 
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConfig *this_,
-    const char *tier);
+                                                              const char *tier);
 
 /**
  * Sets the model generation.
@@ -16428,7 +16428,7 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConf
  * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_version(XBERGPaddleOcrConfig *this_,
-    const char *version);
+                                                                 const char *version);
 
 /**
  * Creates a default configuration with English language support.
@@ -16744,7 +16744,7 @@ char *xberg_embedded_file_name(const XBERGEmbeddedFile *ptr);
  * Pointer must be a valid handle returned by this library.
  */
 uint8_t *xberg_embedded_file_data(const XBERGEmbeddedFile *ptr,
-    uintptr_t *out_len);
+                                  uintptr_t *out_len);
 
 /**
  * Get the `compressed_size` field from a `EmbeddedFile`.
@@ -20743,7 +20743,7 @@ void xberg_url_escape_style_free(XBERGUrlEscapeStyle *ptr);
  * freed with the appropriate free function.
  */
 XBERGExtractionResult *xberg_extract(const XBERGExtractInput *input,
-    const XBERGExtractionConfig *config);
+                                     const XBERGExtractionConfig *config);
 
 /**
  * Extract content from multiple bytes or URI inputs.
@@ -20751,7 +20751,7 @@ XBERGExtractionResult *xberg_extract(const XBERGExtractInput *input,
  * freed with the appropriate free function.
  */
 XBERGExtractionResult *xberg_extract_batch(const char *inputs,
-    const XBERGExtractionConfig *config);
+                                           const XBERGExtractionConfig *config);
 
 /**
  * Discover all pages and sitemaps reachable from `uri` without extracting document content.
@@ -20768,7 +20768,7 @@ XBERGExtractionResult *xberg_extract_batch(const char *inputs,
  * freed with the appropriate free function.
  */
 XBERGMapResult *xberg_map_url(const char *uri,
-    const XBERGUrlExtractionConfig *config);
+                              const XBERGUrlExtractionConfig *config);
 
 /**
  * List all supported document formats.
@@ -20984,7 +20984,7 @@ uintptr_t xberg_list_validators_len(void);
  * freed with the appropriate free function.
  */
 int32_t xberg_classify_chunks(XBERGExtractedDocument *result,
-    const XBERGChunkClassificationConfig *config);
+                              const XBERGChunkClassificationConfig *config);
 
 /**
  * Find unmarked claims in markdown text.
@@ -21044,7 +21044,7 @@ uintptr_t xberg_find_unmarked_claims_len(const char *_markdown);
  * \endcode
  */
 int32_t xberg_verify_excerpt(const char *excerpt,
-    const char *source_text);
+                             const char *source_text);
 
 /**
  * Async wrapper over `embed_sparse`: runs the blocking ONNX inference on a
@@ -21055,7 +21055,7 @@ int32_t xberg_verify_excerpt(const char *excerpt,
  * freed with the appropriate free function.
  */
 char *xberg_embed_sparse_async(const char *texts,
-    const XBERGSparseEmbeddingConfig *config);
+                               const XBERGSparseEmbeddingConfig *config);
 
 /**
  * Return the byte length of the C string most recently returned by `xberg_embed_sparse_async` on this
@@ -21065,7 +21065,7 @@ char *xberg_embed_sparse_async(const char *texts,
  * with `xberg_embed_sparse_async`.
  */
 uintptr_t xberg_embed_sparse_async_len(const char *_texts,
-    const XBERGSparseEmbeddingConfig *_config);
+                                       const XBERGSparseEmbeddingConfig *_config);
 
 /**
  * Score a query against a document using ColBERT's MaxSim operator: for each
@@ -21084,7 +21084,7 @@ uintptr_t xberg_embed_sparse_async_len(const char *_texts,
  * freed with the appropriate free function.
  */
 double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
-    const XBERGMultiVectorEmbedding *doc);
+                           const XBERGMultiVectorEmbedding *doc);
 
 /**
  * Rank a set of documents against a query by MaxSim score, descending.
@@ -21099,7 +21099,7 @@ double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
  * freed with the appropriate free function.
  */
 char *xberg_max_sim_rank(const XBERGMultiVectorEmbedding *query,
-    const char *docs);
+                         const char *docs);
 
 /**
  * Return the byte length of the C string most recently returned by `xberg_max_sim_rank` on this
@@ -21109,7 +21109,7 @@ char *xberg_max_sim_rank(const XBERGMultiVectorEmbedding *query,
  * with `xberg_max_sim_rank`.
  */
 uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
-    const char *_docs);
+                                 const char *_docs);
 
 /**
  * Async wrapper over `embed_multi_vector`: runs the blocking ONNX inference
@@ -21120,8 +21120,8 @@ uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
  * freed with the appropriate free function.
  */
 char *xberg_embed_multi_vector_async(const char *texts,
-    const XBERGLateInteractionConfig *config,
-    int32_t is_query);
+                                     const XBERGLateInteractionConfig *config,
+                                     int32_t is_query);
 
 /**
  * Return the byte length of the C string most recently returned by `xberg_embed_multi_vector_async` on
@@ -21131,8 +21131,8 @@ char *xberg_embed_multi_vector_async(const char *texts,
  * with `xberg_embed_multi_vector_async`.
  */
 uintptr_t xberg_embed_multi_vector_async_len(const char *_texts,
-    const XBERGLateInteractionConfig *_config,
-    int32_t _is_query);
+                                             const XBERGLateInteractionConfig *_config,
+                                             int32_t _is_query);
 
 /**
  * Register a C plugin implementing `OcrBackend` via a vtable.
@@ -21151,9 +21151,9 @@ uintptr_t xberg_embed_multi_vector_async_len(const char *_texts,
  * into the plugin.
  */
 int32_t xberg_register_ocr_backend(const char *name,
-    const struct XBERGXbergOcrBackendVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                   const struct XBERGXbergOcrBackendVTable *vtable,
+                                   const void *user_data,
+                                   char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21168,7 +21168,7 @@ int32_t xberg_register_ocr_backend(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_ocr_backend(const char *name,
-    char **out_error);
+                                     char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21201,9 +21201,9 @@ int32_t xberg_clear_ocr_backend(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_post_processor(const char *name,
-    const struct XBERGXbergPostProcessorVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                      const struct XBERGXbergPostProcessorVTable *vtable,
+                                      const void *user_data,
+                                      char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21218,7 +21218,7 @@ int32_t xberg_register_post_processor(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_post_processor(const char *name,
-    char **out_error);
+                                        char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21251,9 +21251,9 @@ int32_t xberg_clear_post_processor(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_validator(const char *name,
-    const struct XBERGXbergValidatorVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                 const struct XBERGXbergValidatorVTable *vtable,
+                                 const void *user_data,
+                                 char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21268,7 +21268,7 @@ int32_t xberg_register_validator(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_validator(const char *name,
-    char **out_error);
+                                   char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21301,9 +21301,9 @@ int32_t xberg_clear_validator(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_document_extractor(const char *name,
-    const struct XBERGXbergDocumentExtractorVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                          const struct XBERGXbergDocumentExtractorVTable *vtable,
+                                          const void *user_data,
+                                          char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21318,7 +21318,7 @@ int32_t xberg_register_document_extractor(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_document_extractor(const char *name,
-    char **out_error);
+                                            char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21351,9 +21351,9 @@ int32_t xberg_clear_document_extractor(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_embedding_backend(const char *name,
-    const struct XBERGXbergEmbeddingBackendVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                         const struct XBERGXbergEmbeddingBackendVTable *vtable,
+                                         const void *user_data,
+                                         char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21368,7 +21368,7 @@ int32_t xberg_register_embedding_backend(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_embedding_backend(const char *name,
-    char **out_error);
+                                           char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21401,9 +21401,9 @@ int32_t xberg_clear_embedding_backend(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_renderer(const char *name,
-    const struct XBERGXbergRendererVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                const struct XBERGXbergRendererVTable *vtable,
+                                const void *user_data,
+                                char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21418,7 +21418,7 @@ int32_t xberg_register_renderer(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_renderer(const char *name,
-    char **out_error);
+                                  char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21451,9 +21451,9 @@ int32_t xberg_clear_renderer(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_reranker_backend(const char *name,
-    const struct XBERGXbergRerankerBackendVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                        const struct XBERGXbergRerankerBackendVTable *vtable,
+                                        const void *user_data,
+                                        char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21468,7 +21468,7 @@ int32_t xberg_register_reranker_backend(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_reranker_backend(const char *name,
-    char **out_error);
+                                          char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -21501,9 +21501,9 @@ int32_t xberg_clear_reranker_backend(char **out_error);
  * into the plugin.
  */
 int32_t xberg_register_tokenizer_backend(const char *name,
-    const struct XBERGXbergTokenizerBackendVTable *vtable,
-    const void *user_data,
-    char **out_error);
+                                         const struct XBERGXbergTokenizerBackendVTable *vtable,
+                                         const void *user_data,
+                                         char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -21518,7 +21518,7 @@ int32_t xberg_register_tokenizer_backend(const char *name,
  * `name` must point to a valid null-terminated C string.
  */
 int32_t xberg_unregister_tokenizer_backend(const char *name,
-    char **out_error);
+                                           char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.

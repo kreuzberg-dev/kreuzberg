@@ -14,9 +14,9 @@ defmodule E2eElixir.MixProject do
     [
       {:xberg, path: "../../packages/elixir"},
       {:rustler_precompiled, "~> 0.9"},
-      {:rustler, "~> 0.37", runtime: false},
-      {:finch, "~> 0.18"},
-      {:req, "~> 0.5"},
+      {:rustler, "~> 0.38", runtime: false},
+      {:finch, "~> 0.23"},
+      {:req, "~> 0.6"},
       {:jason, "~> 1.4"}
     ]
   end

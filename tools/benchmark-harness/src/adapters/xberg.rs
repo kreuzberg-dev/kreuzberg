@@ -35,6 +35,7 @@ const NATIVE_BENCHMARK_CONFIG_JSON: &str = r#"{"extraction_timeout_secs":1740,"u
 const TESSERACT_BENCHMARK_CONFIG_JSON: &str = r#"{
     "extraction_timeout_secs":1740,
     "use_cache":false,
+    "force_ocr":true,
     "ocr":{
         "enabled":true,
         "backend":"tesseract",
@@ -362,8 +363,9 @@ mod tests {
     }
 
     #[test]
-    fn tesseract_benchmark_config_disables_ocr_cache() {
+    fn tesseract_benchmark_config_forces_ocr_and_disables_cache() {
         let config = merged_benchmark_config(true);
+        assert!(config.force_ocr);
         let ocr = config.ocr.unwrap();
         let tesseract = ocr.tesseract_config.unwrap();
 

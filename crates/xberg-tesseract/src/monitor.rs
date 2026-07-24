@@ -50,6 +50,19 @@ impl TessMonitor {
         let handle = self.handle.lock().map_err(|_| TesseractError::MutexLockError)?;
         Ok(unsafe { TessMonitorGetProgress(*handle) })
     }
+
+    /// Returns the raw underlying monitor handle.
+    ///
+    /// Intended for internal use by [`crate::TesseractAPI::recognize_with_monitor`]
+    /// to pass the monitor into `TessBaseAPIRecognize`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `TesseractError::MutexLockError` if the mutex lock fails.
+    pub(crate) fn as_ptr(&self) -> Result<*mut c_void> {
+        let handle = self.handle.lock().map_err(|_| TesseractError::MutexLockError)?;
+        Ok(*handle)
+    }
 }
 
 impl Drop for TessMonitor {

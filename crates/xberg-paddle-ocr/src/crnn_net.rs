@@ -13,6 +13,41 @@ use crate::{
 };
 
 const CRNN_DST_HEIGHT: u32 = 48;
+const CTC_SPACE_TOKEN: &str = " ";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RecognitionDictionaryLayout {
+    Complete,
+    MissingBlank,
+    MissingBlankAndSpace,
+}
+
+impl RecognitionDictionaryLayout {
+    fn resolve(dictionary_len: usize, class_count: usize) -> Result<Self, OcrError> {
+        match class_count.checked_sub(dictionary_len) {
+            Some(0) => Ok(Self::Complete),
+            Some(1) => Ok(Self::MissingBlank),
+            Some(2) => Ok(Self::MissingBlankAndSpace),
+            _ => Err(OcrError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Recognition dictionary has {dictionary_len} entries but model output has \
+                     {class_count} classes; expected an equal class count or exactly one/two \
+                     additional CTC classes"
+                ),
+            ))),
+        }
+    }
+
+    fn token(self, class_index: usize, keys: &[String]) -> Option<&str> {
+        match self {
+            Self::Complete => keys.get(class_index).map(String::as_str),
+            Self::MissingBlank => keys.get(class_index.checked_sub(1)?).map(String::as_str),
+            Self::MissingBlankAndSpace if class_index == keys.len() + 1 => Some(CTC_SPACE_TOKEN),
+            Self::MissingBlankAndSpace => keys.get(class_index.checked_sub(1)?).map(String::as_str),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct CrnnNet {
@@ -99,9 +134,7 @@ impl CrnnNet {
     fn read_keys_from_file(&mut self, path: &str) -> Result<(), OcrError> {
         let content = std::fs::read_to_string(path)?;
 
-        let keys: Vec<String> = content.split('\n').map(|s| s.to_string()).collect();
-
-        self.keys = keys;
+        self.keys = content.lines().map(str::to_string).collect();
         Ok(())
     }
 
@@ -279,6 +312,7 @@ impl CrnnNet {
         width: usize,
         keys: &[String],
     ) -> Result<TextLine, OcrError> {
+        let dictionary_layout = RecognitionDictionaryLayout::resolve(keys.len(), width)?;
         let mut text_line = TextLine::default();
         let mut last_index = 0;
 
@@ -297,8 +331,11 @@ impl CrnnNet {
                         if val > max_val { (idx, val) } else { (max_idx, max_val) }
                     });
 
-            if max_index > 0 && max_index < keys.len() && !(i > 0 && max_index == last_index) {
-                text_line.text.push_str(&keys[max_index]);
+            if max_index > 0
+                && !(i > 0 && max_index == last_index)
+                && let Some(token) = dictionary_layout.token(max_index, keys)
+            {
+                text_line.text.push_str(token);
                 text_score_sum += max_value;
                 text_score_count += 1;
             }
@@ -318,6 +355,14 @@ impl CrnnNet {
 mod tests {
     use super::*;
 
+    fn output_for_classes(class_count: usize, classes: &[usize]) -> Vec<f32> {
+        let mut output = vec![0.0; class_count * classes.len()];
+        for (timestep, class_index) in classes.iter().copied().enumerate() {
+            output[timestep * class_count + class_index] = 1.0;
+        }
+        output
+    }
+
     #[test]
     fn test_score_to_text_line_skips_blank_index() {
         let keys = vec!["#".to_string(), "a".to_string(), "b".to_string()];
@@ -335,20 +380,53 @@ mod tests {
     }
 
     #[test]
-    fn test_read_keys_from_file_preserves_dict_layout() {
-        let dir = std::env::temp_dir().join("xberg_test_dict");
+    fn test_score_to_text_line_preserves_complete_dictionary() {
+        let keys = vec!["#".to_string(), "a".to_string(), " ".to_string()];
+        let output = output_for_classes(keys.len(), &[0, 1, 2]);
+        let result = CrnnNet::score_to_text_line(&output, 3, keys.len(), &keys).unwrap();
+        assert_eq!(result.text, "a ");
+    }
+
+    #[test]
+    fn test_score_to_text_line_prepends_missing_blank() {
+        let keys = vec!["a".to_string(), "b".to_string()];
+        let class_count = keys.len() + 1;
+        let output = output_for_classes(class_count, &[0, 1, 2]);
+        let result = CrnnNet::score_to_text_line(&output, 3, class_count, &keys).unwrap();
+        assert_eq!(result.text, "ab");
+    }
+
+    #[test]
+    fn test_score_to_text_line_adds_missing_blank_and_space() {
+        let keys = vec!["a".to_string(), "b".to_string()];
+        let class_count = keys.len() + 2;
+        let output = output_for_classes(class_count, &[0, 1, 2, 3]);
+        let result = CrnnNet::score_to_text_line(&output, 4, class_count, &keys).unwrap();
+        assert_eq!(result.text, "ab ");
+    }
+
+    #[test]
+    fn test_score_to_text_line_rejects_dictionary_class_mismatch() {
+        let keys = vec!["a".to_string()];
+        let class_count = keys.len() + 3;
+        let output = output_for_classes(class_count, &[1]);
+        let error = CrnnNet::score_to_text_line(&output, 1, class_count, &keys).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("dictionary has 1 entries"));
+        assert!(message.contains("model output has 4 classes"));
+    }
+
+    #[test]
+    fn test_read_keys_from_file_preserves_crlf_and_internal_blank() {
+        let dir = std::env::temp_dir().join(format!("xberg_test_crnn_dictionary_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let dict_path = dir.join("test_dict.txt");
-        std::fs::write(&dict_path, "#\na\nb\nc\n ").unwrap();
+        std::fs::write(&dict_path, "a\r\n\r\nb\r\n").unwrap();
 
         let mut net = CrnnNet::new();
         net.read_keys_from_file(dict_path.to_str().unwrap()).unwrap();
 
-        assert_eq!(net.keys[0], "#");
-        assert_eq!(net.keys[1], "a");
-        assert_eq!(net.keys[2], "b");
-        assert_eq!(net.keys[3], "c");
-        assert_eq!(net.keys[net.keys.len() - 1], " ");
+        assert_eq!(net.keys, ["a", "", "b"]);
 
         std::fs::remove_dir_all(&dir).ok();
     }

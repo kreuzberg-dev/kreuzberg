@@ -1,6 +1,6 @@
 {
   "name": "@xberg-io/xberg-wasm",
-  "version": "1.0.0-rc.36",
+  "version": "1.0.0-rc.37",
   "private": false,
   "description": "High-performance document intelligence library",
   "license": "MIT",

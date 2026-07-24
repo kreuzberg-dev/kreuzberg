@@ -7,6 +7,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub(super) const MIN_RECOGNITION_BATCH_SIZE: u32 = 1;
+pub(super) const DEFAULT_RECOGNITION_BATCH_SIZE: u32 = 6;
+pub(super) const MAX_RECOGNITION_BATCH_SIZE: u32 = 64;
+
 /// Configuration for PaddleOCR backend.
 ///
 /// Configures PaddleOCR text detection and recognition with multi-language support.
@@ -122,7 +126,7 @@ impl PaddleOcrConfig {
             det_db_box_thresh: 0.5,
             det_db_unclip_ratio: 1.6,
             det_limit_side_len: 960,
-            rec_batch_num: 6,
+            rec_batch_num: DEFAULT_RECOGNITION_BATCH_SIZE,
             padding: 10,
             drop_score: 0.5,
             model_tier: "mobile".to_string(),
@@ -263,7 +267,7 @@ impl PaddleOcrConfig {
     ///
     /// * `batch_size` - Number of text regions to process simultaneously
     pub fn with_rec_batch_num(mut self, batch_size: u32) -> Self {
-        self.rec_batch_num = batch_size.clamp(1, 64);
+        self.rec_batch_num = batch_size.clamp(MIN_RECOGNITION_BATCH_SIZE, MAX_RECOGNITION_BATCH_SIZE);
         self
     }
 

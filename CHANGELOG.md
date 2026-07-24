@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- PaddleOCR now applies `PaddleOcrConfig::rec_batch_num` to recognition inference.
+
+## [1.0.0-rc.37] - 2026-07-24
+
+Republish of rc.36 under a fresh version: rc.36 again partially published (the core PyPI linux
+wheels, the npm/PyPI/Maven integrations, the Homebrew sequoia bottle, and the `-core` Docker image
+all failed on release-pipeline bugs while the immutable registries had already shipped, burning the
+rc.36 number). The library code is unchanged from rc.36; this release fixes the pipeline so every
+channel publishes.
+
+### Fixed
+
+- **Python linux wheels.** The glibc-floor verifier matches auditwheel's hashed ONNX Runtime soname
+  (`libonnxruntime*.so*`), so the linux wheels no longer fail verification after correctly bundling
+  the runtime.
+- **Go module resolution.** The `packages/go` module tag is created on release again, so
+  `go get .../packages/go@v1.0.0-rc.37` resolves.
+- **Swift C++ runtime linkage.** The Swift package links the C++ standard library (libc++ on Apple
+  platforms, libstdc++ on Linux), fixing undefined C++ ABI symbols at link time.
+- **Zig package upload.** The Zig package tarball is uploaded via `gh release upload`, fixing the
+  silent upload failure that left releases without a Zig artifact.
+- **WASM OCR.** The WebAssembly Tesseract backend applies an explicit page-segmentation mode and a
+  recognition deadline instead of PSM_AUTO, which could trap or hang under WASI.
+- **npm integrations publish.** The n8n / LangChain / LlamaIndex node packages install with
+  `npm install`: the exact `@xberg-io/xberg` rc pin only exists once the core node package publishes
+  in the same run, so a committed lockfile can never pre-match it.
+- **PyPI integrations publish.** Uploads skip files already on the index (`uv publish --check-url`),
+  so a re-run over a partially-published set of integration packages no longer fails.
+- **spring-ai Maven publish.** The integration deploy waits for the core `io.xberg:xberg` artifact to
+  become resolvable on Maven Central (indexing lag) before building.
+- **Homebrew bottle upload.** The bottle upload uses a token minted after the slow from-source build
+  so it can't 401 on an expired App-token TTL, and a single failed platform no longer drops the
+  bottle DSL for the others.
+- **Docker `-core` image (#1299).** The manifest-merge is decoupled from the full build matrix, so a
+  timed-out sibling build leg no longer suppresses the `-core` image publish.
+
+### Added
+
+- **Local integration packaging dry-run.** `task integrations:build` builds the publishable Python
+  distributions locally to catch packaging breaks before tagging a release.
+
 ## [1.0.0-rc.36] - 2026-07-24
 
 Republish of rc.35 (same library code — #1296 chunk-to-node linkage and #1303 base64 embeddings)

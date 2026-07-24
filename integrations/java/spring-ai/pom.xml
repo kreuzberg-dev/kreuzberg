@@ -8,7 +8,7 @@
 
   <groupId>io.xberg</groupId>
   <artifactId>spring-ai-xberg</artifactId>
-  <version>1.0.0-rc.36</version>
+  <version>1.0.0-rc.37</version>
   <packaging>jar</packaging>
 
   <name>Xberg Spring AI Document Reader</name>
@@ -42,7 +42,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
-    <xberg.version>1.0.0-rc.36</xberg.version>
+    <xberg.version>1.0.0-rc.37</xberg.version>
     <spring-ai.version>2.0.0</spring-ai.version>
     <junit.version>5.12.2</junit.version>
     <assertj.version>3.27.3</assertj.version>

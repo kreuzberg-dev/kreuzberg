@@ -1,6 +1,6 @@
 [package]
 name = "xberg-php"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 edition = "2024"
 license = "MIT"
 description = "High-performance document intelligence library"
@@ -64,10 +64,10 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 
 [target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../xberg", features = ["macos-intel-target"] }
+xberg = { version = "1.0.0-rc.37", path = "../xberg", features = ["macos-intel-target"] }
 
 [target.'cfg(not(any(target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../xberg", features = ["full", "pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
+xberg = { version = "1.0.0-rc.37", path = "../xberg", features = ["full", "pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../xberg", features = ["windows-target"] }
+xberg = { version = "1.0.0-rc.37", path = "../xberg", features = ["windows-target"] }

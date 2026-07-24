@@ -100,20 +100,20 @@ Add to your `pom.xml`:
 <dependency>
     <groupId>io.xberg</groupId>
     <artifactId>xberg</artifactId>
-    <version>1.0.0-rc.36</version>
+    <version>1.0.0-rc.37</version>
 </dependency>
 ```
 
 Kotlin DSL (`build.gradle.kts`):
 
 ```kotlin
-implementation("io.xberg:xberg:1.0.0-rc.36")
+implementation("io.xberg:xberg:1.0.0-rc.37")
 ```
 
 Groovy DSL (`build.gradle`):
 
 ```groovy
-implementation 'io.xberg:xberg:1.0.0-rc.36'
+implementation 'io.xberg:xberg:1.0.0-rc.37'
 ```
 
 ### System Requirements

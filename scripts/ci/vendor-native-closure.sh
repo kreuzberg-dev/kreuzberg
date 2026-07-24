@@ -16,8 +16,6 @@ is_base_lib() {
 
 set_origin_rpath() {
   local elf="$1"
-  # Every copied library may have its own transitive DT_NEEDED entries. Giving
-  # each ELF an origin-relative RUNPATH keeps the flattened bundle relocatable.
   # shellcheck disable=SC2016
   patchelf --set-rpath '$ORIGIN' "$elf"
 }
@@ -27,8 +25,6 @@ verify_local_closure() {
   dir="$(cd "$(dirname "$native")" && pwd)"
   report="$(mktemp)"
 
-  # install-system-deps exports /usr/local/lib for the build. Drop it here so
-  # this check proves the packaged RUNPATH works without the build environment.
   if ! env -u LD_LIBRARY_PATH ldd "$native" >"$report" 2>&1; then
     cat "$report" >&2
     rm -f "$report"
@@ -117,9 +113,6 @@ main() {
   *.whl)
     WORKDIR="$(mktemp -d)"
     trap cleanup EXIT
-    # Resolve to an absolute path before the subshell cd's into $WORKDIR below,
-    # or a relative $artifact would be (re)created inside $WORKDIR instead of
-    # the original cwd.
     artifact="$(cd "$(dirname "$artifact")" && pwd)/$(basename "$artifact")"
     unzip -qo "$artifact" -d "$WORKDIR"
     vendor_tree "$WORKDIR"

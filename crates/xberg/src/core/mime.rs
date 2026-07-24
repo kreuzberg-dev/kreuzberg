@@ -6,9 +6,14 @@
 //! Format information is centralized in the `FORMATS` registry. All extension-to-MIME
 //! mappings and supported MIME type validation are derived from this single source of truth.
 
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+use crate::extractors::security::SecurityLimits;
 use crate::{Result, XbergError};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::io::Read;
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+use std::io::{Seek, SeekFrom};
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -42,6 +47,11 @@ pub(crate) const XML_MIME_TYPE: &str = "application/xml";
 pub(crate) const SOURCE_CODE_MIME_TYPE: &str = "text/x-source-code";
 
 pub(crate) const EXCEL_MIME_TYPE: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+pub(crate) const ODT_MIME_TYPE: &str = "application/vnd.oasis.opendocument.text";
+pub(crate) const ODP_MIME_TYPE: &str = "application/vnd.oasis.opendocument.presentation";
+pub(crate) const ODS_MIME_TYPE: &str = "application/vnd.oasis.opendocument.spreadsheet";
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+const ZIP_MIME_TYPE: &str = "application/zip";
 
 pub(crate) const HWPX_MIME_TYPE: &str = "application/haansofthwpx";
 pub(crate) const IWORK_PAGES_MIME_TYPE: &str = "application/x-iwork-pages-sffpages";
@@ -179,12 +189,12 @@ static FORMATS: &[FormatEntry] = &[
     },
     FormatEntry {
         extensions: &["odt"],
-        mime_type: "application/vnd.oasis.opendocument.text",
+        mime_type: ODT_MIME_TYPE,
         aliases: &[],
     },
     FormatEntry {
         extensions: &["odp"],
-        mime_type: "application/vnd.oasis.opendocument.presentation",
+        mime_type: ODP_MIME_TYPE,
         aliases: &[],
     },
     FormatEntry {
@@ -254,7 +264,7 @@ static FORMATS: &[FormatEntry] = &[
     },
     FormatEntry {
         extensions: &["ods"],
-        mime_type: "application/vnd.oasis.opendocument.spreadsheet",
+        mime_type: ODS_MIME_TYPE,
         aliases: &[],
     },
     FormatEntry {
@@ -732,8 +742,6 @@ pub(crate) fn detect_or_validate(path: Option<&str>, mime_type: Option<&str>) ->
 /// type than the extension did, return it. Returns `None` when the content has
 /// no signature, the read fails, or content and extension agree.
 fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
-    use std::io::Read;
-
     let mut file = std::fs::File::open(path).ok()?;
     let mut header = vec![0u8; 4096];
     let n = file.read(&mut header).ok()?;
@@ -743,6 +751,13 @@ fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
     }
 
     let from_magic = detect_mime_type_from_bytes(&header).ok()?;
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    if (from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument."))
+        && let Some(odf_mime) = detect_odf_mime_from_zip(std::fs::File::open(path).ok()?)
+    {
+        return (odf_mime != extension_mime).then(|| odf_mime.to_string());
+    }
+
     if from_magic == PLAIN_TEXT_MIME_TYPE {
         return None;
     }
@@ -775,6 +790,13 @@ fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
 pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
     if let Some(kind) = infer::get(content) {
         let mime_type = kind.mime_type();
+
+        #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+        if mime_type.starts_with("application/vnd.oasis.opendocument.") {
+            return Ok(detect_odf_mime_from_zip(std::io::Cursor::new(content))
+                .unwrap_or(ZIP_MIME_TYPE)
+                .to_string());
+        }
 
         if mime_type == "application/zip"
             && let Some(office_mime) = detect_office_format_from_zip(content)
@@ -844,12 +866,16 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
     const DOCX_MARKER: &[u8] = b"word/document.xml";
     const XLSX_MARKER: &[u8] = b"xl/workbook.xml";
     const PPTX_MARKER: &[u8] = b"ppt/presentation.xml";
-
     const PAGES_MARKER: &[u8] = b"Index/Document.iwa";
     const NUMBERS_MARKER: &[u8] = b"Index/CalculationEngine.iwa";
     const KEYNOTE_MARKER: &[u8] = b"Index/Presentation.iwa";
 
     const HWPX_MARKER: &[u8] = b"Contents/content.hpf";
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    if let Some(odf_mime) = detect_odf_mime_from_zip(std::io::Cursor::new(content)) {
+        return Some(odf_mime);
+    }
+
     if contains_subsequence(content, HWPX_MARKER) {
         return Some(HWPX_MIME_TYPE);
     }
@@ -873,8 +899,151 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
     if contains_subsequence(content, PPTX_MARKER) {
         return Some(POWER_POINT_MIME_TYPE);
     }
-
     None
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn detect_odf_mime_from_zip<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
+    const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
+
+    let limits = SecurityLimits::default();
+    if !zip_central_directory_within_limits(&mut reader, &limits) {
+        return None;
+    }
+    reader.seek(SeekFrom::Start(0)).ok()?;
+
+    let mut archive = zip::ZipArchive::new(reader).ok()?;
+
+    let mut mimetype_index = None;
+    for index in 0..archive.len() {
+        if archive.by_index(index).ok()?.name() == "mimetype" && mimetype_index.replace(index).is_some() {
+            return None;
+        }
+    }
+
+    let mimetype = archive.by_index(mimetype_index?).ok()?;
+    if mimetype.size() > MAX_MIMETYPE_LENGTH {
+        return None;
+    }
+
+    let mut value = Vec::with_capacity(mimetype.size() as usize);
+    mimetype.take(MAX_MIMETYPE_LENGTH + 1).read_to_end(&mut value).ok()?;
+    match value.as_slice() {
+        value if value == ODT_MIME_TYPE.as_bytes() => Some(ODT_MIME_TYPE),
+        value if value == ODP_MIME_TYPE.as_bytes() => Some(ODP_MIME_TYPE),
+        value if value == ODS_MIME_TYPE.as_bytes() => Some(ODS_MIME_TYPE),
+        _ => None,
+    }
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+struct ZipCentralDirectory {
+    offset: u64,
+    size: usize,
+    entries: u16,
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn read_zip_central_directory<R: Read + Seek>(reader: &mut R, limits: &SecurityLimits) -> Option<ZipCentralDirectory> {
+    const EOCD_SIGNATURE: &[u8; 4] = b"PK\x05\x06";
+    const EOCD_MIN_LENGTH: u64 = 22;
+    const MAX_ZIP_COMMENT_LENGTH: u64 = u16::MAX as u64;
+
+    let archive_length = reader.seek(SeekFrom::End(0)).ok()?;
+    if archive_length < EOCD_MIN_LENGTH || archive_length > limits.max_archive_size as u64 {
+        return None;
+    }
+
+    let tail_length = archive_length.min(EOCD_MIN_LENGTH + MAX_ZIP_COMMENT_LENGTH);
+    reader.seek(SeekFrom::End(-(tail_length as i64))).ok()?;
+    let mut tail = vec![0; tail_length as usize];
+    reader.read_exact(&mut tail).ok()?;
+
+    let eocd_offset = tail
+        .windows(EOCD_SIGNATURE.len())
+        .rposition(|window| window == EOCD_SIGNATURE)?;
+    let eocd = &tail[eocd_offset..];
+    if eocd.len() < EOCD_MIN_LENGTH as usize {
+        return None;
+    }
+
+    let disk_number = u16::from_le_bytes([eocd[4], eocd[5]]);
+    let central_directory_disk = u16::from_le_bytes([eocd[6], eocd[7]]);
+    let entries_on_disk = u16::from_le_bytes([eocd[8], eocd[9]]);
+    let entries = u16::from_le_bytes([eocd[10], eocd[11]]);
+    let size = u32::from_le_bytes([eocd[12], eocd[13], eocd[14], eocd[15]]) as usize;
+    let offset = u32::from_le_bytes([eocd[16], eocd[17], eocd[18], eocd[19]]) as u64;
+    let comment_length = u16::from_le_bytes([eocd[20], eocd[21]]) as usize;
+    let is_valid = eocd.len() == EOCD_MIN_LENGTH as usize + comment_length
+        && disk_number == 0
+        && central_directory_disk == 0
+        && entries_on_disk == entries
+        && entries != u16::MAX
+        && entries as usize <= limits.max_files_in_archive
+        && size <= limits.max_content_size
+        && offset.checked_add(size as u64).is_some_and(|end| end <= archive_length);
+    is_valid.then_some(ZipCentralDirectory { offset, size, entries })
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn read_central_directory_entry<R: Read + Seek>(reader: &mut R) -> Option<(Vec<u8>, usize)> {
+    const HEADER_SIGNATURE: &[u8; 4] = b"PK\x01\x02";
+    const HEADER_LENGTH: usize = 46;
+
+    let mut header = [0; HEADER_LENGTH];
+    reader.read_exact(&mut header).ok()?;
+    (&header[..4] == HEADER_SIGNATURE).then_some(())?;
+
+    let name_length = u16::from_le_bytes([header[28], header[29]]) as usize;
+    let extra_length = u16::from_le_bytes([header[30], header[31]]) as usize;
+    let comment_length = u16::from_le_bytes([header[32], header[33]]) as usize;
+    let entry_length = HEADER_LENGTH
+        .checked_add(name_length)?
+        .checked_add(extra_length)?
+        .checked_add(comment_length)?;
+
+    let mut name = vec![0; name_length];
+    reader.read_exact(&mut name).ok()?;
+    reader
+        .seek(SeekFrom::Current((extra_length + comment_length) as i64))
+        .ok()?;
+    Some((name, entry_length))
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn central_directory_has_unique_mimetype<R: Read + Seek>(reader: &mut R, directory: &ZipCentralDirectory) -> bool {
+    if reader.seek(SeekFrom::Start(directory.offset)).is_err() {
+        return false;
+    }
+
+    let mut bytes_read = 0usize;
+    let mut mimetype_entries = 0usize;
+    for _ in 0..directory.entries {
+        let Some((name, entry_length)) = read_central_directory_entry(reader) else {
+            return false;
+        };
+        let Some(next_bytes_read) = bytes_read.checked_add(entry_length) else {
+            return false;
+        };
+        if next_bytes_read > directory.size {
+            return false;
+        }
+        if name == b"mimetype" {
+            mimetype_entries += 1;
+            if mimetype_entries > 1 {
+                return false;
+            }
+        }
+        bytes_read = next_bytes_read;
+    }
+
+    true
+}
+
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn zip_central_directory_within_limits<R: Read + Seek>(reader: &mut R, limits: &SecurityLimits) -> bool {
+    read_zip_central_directory(reader, limits)
+        .is_some_and(|directory| central_directory_has_unique_mimetype(reader, &directory))
 }
 
 /// Check if `haystack` contains `needle` as a subsequence.
@@ -968,7 +1137,22 @@ pub fn list_supported_formats() -> Vec<SupportedFormat> {
 mod tests {
     use super::*;
     use std::fs::File;
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    use std::io::{Cursor, Write};
     use tempfile::tempdir;
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    use zip::write::FileOptions;
+
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Stored);
+        for (name, content) in entries {
+            archive.start_file(*name, options).unwrap();
+            archive.write_all(content).unwrap();
+        }
+        archive.finish().unwrap().into_inner()
+    }
 
     #[test]
     fn test_detect_mime_type_pdf() {
@@ -1234,6 +1418,15 @@ mod tests {
             "Should detect PPTX from ZIP with ppt/presentation.xml"
         );
 
+        #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+        {
+            for expected_mime in [ODT_MIME_TYPE, ODP_MIME_TYPE, ODS_MIME_TYPE] {
+                let open_document_bytes = build_zip(&[("mimetype", expected_mime.as_bytes())]);
+                let mime = detect_mime_type_from_bytes(&open_document_bytes).unwrap();
+                assert_eq!(mime, expected_mime, "Should detect exact OpenDocument mimetype entry");
+            }
+        }
+
         let plain_zip_bytes: &[u8] = &[
             0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, b't', b'e', b's', b't', b'.', b't',
@@ -1241,6 +1434,86 @@ mod tests {
         ];
         let mime = detect_mime_type_from_bytes(plain_zip_bytes).unwrap();
         assert_eq!(mime, "application/zip", "Plain ZIP should remain as application/zip");
+    }
+
+    #[test]
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    fn reordered_open_document_mimetype_routes_by_exact_entry() {
+        const PADDING: &[u8] = &[b'x'; 5_000];
+        let dir = tempdir().unwrap();
+
+        for (extension, expected_mime) in [("odt", ODT_MIME_TYPE), ("odp", ODP_MIME_TYPE), ("ods", ODS_MIME_TYPE)] {
+            let bytes = build_zip(&[("padding.bin", PADDING), ("mimetype", expected_mime.as_bytes())]);
+            assert_eq!(detect_mime_type_from_bytes(&bytes).unwrap(), expected_mime);
+
+            let path = dir.path().join(format!("reordered.{extension}"));
+            std::fs::write(&path, bytes).unwrap();
+            assert_eq!(detect_or_validate(path.to_str(), None).unwrap(), expected_mime);
+        }
+    }
+
+    #[test]
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    fn odf_detection_rejects_decoys_and_invalid_mimetype_entries() {
+        let generic_zip = build_zip(&[("decoy.txt", ODT_MIME_TYPE.as_bytes())]);
+        assert_eq!(detect_mime_type_from_bytes(&generic_zip).unwrap(), ZIP_MIME_TYPE);
+
+        let epub = build_zip(&[("mimetype", b"application/epub+zip")]);
+        assert_eq!(detect_mime_type_from_bytes(&epub).unwrap(), "application/epub+zip");
+
+        let mixed = build_zip(&[
+            ("mimetype", ODT_MIME_TYPE.as_bytes()),
+            ("decoy.txt", ODS_MIME_TYPE.as_bytes()),
+        ]);
+        assert_eq!(detect_mime_type_from_bytes(&mixed).unwrap(), ODT_MIME_TYPE);
+
+        let oversized = build_zip(&[("mimetype", b"application/vnd.oasis.opendocument.text-extra")]);
+        assert_eq!(detect_mime_type_from_bytes(&oversized).unwrap(), ZIP_MIME_TYPE);
+
+        let mut duplicate = build_zip(&[
+            ("mimetypa", ODT_MIME_TYPE.as_bytes()),
+            ("mimetypb", ODP_MIME_TYPE.as_bytes()),
+        ]);
+        for offset in 0..duplicate.len().saturating_sub(b"mimetypa".len()) {
+            let name = &duplicate[offset..offset + b"mimetypa".len()];
+            if name == b"mimetypa" || name == b"mimetypb" {
+                duplicate[offset..offset + b"mimetype".len()].copy_from_slice(b"mimetype");
+            }
+        }
+        assert_eq!(detect_mime_type_from_bytes(&duplicate).unwrap(), ZIP_MIME_TYPE);
+
+        let truncated = &mixed[..mixed.len() / 2];
+        assert_eq!(detect_mime_type_from_bytes(truncated).unwrap(), ZIP_MIME_TYPE);
+    }
+
+    #[test]
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    fn odf_zip_preflight_rejects_excessive_entry_count() {
+        let archive = build_zip(&[("content.txt", b"content")]);
+        let default_limits = SecurityLimits::default();
+        assert!(zip_central_directory_within_limits(
+            &mut Cursor::new(&archive),
+            &default_limits
+        ));
+
+        let restricted_limits = SecurityLimits {
+            max_files_in_archive: 0,
+            ..default_limits
+        };
+        assert!(!zip_central_directory_within_limits(
+            &mut Cursor::new(archive),
+            &restricted_limits
+        ));
+    }
+
+    #[test]
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    fn odf_extension_does_not_override_generic_zip_content() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("not-an-open-document.odt");
+        std::fs::write(&path, build_zip(&[("content.txt", b"plain archive")])).unwrap();
+
+        assert_eq!(detect_or_validate(path.to_str(), None).unwrap(), ZIP_MIME_TYPE);
     }
 
     #[test]

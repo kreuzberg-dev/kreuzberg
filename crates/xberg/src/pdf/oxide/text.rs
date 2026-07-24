@@ -37,9 +37,6 @@ pub(crate) fn extract_text_and_metadata(
     let scanned_min_confidence = extraction_config
         .map(|c| c.ocr_strategy.effective_min_confidence())
         .unwrap_or(crate::core::config::DEFAULT_SCANNED_MIN_CONFIDENCE);
-    // Not `OcrConfig::effective_thresholds()`: that method is gated behind the `ocr`/
-    // `ocr-pipeline` features, but `scanned_pages` metadata (including the
-    // provenance-fabrication routing, issue #1254) is computed unconditionally.
     let ocr_quality_thresholds = extraction_config
         .and_then(|c| c.ocr.as_ref())
         .and_then(|o| o.quality_thresholds.clone())

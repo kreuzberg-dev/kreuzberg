@@ -1,5 +1,5 @@
 [workspace]
-alef_version = "0.43.0"
+alef_version = "0.44.0"
 # -D warnings (emitted into every generated Rust binding as #![allow(...)]).
 extra_clippy_allows = ["redundant_field_names"]
 languages = [
@@ -3594,7 +3594,7 @@ path = "../../packages/swift"
 path = "../../packages/zig"
 
 [crates.e2e.registry.packages.zig]
-hash = "xberg-1.0.0-rc.36-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+hash = "xberg-1.0.0-rc.37-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [crates.e2e.packages.wasm]
 name = "@xberg-io/xberg-wasm"

@@ -12,7 +12,7 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <junit.version>6.1.0</junit.version>
+        <junit.version>6.1.2</junit.version>
     </properties>
 
     <dependencyManagement>
@@ -31,9 +31,9 @@
         <dependency>
             <groupId>io.xberg</groupId>
             <artifactId>xberg</artifactId>
-            <version>1.0.0-rc.36</version>
+            <version>1.0.0-rc.37</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.36.jar</systemPath>
+            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.37.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -77,7 +77,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>3.2.0</version>
                 <executions>
                     <execution>
                         <id>copy-native-lib</id>

@@ -74,10 +74,6 @@ pub(crate) async fn embed_via_llm<T: AsRef<str>>(
     let request = EmbeddingRequest {
         model: config.model.clone(),
         input,
-        // Base64-encoded floats decode ~3x faster and bit-exact in liter-llm's
-        // `deserialize_embedding` compared to a JSON float array. Providers that
-        // ignore this hint and return a float array anyway still work, since
-        // `deserialize_embedding` accepts both shapes.
         encoding_format: Some(EmbeddingFormat::Base64),
         dimensions: None,
         user: None,

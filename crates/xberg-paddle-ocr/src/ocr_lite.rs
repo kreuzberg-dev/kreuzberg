@@ -142,6 +142,7 @@ impl OcrLite {
         angle_rollback_threshold: f32,
         cls_thresh: f32,
         thresh: f32,
+        rec_batch_size: u32,
     ) -> Result<OcrResult, OcrError> {
         tracing::debug!(
             width = img_src.width(),
@@ -184,6 +185,7 @@ impl OcrLite {
             angle_rollback_threshold,
             cls_thresh,
             thresh,
+            rec_batch_size,
         )
     }
 
@@ -227,6 +229,38 @@ impl OcrLite {
             0.0,
             Self::DEFAULT_CLS_THRESH,
             Self::DEFAULT_THRESH,
+            Self::DEFAULT_REC_BATCH_SIZE,
+        )
+    }
+
+    /// Detect text with a configurable recognition batch size.
+    #[allow(clippy::too_many_arguments)]
+    pub fn detect_with_rec_batch_size(
+        &self,
+        img_src: &image::RgbImage,
+        padding: u32,
+        max_side_len: u32,
+        box_score_thresh: f32,
+        box_thresh: f32,
+        un_clip_ratio: f32,
+        do_angle: bool,
+        most_angle: bool,
+        rec_batch_size: u32,
+    ) -> Result<OcrResult, OcrError> {
+        self.detect_base(
+            img_src,
+            padding,
+            max_side_len,
+            box_score_thresh,
+            box_thresh,
+            un_clip_ratio,
+            do_angle,
+            most_angle,
+            false,
+            0.0,
+            Self::DEFAULT_CLS_THRESH,
+            Self::DEFAULT_THRESH,
+            rec_batch_size,
         )
     }
 
@@ -271,6 +305,7 @@ impl OcrLite {
             angle_rollback_threshold,
             Self::DEFAULT_CLS_THRESH,
             Self::DEFAULT_THRESH,
+            Self::DEFAULT_REC_BATCH_SIZE,
         )
     }
 
@@ -327,6 +362,7 @@ impl OcrLite {
         angle_rollback_threshold: f32,
         cls_thresh: f32,
         thresh: f32,
+        rec_batch_size: u32,
     ) -> Result<OcrResult, OcrError> {
         tracing::debug!("PaddleOCR: running DB-net text detection");
         let mut text_boxes =
@@ -383,7 +419,7 @@ impl OcrLite {
             &rotated_images,
             &angle_rollback_records,
             angle_rollback_threshold,
-            Self::DEFAULT_REC_BATCH_SIZE,
+            rec_batch_size,
         )?;
 
         if text_lines.is_empty() {

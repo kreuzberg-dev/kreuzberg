@@ -1,6 +1,6 @@
 name: xberg
 description: High-performance document intelligence library
-version: 1.0.0-rc.36
+version: 1.0.0-rc.37
 repository: https://github.com/xberg-io/xberg
 homepage: https://xberg.io
 environment:
@@ -8,7 +8,7 @@ environment:
 executables:
   download_libs:
 dependencies:
-  http: "^1.1.0"
+  http: "^1.2.0"
   # SHA-256 verification of downloaded native-library release assets.
   crypto: "^3.0.0"
   # FRB runtime is pure-Dart; works in both Flutter and server-Dart contexts.

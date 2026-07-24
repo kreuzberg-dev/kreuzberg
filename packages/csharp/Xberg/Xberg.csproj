@@ -3,10 +3,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Xberg</RootNamespace>
     <PackageId>XbergIo.Xberg</PackageId>
-    <Version>1.0.0-rc.36</Version>
+    <Version>1.0.0-rc.37</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0-rc.36</InformationalVersion>
+    <InformationalVersion>1.0.0-rc.37</InformationalVersion>
     <Description>High-performance document intelligence library</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <RepositoryUrl>https://github.com/xberg-io/xberg</RepositoryUrl>
@@ -17,30 +17,21 @@
     <Nullable>enable</Nullable>
     <!-- AnyCPU managed assembly so the PE `Machine` header stays processor-neutral
          and consumers never see `warning CS8012: ... targets a different processor`.
-         Native asset resolution at consumer build time is driven by the
-         `runtimes/<rid>/native/` payload baked into the NuGet package — not a
-         single `<RuntimeIdentifier>` on the package author's side, which would
-         force runtime-specific output and break AnyCPU packaging. -->
+         This meta package ships thin: no native assets baked in here, and no
+         single `<RuntimeIdentifier>` on the package author's side (which would
+         force runtime-specific output and break AnyCPU packaging). Native asset
+         resolution at consumer build time is driven transitively by the
+         rendered `runtime.json` (from runtime.json.template) pulling in the
+         per-RID `XbergIo.Xberg.runtime.<rid>` packages, each of which carries
+         only its own `runtimes/<rid>/native/` payload. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;linux-musl-x64;linux-musl-arm64;osx-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
-    <!-- Thin meta-package: no runtimes/** payload here. Native closures ship in the
-         per-RID XbergIo.Xberg.runtime.<rid> packages (see ../Xberg.Runtime); this
-         package only carries the managed assembly plus runtime.json, which tells
-         NuGet's RID-fallback graph which runtime package to pull in for the
-         consumer's RID (xberg #1280 / rc.35 413 fix). runtime.json is rendered
-         from runtime.json.template by CI before pack; RequireRuntimeJson guards
-         against packing without it. -->
     <None Include="runtime.json" Pack="true" PackagePath="/" Condition="Exists('runtime.json')" />
   </ItemGroup>
-
-  <Target Name="RequireRuntimeJson" BeforeTargets="Pack">
-    <Error Condition="!Exists('runtime.json')"
-           Text="packages/csharp/Xberg/runtime.json is missing. Render it from runtime.json.template (substituting {{VERSION}}) before packing Xberg.csproj." />
-  </Target>
 
   <ItemGroup>
     <Compile Include="../src/**/*.cs" />

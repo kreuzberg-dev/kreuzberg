@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "llama-index-readers-xberg"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "LlamaIndex reader for 91+ document formats powered by xberg's Rust extraction engine"
 readme = "README.md"
 keywords = ["ai", "document-extraction", "xberg", "llamaindex", "llm", "ocr", "pdf", "rag", "text-extraction"]
@@ -29,7 +29,7 @@ classifiers = [
   "Topic :: Text Processing :: Indexing",
   "Typing :: Typed",
 ]
-dependencies = ["xberg>=1.0.0rc36,<1.1", "llama-index-core>=0.14.23,<0.15"]
+dependencies = ["xberg>=1.0.0rc37,<1.1", "llama-index-core>=0.14.23,<0.15"]
 urls.Homepage = "https://github.com/xberg-io/xberg/tree/main/integrations/python/llama-index/readers/llama-index-readers-xberg"
 urls.Issues = "https://github.com/xberg-io/xberg/issues"
 urls.Repository = "https://github.com/xberg-io/xberg/tree/main/integrations/python/llama-index/readers/llama-index-readers-xberg"

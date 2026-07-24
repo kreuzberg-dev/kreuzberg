@@ -434,21 +434,30 @@ fn append_annotated_span<'a>(
 }
 
 /// Build a comrak `Table` subtree from a 2-D cell grid.
-fn build_table<'a>(arena: &'a comrak::Arena<'a>, cells: &[Vec<String>]) -> &'a AstNode<'a> {
+fn build_table<'a>(arena: &'a comrak::Arena<'a>, cells: &[Vec<String>], has_header: bool) -> &'a AstNode<'a> {
     let num_cols = cells.iter().map(|r| r.len()).max().unwrap_or(0);
+    let synthetic_header_rows = usize::from(!has_header);
 
     let table_node = mk(
         arena,
         NodeValue::Table(Box::new(NodeTable {
             alignments: vec![TableAlignment::None; num_cols],
             num_columns: num_cols,
-            num_rows: cells.len(),
+            num_rows: cells.len() + synthetic_header_rows,
             num_nonempty_cells: cells.iter().flat_map(|r| r.iter()).filter(|c| !c.is_empty()).count(),
         })),
     );
 
+    if !has_header {
+        let header_row = mk(arena, NodeValue::TableRow(true));
+        for _ in 0..num_cols {
+            header_row.append(mk(arena, NodeValue::TableCell));
+        }
+        table_node.append(header_row);
+    }
+
     for (row_idx, row) in cells.iter().enumerate() {
-        let is_header = row_idx == 0;
+        let is_header = has_header && row_idx == 0;
         let row_node = mk(arena, NodeValue::TableRow(is_header));
 
         for col in 0..num_cols {
@@ -688,7 +697,8 @@ pub(crate) fn build_comrak_ast<'a>(doc: &InternalDocument, arena: &'a comrak::Ar
                     }
                     if !table.cells.is_empty() {
                         tracing::trace!(table_index, rows = table.cells.len(), "rendering table");
-                        let table_node = build_table(arena, &table.cells);
+                        let has_header = doc.source_format != "csv" || table.columns.is_some();
+                        let table_node = build_table(arena, &table.cells, has_header);
                         parent.append(table_node);
                     } else if !table.markdown.trim().is_empty() {
                         let para = mk(arena, NodeValue::Paragraph);

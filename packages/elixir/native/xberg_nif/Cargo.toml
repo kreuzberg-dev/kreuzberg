@@ -1,6 +1,6 @@
 [package]
 name = "xberg_nif"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 edition = "2024"
 license = "MIT"
 description = "High-performance document intelligence library"
@@ -67,14 +67,14 @@ rustler = "0.38"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
-[target.'cfg(not(any(target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../../../../crates/xberg", features = ["full", "pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../../../../crates/xberg", features = ["windows-target"] }
 
 [target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
-xberg = { version = "1.0.0-rc.36", path = "../../../../crates/xberg", features = ["macos-intel-target"] }
+xberg = { version = "1.0.0-rc.37", path = "../../../../crates/xberg", features = ["macos-intel-target"] }
+[target.'cfg(not(any(target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
+xberg = { version = "1.0.0-rc.37", path = "../../../../crates/xberg", features = ["full", "pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+xberg = { version = "1.0.0-rc.37", path = "../../../../crates/xberg", features = ["windows-target"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("api", "api-types", "auto-rotate-types", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction", "late-interaction-presets", "layout-types", "liter-llm", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker", "reranker-presets", "sparse-embedding-presets", "sparse-embeddings", "svg", "tokio-runtime", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"))'] }

@@ -156,7 +156,10 @@ jobs:
       - prepare
       - check-docker
     runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: 90
+    # cli/amd64 (cross-compiled Rust+ONNX from source) hit the 90m ceiling in rc.36 and was
+    # CANCELLED; give the from-source builds headroom. merge-docker is decoupled below so even
+    # a timed-out leg no longer suppresses the core manifest publish (#1299). ~keep
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
@@ -188,11 +191,6 @@ jobs:
         if: ${{ needs.prepare.outputs.target_sha != '' }}
         run: git checkout --progress --force ${{ needs.prepare.outputs.target_sha }}
 
-      # actions/checkout's `lfs: true` only smudges LFS objects in the top-level
-      # repo, not in submodules (github.com/actions/checkout#2337). test_documents
-      # (used by the Docker smoke test) tracks fixtures via LFS, so pull them
-      # explicitly or the smoke test extracts unresolved pointer stubs instead of
-      # real files and every format fails identically.
       - name: Pull LFS objects in submodules
         run: git submodule foreach --recursive 'git lfs pull'
 
@@ -292,7 +290,12 @@ jobs:
       - prepare
       - check-docker
       - build-docker
-    if: ${{ needs.prepare.outputs.release_docker == 'true' && needs.prepare.outputs.dry_run != 'true' }}
+    # always(): a cancelled/failed sibling build leg (e.g. cli hitting the timeout) must NOT
+    # skip the whole merge — the core/full digests that DID build still need their manifests
+    # pushed (rc.36 #1299: one cancelled cli/amd64 leg suppressed the -core image entirely).
+    # A per-variant leg with no digests skips cleanly below, so this matrix stays green and
+    # publish-helm still runs. ~keep
+    if: ${{ always() && needs.prepare.outputs.release_docker == 'true' && needs.prepare.outputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -328,14 +331,30 @@ jobs:
 
       - name: Download digests
         if: ${{ steps.gate.outputs.go == 'true' }}
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-${{ matrix.variant }}-*
           merge-multiple: true
 
-      - name: Log in to GitHub Container Registry
+      # Only push this variant's manifest if its build legs actually produced digests. A
+      # variant whose build was cancelled/failed (e.g. cli on timeout) has none — skip it
+      # cleanly (leg still succeeds) so the core/full manifests publish and the matrix stays
+      # green for publish-helm. ~keep
+      - name: Verify digests present
+        id: check
         if: ${{ steps.gate.outputs.go == 'true' }}
+        run: |
+          if ls /tmp/digests/* >/dev/null 2>&1; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::no digests for variant '${{ matrix.variant }}' — its build leg did not complete; skipping its manifest publish (other variants unaffected)"
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ steps.check.outputs.push == 'true' }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -343,12 +362,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.check.outputs.push == 'true' }}
         uses: docker/setup-buildx-action@v4
 
       - name: Extract Docker metadata
         id: docker_meta
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.check.outputs.push == 'true' }}
         uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
@@ -357,7 +376,7 @@ jobs:
             type=raw,value=${{ matrix.extra_tag }},enable=${{ needs.prepare.outputs.is_prerelease != 'true' }}
 
       - name: Create and push manifest
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.check.outputs.push == 'true' }}
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
@@ -365,7 +384,7 @@ jobs:
             $(printf '${{ matrix.image }}@sha256:%s ' *)
 
       - name: Inspect published manifest
-        if: ${{ steps.gate.outputs.go == 'true' }}
+        if: ${{ steps.check.outputs.push == 'true' }}
         run: docker buildx imagetools inspect ${{ matrix.image }}:${{ needs.prepare.outputs.version }}${{ matrix.tag_suffix }}
 
   # Publish the Helm chart only after the image manifests are pushed, so the

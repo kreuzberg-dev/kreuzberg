@@ -1,10 +1,8 @@
 version: 2
 
 # Dependabot only manages the hand-authored root manifests. Alef-generated trees
-# (packages/**, e2e/**, crates/*-{node,wasm,...}; see .gitattributes) are overwritten
 # by `alef build`, so their dependency versions are maintained upstream in the alef
 # repo (src/core/template_versions.rs + Renovate), not here. Pointing Dependabot at
-# them only produced bump PRs that the next codegen run reverts.
 
 multi-ecosystem-groups:
   dependencies:

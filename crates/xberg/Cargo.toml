@@ -865,7 +865,7 @@ uuid = { version = "1", features = ["v4"], optional = true }
 v_htmlescape = { version = "0.17", optional = true }
 whatlang = { version = "0.18.0", optional = true }
 xberg-gliner = { workspace = true, optional = true }
-xberg-libheif = { path = "../xberg-libheif", version = "1.0.0-rc.36", optional = true }
+xberg-libheif = { path = "../xberg-libheif", version = "1.0.0-rc.37", optional = true }
 # No `version` on this path-dep: xberg-tesseract carries `links =
 # "xberg_tesseract"`, and a versioned path-dep makes the maturin sdist
 # resolve two copies (path + registry) of a `links` crate, which cargo rejects
@@ -886,9 +886,9 @@ tokenizers = { version = "0.23", default-features = false, features = ["fancy-re
 # Note: candle-core unconditionally links platform-specific deps (cudarc on Linux, metal-kernels on macOS).
 # To avoid conflicts during feature unification, GPU features (candle-cuda/metal/mkl/accelerate) should
 # only be explicitly enabled with platform awareness. CI uses `--features full` which excludes GPU accel.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.36", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.37", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.36", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.37", optional = true }
 
 # Desktop / server hosts (Linux + macOS, NOT Android): xberg's direct `ureq` client uses
 # ring-backed rustls plus `platform-verifier`, which trusts the OS certificate store
@@ -917,9 +917,9 @@ ureq = { version = "3.3", default-features = false, features = [
     "json",
 ], optional = true }
 # Candle-based VLM OCR backends - pure-Rust transformer inference, not on WASM yet.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.36", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.37", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.36", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.37", optional = true }
 
 # tokio OS features (every native target, including Android and Windows): `process`, `fs`, and
 # `rt-multi-thread` all fail to compile on wasm32 — tokio's own wasm32 gate only allows

@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "crewai-xberg"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "Xberg document extraction tools for CrewAI agents — text, metadata, and batch extraction across 97 file formats"
 readme = "README.md"
 keywords = ["agents", "ai", "crewai", "document-extraction", "llm", "ocr", "pdf", "rag", "text-extraction", "xberg"]
@@ -27,7 +27,7 @@ classifiers = [
   "Topic :: Text Processing :: General",
   "Typing :: Typed",
 ]
-dependencies = ["crewai>=1.15,<2", "xberg>=1.0.0rc36,<2"]
+dependencies = ["crewai>=1.15,<2", "xberg>=1.0.0rc37,<2"]
 urls.Changelog = "https://github.com/xberg-io/xberg/blob/main/integrations/python/crewai/CHANGELOG.md"
 urls.Homepage = "https://github.com/xberg-io/xberg/tree/main/integrations/python/crewai"
 urls.Repository = "https://github.com/xberg-io/xberg/tree/main/integrations/python/crewai"

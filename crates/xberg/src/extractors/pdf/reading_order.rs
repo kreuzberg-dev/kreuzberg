@@ -393,6 +393,16 @@ const MIN_SINGLE_COLUMN_COMMON_WIDTH_RATIO: f32 = 0.5;
 const MIN_SEMANTIC_CHILD_SEGMENT_COVERAGE: f32 = 0.8;
 /// Maximum same-baseline gap that still represents a kerning-run split.
 const ATOMIC_FRAGMENT_GAP_RATIO: f32 = 0.15;
+/// Require several page-wide body lines before treating a Picture owner as a
+/// layout false positive rather than embedded text in a real figure.
+const MIN_FALSE_PICTURE_PROSE_LINES: usize = 3;
+const MIN_FALSE_PICTURE_ALPHA_CHARS: usize = 40;
+const MIN_FALSE_PICTURE_WORDS_PER_LINE: usize = 6;
+const MIN_FALSE_PICTURE_ALPHA_RATIO: f32 = 0.65;
+const MIN_FALSE_PICTURE_LINE_WIDTH_NORM: f32 = 0.75;
+const MIN_FALSE_PICTURE_OUTSIDE_SPAN_NORM: f32 = 0.1;
+const MAX_FALSE_PICTURE_LINE_GAP_NORM: f32 = 0.05;
+const FALSE_PICTURE_BASELINE_TOLERANCE_RATIO: f32 = 0.35;
 
 /// One root in the page's region-preserving reading-order plan.
 ///
@@ -676,6 +686,155 @@ fn reconcile_atomic_fragment_owners(segments: &[crate::pdf::hierarchy::SegmentDa
     }
 }
 
+#[derive(Default)]
+struct PictureTextLine {
+    baseline: f32,
+    left: f32,
+    right: f32,
+    alpha_chars: usize,
+    visible_chars: usize,
+    word_count: usize,
+    owned_alpha_chars: usize,
+    owned_visible_chars: usize,
+    owned_word_count: usize,
+    intervals: Vec<(f32, f32)>,
+    owned_indices: Vec<usize>,
+}
+
+fn add_segment_to_picture_line(
+    lines: &mut Vec<PictureTextLine>,
+    index: usize,
+    segment: &crate::pdf::hierarchy::SegmentData,
+    is_owned: bool,
+) {
+    let tolerance = segment.font_size.max(segment.height) * FALSE_PICTURE_BASELINE_TOLERANCE_RATIO;
+    let line_index = lines
+        .iter()
+        .position(|line| (line.baseline - segment.baseline_y).abs() <= tolerance)
+        .unwrap_or_else(|| {
+            lines.push(PictureTextLine {
+                baseline: segment.baseline_y,
+                left: f32::INFINITY,
+                right: f32::NEG_INFINITY,
+                ..PictureTextLine::default()
+            });
+            lines.len() - 1
+        });
+    let line = &mut lines[line_index];
+    line.left = line.left.min(segment.x);
+    line.right = line.right.max(segment.x + segment.width);
+    line.alpha_chars += segment
+        .text
+        .chars()
+        .filter(|character| character.is_alphabetic())
+        .count();
+    line.visible_chars += segment
+        .text
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .count();
+    line.word_count += segment.text.split_whitespace().count();
+    line.intervals.push((segment.x, segment.x + segment.width));
+    if is_owned {
+        line.owned_alpha_chars += segment
+            .text
+            .chars()
+            .filter(|character| character.is_alphabetic())
+            .count();
+        line.owned_visible_chars += segment
+            .text
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .count();
+        line.owned_word_count += segment.text.split_whitespace().count();
+        line.owned_indices.push(index);
+    }
+}
+
+fn picture_line_is_contiguous(line: &PictureTextLine, page_width_pts: f32) -> bool {
+    let mut intervals = line.intervals.clone();
+    intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
+    intervals
+        .windows(2)
+        .all(|pair| pair[1].0 - pair[0].1 <= page_width_pts * MAX_FALSE_PICTURE_LINE_GAP_NORM)
+}
+
+fn picture_line_is_body_prose(line: &PictureTextLine, picture: &OrderBlock, page_width_pts: f32) -> bool {
+    let alpha_ratio = line.alpha_chars as f32 / line.visible_chars.max(1) as f32;
+    let owned_alpha_ratio = line.owned_alpha_chars as f32 / line.owned_visible_chars.max(1) as f32;
+    line.right - line.left >= page_width_pts * MIN_FALSE_PICTURE_LINE_WIDTH_NORM
+        && line.left < picture.left - page_width_pts * MIN_FALSE_PICTURE_OUTSIDE_SPAN_NORM
+        && line.word_count >= MIN_FALSE_PICTURE_WORDS_PER_LINE
+        && line.owned_word_count >= MIN_FALSE_PICTURE_WORDS_PER_LINE
+        && alpha_ratio >= MIN_FALSE_PICTURE_ALPHA_RATIO
+        && owned_alpha_ratio >= MIN_FALSE_PICTURE_ALPHA_RATIO
+        && picture_line_is_contiguous(line, page_width_pts)
+}
+
+fn picture_prose_owned_indices(
+    owner: usize,
+    segments: &[crate::pdf::hierarchy::SegmentData],
+    owners: &[Option<usize>],
+    picture: &OrderBlock,
+    page_width_pts: f32,
+) -> Vec<usize> {
+    let owned_indices = owners
+        .iter()
+        .enumerate()
+        .filter_map(|(index, candidate)| (*candidate == Some(owner)).then_some(index))
+        .collect::<Vec<_>>();
+    let (Some(first), Some(last)) = (owned_indices.first(), owned_indices.last()) else {
+        return Vec::new();
+    };
+    let owner_span = &owners[*first..=*last];
+    if !owner_span.iter().any(Option::is_none) || owner_span.iter().flatten().any(|candidate| *candidate != owner) {
+        return Vec::new();
+    }
+
+    let mut lines = Vec::new();
+    for index in *first..=*last {
+        if owners[index].is_none() || owners[index] == Some(owner) {
+            add_segment_to_picture_line(&mut lines, index, &segments[index], owners[index] == Some(owner));
+        }
+    }
+    let qualifying_lines = lines
+        .into_iter()
+        .filter(|line| picture_line_is_body_prose(line, picture, page_width_pts))
+        .collect::<Vec<_>>();
+    let alpha_chars = qualifying_lines.iter().map(|line| line.alpha_chars).sum::<usize>();
+    if qualifying_lines.len() < MIN_FALSE_PICTURE_PROSE_LINES || alpha_chars < MIN_FALSE_PICTURE_ALPHA_CHARS {
+        return Vec::new();
+    }
+    qualifying_lines
+        .into_iter()
+        .flat_map(|line| line.owned_indices)
+        .collect()
+}
+
+fn reconcile_false_picture_prose_owners(
+    segments: &[crate::pdf::hierarchy::SegmentData],
+    hints: &[LayoutHint],
+    blocks: &[Option<OrderBlock>],
+    owners: &mut [Option<usize>],
+    page_width_pts: Option<f32>,
+) {
+    let Some(page_width_pts) = page_width_pts.filter(|width| width.is_finite() && *width > 0.0) else {
+        return;
+    };
+    for (owner, hint) in hints.iter().enumerate() {
+        if hint.class_name != LayoutHintClass::Picture {
+            continue;
+        }
+        let Some(picture) = blocks[owner].as_ref() else {
+            continue;
+        };
+        let prose_indices = picture_prose_owned_indices(owner, segments, owners, picture, page_width_pts);
+        for index in prose_indices {
+            owners[index] = None;
+        }
+    }
+}
+
 fn has_single_column_segment_geometry(
     segments: &[crate::pdf::hierarchy::SegmentData],
     page_width_pts: Option<f32>,
@@ -920,6 +1079,7 @@ pub(crate) fn plan_segment_groups_by_layout(
         .map(|segment| choose_segment_owner(segment, hints, &eligible, &blocks, &roots))
         .collect::<Vec<_>>();
     reconcile_atomic_fragment_owners(segments, &mut owners);
+    reconcile_false_picture_prose_owners(segments, hints, &blocks, &mut owners, page_width_pts);
     if owners.iter().all(Option::is_none) {
         return pathless_group(segments.len());
     }
@@ -1657,6 +1817,214 @@ mod tests {
                 .region_path
                 .is_some_and(|path| path.root.class_name == Some(LayoutHintClass::Form))
         }));
+    }
+
+    #[test]
+    fn prose_like_picture_owner_is_demoted_into_native_flow() {
+        use crate::pdf::structure::types::LayoutHintClass;
+
+        let segments = vec![
+            planned_segment(
+                "The first page-wide sentence is ordinary body prose.",
+                10.0,
+                100.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment(
+                "The second page-wide sentence continues the discussion.",
+                10.0,
+                88.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment("A left fragment of the third sentence ", 10.0, 76.0, 80.0, 10.0),
+            planned_segment("continues across the false picture boundary.", 95.0, 76.0, 195.0, 10.0),
+            planned_segment(
+                "The fourth page-wide sentence completes the paragraph.",
+                10.0,
+                64.0,
+                280.0,
+                10.0,
+            ),
+        ];
+        let hints = vec![planned_hint(LayoutHintClass::Picture, 100.0, 60.0, 300.0, 115.0)];
+
+        let groups = plan_segment_groups_by_layout(&segments, &hints, &[], false, Some(320.0));
+
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].segment_indices, vec![0, 1, 2, 3, 4]);
+        assert_eq!(groups[0].region_path, None);
+    }
+
+    #[test]
+    fn mixed_picture_demotes_only_prose_and_retains_chart_labels() {
+        use crate::pdf::structure::types::LayoutHintClass;
+
+        let segments = vec![
+            planned_segment(
+                "The first page-wide sentence is ordinary body prose.",
+                10.0,
+                100.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment(
+                "The second page-wide sentence continues the discussion.",
+                10.0,
+                88.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment("A left fragment of the third sentence ", 10.0, 76.0, 80.0, 10.0),
+            planned_segment("continues across the false picture boundary.", 95.0, 76.0, 195.0, 10.0),
+            planned_segment(
+                "The fourth page-wide sentence completes the paragraph.",
+                10.0,
+                64.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment("12", 120.0, 52.0, 20.0, 10.0),
+            planned_segment("Concentration (g)", 160.0, 40.0, 80.0, 10.0),
+        ];
+        let hints = vec![planned_hint(LayoutHintClass::Picture, 100.0, 35.0, 300.0, 115.0)];
+
+        let groups = plan_segment_groups_by_layout(&segments, &hints, &[], false, Some(320.0));
+
+        let picture = groups
+            .iter()
+            .find(|group| {
+                group
+                    .region_path
+                    .is_some_and(|path| path.root.class_name == Some(LayoutHintClass::Picture))
+            })
+            .expect("chart labels retain Picture ownership");
+        assert_eq!(picture.segment_indices, vec![5, 6]);
+        assert!(groups.iter().any(|group| group.segment_indices == vec![0, 1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn broad_alphabetic_diagram_labels_remain_owned_by_picture() {
+        use crate::pdf::structure::types::LayoutHintClass;
+
+        let segments = vec![
+            planned_segment("Input validation and parsing", 10.0, 100.0, 280.0, 10.0),
+            planned_segment("Feature extraction and routing", 10.0, 88.0, 280.0, 10.0),
+            planned_segment("Model ", 10.0, 76.0, 80.0, 10.0),
+            planned_segment("inference and scoring stage", 110.0, 76.0, 180.0, 10.0),
+            planned_segment("Output formatting and storage", 10.0, 64.0, 280.0, 10.0),
+        ];
+        let hints = vec![planned_hint(LayoutHintClass::Picture, 100.0, 60.0, 300.0, 115.0)];
+
+        let groups = plan_segment_groups_by_layout(&segments, &hints, &[], false, Some(320.0));
+
+        assert!(groups.iter().any(|group| {
+            group
+                .region_path
+                .is_some_and(|path| path.root.class_name == Some(LayoutHintClass::Picture))
+        }));
+    }
+
+    #[test]
+    fn side_by_side_body_text_does_not_demote_picture_labels() {
+        use crate::pdf::structure::types::LayoutHintClass;
+
+        let segments = vec![
+            planned_segment("Series A", 220.0, 100.0, 30.0, 10.0),
+            planned_segment(
+                "The left body column contains ordinary paragraph text.",
+                10.0,
+                100.0,
+                150.0,
+                10.0,
+            ),
+            planned_segment("Series B", 220.0, 88.0, 30.0, 10.0),
+            planned_segment(
+                "Another body line supplies many alphabetic words here.",
+                10.0,
+                88.0,
+                150.0,
+                10.0,
+            ),
+            planned_segment("Series C", 220.0, 76.0, 30.0, 10.0),
+            planned_segment(
+                "The final body line remains outside the figure region.",
+                10.0,
+                76.0,
+                150.0,
+                10.0,
+            ),
+            planned_segment("Axis label", 220.0, 64.0, 30.0, 10.0),
+        ];
+        let hints = vec![planned_hint(LayoutHintClass::Picture, 200.0, 60.0, 300.0, 115.0)];
+
+        let groups = plan_segment_groups_by_layout(&segments, &hints, &[], false, Some(320.0));
+
+        let picture = groups
+            .iter()
+            .find(|group| {
+                group
+                    .region_path
+                    .is_some_and(|path| path.root.class_name == Some(LayoutHintClass::Picture))
+            })
+            .expect("figure labels retain Picture ownership");
+        assert_eq!(picture.segment_indices, vec![0, 2, 4, 6]);
+    }
+
+    #[test]
+    fn false_picture_reconciliation_preserves_other_semantic_owners() {
+        use crate::pdf::structure::types::LayoutHintClass;
+
+        let segments = vec![
+            planned_segment(
+                "A full body sentence with enough words for prose.",
+                10.0,
+                100.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment(
+                "Another full body sentence continues the paragraph.",
+                10.0,
+                88.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment("A left fragment of the third sentence ", 10.0, 76.0, 80.0, 10.0),
+            planned_segment("continues across the false picture boundary.", 95.0, 76.0, 195.0, 10.0),
+            planned_segment(
+                "A final full body sentence closes the paragraph.",
+                10.0,
+                64.0,
+                280.0,
+                10.0,
+            ),
+            planned_segment("table cell", 10.0, 40.0, 70.0, 8.0),
+            planned_segment("Figure 1.", 10.0, 25.0, 70.0, 8.0),
+            planned_segment("ordinary text", 10.0, 10.0, 70.0, 8.0),
+        ];
+        let hints = vec![
+            planned_hint(LayoutHintClass::Picture, 100.0, 60.0, 300.0, 115.0),
+            planned_hint(LayoutHintClass::Table, 0.0, 35.0, 90.0, 50.0),
+            planned_hint(LayoutHintClass::Caption, 0.0, 20.0, 90.0, 35.0),
+            planned_hint(LayoutHintClass::Text, 0.0, 5.0, 90.0, 20.0),
+        ];
+
+        let groups = plan_segment_groups_by_layout(&segments, &hints, &[], false, Some(320.0));
+
+        for (index, class_name) in [
+            (5, LayoutHintClass::Table),
+            (6, LayoutHintClass::Caption),
+            (7, LayoutHintClass::Text),
+        ] {
+            assert!(groups.iter().any(|group| {
+                group.segment_indices == vec![index]
+                    && group
+                        .region_path
+                        .is_some_and(|path| path.root.class_name == Some(class_name))
+            }));
+        }
     }
 
     #[test]

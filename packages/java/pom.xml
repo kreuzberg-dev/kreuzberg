@@ -8,7 +8,7 @@
 
   <groupId>io.xberg</groupId>
   <artifactId>xberg</artifactId>
-  <version>1.0.0-rc.36</version>
+  <version>1.0.0-rc.37</version>
   <packaging>jar</packaging>
 
   <name>xberg</name>
@@ -38,27 +38,27 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
-    <junit.version>5.11.4</junit.version>
-    <maven.version>3.9.11</maven.version>
+    <junit.version>6.1.2</junit.version>
+    <maven.version>3.9.16</maven.version>
     <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-    <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
+    <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
     <maven-pmd-plugin.version>3.28.0</maven-pmd-plugin.version>
     <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
     <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
-    <maven-clean-plugin.version>3.4.1</maven-clean-plugin.version>
-    <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
-    <maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
-    <maven-install-plugin.version>3.1.3</maven-install-plugin.version>
-    <maven-deploy-plugin.version>3.1.3</maven-deploy-plugin.version>
+    <maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
+    <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
+    <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
+    <maven-install-plugin.version>3.1.4</maven-install-plugin.version>
+    <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
     <maven-site-plugin.version>4.0.0-M16</maven-site-plugin.version>
-    <central-publishing-plugin.version>0.10.0</central-publishing-plugin.version>
+    <central-publishing-plugin.version>0.11.0</central-publishing-plugin.version>
     <versions-maven-plugin.version>2.21.0</versions-maven-plugin.version>
-    <maven-enforcer-plugin.version>3.6.2</maven-enforcer-plugin.version>
-    <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
-    <checkstyle.version>13.4.0</checkstyle.version>
-    <pmd.version>7.17.0</pmd.version>
+    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+    <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+    <checkstyle.version>13.8.0</checkstyle.version>
+    <pmd.version>7.26.0</pmd.version>
     <gpg.skip>true</gpg.skip>
   </properties>
 
@@ -71,12 +71,12 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.21.2</version>
+      <version>2.22.1</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.datatype</groupId>
       <artifactId>jackson-datatype-jdk8</artifactId>
-      <version>2.21.2</version>
+      <version>2.22.1</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "xberg-cli"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "CLI proxy for xberg — downloads and runs the native xberg binary from GitHub releases."
 readme = "README.md"
 license = { text = "MIT" }

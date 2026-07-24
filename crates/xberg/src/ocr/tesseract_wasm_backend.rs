@@ -22,12 +22,31 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
-use xberg_tesseract::{Pix, TesseractAPI};
+use xberg_tesseract::{Pix, TessMonitor, TessPageSegMode, TesseractAPI};
 
 /// Default OCR engine mode: LSTM only (mode 1). Matches the `OEM_LSTM_ONLY`
 /// constant from Tesseract's `tesseract/publictypes.h`. LSTM is the only
 /// recognition engine compiled into our WASI Tesseract build.
 const OEM_LSTM_ONLY: i32 = 1;
+
+/// Bounded default page segmentation mode used when `OcrConfig::tesseract_config`
+/// carries no explicit (or an out-of-range) PSM.
+///
+/// `PSM_AUTO` (3) — Tesseract's own library default — is known to hang or
+/// abort inside the WASI-compiled Tesseract build (issue #855: "Tesseract
+/// PSM_AUTO hangs 60-90s in WASM build"), surfacing to callers as an
+/// uncatchable wasm `unreachable` trap. `PSM_SINGLE_BLOCK` treats the whole
+/// image as one block of text, which is safe in the WASM build and matches
+/// `TesseractConfig::default()`'s wasm32-specific `psm: 6`.
+const DEFAULT_WASM_PSM: TessPageSegMode = TessPageSegMode::PSM_SINGLE_BLOCK;
+
+/// Recognition deadline, in milliseconds, enforced via `TessMonitor`.
+///
+/// Bounds worst-case recognition time for a pathological image so a stuck
+/// recognition run fails gracefully instead of hanging indefinitely. Kept
+/// well under typical caller-side timeouts (e.g. the 30s WASM smoke-test
+/// limit that exposed issue #855).
+const RECOGNITION_DEADLINE_MS: i32 = 15_000;
 
 /// WASM-compatible Tesseract OCR backend.
 #[cfg_attr(alef, alef(skip))]
@@ -143,14 +162,29 @@ impl OcrBackend for TesseractWasmBackend {
                 source: Some(Box::new(e)),
             })?;
 
+        let psm_mode = resolve_psm(config);
+        api.set_page_seg_mode(psm_mode).map_err(|e| crate::XbergError::Ocr {
+            message: format!("Failed to set Tesseract page segmentation mode: {e}"),
+            source: Some(Box::new(e)),
+        })?;
+
         api.set_image_2(pix.as_ptr()).map_err(|e| crate::XbergError::Ocr {
             message: format!("Failed to set image on Tesseract API: {e}"),
             source: Some(Box::new(e)),
         })?;
-        api.recognize().map_err(|e| crate::XbergError::Ocr {
-            message: format!("Tesseract recognition failed: {e}"),
-            source: Some(Box::new(e)),
-        })?;
+
+        let monitor = TessMonitor::new();
+        monitor
+            .set_deadline(RECOGNITION_DEADLINE_MS)
+            .map_err(|e| crate::XbergError::Ocr {
+                message: format!("Failed to configure Tesseract recognition deadline: {e}"),
+                source: Some(Box::new(e)),
+            })?;
+        api.recognize_with_monitor(&monitor)
+            .map_err(|e| crate::XbergError::Ocr {
+                message: format!("Tesseract recognition failed or exceeded its deadline: {e}"),
+                source: Some(Box::new(e)),
+            })?;
         let text = api.get_utf8_text().map_err(|e| crate::XbergError::Ocr {
             message: format!("Failed to read Tesseract text output: {e}"),
             source: Some(Box::new(e)),
@@ -159,7 +193,7 @@ impl OcrBackend for TesseractWasmBackend {
         let metadata = Metadata {
             format: Some(FormatMetadata::Ocr(OcrMetadata {
                 language: language.clone(),
-                psm: config.tesseract_config.as_ref().map(|c| c.psm).unwrap_or(3),
+                psm: psm_mode as i32,
                 output_format: "text".to_string(),
                 table_count: 0,
                 table_rows: None,
@@ -194,4 +228,90 @@ impl OcrBackend for TesseractWasmBackend {
 /// `xberg-tesseract/bundle-tessdata-eng` feature is on, otherwise `None`.
 fn bundled_eng_traineddata() -> Option<&'static [u8]> {
     xberg_tesseract::bundled_eng_traineddata()
+}
+
+/// Resolves the page segmentation mode to use for a recognition call.
+///
+/// Respects `config.tesseract_config.psm` when it is present and maps to a
+/// valid `TessPageSegMode`. Falls back to [`DEFAULT_WASM_PSM`] — never to
+/// Tesseract's own `PSM_AUTO` default — when the config is unset or carries
+/// an out-of-range value, so callers can never end up hitting the PSM_AUTO
+/// hang described in issue #855 by omission.
+fn resolve_psm(config: &OcrConfig) -> TessPageSegMode {
+    config
+        .tesseract_config
+        .as_ref()
+        .and_then(|c| TessPageSegMode::try_from_int(c.psm as i32))
+        .unwrap_or(DEFAULT_WASM_PSM)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// This is a native-compilable test of the PSM-selection logic only.
+    /// `TesseractWasmBackend::process_image` itself drives the WASI-compiled
+    /// Tesseract engine, which requires a wasm32 build with the
+    /// `build-tesseract-wasm` toolchain and is not exercised by `cargo test`
+    /// on this target; the deadline/monitor wiring around `recognize()` is
+    /// therefore not covered by an automated test here.
+    #[test]
+    fn should_use_default_wasm_psm_when_config_has_no_tesseract_config() {
+        let config = OcrConfig {
+            tesseract_config: None,
+            ..Default::default()
+        };
+
+        assert_eq!(resolve_psm(&config), DEFAULT_WASM_PSM);
+        assert_eq!(DEFAULT_WASM_PSM, TessPageSegMode::PSM_SINGLE_BLOCK);
+    }
+
+    #[test]
+    fn should_never_resolve_to_psm_auto_when_config_has_no_tesseract_config() {
+        let config = OcrConfig {
+            tesseract_config: None,
+            ..Default::default()
+        };
+
+        assert_ne!(resolve_psm(&config), TessPageSegMode::PSM_AUTO);
+    }
+
+    #[test]
+    fn should_respect_explicit_psm_from_tesseract_config() {
+        let config = OcrConfig {
+            tesseract_config: Some(crate::types::TesseractConfig {
+                psm: 7, 
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(resolve_psm(&config), TessPageSegMode::PSM_SINGLE_LINE);
+    }
+
+    #[test]
+    fn should_respect_explicit_psm_auto_when_caller_opts_in() {
+        let config = OcrConfig {
+            tesseract_config: Some(crate::types::TesseractConfig {
+                psm: 3, 
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(resolve_psm(&config), TessPageSegMode::PSM_AUTO);
+    }
+
+    #[test]
+    fn should_fall_back_to_default_wasm_psm_for_out_of_range_psm_value() {
+        let config = OcrConfig {
+            tesseract_config: Some(crate::types::TesseractConfig {
+                psm: 255,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(resolve_psm(&config), DEFAULT_WASM_PSM);
+    }
 }

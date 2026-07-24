@@ -82,7 +82,7 @@
 
 High-performance document intelligence for Go backed by the Rust core that powers every Xberg binding.
 
-> **Version 1.0.0-rc.36**
+> **Version 1.0.0-rc.37**
 > Report issues at [github.com/xberg-io/xberg](https://github.com/xberg-io/xberg/issues).
 
 ## What This Package Provides
@@ -124,7 +124,7 @@ To use this package via `go get`:
 go get github.com/xberg-io/xberg/packages/go@latest
 
 # Or a specific version
-go get github.com/xberg-io/xberg/packages/go@v1.0.0-rc.36
+go get github.com/xberg-io/xberg/packages/go@v1.0.0-rc.37
 ```
 
 > ⚠️ Do not run `go get github.com/xberg-io/xberg` — the repository root is not a Go module.
@@ -143,7 +143,7 @@ Download the static library for your platform from [GitHub Releases](https://git
 
 ```bash
 # Example: Linux x86_64
-curl -LO https://github.com/xberg-io/xberg/releases/download/v1.0.0-rc.36/go-ffi-linux-x86_64.tar.gz
+curl -LO https://github.com/xberg-io/xberg/releases/download/v1.0.0-rc.37/go-ffi-linux-x86_64.tar.gz
 tar -xzf go-ffi-linux-x86_64.tar.gz
 
 # Copy to a permanent location

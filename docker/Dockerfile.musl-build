@@ -42,9 +42,6 @@ RUN cargo build --release --package xberg-cli --features all && \
 
 RUN patchelf --set-rpath '$ORIGIN/lib' /build/xberg
 
-# Seed dependency discovery with the executable as well as the libraries that
-# are copied explicitly below. Otherwise direct dependencies such as libheif
-# never enter the recursive closure.
 RUN set -eu; \
     mkdir -p /build/lib/libheif; \
     cp /usr/lib/libstdc++.so.6 /build/lib/; \

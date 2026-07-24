@@ -8,10 +8,13 @@ vars:
 
 tasks:
   validate:scripts:
-    desc: "Validate local benchmark shell helpers"
+    desc: "Validate benchmark workflow and local shell helpers"
     cmds:
+      - scripts/ci/benchmarks/validate-workflow-build-config.sh
       - tools/benchmark-harness/tests/test_bench_local_frameworks.sh
       - tools/benchmark-harness/scripts/bench_local_profiles_test.sh
+      - python3 -m unittest tools/benchmark-harness/tests/test_corpus_cache_manifest.py
+      - tools/benchmark-harness/tests/test_restore_corpus_cache.sh
 
   run:
     desc: "Run benchmark harness with profiling support"
@@ -160,11 +163,11 @@ tasks:
       - cargo run --locked -p benchmark-harness --features candle-paddleocr-vl-15-bench --release -- pipeline-benchmark --fixtures "{{.FIXTURES_DIR}}"
 
   corpus:cache:publish:
-    desc: "Package the license-restricted reference corpus (.corpus-cache) and upload it to the private GCS bucket, keyed by the test_documents SHA. Run after a corpus rebuild + build_corpus.py --stage materialize."
+    desc: "Verify and publish the content-addressed reference corpus cache. Run after a corpus rebuild + build_corpus.py --stage materialize."
     cmds:
       - scripts/benchmarks/publish-corpus-cache.sh
 
   corpus:cache:restore:
-    desc: "Restore the reference corpus (.corpus-cache) from the private GCS bucket for the current test_documents SHA"
+    desc: "Restore the verified reference corpus cache for the current manifest"
     cmds:
       - scripts/benchmarks/restore-corpus-cache.sh

@@ -1,21 +1,51 @@
 name: CI Integrations
 
-# Tests for the first-party integrations under integrations/. Path-filtered so it
-# does not run on core-only changes. The Python packages are standalone uv projects
-# (each owns its uv.lock); spring-ai is Maven; the n8n node is a TypeScript package.
-# All depend on the published xberg binding (pre-release until 1.0.0 GA), hence
-# --prerelease=allow. ~keep
-
 on:
   push:
     branches: [main]
     paths:
       - "integrations/**"
+      - "crates/xberg/**"
+      - "crates/xberg-py/**"
+      - "crates/xberg-node/**"
+      - "crates/xberg-ffi/**"
+      - "packages/python/**"
+      - "packages/java/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "Taskfile.yml"
+      - ".cargo/config.toml"
+      - ".task/tools/integrations.yml"
+      - ".github/actions/install-system-deps/**"
+      - ".github/actions/setup-onnx-runtime/**"
+      - "scripts/ci/install-system-deps/**"
+      - "scripts/ci/actions/setup-onnx-runtime/**"
       - ".github/workflows/ci-integrations.yaml"
   pull_request:
     branches: [main]
     paths:
       - "integrations/**"
+      - "crates/xberg/**"
+      - "crates/xberg-py/**"
+      - "crates/xberg-node/**"
+      - "crates/xberg-ffi/**"
+      - "packages/python/**"
+      - "packages/java/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "Taskfile.yml"
+      - ".cargo/config.toml"
+      - ".task/tools/integrations.yml"
+      - ".github/actions/install-system-deps/**"
+      - ".github/actions/setup-onnx-runtime/**"
+      - "scripts/ci/install-system-deps/**"
+      - "scripts/ci/actions/setup-onnx-runtime/**"
       - ".github/workflows/ci-integrations.yaml"
   workflow_dispatch:
 
@@ -23,73 +53,236 @@ concurrency:
   group: ci-integrations-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  RUST_BACKTRACE: full
+  RUST_MIN_STACK: 16777216
+  ORT_VERSION: "1.24.2"
+  BUILD_PROFILE: "ci"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  TESSDATA_PREFIX: "/usr/share/tesseract-ocr/5/tessdata"
+
 permissions:
   contents: read
 
 jobs:
-  python:
-    name: Python (${{ matrix.package }} · py${{ matrix.python }})
+  build-bindings:
+    name: Build local integration bindings
+    if: github.repository == 'xberg-io/xberg'
     runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: xberg-io/actions/setup-rust@v1
+        with:
+          cache-key-prefix: ci-integrations-bindings
+          use-sccache: "true"
+
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Setup ONNX Runtime
+        uses: ./.github/actions/setup-onnx-runtime
+        with:
+          ort-version: ${{ env.ORT_VERSION }}
+          strategy: system
+
+      - name: Setup native library paths
+        run: task integrations:ci:configure-native-paths
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+
+      - name: Build abi3 Python wheel
+        run: task integrations:ci:build:python-binding
+
+      - name: Setup Node workspace
+        uses: xberg-io/actions/setup-node-workspace@v1
+
+      - name: Build Node package
+        run: task integrations:ci:build:node-binding
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Maven
+        uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
+
+      - name: Build and stage Java binding
+        run: task integrations:ci:build:java-binding
+
+      - name: Upload Python binding
+        uses: actions/upload-artifact@v7
+        with:
+          name: xberg-python-linux-x64
+          path: dist/python/*.whl
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload Node binding
+        uses: actions/upload-artifact@v7
+        with:
+          name: xberg-node-linux-x64
+          path: dist/node/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload Java binding
+        uses: actions/upload-artifact@v7
+        with:
+          name: xberg-java-linux-x64
+          path: |
+            dist/m2/io/xberg/xberg/
+            dist/java/
+          retention-days: 7
+          if-no-files-found: error
+
+  python:
+    name: Python (py${{ matrix.python }})
+    if: github.repository == 'xberg-io/xberg'
+    needs: [build-bindings]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python: ["3.11", "3.13"]
-        package:
-          - python/crewai
-          - python/txtai
-          - python/surrealdb
-          - python/langchain
-          - python/llama-index/readers/llama-index-readers-xberg
-          - python/llama-index/node_parsers/llama-index-node-parser-xberg
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Setup ONNX Runtime
+        uses: ./.github/actions/setup-onnx-runtime
+        with:
+          ort-version: ${{ env.ORT_VERSION }}
+          strategy: system
+
+      - name: Setup native library paths
+        run: task integrations:ci:configure-native-paths
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
-      - name: Sync
-        working-directory: integrations/${{ matrix.package }}
-        run: uv sync --all-extras --prerelease=allow
-      - name: Test
-        working-directory: integrations/${{ matrix.package }}
-        run: uv run pytest -q
+
+      - name: Download local Python binding
+        uses: actions/download-artifact@v8
+        with:
+          name: xberg-python-linux-x64
+          path: local-xberg
+
+      - name: Test integrations against local Xberg wheel
+        run: >
+          task integrations:ci:test:python-all
+          WHEEL_DIR="${GITHUB_WORKSPACE}/local-xberg"
+
+  node:
+    name: Node
+    if: github.repository == 'xberg-io/xberg'
+    needs: [build-bindings]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Setup ONNX Runtime
+        uses: ./.github/actions/setup-onnx-runtime
+        with:
+          ort-version: ${{ env.ORT_VERSION }}
+          strategy: system
+
+      - name: Setup native library paths
+        run: task integrations:ci:configure-native-paths
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            integrations/node/n8n-nodes-xberg/package-lock.json
+            integrations/node/langchain-xberg/package-lock.json
+            integrations/node/llamaindex-xberg/package-lock.json
+
+      - name: Download local Node binding
+        uses: actions/download-artifact@v8
+        with:
+          name: xberg-node-linux-x64
+          path: local-xberg
+
+      - name: Test integrations against local Node binding
+        run: >
+          task integrations:ci:test:node-all
+          BINDING_DIR="${GITHUB_WORKSPACE}/local-xberg"
 
   java:
     name: Java (spring-ai)
+    if: github.repository == 'xberg-io/xberg'
+    needs: [build-bindings]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-java@v5
+
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Setup ONNX Runtime
+        uses: ./.github/actions/setup-onnx-runtime
+        with:
+          ort-version: ${{ env.ORT_VERSION }}
+          strategy: system
+
+      - name: Setup native library paths
+        run: task integrations:ci:configure-native-paths
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
           cache: maven
-      - name: Test
-        run: mvn -B -f integrations/java/spring-ai/pom.xml test
 
-  node:
-    name: Node (${{ matrix.package }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - n8n-nodes-xberg
-          - langchain-xberg
-          - llamaindex-xberg
-    defaults:
-      run:
-        working-directory: integrations/node/${{ matrix.package }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - name: Setup Maven
+        uses: xberg-io/actions/setup-maven@v1
         with:
-          node-version: "22"
-      - name: Install
-        run: npm ci
-      - name: Lint
-        run: npm run lint --if-present
-      - name: Build
-        run: npm run build --if-present
-      - name: Test
-        run: npm test --if-present
+          version: "3.9.16"
+
+      - name: Download local Java binding
+        uses: actions/download-artifact@v8
+        with:
+          name: xberg-java-linux-x64
+          path: local-xberg
+
+      - name: Test spring-ai against the local Maven repository
+        run: >
+          task integrations:ci:test:java
+          BINDING_DIR="${GITHUB_WORKSPACE}/local-xberg"

@@ -86,7 +86,9 @@ pub(crate) fn render_plain(doc: &InternalDocument) -> String {
             }
             ElementKind::Table { table_index } => {
                 if let Some(table) = doc.tables.get(table_index as usize) {
-                    let table_str = if !table.cells.is_empty() {
+                    let table_str = if !elem.text.is_empty() {
+                        elem.text.clone()
+                    } else if !table.cells.is_empty() {
                         render_table_plain(&table.cells)
                     } else {
                         table.markdown.clone()
@@ -301,6 +303,21 @@ mod tests {
         let out = render_plain(&doc);
         assert!(out.contains("Name Age"), "got: {}", out);
         assert!(out.contains("Alice 30"), "got: {}", out);
+    }
+
+    #[test]
+    fn should_use_explicit_plain_text_for_table_when_present() {
+        let mut builder = InternalDocumentBuilder::new("test");
+        let cells = vec![
+            vec!["Name".to_string(), "Age".to_string()],
+            vec!["Alice".to_string(), "30".to_string()],
+        ];
+        let table_index = builder.push_table_from_cells(&cells, None, None);
+        builder.set_text(table_index, "Name: Alice\nAge: 30");
+
+        let output = render_plain(&builder.build());
+
+        assert_eq!(output, "Name: Alice\nAge: 30");
     }
 
     #[test]

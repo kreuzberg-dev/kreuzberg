@@ -22,9 +22,6 @@ check_lib() {
     die "$name requires glibc $highest > floor $MAX_GLIBC"
   fi
 
-  # auditwheel repair renames the bundled ORT to a hashed soname
-  # (libonnxruntime-<hash>.so.<version>), so match libonnxruntime*.so* not
-  # just libonnxruntime.so* — the latter misses the dash-hash form entirely.
   if ! find "$root" -name 'libonnxruntime*.so*' -type f | grep -q .; then
     die "$name has no libonnxruntime.so bundled in the artifact"
   fi

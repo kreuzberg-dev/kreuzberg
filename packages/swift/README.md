@@ -97,7 +97,7 @@ Extract text, tables, images, metadata, and code intelligence from 97 file forma
 Add to your `Package.swift` dependencies:
 
 ```swift
-.package(url: "https://github.com/xberg-io/xberg.git", from: "1.0.0-rc.36"),
+.package(url: "https://github.com/xberg-io/xberg.git", from: "1.0.0-rc.37"),
 ```
 
 Then add the product to the relevant target:

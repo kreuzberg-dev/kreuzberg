@@ -4,7 +4,7 @@ requires = ["maturin>=1,<2"]
 
 [project]
 name = "xberg"
-version = "1.0.0rc36"
+version = "1.0.0rc37"
 description = "High-performance document intelligence library"
 keywords = ["document", "extraction", "ocr", "pdf", "text"]
 license = "MIT"

@@ -29,7 +29,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # npm integration packages (package.json): version + exact `@xberg-io/xberg` pin,
-# both in the native/semver form. ~keep
+# both in the native/semver form. The committed `package-lock.json` is intentionally NOT
+# synced here: the core pin resolves to an rc that is published to npm only during the same
+# release run, so its integrity/resolved cannot be generated ahead of time. The npm publish +
+# CI jobs use `npm install` (not `npm ci`) to reconcile the core entry against the just-published
+# version while preserving third-party pins. ~keep
 NPM_MANIFESTS = [
     "integrations/node/n8n-nodes-xberg/package.json",
     "integrations/node/langchain-xberg/package.json",

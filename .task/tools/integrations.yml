@@ -16,6 +16,32 @@ vars:
     integrations/python/langchain
     integrations/python/llama-index
   SPRING_AI: "integrations/java/spring-ai"
+  # Publishable Python distributions, mirroring the publish-integrations-pypi job. The
+  # llama-index dev aggregator (integrations/python/llama-index) is version 0.0.0 and is NOT
+  # published — only its two sub-packages are. `uv build` needs no network (builds sdist/wheel
+  # from source), so this is safe to run before the core is published. ~keep
+  PY_BUILD_DIRS: >-
+    integrations/python/crewai
+    integrations/python/txtai
+    integrations/python/surrealdb
+    integrations/python/langchain
+    integrations/python/llama-index/readers/llama-index-readers-xberg
+    integrations/python/llama-index/node_parsers/llama-index-node-parser-xberg
+  NODE_DIRS: >-
+    integrations/node/n8n-nodes-xberg
+    integrations/node/langchain-xberg
+    integrations/node/llamaindex-xberg
+  PY_TEST_PACKAGES: >-
+    python/crewai
+    python/txtai
+    python/surrealdb
+    python/langchain
+    python/llama-index/readers/llama-index-readers-xberg
+    python/llama-index/node_parsers/llama-index-node-parser-xberg
+  NODE_TEST_PACKAGES: >-
+    n8n-nodes-xberg
+    langchain-xberg
+    llamaindex-xberg
 
 tasks:
   sync:
@@ -43,3 +69,128 @@ tasks:
           cd {{.SPRING_AI}} && command -v mvn >/dev/null 2>&1 \
             && mvn -q versions:use-latest-releases -DgenerateBackupPoms=false \
             || echo "Maven not found, skipping spring-ai upgrade"
+
+  build:
+    desc: "Build publishable integration artifacts locally (packaging dry-run; Python only, pre-release-safe)"
+    cmds:
+      - task: build:python
+
+  build:python:
+    desc: "Build integration Python sdists+wheels (uv build; no network, safe pre-release)"
+    cmds:
+      - for: { var: PY_BUILD_DIRS }
+        cmd: cd {{.ITEM}} && uv build --sdist --wheel
+
+  build:node:
+    desc: "Install+build the npm integrations (needs the pinned @xberg-io/xberg already on npm)"
+    cmds:
+      - for: { var: NODE_DIRS }
+        cmd: cd {{.ITEM}} && npm install --no-audit --no-fund && npm run build
+
+  build:java:
+    desc: "Package the spring-ai integration (needs io.xberg:xberg already on Maven Central)"
+    cmds:
+      - cd {{.SPRING_AI}} && mvn -q -DskipTests package
+
+  ci:configure-native-paths:
+    requires:
+      vars: [GITHUB_ENV]
+    cmds:
+      - |
+        export PKG_CONFIG_PATH="${PWD}/crates/xberg-ffi:${PKG_CONFIG_PATH:-}"
+        export LD_LIBRARY_PATH="/usr/local/lib:${PWD}/target/release:${ORT_LIB_LOCATION}:${LD_LIBRARY_PATH:-}"
+        echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}" >> "{{.GITHUB_ENV}}"
+        echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> "{{.GITHUB_ENV}}"
+
+  ci:build:python-binding:
+    cmds:
+      - cd packages/python && uvx --from "maturin>=1,<2" maturin build --release --out ../../dist/python
+
+  ci:build:node-binding:
+    cmds:
+      - |
+        cd crates/xberg-node
+        pnpm install
+        CARGO_BUILD_JOBS=1 pnpm exec napi build --output-dir . --release --platform
+        mkdir -p ../../dist/node
+        cp index.js index.d.ts package.json ./*.node ../../dist/node/
+
+  ci:build:java-binding:
+    cmds:
+      - cargo build --release -p xberg-ffi
+      - |
+        cd packages/java
+        mvn -B install \
+          -DskipTests \
+          -Dpmd.skip=true \
+          -Dcpd.skip=true \
+          -Dmaven.javadoc.skip=true \
+          -Dsource.skip=true \
+          -Dmaven.repo.local="${PWD}/../../dist/m2"
+      - mkdir -p dist/java && cp target/release/libxberg_ffi.so dist/java/
+
+  ci:test:python:
+    requires:
+      vars: [PACKAGE, WHEEL_DIR]
+    dir: integrations/{{.PACKAGE}}
+    cmds:
+      - uv sync --locked --all-extras --prerelease=allow --no-install-package xberg
+      - uv pip install --python .venv/bin/python --reinstall "{{.WHEEL_DIR}}"/*.whl
+      - uv run --no-sync pytest -q
+
+  ci:test:python-all:
+    requires:
+      vars: [WHEEL_DIR]
+    cmds:
+      - |
+        set -e
+        for package in {{.PY_TEST_PACKAGES}}; do
+          (
+            cd "integrations/${package}"
+            uv sync --locked --all-extras --prerelease=allow --no-install-package xberg
+            uv pip install --python .venv/bin/python --reinstall "{{.WHEEL_DIR}}"/*.whl
+            uv run --no-sync pytest -q
+          )
+        done
+
+  ci:test:node:
+    requires:
+      vars: [PACKAGE, BINDING_DIR]
+    dir: integrations/node/{{.PACKAGE}}
+    cmds:
+      - npm pkg delete optionalDependencies --prefix "{{.BINDING_DIR}}"
+      - npm pkg set "dependencies.@xberg-io/xberg=file:{{.BINDING_DIR}}"
+      - npm install --no-audit --no-fund
+      - npm run lint --if-present
+      - npm run build --if-present
+      - npm test --if-present
+
+  ci:test:node-all:
+    requires:
+      vars: [BINDING_DIR]
+    cmds:
+      - |
+        set -e
+        npm pkg delete optionalDependencies --prefix "{{.BINDING_DIR}}"
+        for package in {{.NODE_TEST_PACKAGES}}; do
+          (
+            cd "integrations/node/${package}"
+            npm pkg set "dependencies.@xberg-io/xberg=file:{{.BINDING_DIR}}"
+            npm install --no-audit --no-fund
+            npm run lint --if-present
+            npm run build --if-present
+            npm test --if-present
+          )
+        done
+
+  ci:test:java:
+    requires:
+      vars: [BINDING_DIR]
+    cmds:
+      - mkdir -p target/release && cp "{{.BINDING_DIR}}"/java/libxberg_ffi.so target/release/
+      - >-
+        mvn -B -f integrations/java/spring-ai/pom.xml test
+        -Dmaven.repo.local="{{.BINDING_DIR}}/m2"
+        -DargLine="--enable-preview --enable-native-access=ALL-UNNAMED
+        -XX:+EnableDynamicAgentLoading -Dnet.bytebuddy.experimental=true
+        -Djava.library.path=${PWD}/target/release"

@@ -83,7 +83,7 @@ static QUARANTINE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::Ato
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -103,7 +103,7 @@ const HF_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -128,7 +128,7 @@ const HF_MAX_RETRY_ATTEMPTS: usize = 2;
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -145,7 +145,7 @@ struct Ipv4FirstResolver;
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -178,7 +178,7 @@ impl reqwest::dns::Resolve for Ipv4FirstResolver {
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -206,7 +206,7 @@ fn order_ipv4_first(addrs: &mut [std::net::SocketAddr]) {
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,
@@ -1835,7 +1835,7 @@ mod download_deadline_tests {
     test,
     not(target_arch = "wasm32"),
     any(
-        feature = "candle-ocr",
+        feature = "candle-paddleocr-vl",
         feature = "paddle-ocr",
         auto_rotate,
         layout_detection,

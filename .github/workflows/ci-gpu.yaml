@@ -77,10 +77,6 @@ jobs:
           submodules: recursive
           lfs: true
 
-      # actions/checkout's `lfs: true` does not smudge LFS objects inside
-      # submodules (actions/checkout#2337). test_documents tracks fixtures via
-      # LFS, so pull them explicitly or the GPU extraction tests read unresolved
-      # pointer stubs instead of real documents.
       - name: Pull test_documents LFS objects
         run: git -C test_documents lfs pull
 
@@ -243,10 +239,6 @@ jobs:
           submodules: recursive
           lfs: true
 
-      # actions/checkout's `lfs: true` does not smudge LFS objects inside
-      # submodules (actions/checkout#2337). test_documents tracks fixtures via
-      # LFS, so pull them explicitly or the candle extraction tests read
-      # unresolved pointer stubs instead of real documents.
       - name: Pull test_documents LFS objects
         run: git -C test_documents lfs pull
 

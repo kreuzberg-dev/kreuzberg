@@ -1,5 +1,6 @@
 use crate::enums::{TessPageIteratorLevel, TessPageSegMode};
 use crate::error::{Result, TesseractError};
+use crate::monitor::TessMonitor;
 use crate::page_iterator::{TessBaseAPIGetIterator, TessPageIteratorDelete};
 use crate::result_iterator::TessResultIteratorDelete;
 use crate::{PageIterator, ResultIterator};
@@ -321,6 +322,41 @@ impl TesseractAPI {
         let result = unsafe { shim::xberg_tess_recognize(*handle) };
         #[cfg(not(all(feature = "build-tesseract", not(target_arch = "wasm32"))))]
         let result = unsafe { TessBaseAPIRecognize(*handle, std::ptr::null_mut()) };
+        if result != 0 {
+            Err(TesseractError::OcrError)
+        } else {
+            ensure_tesseract_cleanup_registered();
+            Ok(())
+        }
+    }
+
+    /// Recognizes text in the current image, bounded by a [`TessMonitor`] deadline.
+    ///
+    /// Behaves like [`Self::recognize`], but passes `monitor` into
+    /// `TessBaseAPIRecognize` so a deadline configured via
+    /// [`TessMonitor::set_deadline`] can abort a pathological recognition run
+    /// (e.g. `PSM_AUTO` on a hostile image) instead of letting it run
+    /// unbounded. Prefer this whenever recognition must fail gracefully
+    /// rather than risk a hang.
+    ///
+    /// # Availability
+    ///
+    /// Only the direct-FFI path (used on WASI/`wasm32` builds and any build
+    /// without the `build-tesseract` shim) honors the deadline. When the
+    /// native `build-tesseract` shim is active, `TessBaseAPIRecognize` is
+    /// invoked through `xberg_tess_recognize`, which does not accept a
+    /// monitor; in that configuration this call behaves identically to
+    /// [`Self::recognize`] and the deadline is not enforced.
+    pub fn recognize_with_monitor(&self, monitor: &TessMonitor) -> Result<()> {
+        let handle = self.handle.lock().map_err(|_| TesseractError::MutexLockError)?;
+        let monitor_ptr = monitor.as_ptr()?;
+        #[cfg(all(feature = "build-tesseract", not(target_arch = "wasm32")))]
+        let result = {
+            let _ = monitor_ptr;
+            unsafe { shim::xberg_tess_recognize(*handle) }
+        };
+        #[cfg(not(all(feature = "build-tesseract", not(target_arch = "wasm32"))))]
+        let result = unsafe { TessBaseAPIRecognize(*handle, monitor_ptr) };
         if result != 0 {
             Err(TesseractError::OcrError)
         } else {

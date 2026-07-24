@@ -1,6 +1,6 @@
 {
   "name": "@xberg-io/xberg-cli",
-  "version": "1.0.0-rc.36",
+  "version": "1.0.0-rc.37",
   "description": "CLI proxy for xberg — downloads and runs the native xberg binary from GitHub releases.",
   "license": "MIT",
   "author": "Na'aman Hirschfeld",

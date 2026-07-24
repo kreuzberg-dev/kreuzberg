@@ -73,15 +73,15 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     // JUnit 5 API and engine
-    testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.0")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.1.0")
-    testImplementation("org.junit.platform:junit-platform-launcher:6.1.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.1.2")
+    testImplementation("org.junit.platform:junit-platform-launcher:6.1.2")
 
     // Kotlin stdlib test helpers
     testImplementation(kotlin("test"))
 
     // JNA for loading the native library from java.library.path
-    testImplementation("net.java.dev.jna:jna:5.18.1")
+    testImplementation("net.java.dev.jna:jna:5.19.1")
 
 }
 

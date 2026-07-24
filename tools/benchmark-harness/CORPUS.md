@@ -47,7 +47,7 @@ cargo run -p benchmark-harness -- run \
 ## CI (`.github/workflows/benchmarks.yaml`)
 
 The `setup` job authenticates to GCS via Workload Identity Federation, restores `.corpus-cache` for
-the checked-out `test_documents` SHA, runs the strict GT gate, and uploads the cache as the
+the checked-out reference manifest, runs the strict GT gate, and uploads the cache as the
 `benchmark-corpus-cache` artifact. Every extraction job downloads that artifact and runs
 `git -C test_documents lfs pull` for the vendor PDFs. Auth uses org secrets
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BENCHMARK_SA`, `GCP_BENCHMARK_BUCKET`; the WIF principal is
@@ -56,17 +56,19 @@ read-only and scoped to `xberg-io/xberg` and `xberg-io/xberg-enterprise` (provis
 
 ## GCS layout
 
-`gs://xberg-benchmark-corpus/corpus-cache/<test_documents_sha>.tar.zst` — a zstd tarball of
-`.corpus-cache/pdf` + `.corpus-cache/ground_truth/pdf`, keyed by the submodule commit it was built
-from. `restore-corpus-cache.sh` fetches the object for the current SHA and fails with a clear message
-if it is absent.
+`gs://xberg-benchmark-corpus/corpus-cache/v2/<content_digest>.tar.zst` — an immutable zstd tarball of
+`.corpus-cache/pdf` + `.corpus-cache/ground_truth/pdf`. The digest covers the sorted active reference
+IDs and their PDF, Markdown, and text SHA-256 values, so unrelated public-corpus changes do not
+invalidate the private cache. Restore verifies exact paths and payload hashes before atomically
+installing the cache. During migration, it can reuse a legacy SHA-keyed object only when that
+revision's reference-manifest digest exactly matches the current digest.
 
 ## Corpus-rebuild sequence (do these together)
 
 1. Rebuild the corpus: `python tools/benchmark-harness/scripts/build_corpus.py --stage all`
    then `--stage materialize`. Commit the regenerated fixtures + GT + manifest in `test_documents`
    and bump the submodule pin in this repo.
-2. Publish the new reference cache for the new SHA: `task benchmark:corpus:cache:publish`
+2. Publish the new content-addressed reference cache: `task benchmark:corpus:cache:publish`
    (needs write access to the bucket + a locally materialized cache).
 3. Bump `xberg-enterprise`'s `test_documents` pin to the same commit — the enterprise
    `test_documents-pin` drift guard fails until it matches this repo's pin.

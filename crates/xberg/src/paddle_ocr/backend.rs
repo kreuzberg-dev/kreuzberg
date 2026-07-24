@@ -33,7 +33,9 @@ use crate::plugins::{OcrBackend, OcrBackendType, Plugin};
 use crate::table_core::{reconstruct_table, table_to_markdown};
 use crate::types::{ExtractedDocument, FormatMetadata, Metadata, OcrElement, OcrMetadata, Table};
 
-use super::config::PaddleOcrConfig;
+#[cfg(test)]
+use super::config::DEFAULT_RECOGNITION_BATCH_SIZE;
+use super::config::{MAX_RECOGNITION_BATCH_SIZE, MIN_RECOGNITION_BATCH_SIZE, PaddleOcrConfig};
 use super::model_manager::{ModelManager, SharedModelPaths};
 use super::{is_language_supported, language_to_script_family, map_language_code};
 
@@ -346,6 +348,12 @@ impl PaddleOcrBackend {
 
     /// Perform actual OCR inference (runs in blocking context).
     /// OcrLite::detect takes &self — no Mutex needed, enabling true parallel page OCR.
+    fn effective_rec_batch_size(config: &PaddleOcrConfig) -> u32 {
+        config
+            .rec_batch_num
+            .clamp(MIN_RECOGNITION_BATCH_SIZE, MAX_RECOGNITION_BATCH_SIZE)
+    }
+
     fn perform_ocr(
         image_bytes: &[u8],
         ocr_engine: &Arc<OcrLite>,
@@ -365,9 +373,10 @@ impl PaddleOcrBackend {
         let un_clip_ratio = config.det_db_unclip_ratio;
         let do_angle = config.use_angle_cls;
         let most_angle = false;
+        let rec_batch_size = Self::effective_rec_batch_size(config);
 
         let result = ocr_engine
-            .detect(
+            .detect_with_rec_batch_size(
                 &img,
                 padding,
                 max_side_len,
@@ -376,6 +385,7 @@ impl PaddleOcrBackend {
                 un_clip_ratio,
                 do_angle,
                 most_angle,
+                rec_batch_size,
             )
             .map_err(|e| crate::XbergError::Ocr {
                 message: format!("PaddleOCR detection failed: {}", e),
@@ -611,6 +621,29 @@ mod tests {
         let config = PaddleOcrConfig::default();
         let result = PaddleOcrBackend::with_config(config);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_effective_rec_batch_size_enforces_bounds() {
+        let cases = [
+            (0, MIN_RECOGNITION_BATCH_SIZE),
+            (PaddleOcrConfig::default().rec_batch_num, DEFAULT_RECOGNITION_BATCH_SIZE),
+            (12, 12),
+            (u32::MAX, MAX_RECOGNITION_BATCH_SIZE),
+        ];
+
+        for (configured, expected) in cases {
+            let config = PaddleOcrConfig {
+                rec_batch_num: configured,
+                ..Default::default()
+            };
+
+            assert_eq!(
+                PaddleOcrBackend::effective_rec_batch_size(&config),
+                expected,
+                "unexpected effective recognition batch size for configured value {configured}"
+            );
+        }
     }
 
     #[test]

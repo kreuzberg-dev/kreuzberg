@@ -484,13 +484,13 @@ jobs:
           # at repair time; it has been observed to drop libonnxruntime.so here
           # (#1284 follow-up). Vendor explicitly, same as every other native
           # target in this workflow, instead of depending on auditwheel alone.
-          for w in wheelhouse/*.whl; do scripts/ci/vendor-native-closure.sh "$w"; done
+          for w in wheelhouse/*.whl; do bash scripts/ci/vendor-native-closure.sh "$w"; done
 
       - name: Verify wheel glibc floor + bundled ONNX Runtime
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          for w in wheelhouse/*.whl; do scripts/ci/verify-glibc-floor.sh "$w" "$GLIBC_FLOOR"; done
+          for w in wheelhouse/*.whl; do bash scripts/ci/verify-glibc-floor.sh "$w" "$GLIBC_FLOOR"; done
 
       - name: Upload wheels
         uses: actions/upload-artifact@v7
@@ -759,7 +759,7 @@ jobs:
           ' "staging/npm/${platform}"
           tar -czf node-bindings-${{ matrix.target }}.tar.gz -C staging npm
       - name: Verify glibc floor
-        run: scripts/ci/verify-glibc-floor.sh "staging/npm/linux-${{ matrix.napi_arch }}-gnu" "$GLIBC_FLOOR"
+        run: bash scripts/ci/verify-glibc-floor.sh "staging/npm/linux-${{ matrix.napi_arch }}-gnu" "$GLIBC_FLOOR"
       - uses: actions/upload-artifact@v7
         with:
           name: node-bindings-${{ matrix.target }}
@@ -1194,8 +1194,8 @@ jobs:
           shipped=0
           for t in dist/go-ffi/*.tar.gz; do
             shipped=1
-            scripts/ci/vendor-native-closure.sh "$t"
-            scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
+            bash scripts/ci/vendor-native-closure.sh "$t"
+            bash scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
           done
           [ "$shipped" = 1 ] || echo "::notice::no artifact produced (dry-run stub); skipping ship+verify"
 
@@ -1280,8 +1280,8 @@ jobs:
           shipped=0
           for t in dist/c-ffi/*.tar.gz; do
             shipped=1
-            scripts/ci/vendor-native-closure.sh "$t"
-            scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
+            bash scripts/ci/vendor-native-closure.sh "$t"
+            bash scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
           done
           [ "$shipped" = 1 ] || echo "::notice::no artifact produced (dry-run stub); skipping ship+verify"
 
@@ -1348,8 +1348,8 @@ jobs:
         shell: bash
         run: |
           if [ -d dist/java-natives ] && find dist/java-natives -name '*.so' -type f | grep -q .; then
-            scripts/ci/vendor-native-closure.sh dist/java-natives
-            scripts/ci/verify-glibc-floor.sh dist/java-natives "$GLIBC_FLOOR"
+            bash scripts/ci/vendor-native-closure.sh dist/java-natives
+            bash scripts/ci/verify-glibc-floor.sh dist/java-natives "$GLIBC_FLOOR"
           else
             echo "::notice::no java natives produced (dry-run stub); skipping ship+verify"
           fi
@@ -1639,8 +1639,8 @@ jobs:
           shipped=0
           for t in dist/elixir-natives/*.tar.gz; do
             shipped=1
-            scripts/ci/vendor-native-closure.sh "$t"
-            scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
+            bash scripts/ci/vendor-native-closure.sh "$t"
+            bash scripts/ci/verify-glibc-floor.sh "$t" "$GLIBC_FLOOR"
           done
           [ "$shipped" = 1 ] || echo "::notice::no artifact produced (dry-run stub); skipping ship+verify"
 
@@ -2715,6 +2715,8 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
 
       - uses: xberg-io/actions/publish-maven@v1
         with:
@@ -3182,17 +3184,9 @@ jobs:
         if: ${{ matrix.install_brew }}
         uses: xberg-io/actions/install-homebrew-linux@v1
 
-      # Mint the app token immediately before the bottle build+upload. GitHub App
-      # installation tokens have a hard 1h TTL; a from-source bottle build (esp. the
-      # slow macOS runners) minted at job start can expire before the action uploads
-      # the bottle to the release, causing a 401. Minting here gives the full hour. ~keep
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: xberg-io
-
+      # Build (from source) and STAGE the bottle without uploading. A from-source build on
+      # the slow macOS runners can outlast a GitHub App token's hard 1h TTL, so uploading
+      # inside this step with a token minted before the build 401s (rc.36 sequoia). ~keep
       - name: Build bottles
         uses: xberg-io/actions/homebrew-build-bottles@v1
         with:
@@ -3203,7 +3197,40 @@ jobs:
             xberg
           out-dir: ${{ github.workspace }}/bottle-json
           github-repo: xberg-io/xberg
-          token: ${{ steps.app-token.outputs.token }}
+          upload: false
+
+      # Mint the token AFTER the slow build so its full 1h TTL is available for the upload.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          owner: xberg-io
+
+      - name: Upload bottle to release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bottles=("${{ github.workspace }}/bottle-json/"*.bottle.tar.gz)
+          if [[ ${#bottles[@]} -eq 0 ]]; then
+            echo "::error::no bottle tarball staged in bottle-json/" >&2
+            exit 1
+          fi
+          for b in "${bottles[@]}"; do
+            echo "Uploading $(basename "$b") to ${TAG}"
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$TAG" "$b" --clobber --repo xberg-io/xberg; then break; fi
+              if [ "$attempt" = 5 ]; then
+                echo "::error::failed to upload $(basename "$b") after 5 attempts" >&2
+                exit 1
+              fi
+              echo "attempt ${attempt}/5 failed; retrying in $((attempt * 5))s" >&2
+              sleep $((attempt * 5))
+            done
+          done
 
       - uses: actions/upload-artifact@v7
         with:
@@ -3215,12 +3242,16 @@ jobs:
   publish-homebrew-bottles:
     name: Merge Homebrew bottle DSL
     needs: [prepare, publish-homebrew-formula, homebrew-bottles]
-    # Consumes the bottle-json RUN-artifacts, so homebrew-bottles must have SUCCEEDED
-    # this run. Otherwise independent of any sibling channel's result. ~keep
+    # Consumes the bottle-json RUN-artifacts. Runs on a PARTIAL bottle set too: with
+    # fail-fast:false the matrix legs upload independently, and merge-bottles renders a
+    # bottle block from whatever JSON manifests are present (missing platforms fall back
+    # to source-build). So a single failed leg (e.g. the slow sequoia runner) must NOT
+    # drop the bottle DSL for every platform — hence success OR failure, not just success.
+    # (download-artifact only pulls the legs that succeeded.) ~keep
     if: >-
       ${{ always()
       && needs.publish-homebrew-formula.result == 'success'
-      && needs.homebrew-bottles.result == 'success'
+      && (needs.homebrew-bottles.result == 'success' || needs.homebrew-bottles.result == 'failure')
       && needs.prepare.outputs.release_homebrew == 'true'
       && needs.prepare.outputs.is_tag == 'true' }}
     runs-on: ubuntu-latest
@@ -3477,6 +3508,30 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: xberg-io/actions/setup-maven@v1
+        with:
+          version: "3.9.16"
+      - name: Wait for core artifact on Maven Central
+        if: needs.prepare.outputs.dry_run != 'true'
+        env:
+          XBERG_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          # spring-ai depends on io.xberg:xberg:$XBERG_VERSION, published by the core
+          # `publish-maven` job. `needs: publish-maven` guarantees that job finished but NOT
+          # that the Central Portal has synced the artifact to repo1.maven.org, where mvn
+          # resolves it — that indexing lag (minutes to tens of minutes) is what failed the
+          # rc.36 spring-ai deploy ("Could not find artifact io.xberg:xberg:jar in central").
+          url="https://repo1.maven.org/maven2/io/xberg/xberg/${XBERG_VERSION}/xberg-${XBERG_VERSION}.pom"
+          for attempt in $(seq 1 60); do
+            if curl -fsSL -o /dev/null "$url"; then
+              echo "core artifact available after attempt ${attempt}: ${url}"
+              exit 0
+            fi
+            echo "attempt ${attempt}/60: not yet on Central; sleeping 30s (${url})"
+            sleep 30
+          done
+          echo "::error::io.xberg:xberg:${XBERG_VERSION} did not appear on Maven Central within ~30m; re-run this job once it syncs" >&2
+          exit 1
       - uses: xberg-io/actions/publish-maven@v1
         with:
           pom-file: integrations/java/spring-ai/pom.xml
@@ -3516,8 +3571,13 @@ jobs:
           registry-url: "https://registry.npmjs.org/"
       - name: Build
         working-directory: integrations/node/${{ matrix.package }}
+        # `npm install` (not `npm ci`): the integration pins `@xberg-io/xberg` to the exact rc,
+        # which is published to npm only by the preceding `publish-node` job of THIS run — so a
+        # committed lockfile can never pre-match it (the stale rc.32 lockfile broke rc.36's npm
+        # publish). install reconciles the core entry against the just-published version while
+        # preserving the third-party pins already recorded in package-lock.json. ~keep
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
       - uses: xberg-io/actions/publish-npm@v1
         with:

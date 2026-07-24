@@ -16,7 +16,7 @@
              -o dist/nuget
          The RID set here must match packages/csharp/Xberg/runtime.json.template. -->
     <PackageId Condition="'$(Rid)' != ''">XbergIo.Xberg.runtime.$(Rid)</PackageId>
-    <Version>1.0.0-rc.36</Version>
+    <Version>1.0.0-rc.37</Version>
     <Description>Native runtime assets for XbergIo.Xberg ($(Rid)). Not intended for direct reference — pulled in transitively via the XbergIo.Xberg meta-package's runtime.json.</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <RepositoryUrl>https://github.com/xberg-io/xberg</RepositoryUrl>
