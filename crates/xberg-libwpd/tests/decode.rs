@@ -1,10 +1,12 @@
 //! Tests for the libwpd bindings.
 //!
-//! The error-path tests run everywhere and exercise the shim's exception safety
-//! (malformed input must never crash across the FFI boundary). The decode test
-//! needs a real WordPerfect sample from the repository-root `test_documents/`
-//! submodule and skips when it is not checked out, mirroring the other extractor
-//! tests in this workspace. No WordPerfect binaries are stored in the crate.
+//! The error-path and concurrency tests run everywhere and exercise the
+//! shim's exception safety (malformed input must never crash across the FFI
+//! boundary) and thread-safety (no shared mutable state across calls). The
+//! decode test needs a real WordPerfect sample from the repository-root
+//! `test_documents/` submodule and skips when it is not checked out,
+//! mirroring the other extractor tests in this workspace. No WordPerfect
+//! binaries are stored in the crate.
 
 use std::path::PathBuf;
 
@@ -50,4 +52,33 @@ fn extracts_text_from_sample() {
     assert!(xberg_libwpd::is_supported(&bytes), "sample should be recognized");
     let text = xberg_libwpd::extract_text(&bytes).expect("extract_text");
     assert!(!text.trim().is_empty(), "expected non-empty extracted text");
+    let markdown = xberg_libwpd::extract_markdown(&bytes).expect("extract_markdown");
+    assert!(!markdown.trim().is_empty(), "expected non-empty markdown extraction");
+}
+
+/// `extract_text`/`extract_markdown`/`is_supported` construct a fresh
+/// `TextCollector` per call and share no mutable state across the FFI
+/// boundary, so concurrent callers must not crash or corrupt each other's
+/// output. Runs on the same deterministic junk buffer from every thread so a
+/// data race would show up as a spurious `Ok` or a panic, not just noise.
+#[test]
+fn concurrent_calls_do_not_crash() {
+    let junk: std::sync::Arc<[u8]> = (0..4096u32).map(|i| (i.wrapping_mul(2654435761) >> 24) as u8).collect();
+
+    let handles: Vec<_> = (0..8)
+        .map(|_| {
+            let junk = std::sync::Arc::clone(&junk);
+            std::thread::spawn(move || {
+                for _ in 0..50 {
+                    assert!(!xberg_libwpd::is_supported(&junk));
+                    assert!(xberg_libwpd::extract_text(&junk).is_err());
+                    assert!(xberg_libwpd::extract_markdown(&junk).is_err());
+                }
+            })
+        })
+        .collect();
+
+    for h in handles {
+        h.join().expect("worker thread panicked");
+    }
 }

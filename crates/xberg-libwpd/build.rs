@@ -8,9 +8,12 @@
 //!
 //! Both libraries are built against their MPL-2.0 arm. They are downloaded from
 //! their upstream release tarballs at build time (checksum-verified) and cached
-//! under `OUT_DIR`, mirroring how `xberg-tesseract` provisions its native
-//! dependencies. librevenge and libwpd both require boost headers at build time
-//! (header-only `boost::spirit`), which must be present on the system.
+//! in a workspace-relative directory (override via `XBERG_LIBWPD_CACHE_DIR`),
+//! mirroring how `xberg-tesseract` provisions its native dependencies, so the
+//! extraction survives `cargo clean` instead of being re-downloaded from
+//! `OUT_DIR` on every build. librevenge and libwpd both require boost headers
+//! at build time (header-only `boost::spirit`), which must be present on the
+//! system.
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod build_libwpd {
@@ -125,6 +128,54 @@ mod build_libwpd {
         root
     }
 
+    /// Mirrors `xberg-tesseract`'s cache placement: walk up from `OUT_DIR` to
+    /// the workspace's `target/` directory (4 levels: `target/<profile>/build/
+    /// <crate>-<hash>/out` -> `target/`), landing the cache alongside other
+    /// crates' native build artifacts instead of buried in a per-build `OUT_DIR`
+    /// that gets wiped on every `cargo clean`.
+    fn workspace_cache_dir_from_out_dir() -> Option<PathBuf> {
+        let out_dir = env::var_os("OUT_DIR")?;
+        let mut path = PathBuf::from(out_dir);
+        for _ in 0..4 {
+            if !path.pop() {
+                return None;
+            }
+        }
+        Some(path.join("xberg-libwpd-cache"))
+    }
+
+    /// Cache directory for the downloaded librevenge/libwpd sources: honors
+    /// `XBERG_LIBWPD_CACHE_DIR`, else a workspace-relative path derived from
+    /// `OUT_DIR`, else a per-OS `$HOME`-based fallback.
+    fn cache_dir() -> PathBuf {
+        if let Ok(custom) = env::var("XBERG_LIBWPD_CACHE_DIR") {
+            return PathBuf::from(custom);
+        }
+
+        if let Some(workspace_cache) = workspace_cache_dir_from_out_dir() {
+            return workspace_cache;
+        }
+
+        if cfg!(target_os = "macos") {
+            let home_dir = env::var("HOME").unwrap_or_else(|_| {
+                env::var("USER")
+                    .map(|user| format!("/Users/{user}"))
+                    .expect("neither HOME nor USER environment variable set")
+            });
+            PathBuf::from(home_dir)
+                .join("Library")
+                .join("Caches")
+                .join("xberg-libwpd")
+        } else {
+            let home_dir = env::var("HOME").unwrap_or_else(|_| {
+                env::var("USER")
+                    .map(|user| format!("/home/{user}"))
+                    .expect("neither HOME nor USER environment variable set")
+            });
+            PathBuf::from(home_dir).join(".cache").join("xberg-libwpd")
+        }
+    }
+
     fn cpp_files(dir: &Path) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = fs::read_dir(dir)
             .unwrap_or_else(|e| panic!("reading {dir:?}: {e}"))
@@ -136,7 +187,7 @@ mod build_libwpd {
     }
 
     pub fn build() {
-        let cache = PathBuf::from(env::var("OUT_DIR").unwrap()).join("native");
+        let cache = cache_dir();
         fs::create_dir_all(&cache).expect("failed to create native cache dir");
 
         let boost = find_boost_include();
@@ -178,6 +229,7 @@ mod build_libwpd {
         println!("cargo:rerun-if-changed=build.rs");
         println!("cargo:rerun-if-changed=src/shim.cpp");
         println!("cargo:rerun-if-env-changed=BOOST_INCLUDE_DIR");
+        println!("cargo:rerun-if-env-changed=XBERG_LIBWPD_CACHE_DIR");
     }
 }
 

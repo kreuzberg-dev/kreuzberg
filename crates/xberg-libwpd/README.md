@@ -11,21 +11,34 @@ and its document-model dependency
 libwpd exposes no `extract()` call. It drives librevenge's SAX-like
 `RVNGTextInterface`: the caller supplies a concrete implementation and libwpd
 invokes its callbacks. A hand-written C++ shim (`src/shim.cpp`) implements that
-interface, accumulates a plain-text rendering (paragraphs, list items and
-tables), and exposes a small flat C API. `src/lib.rs` wraps it in a safe Rust
-surface:
+interface, accumulates a text (or, via `extract_markdown`, lightly
+Markdown-marked-up) rendering, and exposes a small flat C API. `src/lib.rs`
+wraps it in a safe Rust surface:
 
 ```rust
 let text = xberg_libwpd::extract_text(&bytes)?;
+let markdown = xberg_libwpd::extract_markdown(&bytes)?; // headings, bold/italic, lists
 let ok = xberg_libwpd::is_supported(&bytes);
 ```
+
+Footnotes, endnotes, comments, text boxes, headers and footers are never
+concatenated straight into the surrounding narrative text: each is collected
+separately and spliced back in behind a `[kind: ...]` marker (headers/footers,
+which recur on every page rather than at one point in the document, are
+exposed once at the start/end instead). Tables stay tab/newline-separated in
+both modes — WordPerfect tables can have ragged rows and merged cells that
+don't map cleanly onto Markdown's fixed-column pipe-table syntax.
 
 ## Building
 
 `build.rs` downloads the librevenge and libwpd release tarballs (checksum
-verified, cached under `OUT_DIR`) and compiles them from source together with
-the shim into one static library, using the C++ toolchain via the `cc` crate.
-Both libraries are built against their **MPL-2.0** arm.
+verified) and compiles them from source together with the shim into one
+static library, using the C++ toolchain via the `cc` crate. Both libraries
+are built against their **MPL-2.0** arm.
+
+Downloaded sources are cached in a workspace-relative directory (derived from
+`OUT_DIR`) so they survive `cargo clean`, mirroring `xberg-tesseract`. Override
+the location with `XBERG_LIBWPD_CACHE_DIR`.
 
 ### Requirements
 
