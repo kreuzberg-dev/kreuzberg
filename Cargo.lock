@@ -11871,14 +11871,15 @@ dependencies = [
 
 [[package]]
 name = "xberg-libwpd"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "cc",
  "flate2",
  "reqwest",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tar",
  "thiserror 2.0.19",
+ "tracing",
 ]
 
 [[package]]

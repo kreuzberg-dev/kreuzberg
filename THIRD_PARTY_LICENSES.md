@@ -51,8 +51,9 @@ platform's `libheif` build links it.
 
 ## libwpd + librevenge (WordPerfect) — MPL-2.0
 
-- **Feature:** optional `wordperfect` Cargo feature (part of `full`/`formats`),
-  via the `xberg-libwpd` crate. Desktop only (Linux and macOS).
+- **Feature:** the `xberg-libwpd` crate, a standalone workspace member not yet
+  consumed by `xberg`'s `wordperfect`/`full`/`formats` features (tracked as
+  follow-up wiring work). Desktop only (Linux and macOS).
 - **License:** libwpd and librevenge are dual-licensed **MPL-2.0 OR
   LGPL-2.1+**. Xberg builds and links them under the **MPL-2.0** arm.
 - **Linking:** **Static, from source.** `xberg-libwpd`'s build script fetches

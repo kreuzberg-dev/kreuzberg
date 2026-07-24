@@ -48,6 +48,7 @@ bytes = { version = "1", features = ["serde"] }
 candle-core = { version = "0.11", default-features = false }
 candle-nn = { version = "0.11", default-features = false }
 candle-transformers = { version = "0.11", default-features = false }
+cc = "1.3"
 cfb = "0.14"
 chrono = "0.4"
 clap = { version = "4.6", features = ["derive", "color", "suggestions"] }
@@ -56,6 +57,7 @@ console_error_panic_hook = "0.1"
 crawlberg = { version = "1.0.8", default-features = false }
 criterion = { version = "0.8", features = ["html_reports"] }
 dbase = "0.8"
+flate2 = "1.1"
 fs2 = "0.4.3"
 futures = "0.3"
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
@@ -89,8 +91,10 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }
 serde_toon_format = "0.1"
+sha2 = "0.11"
 similar = "3"
 sqlite-vec = "0.1"
+tar = "0.4"
 tempfile = "3.27.0"
 thiserror = "2.0.19"
 # `process`, `fs`, and `rt-multi-thread` are deliberately excluded from this baseline: tokio's
