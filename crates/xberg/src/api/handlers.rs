@@ -1179,11 +1179,31 @@ pub(crate) async fn job_status_handler(
         (status = 409, description = "Job already reached a terminal state", body = crate::api::types::ErrorResponse),
     )
 )]
+#[cfg_attr(
+    feature = "otel",
+    tracing::instrument(
+        name = "api.cancel_job",
+        skip(state),
+        fields(job_id = %job_id, outcome = tracing::field::Empty)
+    )
+)]
 pub(crate) async fn cancel_job_handler(
     State(state): State<ApiState>,
     axum::extract::Path(job_id): axum::extract::Path<String>,
 ) -> Result<axum::Json<JobStatusResponse>, ApiError> {
-    match state.job_store.cancel(&job_id, super::jobs::now_rfc3339()) {
+    let outcome = state.job_store.cancel(&job_id, super::jobs::now_rfc3339());
+
+    #[cfg(feature = "otel")]
+    tracing::Span::current().record(
+        "outcome",
+        match &outcome {
+            super::jobs::CancelOutcome::Cancelled(_) => "cancelled",
+            super::jobs::CancelOutcome::Conflict(_) => "conflict",
+            super::jobs::CancelOutcome::NotFound => "not_found",
+        },
+    );
+
+    match outcome {
         super::jobs::CancelOutcome::Cancelled(status) => Ok(axum::Json(status)),
         super::jobs::CancelOutcome::Conflict(status) => Err(ApiError {
             status: axum::http::StatusCode::CONFLICT,
