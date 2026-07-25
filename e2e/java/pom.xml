@@ -31,9 +31,9 @@
         <dependency>
             <groupId>io.xberg</groupId>
             <artifactId>xberg</artifactId>
-            <version>1.0.0-rc.38</version>
+            <version>1.0.0-rc.39</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.38.jar</systemPath>
+            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.39.jar</systemPath>
         </dependency>
 
         <dependency>

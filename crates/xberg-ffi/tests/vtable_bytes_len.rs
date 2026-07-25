@@ -16,8 +16,6 @@ use xberg_ffi::{
     XbergDocumentExtractorBridge, XbergDocumentExtractorVTable, XbergOcrBackendBridge, XbergOcrBackendVTable,
 };
 
-// ── Per-test callback state ───────────────────────────────────────────────
-
 struct CallbackState {
     received_len: AtomicUsize,
     received_last_byte: AtomicU8,
@@ -31,8 +29,6 @@ impl CallbackState {
         }
     }
 }
-
-// ── C callback stubs ─────────────────────────────────────────────────────
 
 unsafe extern "C" fn ocr_process_image(
     user_data: *const std::ffi::c_void,
@@ -88,13 +84,11 @@ unsafe extern "C" fn extractor_extract(
     1
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────
-
 /// OcrBackend.process_image must pass the full buffer length even when
 /// the payload contains embedded NUL bytes.
 #[tokio::test]
 async fn ocr_backend_vtable_process_image_passes_full_length_with_embedded_nuls() {
-    // 8-byte buffer; NUL at index 3. strlen-style reads would stop at 3.
+    // 8-byte buffer; NUL at index 3. strlen-style reads would stop at 3. ~keep
     let image_bytes: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0x00, 0xDE, 0xAD, 0xBE, 0xEF];
 
     let state = Box::new(CallbackState::new());
@@ -140,7 +134,6 @@ async fn ocr_backend_vtable_process_image_passes_full_length_with_embedded_nuls(
 /// document bytes contain embedded NUL bytes.
 #[tokio::test]
 async fn document_extractor_vtable_extract_passes_full_length_with_embedded_nuls() {
-    // 8-byte buffer; NUL at index 2.
     let content: Vec<u8> = vec![0x50, 0x4B, 0x00, 0x03, 0x14, 0x00, 0x00, 0x02];
 
     let state = Box::new(CallbackState::new());
@@ -193,7 +186,6 @@ fn image_kind_page_raster_is_10_and_unknown_is_11() {
         "PageRaster == 10"
     );
     assert_eq!(unsafe { xberg_ffi::xberg_image_kind_from_i32(11) }, 11, "Unknown == 11");
-    // Old Unknown value must now resolve to PageRaster, not Unknown.
     assert_ne!(
         unsafe { xberg_ffi::xberg_image_kind_from_i32(10) },
         -1,

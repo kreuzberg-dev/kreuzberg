@@ -254,7 +254,10 @@ jobs:
             org.opencontainers.image.licenses=MIT
           outputs: type=image,name=${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=publish-docker-${{ matrix.variant }}-${{ matrix.platform.name }}
-          cache-to: type=gha,mode=max,scope=publish-docker-${{ matrix.variant }}-${{ matrix.platform.name }}
+          # ignore-error: the image is already pushed by digest above; a transient
+          # GitHub Actions cache-export failure (buildx `not_found`) must not fail the
+          # whole build/publish. ~keep
+          cache-to: type=gha,mode=max,ignore-error=true,scope=publish-docker-${{ matrix.variant }}-${{ matrix.platform.name }}
 
       - name: Export digest
         if: ${{ steps.gate.outputs.go == 'true' && needs.prepare.outputs.dry_run != 'true' }}
@@ -345,9 +348,19 @@ jobs:
       - name: Verify digests present
         id: check
         if: ${{ steps.gate.outputs.go == 'true' }}
+        # A multi-arch manifest needs BOTH platform digests (amd64 + arm64). If only one
+        # leg produced a digest, publishing would silently ship a single-arch manifest
+        # (#1315: -core alternated amd64-only / arm64-only whenever one leg's gha cache
+        # export failed and took the whole build leg down). Fail loudly instead. Zero
+        # digests means the entire variant build was cancelled (rc.36 #1299) — skip it
+        # cleanly so the other variants still publish. ~keep
         run: |
-          if ls /tmp/digests/* >/dev/null 2>&1; then
+          count=$(find /tmp/digests -type f 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$count" -ge 2 ]; then
             echo "push=true" >> "$GITHUB_OUTPUT"
+          elif [ "$count" -eq 1 ]; then
+            echo "::error::variant '${{ matrix.variant }}' produced only 1 platform digest (expected 2: amd64+arm64) — refusing to publish a single-arch manifest (#1315). A build-docker leg failed; inspect the build jobs."
+            exit 1
           else
             echo "::warning::no digests for variant '${{ matrix.variant }}' — its build leg did not complete; skipping its manifest publish (other variants unaffected)"
             echo "push=false" >> "$GITHUB_OUTPUT"

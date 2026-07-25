@@ -58,6 +58,7 @@ def make_xberg_document(
 
 
 def make_chunk(
+    *,
     content: str = "Some chunk content.",
     chunk_type: str = "unknown",
     chunk_index: int = 0,

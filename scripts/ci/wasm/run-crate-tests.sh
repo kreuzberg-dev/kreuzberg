@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run the in-crate #[wasm_bindgen_test] suites for xberg-wasm under Node.
 #
-# The suites live in the crate's hand-written modules (src/engine.rs) because
+# The suites live in the crate's hand-written modules (src/engine.rs,
+# src/bridge/ner_model.rs) because
 # the generated manifest builds only a cdylib, which integration tests under
 # tests/ cannot link against. They run under Node because wasm-bindgen's test
 # glue carries the same unresolvable "env" / "wasi_snapshot_preview1" imports

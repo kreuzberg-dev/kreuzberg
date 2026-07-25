@@ -101,7 +101,7 @@ pub struct FrameworkProvenance {
     pub batch_capability: Option<BatchCapability>,
     pub requested_workers: Option<usize>,
     pub effective_workers: Option<usize>,
-    /// Configured thread budget for Xberg native batch runs.
+    /// Explicit or effective configured thread budget for Xberg runs.
     ///
     /// This is distinct from the document concurrency cap in
     /// [`Self::requested_workers`] and is unavailable for other frameworks.
@@ -386,12 +386,12 @@ fn configured_thread_budget(
     capability: Option<BatchCapability>,
     adapter: &dyn FrameworkAdapter,
 ) -> Option<usize> {
-    matches!(
-        (mode, capability.map(|value| value.entry_point)),
-        (BenchmarkMode::Batch, Some(BatchEntryPoint::XbergCliExtractBatch))
-    )
-    .then(|| adapter.configured_thread_budget())
-    .flatten()
+    match (mode, capability.map(|value| value.entry_point)) {
+        (BenchmarkMode::SingleFile, _) | (BenchmarkMode::Batch, Some(BatchEntryPoint::XbergCliExtractBatch)) => {
+            adapter.configured_thread_budget()
+        }
+        (BenchmarkMode::Batch, _) => None,
+    }
 }
 
 #[cfg(test)]
@@ -528,6 +528,25 @@ mod tests {
         assert_ne!(adapter.configured_thread_budget(), mismatched_config.xberg_max_threads);
         assert_eq!(
             configured_thread_budget(BenchmarkMode::SingleFile, Some(capability), &adapter),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn xberg_single_provenance_records_only_explicit_thread_budget() {
+        use crate::adapters::subprocess::SubprocessAdapter;
+
+        let explicit = SubprocessAdapter::new("xberg-test", "echo", vec![], vec![], vec!["pdf".to_string()])
+            .with_xberg_max_threads(4);
+        let automatic =
+            SubprocessAdapter::new("xberg-test", "echo", vec![], vec![], vec!["pdf".to_string()]).with_batch_workers(4);
+
+        assert_eq!(
+            configured_thread_budget(BenchmarkMode::SingleFile, None, &explicit),
+            Some(4)
+        );
+        assert_eq!(
+            configured_thread_budget(BenchmarkMode::SingleFile, None, &automatic),
             None
         );
     }

@@ -5,8 +5,11 @@
 //! match [`call_injected_ner`]. The host returns a promise resolving to an
 //! array of entities (`{ category, text, start, end, confidence? }`).
 //!
-//! There is no in-binary fallback: when no backend is injected, NER is
-//! unavailable and calls return an error saying so.
+//! The *injected* path only; with nothing injected the engine reports NER as
+//! unavailable. To run a model inside the binary instead see
+//! [`crate::bridge::ner_model::NerModel`], a separate entry point that does not
+//! route through this bridge: local inference is synchronous, so the timeout here
+//! could not interrupt it.
 
 use js_sys::{Function, Object, Promise, Reflect};
 use wasm_bindgen::prelude::*;
@@ -14,6 +17,30 @@ use wasm_bindgen::prelude::*;
 use xberg::types::entity::{Entity, EntityCategory};
 
 use crate::bridge::js_from_any;
+
+/// Read the `categories` option off a JS options bag.
+///
+/// Missing, `null`, `undefined`, a non-array, or a non-string element degrade to
+/// an empty list, which backends read as "use the defaults", not "detect
+/// nothing". Unknown names become [`EntityCategory::Custom`] zero-shot labels.
+///
+/// Shared by [`crate::engine::XbergEngine::ner`] and
+/// [`crate::bridge::ner_model::NerModel::detect`] so they cannot drift.
+pub(crate) fn categories_from_opts(opts: &JsValue) -> Vec<EntityCategory> {
+    if opts.is_undefined() || opts.is_null() {
+        return Vec::new();
+    }
+    Reflect::get(opts, &JsValue::from_str("categories"))
+        .ok()
+        .and_then(|v| v.dyn_into::<js_sys::Array>().ok())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_string())
+                .map(EntityCategory::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 /// Resolve NER through the injected backend, with a configurable bridge timeout.
 pub async fn resolve_ner_with_timeout(
@@ -25,7 +52,8 @@ pub async fn resolve_ner_with_timeout(
     match injected {
         Some(obj) => call_injected_ner(obj, text, categories, timeout_ms).await,
         None => Err(js_from_any(
-            "NER unavailable: no NER backend injected; pass a `ner` object in the engine injection",
+            "NER unavailable: no NER backend injected. Pass a `ner` object in the engine injection, \
+             or run a model in the browser with NerModel.load({ weights, tokenizer, encoderConfig })",
         )),
     }
 }

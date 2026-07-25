@@ -121,22 +121,15 @@ impl XbergEngine {
     /// Perform Named Entity Recognition on `text` through the injected NER
     /// backend. `opts` may contain `categories`, an array of category names;
     /// unknown names are treated as custom zero-shot labels.
+    ///
+    /// This is the injected-backend path. To run a model inside the browser
+    /// instead, load one with
+    /// [`NerModel`](crate::bridge::ner_model::NerModel) and call its `detect`
+    /// method directly — it needs none of the promise bridging or timeout this
+    /// path provides.
     #[allow(clippy::missing_errors_doc)]
     pub async fn ner(&self, text: String, opts: JsValue) -> Result<JsValue, JsValue> {
-        let categories: Vec<xberg::types::entity::EntityCategory> = if opts.is_undefined() || opts.is_null() {
-            Vec::new()
-        } else {
-            js_sys::Reflect::get(&opts, &JsValue::from_str("categories"))
-                .ok()
-                .and_then(|v| v.dyn_into::<js_sys::Array>().ok())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_string())
-                        .map(xberg::types::entity::EntityCategory::from)
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        let categories = crate::bridge::ner::categories_from_opts(&opts);
 
         let entities = resolve_ner_with_timeout(self.ner.clone(), &text, &categories, self.bridge_timeout_ms)
             .await
@@ -324,7 +317,7 @@ mod tests {
         let bbox = get(&first, "bbox");
         assert_eq!(get(&bbox, "width").as_f64().unwrap(), 30.0);
 
-        // Line without geometry stays geometry-free rather than erroring.
+        // Line without geometry stays geometry-free rather than erroring. ~keep
         let second = lines.get(1);
         assert_eq!(get(&second, "text").as_string().unwrap(), "world");
         let second_bbox = get(&second, "bbox");
@@ -435,7 +428,7 @@ mod tests {
 
         let seen: js_sys::Array = eval("globalThis.__xbergTestNerCategories").dyn_into().unwrap();
         // Built-in categories keep their snake_case names; unknown names pass
-        // through as custom zero-shot labels.
+        // through as custom zero-shot labels. ~keep
         assert_eq!(seen.length(), 2);
         assert_eq!(seen.get(0).as_string().unwrap(), "email");
         assert_eq!(seen.get(1).as_string().unwrap(), "invoice_number");
@@ -480,7 +473,7 @@ mod tests {
     // bytes. Exercising them against real RT-DETR/PP-LCNet weights needs
     // hundreds of MB of models fetched at runtime, which the JS-side vitest e2e
     // covers; here we assert the wired byte path rejects invalid model bytes
-    // gracefully (a JS error, never a wasm panic/trap).
+    // gracefully (a JS error, never a wasm panic/trap). ~keep
 
     #[wasm_bindgen_test]
     fn detect_layout_rejects_invalid_model_bytes() {
@@ -491,7 +484,7 @@ mod tests {
     #[wasm_bindgen_test]
     fn detect_orientation_errors_on_invalid_input() {
         // Orientation loads its model lazily, so this fails at image decode;
-        // either way the wired path must surface an error, not trap.
+        // either way the wired path must surface an error, not trap. ~keep
         let result = detect_orientation(vec![0u8; 8], b"not an onnx model".to_vec());
         assert!(result.is_err());
     }

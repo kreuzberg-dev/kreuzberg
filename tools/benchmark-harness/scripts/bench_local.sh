@@ -28,6 +28,8 @@
 #   BATCH_OCR_COHORT exact manifest relative to BATCH_OCR_FIXTURES (default: unset)
 #   BATCH_FRAMEWORKS native-batch frameworks (default: native-capable subset of FRAMEWORKS)
 #   BATCH_WORKERS framework worker limit where its native API exposes one (default: 4)
+#   XBERG_MAX_THREADS fixed total Xberg CPU budget in both modes (default: 4)
+#   HARNESS      benchmark-harness executable (default: ./target/release/benchmark-harness)
 #   XBERG_BENCH_PROFILE isolated Xberg build: full, pdf-heuristic, or pdf-ocr (default: unset)
 #   SKIP_BUILD   set to 1 to skip the cargo builds (default: build) ~keep
 #
@@ -59,6 +61,8 @@ if [ "${BATCH_FRAMEWORKS+x}" = x ]; then
 fi
 BATCH_FRAMEWORKS="${BATCH_FRAMEWORKS:-}"
 BATCH_WORKERS="${BATCH_WORKERS:-4}"
+XBERG_MAX_THREADS="${XBERG_MAX_THREADS:-4}"
+HARNESS="${HARNESS:-./target/release/benchmark-harness}"
 XBERG_BENCH_PROFILE="${XBERG_BENCH_PROFILE:-}"
 
 source "$REPO_ROOT/tools/benchmark-harness/scripts/bench_local_frameworks.sh"
@@ -112,8 +116,6 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
   echo "[bench:local] Building benchmark harness (release)…"
   cargo build --locked --release -p benchmark-harness
 fi
-HARNESS=./target/release/benchmark-harness
-
 # 3. Resolve Docling once, outside measured extraction, to the exact direct
 #    interpreter that the Rust adapter will use. ~keep
 resolve_docling_python() {
@@ -210,6 +212,7 @@ run_single() {
     --output "$output" \
     --mode single-file \
     --max-concurrent 1 \
+    --xberg-max-threads "$XBERG_MAX_THREADS" \
     --iterations "$ITERATIONS" \
     --timeout "$TIMEOUT" \
     --measure-quality \
@@ -242,6 +245,7 @@ run_batch() {
     --output "$output" \
     --mode batch \
     --max-concurrent "$BATCH_WORKERS" \
+    --xberg-max-threads "$XBERG_MAX_THREADS" \
     --iterations "$ITERATIONS" \
     --timeout "$TIMEOUT" \
     --measure-quality \

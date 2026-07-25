@@ -674,10 +674,96 @@ jobs:
           path: benchmark-results/
           retention-days: 30
 
+  prefetch-mineru-models:
+    name: Prefetch MinerU model weights
+    needs: setup
+    if: ${{ needs.setup.result == 'success' && !cancelled() }}
+    runs-on: runner-medium-arm64
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.setup.outputs.source-sha }}
+          submodules: recursive
+          lfs: true
+
+      - name: Free disk space
+        uses: xberg-io/actions/free-disk-space-linux@v1
+
+      - name: Pull test_documents LFS objects
+        run: git -C test_documents lfs pull
+
+      - name: Setup Python
+        uses: xberg-io/actions/setup-python-env@v1
+        with:
+          python-version: "3.11"
+          cache-prefix: benchmark-mineru
+          install-command: "uv sync --no-install-project --no-install-workspace --group dev --group bench-mineru"
+
+      - name: Install system dependencies (libgl1 + libglib2.0-0 for mineru)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1 libglib2.0-0 tesseract-ocr tesseract-ocr-eng
+
+      - name: Configure Hugging Face cache
+        run: |
+          mkdir -p "$HOME/.cache/huggingface/hub"
+          {
+            echo "HF_HOME=$HOME/.cache/huggingface"
+            echo "HF_HUB_CACHE=$HOME/.cache/huggingface/hub"
+            echo "MINERU_MODEL_SOURCE=huggingface"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore MinerU model cache
+        id: mineru-model-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/huggingface/hub
+          key: mineru-models-3.4.4-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Warm MinerU model weights (native + OCR pipelines)
+        if: steps.mineru-model-cache.outputs.cache-hit != 'true'
+        env:
+          UV_NO_SYNC: "1"
+        run: |
+          set -euo pipefail
+          txt_fixture="test_documents/pdf/fake_memo.pdf"
+          ocr_fixture="test_documents/pdf/non_searchable.pdf"
+          echo "Warming MinerU pipeline weights (txt path) on ${txt_fixture}..."
+          uv run --no-sync python tools/benchmark-harness/scripts/mineru_extract.py \
+            --no-ocr --format=markdown sync "$txt_fixture" > /dev/null
+          echo "Warming MinerU OCR weights (ocr path) on ${ocr_fixture}..."
+          uv run --no-sync python tools/benchmark-harness/scripts/mineru_extract.py \
+            --ocr --format=markdown sync "$ocr_fixture" > /dev/null
+          echo "MinerU model cache populated at $HF_HUB_CACHE"
+          du -sh "$HF_HUB_CACHE" || true
+
+      # actions/cache is best-effort cross-run only: a ~1.1 GB blob gets evicted
+      # from the shared 10 GB repo budget by concurrent CI before bench-mineru
+      # runs. Deliver the weights to the bench jobs via a run-scoped artifact,
+      # which is immune to cache eviction. tar preserves the Hugging Face hub
+      # blob/snapshot symlink layout that a plain artifact upload would flatten.
+      - name: Package MinerU model cache
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mineru-model-cache"
+          tar -C "$HOME/.cache/huggingface" -cf "$RUNNER_TEMP/mineru-model-cache/mineru-models.tar" hub
+          ls -lh "$RUNNER_TEMP/mineru-model-cache/mineru-models.tar"
+
+      - name: Upload MinerU model cache
+        uses: actions/upload-artifact@v7
+        with:
+          name: mineru-model-cache-${{ github.run_id }}
+          path: ${{ runner.temp }}/mineru-model-cache/mineru-models.tar
+          retention-days: 1
+          if-no-files-found: error
+
   bench-mineru:
     name: mineru (${{ matrix.output_format }}, ${{ matrix.mode }}, ${{ matrix.cohort }})
-    needs: [setup, bench-rust]
-    if: ${{ needs.setup.result == 'success' && !cancelled() }}
+    needs: [setup, bench-rust, prefetch-mineru-models]
+    if: ${{ needs.setup.result == 'success' && needs.prefetch-mineru-models.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
     timeout-minutes: 360
     permissions:
@@ -685,7 +771,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [single-file, batch]
+        mode: [single-file]
         output_format: [markdown, plaintext]
         cohort: [native-pdf-fast-b8, ocr-pdf-fast-b4]
         exclude:
@@ -741,6 +827,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgl1 libglib2.0-0 tesseract-ocr tesseract-ocr-eng
 
+      - name: Configure Hugging Face cache
+        run: |
+          mkdir -p "$HOME/.cache/huggingface/hub"
+          {
+            echo "HF_HOME=$HOME/.cache/huggingface"
+            echo "HF_HUB_CACHE=$HOME/.cache/huggingface/hub"
+            echo "MINERU_MODEL_SOURCE=huggingface"
+          } >> "$GITHUB_ENV"
+
+      # Model weights arrive as a run-scoped artifact from prefetch-mineru-models
+      # (actions/cache is unreliable here: the ~1.1 GB blob is evicted from the
+      # shared repo cache budget by concurrent CI before this job runs).
+      - name: Download MinerU model cache
+        uses: actions/download-artifact@v8
+        with:
+          name: mineru-model-cache-${{ github.run_id }}
+          path: ${{ runner.temp }}/mineru-model-cache
+
+      - name: Unpack MinerU model cache
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/huggingface"
+          tar -C "$HOME/.cache/huggingface" -xf "$RUNNER_TEMP/mineru-model-cache/mineru-models.tar"
+          du -sh "$HOME/.cache/huggingface/hub" || true
+
       - name: Run benchmark
         env:
           FRAMEWORK: mineru
@@ -749,7 +860,6 @@ jobs:
           ITERATIONS: ${{ env.ITERATIONS }}
           TIMEOUT: ${{ github.event.inputs.timeout }}
           COHORT: tools/benchmark-harness/cohorts/${{ matrix.cohort }}.json
-          BATCH_SIZE: ${{ matrix.mode == 'batch' && (matrix.cohort == 'native-pdf-fast-b8' && 8 || 4) || '' }}
           OCR_ENABLED: ${{ matrix.cohort == 'ocr-pdf-fast-b4' }}
           UV_NO_SYNC: "1"
         run: scripts/benchmarks/run-benchmark.sh
@@ -885,6 +995,15 @@ jobs:
           submodules: recursive
           lfs: true
 
+      - name: Download reference corpus cache
+        uses: actions/download-artifact@v8
+        with:
+          name: benchmark-corpus-cache
+          path: ${{ runner.temp }}/benchmark-corpus-cache
+
+      - name: Unpack reference corpus cache
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
+
       - name: Setup Rust
         if: needs.setup.result == 'success'
         uses: xberg-io/actions/setup-rust@v1
@@ -996,7 +1115,7 @@ jobs:
             --arg run_id "${{ github.run_id }}" \
             --arg run_url "$RUN_URL" \
             --arg updated_at "$UPDATED_AT" \
-            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 22, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
+            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 21, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
             > release-assets/benchmarks-native-metadata.json
           jq -n \
             --arg cohort "ocr-pdf-fast-b4-v1" \
@@ -1005,7 +1124,7 @@ jobs:
             --arg run_id "${{ github.run_id }}" \
             --arg run_url "$RUN_URL" \
             --arg updated_at "$UPDATED_AT" \
-            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 18, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
+            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 17, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
             > release-assets/benchmarks-ocr-metadata.json
           jq -n \
             --arg commit "$SOURCE_SHA" \

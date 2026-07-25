@@ -31,6 +31,8 @@
 //! - **D3** table topology, a GriTS-like grid F1 (a fabricated table scores 0)
 //! - **D4** caption / footnote binding-edge F1
 //! - **D5** reading order via longest-increasing-subsequence
+//! - **D6** table cell-content F1 (GriTS-Con, position-independent) —
+//!   report-only, not folded into SF1 (see Phase 2 of the metrics plan)
 //!
 //! A fabricated table — a predicted table where the GT has none — scores 0 on
 //! D3, which then pulls the whole SF1 down (it can no longer hide as matched
@@ -169,7 +171,18 @@ pub struct StructuralSidecar {
     pub reading_order: Vec<usize>,
 }
 
-/// The six-dimension structural score and the rolled-up SF1.
+/// Precision/recall/F1 split for one structural dimension. Report-only: it does
+/// not feed the SF1 rollup, but lets a low dimension F1 be read as fabrication
+/// (low precision) vs omission (low recall) — the crux of the #36 table work.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Default)]
+pub struct DimBreakdown {
+    pub f1: f64,
+    pub precision: f64,
+    pub recall: f64,
+}
+
+/// The scored structural dimensions and the rolled-up SF1. D0–D5 feed the
+/// weighted, order-folded rollup; D6 (table content) is report-only for now.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct StructuralScore {
     /// D0 — paragraph/content F1.
@@ -184,13 +197,29 @@ pub struct StructuralScore {
     pub d4_edges: f64,
     /// D5 — reading order (LIS).
     pub d5_order: f64,
+    /// D6 — table cell-content F1 (GriTS-Con, position-independent). Report-only:
+    /// it does NOT feed the SF1 rollup yet (see Phase 2). Defaults to 1.0 for
+    /// scores deserialized from data written before this dimension existed.
+    #[serde(default = "one")]
+    pub d6_table_content: f64,
     /// Weighted, order-folded SF1 rollup.
     pub sf1: f64,
+    /// Per-dimension precision/recall split, parallel to [`Self::dimensions`].
+    /// Report-only diagnostics; absent on scores deserialized from older data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub breakdown: Vec<DimBreakdown>,
+}
+
+/// Serde default for [`StructuralScore::d6_table_content`] on legacy data.
+fn one() -> f64 {
+    1.0
 }
 
 impl StructuralScore {
-    /// Named dimension scores used by benchmark comparison reports.
-    pub fn dimensions(&self) -> [(&'static str, f64); 6] {
+    /// Named dimension scores used by benchmark comparison reports. `order` and
+    /// `table_content` are reported here but scored/folded separately from the
+    /// weighted rollup.
+    pub fn dimensions(&self) -> [(&'static str, f64); 7] {
         [
             ("paragraph", self.d0_paragraph),
             ("heading", self.d1_heading),
@@ -198,7 +227,23 @@ impl StructuralScore {
             ("table", self.d3_table),
             ("edges", self.d4_edges),
             ("order", self.d5_order),
+            ("table_content", self.d6_table_content),
         ]
+    }
+
+    /// Named dimensions paired with their precision/recall breakdown. Empty
+    /// breakdowns (older data) fall back to a zeroed split carrying the F1.
+    pub fn dimensions_pr(&self) -> [(&'static str, DimBreakdown); 7] {
+        let dims = self.dimensions();
+        std::array::from_fn(|i| {
+            let (name, f1) = dims[i];
+            let bd = self.breakdown.get(i).copied().unwrap_or(DimBreakdown {
+                f1,
+                precision: f1,
+                recall: f1,
+            });
+            (name, bd)
+        })
     }
 }
 
@@ -584,21 +629,29 @@ fn greedy_match(pred: &[String], gt: &[String]) -> Vec<(usize, usize, f64)> {
     out
 }
 
-/// F1 from a sum of matched credit against pred and gt cardinalities.
-fn f1_from(matched_credit: f64, n_pred: usize, n_gt: usize) -> f64 {
+/// Precision, recall, and F1 from a sum of matched credit against pred and gt
+/// cardinalities. Precision reads as "how much of what we emitted was right"
+/// (over-fabrication when low), recall as "how much of the truth we recovered".
+fn f1_parts_from(matched_credit: f64, n_pred: usize, n_gt: usize) -> (f64, f64, f64) {
     if n_pred == 0 && n_gt == 0 {
-        return 1.0;
+        return (1.0, 1.0, 1.0);
     }
     if n_pred == 0 || n_gt == 0 {
-        return 0.0;
+        return (0.0, 0.0, 0.0);
     }
     let precision = matched_credit / n_pred as f64;
     let recall = matched_credit / n_gt as f64;
-    if precision + recall > 0.0 {
+    let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
         0.0
-    }
+    };
+    (f1, precision, recall)
+}
+
+/// F1 from a sum of matched credit against pred and gt cardinalities.
+fn f1_from(matched_credit: f64, n_pred: usize, n_gt: usize) -> f64 {
+    f1_parts_from(matched_credit, n_pred, n_gt).0
 }
 
 fn jaccard(a: &HashSet<String>, b: &HashSet<String>) -> f64 {
@@ -619,6 +672,7 @@ pub fn score_structural(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Str
     let d3 = score_tables(pred, gt);
     let d4 = score_edges(pred, gt);
     let (d5, matched) = score_order(pred, gt);
+    let d6 = score_tables_content(pred, gt);
 
     let mut weight_sum = 0.0;
     let mut score_sum = 0.0;
@@ -638,6 +692,23 @@ pub fn score_structural(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Str
     let base = if weight_sum > 0.0 { score_sum / weight_sum } else { 1.0 };
     let sf1 = fold_order_into_sf1(base, d5, matched);
 
+    // Report-only P/R split, parallel to `dimensions()`. Reading order (D5) is a
+    // sequence agreement, not a set match, so its "precision"/"recall" mirror the
+    // score rather than being computed independently.
+    let breakdown = vec![
+        d0.breakdown(),
+        d1.breakdown(),
+        d2.breakdown(),
+        d3.breakdown(),
+        d4.breakdown(),
+        DimBreakdown {
+            f1: d5,
+            precision: d5,
+            recall: d5,
+        },
+        d6.breakdown(),
+    ];
+
     StructuralScore {
         d0_paragraph: d0.value,
         d1_heading: d1.value,
@@ -645,7 +716,9 @@ pub fn score_structural(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Str
         d3_table: d3.value,
         d4_edges: d4.value,
         d5_order: d5,
+        d6_table_content: d6.value,
         sf1,
+        breakdown,
     }
 }
 
@@ -664,10 +737,51 @@ pub(crate) fn diagnostic_matches(pred: &StructuralSidecar, gt: &StructuralSideca
     greedy_match(&pred_text, &gt_text)
 }
 
-/// A dimension score plus a `present` flag isn't needed post-rollup, so the
-/// helpers return a thin wrapper carrying only the value.
+/// A dimension score: the F1 `value` that feeds the SF1 rollup, plus the
+/// precision/recall split kept for report-only diagnostics.
 struct Dim {
     value: f64,
+    precision: f64,
+    recall: f64,
+}
+
+impl Dim {
+    /// Build a dimension score from matched credit against pred/gt cardinalities.
+    fn from_credit(matched_credit: f64, n_pred: usize, n_gt: usize) -> Self {
+        let (value, precision, recall) = f1_parts_from(matched_credit, n_pred, n_gt);
+        Self {
+            value,
+            precision,
+            recall,
+        }
+    }
+
+    /// A dimension both sides agree is absent (or a perfect match): all 1.0.
+    fn perfect() -> Self {
+        Self {
+            value: 1.0,
+            precision: 1.0,
+            recall: 1.0,
+        }
+    }
+
+    /// A dimension present on exactly one side (fabricated or dropped): all 0.0.
+    fn zero() -> Self {
+        Self {
+            value: 0.0,
+            precision: 0.0,
+            recall: 0.0,
+        }
+    }
+
+    /// The report-only precision/recall/F1 view of this dimension.
+    fn breakdown(&self) -> DimBreakdown {
+        DimBreakdown {
+            f1: self.value,
+            precision: self.precision,
+            recall: self.recall,
+        }
+    }
 }
 
 fn paragraph_texts(s: &StructuralSidecar) -> Vec<String> {
@@ -690,9 +804,7 @@ fn score_paragraphs(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
     let pp = paragraph_texts(pred);
     let gg = paragraph_texts(gt);
     let credit: f64 = greedy_match(&pp, &gg).iter().map(|(_, _, s)| *s).sum();
-    Dim {
-        value: f1_from(credit, pp.len(), gg.len()),
-    }
+    Dim::from_credit(credit, pp.len(), gg.len())
 }
 
 struct HeadingInfo {
@@ -738,9 +850,7 @@ fn score_headings(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
             sim * (STRUCT_SPLIT * level_score + STRUCT_SPLIT * ancestor_sim)
         })
         .sum();
-    Dim {
-        value: f1_from(credit, ph.len(), gh.len()),
-    }
+    Dim::from_credit(credit, ph.len(), gh.len())
 }
 
 struct ListInfo {
@@ -788,9 +898,7 @@ fn score_lists(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
             sim * (STRUCT_SPLIT * depth_score + STRUCT_SPLIT * ordered_score)
         })
         .sum();
-    Dim {
-        value: f1_from(credit, pl.len(), gl.len()),
-    }
+    Dim::from_credit(credit, pl.len(), gl.len())
 }
 
 fn tables(s: &StructuralSidecar) -> Vec<&TableNode> {
@@ -832,11 +940,11 @@ fn score_tables(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
     let pt = tables(pred);
     let gt_tables = tables(gt);
     if pt.is_empty() && gt_tables.is_empty() {
-        return Dim { value: 1.0 };
+        return Dim::perfect();
     }
     if pt.is_empty() || gt_tables.is_empty() {
         // A fabricated table (pred-only) or a dropped table (gt-only) scores 0. ~keep
-        return Dim { value: 0.0 };
+        return Dim::zero();
     }
     let ptext: Vec<String> = pt
         .iter()
@@ -850,9 +958,45 @@ fn score_tables(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
         .iter()
         .map(|(i, j, _)| grits(pt[*i], gt_tables[*j]))
         .sum();
-    Dim {
-        value: f1_from(credit, pt.len(), gt_tables.len()),
+    Dim::from_credit(credit, pt.len(), gt_tables.len())
+}
+
+/// GriTS-Con: position-independent cell-content F1 between two tables. Unlike
+/// [`grits`] (which credits only cells sharing a `(row, col)` origin), this
+/// greedily matches cells by text similarity, so it measures whether the right
+/// *content* was recovered regardless of where the grid placed it.
+fn grits_con(pred: &TableNode, gt: &TableNode) -> f64 {
+    let ptext: Vec<String> = pred.cells.iter().map(|c| c.text.clone()).collect();
+    let gtext: Vec<String> = gt.cells.iter().map(|c| c.text.clone()).collect();
+    let credit: f64 = greedy_match(&ptext, &gtext).iter().map(|(_, _, s)| *s).sum();
+    f1_from(credit, pred.cells.len(), gt.cells.len())
+}
+
+/// D6 — table cell-content F1 (GriTS-Con). Mirrors [`score_tables`]'s table
+/// matching but scores each matched pair on content recovery ([`grits_con`])
+/// rather than grid topology. Report-only; not folded into SF1 (see Phase 2).
+fn score_tables_content(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
+    let pt = tables(pred);
+    let gt_tables = tables(gt);
+    if pt.is_empty() && gt_tables.is_empty() {
+        return Dim::perfect();
     }
+    if pt.is_empty() || gt_tables.is_empty() {
+        return Dim::zero();
+    }
+    let ptext: Vec<String> = pt
+        .iter()
+        .map(|t| t.cells.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" "))
+        .collect();
+    let gtext: Vec<String> = gt_tables
+        .iter()
+        .map(|t| t.cells.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" "))
+        .collect();
+    let credit: f64 = greedy_match(&ptext, &gtext)
+        .iter()
+        .map(|(i, j, _)| grits_con(pt[*i], gt_tables[*j]))
+        .sum();
+    Dim::from_credit(credit, pt.len(), gt_tables.len())
 }
 
 struct Edge {
@@ -899,9 +1043,7 @@ fn score_edges(pred: &StructuralSidecar, gt: &StructuralSidecar) -> Dim {
             sim * target_sim
         })
         .sum();
-    Dim {
-        value: f1_from(credit, pe.len(), ge.len()),
-    }
+    Dim::from_credit(credit, pe.len(), ge.len())
 }
 
 /// D5: match every node by content, then score reading order via LIS.
@@ -973,6 +1115,108 @@ Figure 1: The overall system architecture and its components.
 
     fn sf1(pred: &StructuralSidecar, gt: &StructuralSidecar) -> f64 {
         score_structural(pred, gt).sf1
+    }
+
+    #[test]
+    fn f1_parts_from_splits_precision_and_recall() {
+        // Empty on both sides is a perfect (vacuous) match.
+        assert_eq!(f1_parts_from(0.0, 0, 0), (1.0, 1.0, 1.0));
+        // Present on one side only scores zero across the board.
+        assert_eq!(f1_parts_from(0.0, 3, 0), (0.0, 0.0, 0.0));
+        // Over-emission: 1 unit of credit against 4 predicted / 1 truth ⇒ p<r.
+        let (f1, precision, recall) = f1_parts_from(1.0, 4, 1);
+        assert!((precision - 0.25).abs() < 1e-9, "precision {precision}");
+        assert!((recall - 1.0).abs() < 1e-9, "recall {recall}");
+        assert!(precision < recall, "over-emission should read as low precision");
+        assert!(f1 > 0.0 && f1 < 1.0);
+    }
+
+    #[test]
+    fn breakdown_reads_fabrication_as_low_precision() {
+        // GT has one heading; prediction fabricates three extra unmatched ones.
+        let gt = StructuralSidecar::from_markdown("# Real\n\nBody paragraph text here.\n");
+        let pred = StructuralSidecar::from_markdown(
+            "# Real\n\n## Fabricated one\n\n## Fabricated two\n\n## Fabricated three\n\nBody paragraph text here.\n",
+        );
+        let score = score_structural(&pred, &gt);
+        // dimensions()/breakdown are parallel; heading is index 1.
+        let (name, heading) = score.dimensions_pr()[1];
+        assert_eq!(name, "heading");
+        assert!(
+            heading.precision < heading.recall,
+            "fabricated headings should depress precision below recall: p{} r{}",
+            heading.precision,
+            heading.recall
+        );
+    }
+
+    #[test]
+    fn breakdown_reads_omission_as_low_recall() {
+        // Mirror image: GT has four headings, prediction recovers only one.
+        let gt = StructuralSidecar::from_markdown(
+            "# Real\n\n## Second\n\n## Third\n\n## Fourth\n\nBody paragraph text here.\n",
+        );
+        let pred = StructuralSidecar::from_markdown("# Real\n\nBody paragraph text here.\n");
+        let heading = score_structural(&pred, &gt).dimensions_pr()[1].1;
+        assert!(
+            heading.recall < heading.precision,
+            "dropped headings should depress recall below precision: p{} r{}",
+            heading.precision,
+            heading.recall
+        );
+    }
+
+    #[test]
+    fn grits_con_ignores_cell_position() {
+        let cell = |row, col, text: &str| Cell {
+            row,
+            col,
+            rowspan: 1,
+            colspan: 1,
+            is_header: false,
+            text: text.to_string(),
+        };
+        let gt = TableNode {
+            n_rows: 1,
+            n_cols: 2,
+            header_rows: 0,
+            cells: vec![cell(0, 0, "alpha"), cell(0, 1, "beta")],
+            spans_recoverable: false,
+        };
+        // Same content, cells transposed to different (row, col) origins.
+        let pred = TableNode {
+            n_rows: 2,
+            n_cols: 1,
+            header_rows: 0,
+            cells: vec![cell(0, 0, "beta"), cell(1, 0, "alpha")],
+            spans_recoverable: false,
+        };
+        let topology = grits(&pred, &gt);
+        let content = grits_con(&pred, &gt);
+        assert!(
+            content > topology,
+            "content F1 {content} should exceed topology F1 {topology} for correct-but-misplaced cells"
+        );
+        assert!(
+            (content - 1.0).abs() < 1e-9,
+            "identical content should score 1.0, got {content}"
+        );
+    }
+
+    #[test]
+    fn table_content_dimension_is_reported_but_unfolded() {
+        let score = score_markdown(SAMPLE, SAMPLE);
+        // A 7th named dimension carrying the GriTS-Con content F1.
+        let dims = score.dimensions();
+        assert_eq!(dims.len(), 7);
+        assert_eq!(dims[6].0, "table_content");
+        assert!(
+            (score.d6_table_content - 1.0).abs() < 1e-9,
+            "identical doc ⇒ content F1 1.0"
+        );
+        // Report-only: an identical doc still scores a perfect SF1, and d6 lives
+        // outside the weighted rollup entirely.
+        assert!((score.sf1 - 1.0).abs() < 1e-9);
     }
 
     #[test]

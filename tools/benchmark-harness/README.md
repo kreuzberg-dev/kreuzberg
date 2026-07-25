@@ -194,7 +194,7 @@ benchmark-harness run \
 | `-i, --iterations`     | Benchmark iterations                           | `3`           |
 | `-w, --warmup`         | Warmup iterations (discarded)                  | `1`           |
 | `-c, --max-concurrent` | Native batch worker limit where supported       | CPU count     |
-| `--xberg-max-threads`  | Xberg batch thread budget; other frameworks ignore it | `--max-concurrent` |
+| `--xberg-max-threads`  | Xberg thread budget in both modes; other frameworks ignore it | automatic / `--max-concurrent` |
 | `-t, --timeout`        | Timeout in seconds                             | `1800`        |
 | `--ocr`                | Enable OCR                                     | `false`       |
 | `--measure-quality`    | Enable quality assessment                      | `false`       |
@@ -206,10 +206,10 @@ fixtures, and a fixture count that is not divisible by its batch size. In batch 
 framework's compatible fixture set must also divide evenly; the harness never emits a partial
 native batch. Sharding cannot be combined with exact cohorts or fixed batch sizing.
 
-`--max-concurrent` and `--xberg-max-threads` can be varied independently for Xberg
-native batch runs. Omitting `--xberg-max-threads` preserves the legacy behavior by
-using the worker limit as the Xberg thread budget. Docling and LiteParse do not
-receive this Xberg-specific setting.
+`--max-concurrent` and `--xberg-max-threads` can be varied independently for Xberg.
+An explicit thread budget applies to both single-file and native batch invocations.
+Omitting it preserves Xberg's automatic single-file budget and uses the worker limit
+as the native-batch fallback. Docling and LiteParse do not receive this setting.
 
 `results.json` remains backward-compatible. Each run also writes `provenance.json` with the
 repository state, ordered fixture/document digests, framework executable identities, model IDs,

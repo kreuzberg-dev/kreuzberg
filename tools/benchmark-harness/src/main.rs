@@ -147,9 +147,10 @@ enum Commands {
         #[arg(short = 'c', long)]
         max_concurrent: Option<usize>,
 
-        /// Xberg's configured native-batch thread budget.
+        /// Xberg's configured extraction thread budget.
         ///
-        /// Defaults to --max-concurrent and does not affect other frameworks.
+        /// Single-file mode otherwise uses Xberg's automatic budget; batch mode
+        /// otherwise defaults to --max-concurrent. Does not affect other frameworks.
         #[arg(long)]
         xberg_max_threads: Option<usize>,
 
@@ -446,8 +447,10 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let rust_log = std::env::var("RUST_LOG").ok();
+    let benchmark_debug = std::env::var_os("BENCHMARK_DEBUG").is_some();
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(tracing_filter(rust_log.as_deref(), benchmark_debug))
         .with_writer(std::io::stderr)
         .init();
 
@@ -549,13 +552,23 @@ async fn main() -> Result<()> {
                         match $create_fn() {
                             Ok(adapter) => {
                                 if let Err(err) = registry.register(Arc::new(adapter)) {
-                                    eprintln!("[adapter] ✗ {} (registration failed: {})", $name, err);
+                                    tracing::warn!(
+                                        framework = $name,
+                                        error = %err,
+                                        "adapter registration failed"
+                                    );
                                 } else {
-                                    eprintln!("[adapter] ✓ {} (registered)", $name);
+                                    tracing::info!(framework = $name, "adapter registered");
                                     $count += 1;
                                 }
                             }
-                            Err(err) => eprintln!("[adapter] ✗ {} (initialization failed: {})", $name, err),
+                            Err(err) => {
+                                tracing::warn!(
+                                    framework = $name,
+                                    error = %err,
+                                    "adapter initialization failed"
+                                );
+                            }
                         }
                     }
                 };
@@ -585,19 +598,29 @@ async fn main() -> Result<()> {
                     if should_init(&framework_name) {
                         match create_xberg_adapter(*pipeline, *format, batch_mode, ocr)
                             .map(|adapter| adapter.with_batch_workers(config.max_concurrent))
-                            .map(|adapter| {
-                                adapter
-                                    .with_xberg_max_threads(config.xberg_max_threads.unwrap_or(config.max_concurrent))
+                            .map(|adapter| match config.xberg_max_threads {
+                                Some(max_threads) => adapter.with_xberg_max_threads(max_threads),
+                                None => adapter,
                             }) {
                             Ok(adapter) => {
                                 if let Err(err) = registry.register(Arc::new(adapter)) {
-                                    eprintln!("[adapter] ✗ {} (registration failed: {})", framework_name, err);
+                                    tracing::warn!(
+                                        framework = %framework_name,
+                                        error = %err,
+                                        "adapter registration failed"
+                                    );
                                 } else {
-                                    eprintln!("[adapter] ✓ {} (registered)", framework_name);
+                                    tracing::info!(framework = %framework_name, "adapter registered");
                                     xberg_count += 1;
                                 }
                             }
-                            Err(err) => eprintln!("[adapter] ✗ {} (initialization failed: {})", framework_name, err),
+                            Err(err) => {
+                                tracing::warn!(
+                                    framework = %framework_name,
+                                    error = %err,
+                                    "adapter initialization failed"
+                                );
+                            }
                         }
                     }
                 }
@@ -608,7 +631,11 @@ async fn main() -> Result<()> {
             } else {
                 frameworks.iter().filter(|f| f.contains("xberg")).count()
             };
-            eprintln!("[adapter] Xberg CLI: {}/{} available", xberg_count, total_requested);
+            tracing::info!(
+                available = xberg_count,
+                requested = total_requested,
+                "Xberg adapters available"
+            );
 
             let mut external_count = 0;
 
@@ -637,17 +664,24 @@ async fn main() -> Result<()> {
                     || create_liteparse_adapter(ocr).map(|adapter| adapter.with_batch_workers(config.max_concurrent)),
                     external_count
                 );
-                eprintln!(
-                    "[adapter] Batch mode: verified APIs are docling convert_all (cold end-to-end subprocess) and liteparse batch-parse"
+                tracing::debug!(
+                    docling_api = "convert_all",
+                    docling_execution = "cold end-to-end subprocess",
+                    liteparse_api = "batch-parse",
+                    "verified batch APIs"
                 );
-                eprintln!("[adapter] Other external frameworks skipped: native batch behavior is unverified");
+                tracing::debug!(
+                    reason = "native batch behavior is unverified",
+                    "other external frameworks skipped"
+                );
             }
 
-            eprintln!(
-                "[adapter] Open source extraction frameworks: {}/7 available",
-                external_count
+            tracing::info!(
+                available = external_count,
+                supported = 7,
+                "open source extraction adapters available"
             );
-            eprintln!("[adapter] Total adapters: {} available", xberg_count + external_count);
+            tracing::info!(available = xberg_count + external_count, "total adapters available");
 
             // NOTE: This check must run AFTER all adapters (xberg + external) are registered
             let mut failed_frameworks = Vec::new();
@@ -850,14 +884,23 @@ async fn main() -> Result<()> {
                     .len()
             );
 
-            eprintln!("\nFramework Summary:");
-            for (key, agg) in &aggregated.by_framework_mode {
-                eprintln!("  {} ({}):", agg.framework, agg.mode);
-                eprintln!("    File types: {}", agg.by_file_type.len());
+            for agg in aggregated.by_framework_mode.values() {
                 if let Some(cs) = &agg.cold_start {
-                    eprintln!("    Cold start p50: {:.2} ms", cs.p50_ms);
+                    tracing::info!(
+                        framework = %agg.framework,
+                        mode = %agg.mode,
+                        file_type_count = agg.by_file_type.len(),
+                        cold_start_p50_ms = cs.p50_ms,
+                        "framework summary"
+                    );
+                } else {
+                    tracing::info!(
+                        framework = %agg.framework,
+                        mode = %agg.mode,
+                        file_type_count = agg.by_file_type.len(),
+                        "framework summary"
+                    );
                 }
-                let _ = key;
             }
 
             std::fs::create_dir_all(&output).map_err(benchmark_harness::Error::Io)?;
@@ -941,11 +984,11 @@ async fn main() -> Result<()> {
             let json = serde_json::to_string_pretty(&guardrails)
                 .map_err(|e| benchmark_harness::Error::Benchmark(format!("Failed to serialize guardrails: {}", e)))?;
             std::fs::write(&output, json).map_err(benchmark_harness::Error::Io)?;
-            eprintln!(
-                "Generated {} guardrails for {} docs to {}",
-                guardrails.contracts.len(),
-                results.len(),
-                output.display()
+            tracing::info!(
+                guardrail_count = guardrails.contracts.len(),
+                document_count = results.len(),
+                output = %output.display(),
+                "guardrails generated"
             );
             Ok(())
         }
@@ -988,11 +1031,11 @@ async fn main() -> Result<()> {
                         ))
                     })?;
                     exact_names = resolve_group_docs(&fixtures, g)?;
-                    eprintln!(
-                        "Group '{}': {} ({} matched docs)",
-                        g.name,
-                        g.description,
-                        exact_names.len()
+                    tracing::info!(
+                        group = g.name,
+                        description = g.description,
+                        matched_document_count = exact_names.len(),
+                        "benchmark group resolved"
                     );
                 }
                 (patterns, exact_names)
@@ -1005,7 +1048,11 @@ async fn main() -> Result<()> {
 
                 for &pipeline in &selected_paths {
                     let svg_path = prof_dir.join(format!("{}.svg", pipeline.name()));
-                    eprintln!("\nProfiling pipeline: {} → {}", pipeline.name(), svg_path.display());
+                    tracing::info!(
+                        pipeline = pipeline.name(),
+                        output = %svg_path.display(),
+                        "profiling pipeline"
+                    );
 
                     let config = PipelineBenchmarkConfig {
                         fixtures_dir: fixtures.clone(),
@@ -1113,7 +1160,7 @@ async fn main() -> Result<()> {
                 let results = run_split_benchmark(&config).await?;
                 let profiling_result = guard.finish()?;
                 profiling_result.generate_flamegraph(svg_path)?;
-                eprintln!("Flamegraph written to {}", svg_path.display());
+                tracing::info!(output = %svg_path.display(), "flamegraph written");
                 results
             } else {
                 run_split_benchmark(&config).await?
@@ -1270,12 +1317,12 @@ async fn main() -> Result<()> {
                     std::fs::create_dir_all(parent).map_err(benchmark_harness::Error::Io)?;
                 }
                 std::fs::write(&path, json).map_err(benchmark_harness::Error::Io)?;
-                eprintln!(
-                    "Scored {} outputs: mean SF1={:.4}, mean TF1={:.4}; report written to {}",
-                    report.document_count,
-                    report.mean_sf1,
-                    report.mean_tf1,
-                    path.display()
+                tracing::info!(
+                    document_count = report.document_count,
+                    mean_sf1 = report.mean_sf1,
+                    mean_tf1 = report.mean_tf1,
+                    output = %path.display(),
+                    "outputs scored"
                 );
             } else {
                 println!("{json}");
@@ -1342,6 +1389,17 @@ async fn main() -> Result<()> {
     }
 }
 
+fn tracing_filter(rust_log: Option<&str>, benchmark_debug: bool) -> tracing_subscriber::EnvFilter {
+    const DEFAULT_FILTER: &str = "benchmark_harness=info";
+    const DEBUG_FILTER: &str = "benchmark_harness=debug";
+
+    rust_log
+        .and_then(|filter| tracing_subscriber::EnvFilter::try_new(filter).ok())
+        .unwrap_or_else(|| {
+            tracing_subscriber::EnvFilter::new(if benchmark_debug { DEBUG_FILTER } else { DEFAULT_FILTER })
+        })
+}
+
 fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = 1024 * KB;
@@ -1360,8 +1418,26 @@ fn format_size(bytes: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, Commands, normalize_run_frameworks, parse_model_provenance};
+    use super::{Cli, Commands, normalize_run_frameworks, parse_model_provenance, tracing_filter};
     use clap::Parser;
+
+    #[test]
+    fn tracing_filter_keeps_status_events_visible_by_default() {
+        assert_eq!(tracing_filter(None, false).to_string(), "benchmark_harness=info");
+    }
+
+    #[test]
+    fn tracing_filter_enables_debug_events_for_benchmark_debug() {
+        assert_eq!(tracing_filter(None, true).to_string(), "benchmark_harness=debug");
+    }
+
+    #[test]
+    fn tracing_filter_honors_explicit_rust_log() {
+        assert_eq!(
+            tracing_filter(Some("benchmark_harness=trace"), false).to_string(),
+            "benchmark_harness=trace"
+        );
+    }
 
     #[test]
     fn batch_mode_normalizes_unsuffixed_xberg_aliases() {

@@ -129,25 +129,35 @@ tasks:
           -Dmaven.repo.local="${PWD}/../../dist/m2"
       - mkdir -p dist/java && cp target/release/libxberg_ffi.so dist/java/
 
+  # Test integrations against the LOCALLY-BUILT xberg wheel, never the released artifact.
+  # The integration pins xberg>=<this rc>, which is not on PyPI until the same release
+  # publishes (bootstrap), so we must not resolve it from an index. UV_FIND_LINKS makes the
+  # local wheel the source that satisfies the pin; --no-install-package + the explicit wheel
+  # install then pin the exact bytes we just built. No --locked: the pin was just
+  # version-bumped, so the committed lock intentionally lags the unpublished rc. ~keep
   ci:test:python:
     requires:
       vars: [PACKAGE, WHEEL_DIR]
     dir: integrations/{{.PACKAGE}}
+    env:
+      UV_FIND_LINKS: "{{.WHEEL_DIR}}"
     cmds:
-      - uv sync --locked --all-extras --prerelease=allow --no-install-package xberg
+      - uv sync --all-extras --prerelease=allow --no-install-package xberg
       - uv pip install --python .venv/bin/python --reinstall "{{.WHEEL_DIR}}"/*.whl
       - uv run --no-sync pytest -q
 
   ci:test:python-all:
     requires:
       vars: [WHEEL_DIR]
+    env:
+      UV_FIND_LINKS: "{{.WHEEL_DIR}}"
     cmds:
       - |
         set -e
         for package in {{.PY_TEST_PACKAGES}}; do
           (
             cd "integrations/${package}"
-            uv sync --locked --all-extras --prerelease=allow --no-install-package xberg
+            uv sync --all-extras --prerelease=allow --no-install-package xberg
             uv pip install --python .venv/bin/python --reinstall "{{.WHEEL_DIR}}"/*.whl
             uv run --no-sync pytest -q
           )

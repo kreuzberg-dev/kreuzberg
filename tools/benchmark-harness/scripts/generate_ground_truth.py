@@ -579,6 +579,7 @@ def process_fixture(
     repo_root: Path,
     fixtures_dir: Path,
     mapping: dict[str, str],
+    *,
     dry_run: bool,
     force: bool,
     stats: dict[str, int],
@@ -705,7 +706,15 @@ def main() -> int:
         if file_type in skip_types:
             continue
 
-        process_fixture(fixture_path, repo_root, fixtures_dir, mapping, args.dry_run, args.force, stats)
+        process_fixture(
+            fixture_path,
+            repo_root,
+            fixtures_dir,
+            mapping,
+            dry_run=args.dry_run,
+            force=args.force,
+            stats=stats,
+        )
 
     if not args.dry_run and stats["generated"] > 0:
         save_mapping(repo_root, mapping)

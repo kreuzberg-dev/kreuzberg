@@ -16,7 +16,6 @@ mod merge;
 mod parse;
 mod serialize;
 
-// Re-export key functions for internal use
 pub use loader::{discover_config_as_json, load_config_as_json, load_config_from_file};
 #[cfg(feature = "embeddings")]
 pub use loader::{get_embedding_preset, list_embedding_presets};

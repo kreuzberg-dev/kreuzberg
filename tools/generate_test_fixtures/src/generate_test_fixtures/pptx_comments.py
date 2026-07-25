@@ -86,8 +86,10 @@ def _patch_content_types(original: bytes, comment_slide_indices: list[int]) -> b
     """Register commentAuthors + per-slide comments content-types."""
     text = original.decode("utf-8")
     overrides: list[str] = [
-        '<Override PartName="/ppt/commentAuthors.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml"/>'
+        (
+            '<Override PartName="/ppt/commentAuthors.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml"/>'
+        )
     ]
     for slide_idx in comment_slide_indices:
         overrides.append(

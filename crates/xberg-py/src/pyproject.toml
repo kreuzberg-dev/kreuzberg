@@ -4,7 +4,7 @@ requires = ["maturin>=1,<2"]
 
 [project]
 name = "xberg"
-version = "1.0.0rc38"
+version = "1.0.0rc39"
 description = "High-performance document intelligence library"
 keywords = ["document", "extraction", "ocr", "pdf", "text"]
 license = "MIT"
@@ -29,13 +29,13 @@ dev = ["mypy>=1.19"]
 module-name = "xberg._xberg"
 manifest-path = "../../crates/xberg-py/Cargo.toml"
 # abi3-py310 produces a single wheel per platform that loads on Python 3.10+,
-# avoiding a per-Python-version build matrix.
+# avoiding a per-Python-version build matrix. ~keep
 features = ["pyo3/extension-module", "pyo3/abi3-py310"]
 python-packages = ["xberg"]
 # Bundle the core Rust crate so `pip install` can build from sdist on
 # platforms without a precompiled wheel (e.g. Alpine/musl). Without this
 # the workspace [patch.crates-io] (when present) points at a path that is
-# missing from the tarball and the source build fails.
+# missing from the tarball and the source build fails. ~keep
 include = [{ path = "../../crates/xberg/**/*", format = "sdist" }]
 
 [tool.mypy]
@@ -51,6 +51,6 @@ overrides = [
   # FromPyObject — the Python e2e suite exercises the runtime path — but mypy
   # sees only the static-type discrepancy. Disable the four error codes the
   # discrepancy raises until the codegen emits matching `_to_rust_*` calls and
-  # casts the return values.
+  # casts the return values. ~keep
   { module = "xberg.api", disable_error_code = ["call-arg", "arg-type", "return-value", "attr-defined"] },
 ]

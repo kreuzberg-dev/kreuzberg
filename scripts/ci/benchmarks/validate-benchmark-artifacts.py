@@ -1,6 +1,5 @@
 # Copyright (c) 2026 Xberg. All rights reserved.
 """Validate the exact benchmark artifact contract for one fixed cohort."""
-# ruff: noqa: INP001
 
 from __future__ import annotations
 
@@ -89,16 +88,15 @@ def grid_entries(framework: str, cohort: str) -> list[MatrixEntry]:
     ]
 
 
-def markdown_mode_entries(framework: str, cohort: str) -> list[MatrixEntry]:
-    """Return native Markdown single-file and batch cells."""
+def markdown_single_file_entries(framework: str, cohort: str) -> list[MatrixEntry]:
+    """Return the native Markdown single-file cell."""
     return [
         matrix_entry(
-            f"benchmarks-{framework}-markdown-{mode}-{cohort}",
+            f"benchmarks-{framework}-markdown-single-file-{cohort}",
             framework,
             "markdown",
-            mode,
+            "single-file",
         )
-        for mode in ("single-file", "batch")
     ]
 
 
@@ -159,7 +157,7 @@ CONTRACTS = {
                     "single-file",
                 ),
             ]
-            + markdown_mode_entries("mineru", NATIVE_COHORT)
+            + markdown_single_file_entries("mineru", NATIVE_COHORT)
             + grid_entries("liteparse", NATIVE_COHORT)
         ),
     ),
@@ -177,7 +175,7 @@ CONTRACTS = {
         matrix=tuple(
             xberg_entries(OCR_COHORT)
             + grid_entries("docling", OCR_COHORT)
-            + markdown_mode_entries("mineru", OCR_COHORT)
+            + markdown_single_file_entries("mineru", OCR_COHORT)
             + grid_entries("liteparse", OCR_COHORT)
         ),
     ),

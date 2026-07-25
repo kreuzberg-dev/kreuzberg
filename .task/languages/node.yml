@@ -17,3 +17,8 @@ tasks:
       - cmd: |
           pnpm up --latest
         ignore_error: false
+      # Generated e2e/wasm harness is a standalone pnpm project (installed with
+      # --ignore-workspace); refresh its lock so `task upgrade` covers e2e. ~keep
+      - cmd: |
+          cd e2e/wasm && pnpm up --latest --ignore-workspace
+        ignore_error: true

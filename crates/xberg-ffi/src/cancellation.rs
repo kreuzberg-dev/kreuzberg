@@ -78,7 +78,7 @@ pub unsafe extern "C" fn xberg_cancel_token_cancel(token: *mut CancellationToken
         return;
     }
     // SAFETY: Caller guarantees `token` is a non-null, live pointer to a
-    // `CancellationToken` allocated by `xberg_cancel_token_new`.
+    // `CancellationToken` allocated by `xberg_cancel_token_new`. ~keep
     unsafe { (*token).inner.cancel() };
 }
 
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn xberg_cancel_token_free(token: *mut CancellationToken) 
     }
     // SAFETY: We checked for null above. The caller guarantees the pointer was
     // returned by `xberg_cancel_token_new` and has not been freed; we take
-    // ownership back here and immediately drop the Box.
+    // ownership back here and immediately drop the Box. ~keep
     unsafe { drop(Box::from_raw(token)) };
 }
 

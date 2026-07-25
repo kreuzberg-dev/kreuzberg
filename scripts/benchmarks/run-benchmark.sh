@@ -13,6 +13,7 @@ OUTPUT_FORMAT="${OUTPUT_FORMAT:-markdown}"
 COHORT="${COHORT:-}"
 BATCH_SIZE="${BATCH_SIZE:-}"
 SHARD="${SHARD:-}"
+XBERG_MAX_THREADS="${XBERG_MAX_THREADS:-4}"
 
 if [ -z "$FRAMEWORK" ] || [ -z "$MODE" ]; then
   echo "::error::FRAMEWORK and MODE environment variables are required" >&2
@@ -106,5 +107,6 @@ BENCHMARK_DEBUG=1 "${HARNESS_PATH}" \
   --timeout "${TIMEOUT}" \
   --mode "${MODE}" \
   --max-concurrent "${MAX_CONCURRENT}" \
+  --xberg-max-threads "${XBERG_MAX_THREADS}" \
   --output-format "${OUTPUT_FORMAT}" \
   "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"

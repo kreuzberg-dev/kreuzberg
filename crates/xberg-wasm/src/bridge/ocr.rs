@@ -41,7 +41,7 @@ pub struct OcrLineResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcrResult {
     pub text: String,
-    #[serde(default)] // missing `lines` degrades to empty vec, not an error
+    #[serde(default)] // missing `lines` degrades to empty vec, not an error ~keep
     pub lines: Vec<OcrLineResult>,
 }
 

@@ -738,8 +738,10 @@ def generate_attributions(records: dict) -> None:
             f"- **Source:** {cfg['url']}",
             f"- **License:** {cfg['license']}",
             f"- **Used here:** {n} accepted documents ({cfg['redistribute']}).",
-            "- **Modifications:** ground truth normalized to canonical GFM (see README → How the data "
-            "was modified). Derived GT is a derivative work under the upstream license.",
+            (
+                "- **Modifications:** ground truth normalized to canonical GFM (see README → How the data "
+                "was modified). Derived GT is a derivative work under the upstream license."
+            ),
             "",
         ]
     ATTRIBUTIONS.write_text("\n".join(lines))

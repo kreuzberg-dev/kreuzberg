@@ -8,7 +8,7 @@
 // for the published package by patching the wasm-pack glue post-build. The
 // test runner generates its glue on the fly with no patch hook, so these
 // modules are supplied at require time instead, via NODE_PATH (see
-// `scripts/ci/wasm/run-crate-tests.sh`).
+// `scripts/ci/wasm/run-crate-tests.sh`). ~keep
 module.exports = new Proxy(
   {
     system: () => -1,

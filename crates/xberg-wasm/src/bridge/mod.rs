@@ -1,9 +1,16 @@
-//! JS bridge utilities for injected backends.
+//! JS-facing backend plumbing.
+//!
+//! Two ways a capability gets satisfied here: an *injected* JS backend the host
+//! supplies ([`ner`], [`ocr`]), or an *in-binary* model the host feeds bytes to
+//! ([`ner_model`]). Both report failures through [`js_from_any`]. The timeout
+//! race below serves only the injected paths: in-binary inference is synchronous,
+//! so a `Promise.race` could not interrupt it even if one were armed.
 //!
 //! Hand-written module (declared via `custom_rust_modules` in `alef.toml`),
 //! not managed by alef.
 
 pub mod ner;
+pub mod ner_model;
 pub mod ocr;
 
 use std::sync::OnceLock;
@@ -70,7 +77,7 @@ pub fn with_timeout(promise: js_sys::Promise, ms: u32) -> js_sys::Promise {
         Err(_) => {
             // Arming the race can only fail on engine-level errors (e.g. OOM).
             // Degrade to the untimed promise, but say so instead of silently
-            // dropping the timeout.
+            // dropping the timeout. ~keep
             warn("xberg-wasm: failed to arm bridge timeout; proceeding without one");
             promise
         }

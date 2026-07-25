@@ -983,7 +983,6 @@ mod tests {
 
             assert!((*config).use_cache);
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }
@@ -1002,7 +1001,6 @@ mod tests {
 
             assert!((*config).include_document_structure);
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }
@@ -1022,7 +1020,6 @@ mod tests {
 
             assert!((*config).ocr.is_some());
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }
@@ -1030,7 +1027,6 @@ mod tests {
     #[test]
     fn test_builder_null_checks() {
         unsafe {
-            // NULL builder should fail
             let result = xberg_config_builder_set_use_cache(ptr::null_mut(), 1);
             assert_eq!(result, -1);
 
@@ -1045,10 +1041,10 @@ mod tests {
             let builder = xberg_config_builder_new();
             assert!(!builder.is_null());
 
-            // Free without building should not crash
+            // Free without building should not crash ~keep
             xberg_config_builder_free(builder);
 
-            // Freeing NULL should not crash
+            // Freeing NULL should not crash ~keep
             xberg_config_builder_free(ptr::null_mut());
         }
     }
@@ -1076,7 +1072,6 @@ mod tests {
             assert!(cf.strip_repeating_text);
             assert!(!cf.include_watermarks);
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }
@@ -1102,7 +1097,6 @@ mod tests {
             assert_eq!(ho.css.as_deref(), Some(".kb-p { color: red; }"));
             assert!(ho.embed_css);
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }
@@ -1117,14 +1111,13 @@ mod tests {
             let result = xberg_config_builder_set_ocr(builder, invalid_json.as_ptr());
             assert_eq!(result, -1);
 
-            // Builder should still be usable
+            // Builder should still be usable ~keep
             let result = xberg_config_builder_set_use_cache(builder, 0);
             assert_eq!(result, 0);
 
             let config = xberg_config_builder_build(builder);
             assert!(!config.is_null());
 
-            // Clean up
             let _ = Box::from_raw(config);
         }
     }

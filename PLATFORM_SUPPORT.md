@@ -54,9 +54,10 @@ Legend: ✅ prebuilt shipped · ❌ not shipped · — not applicable
    document-orientation detection now run on the x86_64 emulator too, through the pure-Rust `tract`
    engine (see note 8) instead of ORT. arm64 devices get the full ORT-enabled build.
 7. **WASM** is a single `wasm32` artifact, portable across any WASM runtime (browser + Node). It uses
-   the `wasm-target` feature set (`ocr-wasm`, `excel-wasm`, `layout-tract`, `auto-rotate-tract`; no
-   native ORT, no tree-sitter). Layout detection and document-orientation run through the pure-Rust
-   `tract` engine (see note 8).
+   the `wasm-target` feature set (`ocr-wasm`, `excel-wasm`, `layout-tract`, `auto-rotate-tract`,
+   `ner-candle-wasm`; no native ORT, no tree-sitter). Layout detection and document-orientation run
+   through the pure-Rust `tract` engine (see note 8); named-entity recognition runs in the browser
+   through the pure-Rust candle GLiNER2 backend (see note 9).
 8. **Pure-Rust `tract` engine.** Where a target cannot link native ONNX Runtime, xberg's inference seam
    can compile select ONNX models against the pure-Rust `tract` engine (`tract-onnx`, no native library,
    CPU-only) instead. Document-orientation detection (`auto-rotate-tract`) and RT-DETR layout detection
@@ -66,6 +67,14 @@ Legend: ✅ prebuilt shipped · ❌ not shipped · — not applicable
    `detectLayout` / `detectOrientation`, which take the `.onnx` weights as streamed bytes (the JS host
    fetches them and hands them to the seam). PaddleOCR, TATR, SLANeXT, and PP-DocLayout-V3 remain ONNX
    Runtime-only.
+9. **In-browser entity detection.** The WASM build exposes `NerModel`, which runs GLiNER2 named-entity
+   recognition entirely inside the page — no server round-trip and no ONNX Runtime, through the
+   pure-Rust candle backend (`ner-candle-wasm`, the no-tokio sibling of the native `ner-candle`).
+   Weights are not embedded in the `.wasm`; the host fetches the safetensors, tokenizer, and encoder
+   config and passes the bytes to `NerModel.load`. Unlike the byte-oriented `detectLayout` /
+   `detectOrientation` functions, the model stays resident across calls, so the weights are parsed
+   once. Inference is synchronous CPU work on a single-threaded target — run it in a Web Worker if
+   main-thread responsiveness matters.
 
 ## Cross-cutting gaps
 

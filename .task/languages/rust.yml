@@ -188,20 +188,28 @@ tasks:
         ignore_error: true
 
   update:
-    desc: "Update Rust dependencies (compatible only)"
+    desc: "Update Rust dependencies (compatible only), incl. standalone sub-locks"
     cmds:
       - cargo update
-      - cmd: cargo update --manifest-path packages/ruby/ext/xberg_rb/native/Cargo.toml
+      # Standalone crates keep their OWN Cargo.lock (they are NOT workspace members), so the
+      # root `cargo update` never reaches them. Refresh each so a sub-lock cannot drift behind
+      # the workspace (e.g. a stale `cc` pin) and break only the e2e / native-binding builds
+      # while the --locked workspace build stays green. ~keep
+      - for: ["packages/ruby/ext/xberg_rb/native/Cargo.toml", "packages/elixir/native/xberg_nif/Cargo.toml", "crates/xberg-tesseract/Cargo.toml", "e2e/rust/Cargo.toml"]
+        cmd: cargo update --manifest-path {{.ITEM}}
         ignore_error: true
 
   upgrade:
-    desc: "Upgrade Rust dependencies aggressively (cargo upgrade --incompatible)"
+    desc: "Upgrade Rust dependencies aggressively (cargo upgrade --incompatible), incl. sub-locks"
     cmds:
       - cargo upgrade --incompatible
       - cargo update
-      - cmd: cargo upgrade --incompatible --manifest-path packages/ruby/ext/xberg_rb/native/Cargo.toml
+      - for: ["packages/ruby/ext/xberg_rb/native/Cargo.toml", "packages/elixir/native/xberg_nif/Cargo.toml", "crates/xberg-tesseract/Cargo.toml"]
+        cmd: cargo upgrade --incompatible --manifest-path {{.ITEM}} && cargo update --manifest-path {{.ITEM}}
         ignore_error: true
-      - cmd: cargo update --manifest-path packages/ruby/ext/xberg_rb/native/Cargo.toml
+      # e2e/rust is generated — do NOT rewrite its Cargo.toml; only refresh its lock so its
+      # pins track the workspace and the e2e build stays resolvable. ~keep
+      - cmd: cargo update --manifest-path e2e/rust/Cargo.toml
         ignore_error: true
 
   e2e:format:

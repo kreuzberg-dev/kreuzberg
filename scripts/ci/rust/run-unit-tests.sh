@@ -23,7 +23,7 @@ echo "  CARGO_TERM_COLOR: ${CARGO_TERM_COLOR:-not set}"
 
 echo "Workspace information:"
 echo "  Repository: $REPO_ROOT"
-echo "  Excluded packages: xberg-e2e-generator, xberg-py, xberg-node, xberg-candle-ocr, xberg-gliner, xberg-cli, benchmark-harness"
+echo "  Excluded packages: xberg-e2e-generator, xberg-py, xberg-node, xberg-candle-ocr, xberg-gliner, xberg-cli, xberg-wasm, benchmark-harness"
 
 if [ ! -d "$TESSDATA_PREFIX" ]; then
   echo "WARNING: TESSDATA_PREFIX directory not found: $TESSDATA_PREFIX"
@@ -75,6 +75,12 @@ if ! {
   extra_excludes+=(--exclude xberg-gliner)
   extra_excludes+=(--exclude xberg-cli)
   extra_excludes+=(--exclude benchmark-harness)
+  # xberg-wasm: a cdylib whose tests are all cfg(target_arch = "wasm32"), so a native
+  # run covers nothing; they run under Node in the ci-e2e wasm leg. Excluding it also
+  # keeps candle out of this build: its xberg dependency is not target-gated, so
+  # wasm-target's ner-candle-wasm would pull gemm-f16 in on aarch64 (no fullfp16),
+  # past the --exclude xberg-gliner guard above. Matches every Taskfile path. ~keep
+  extra_excludes+=(--exclude xberg-wasm)
   RUST_BACKTRACE=full cargo test --locked \
     --workspace \
     --exclude xberg \

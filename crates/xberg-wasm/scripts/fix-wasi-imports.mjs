@@ -50,8 +50,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgDir = process.env.XBERG_WASM_PKG_DIR ?? path.join(__dirname, "..", "pkg");
 
-// ── Shared stub source ───────────────────────────────────────────────────────
-// Injected verbatim just before `function __wbg_get_imports()` in every target.
+// Injected verbatim just before `function __wbg_get_imports()` in every target. ~keep
 const STUB_CODE = `// __wasi_stubs__ - inline replacements for the unresolvable "env" /
 // "wasi_snapshot_preview1" import targets. See fix-wasi-imports.mjs for
 // the full rationale; this block is injected by that script.
@@ -151,7 +150,6 @@ function injectStubs(content) {
   return content.slice(0, getImportsIdx) + STUB_CODE + content.slice(getImportsIdx);
 }
 
-// ── nodejs (CommonJS) target ────────────────────────────────────────────────
 function patchCjs(jsFile) {
   let content = fs.readFileSync(jsFile, "utf-8");
 
@@ -176,13 +174,13 @@ function patchCjs(jsFile) {
 
   // Precise reference replacement on the import-object return block so we never
   // corrupt identifiers by substring (import1 ⊂ import10). Every reference of
-  // shape `"env": importN` / `"wasi_snapshot_preview1": importN` is rewritten.
+  // shape `"env": importN` / `"wasi_snapshot_preview1": importN` is rewritten. ~keep
   content = content
     .replace(/("env":\s*)import\d+/g, "$1__env_stubs__")
     .replace(/("wasi_snapshot_preview1":\s*)import\d+/g, "$1__wasi_stubs__");
 
   // Deduplicate the "env" / "wasi_snapshot_preview1" keys in the import object
-  // literal — cosmetic (all point at the same stub) but keeps the glue tidy.
+  // literal — cosmetic (all point at the same stub) but keeps the glue tidy. ~keep
   const returnBlockStart = content.indexOf('"./xberg_wasm_bg.js": import0,');
   if (returnBlockStart !== -1) {
     const returnBlockEnd = content.indexOf("};", returnBlockStart);
@@ -206,7 +204,6 @@ function patchCjs(jsFile) {
     }
   }
 
-  // Give the stubs access to WASM linear memory once the instance exists.
   const instantiatePattern = /^(let wasmInstance = new WebAssembly\.Instance\(.*\);)$/m;
   if (instantiatePattern.test(content)) {
     content = content.replace(
@@ -223,7 +220,6 @@ function patchCjs(jsFile) {
   );
 }
 
-// ── web / bundler / deno (ESM) targets ──────────────────────────────────────
 function patchEsm(jsFile) {
   let content = fs.readFileSync(jsFile, "utf-8");
 
@@ -239,14 +235,14 @@ function patchEsm(jsFile) {
   content = content.replace(/^import \* as import\d+ from "(env|wasi_snapshot_preview1)"\s*;?\n/gm, "");
   content = injectStubs(content);
 
-  // Precise reference replacement (avoids import1 ⊂ import10 corruption).
+  // Precise reference replacement (avoids import1 ⊂ import10 corruption). ~keep
   content = content
     .replace(/("env":\s*)import\d+/g, "$1__env_stubs__")
     .replace(/("wasi_snapshot_preview1":\s*)import\d+/g, "$1__wasi_stubs__");
 
   // Wire linear memory so stubs that write output values can reach it. Two
   // shapes exist: web/bundler use __wbg_finalize_init(instance, module); deno
-  // instantiates at top level via instantiateStreaming.
+  // instantiates at top level via instantiateStreaming. ~keep
   const finalizePattern =
     /(function __wbg_finalize_init\(instance, module\) \{\s*\n\s*wasmInstance = instance;\s*\n\s*wasm = instance\.exports;)/;
   const denoPattern = /(\n\s*const wasm = wasmInstance\.exports;)/;
@@ -287,7 +283,6 @@ function patchTarget(target, kind) {
   else patchEsm(jsFile);
 }
 
-// nodejs uses CommonJS require(); web/bundler/deno use ESM import.
 patchTarget("nodejs", "cjs");
 patchTarget("web", "esm");
 patchTarget("bundler", "esm");

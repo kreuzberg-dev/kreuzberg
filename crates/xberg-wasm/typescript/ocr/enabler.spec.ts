@@ -13,9 +13,6 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// ── Module mocks ─────────────────────────────────────────────────────────────
-
-// Mock state module so we can control isInitialized() and getWasmModule()
 vi.mock("../extraction/internal.js", () => ({
   isInitialized: vi.fn(() => true),
 }));
@@ -24,33 +21,26 @@ vi.mock("../initialization/state.js", () => ({
   getWasmModule: vi.fn(),
 }));
 
-// Mock runtime detection
 vi.mock("../runtime.js", () => ({
   isBrowser: vi.fn(() => false),
   isNode: vi.fn(() => false),
 }));
 
-// Mock the worker bridge — we don't need real Worker threads in unit tests
 vi.mock("./worker-bridge.js", () => ({
   createOcrWorker: vi.fn(async () => undefined),
   runOcrInWorker: vi.fn(async () => "mocked ocr text"),
   terminateOcrWorker: vi.fn(async () => undefined),
 }));
 
-// Mock the JS-side OCR registry so we can observe registrations there too
 vi.mock("./registry.js", () => ({
   registerOcrBackend: vi.fn(),
 }));
-
-// ── Imports (after mocks are declared) ───────────────────────────────────────
 
 import { isInitialized } from "../extraction/internal.js";
 import { getWasmModule } from "../initialization/state.js";
 import { isBrowser } from "../runtime.js";
 import { registerOcrBackend as registerJsOcrBackend } from "./registry.js";
 import { enableOcr } from "./enabler.js";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Build a minimal mock WasmModule with register_ocr_backend included. */
 function makeWasmModule(overrides: Record<string, unknown> = {}) {
@@ -61,8 +51,6 @@ function makeWasmModule(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("enableOcr()", () => {
   beforeEach(() => {
@@ -97,7 +85,7 @@ describe("enableOcr()", () => {
       expect(wasm.register_ocr_backend).toHaveBeenCalledOnce();
 
       // The adapter passed to the Rust registry MUST be named "tesseract"
-      // because that is what OcrConfig.backend defaults to.
+      // because that is what OcrConfig.backend defaults to. ~keep
       const rustAdapter = vi.mocked(wasm.register_ocr_backend).mock.calls[0][0] as any;
       expect(rustAdapter.name()).toBe("tesseract");
     });
@@ -118,7 +106,7 @@ describe("enableOcr()", () => {
       const wasm = makeWasmModule();
       vi.mocked(getWasmModule).mockReturnValue(wasm as any);
 
-      // Stub fetch so NativeWasmOcrBackend.getTessdata() doesn't hit the CDN.
+      // Stub fetch so NativeWasmOcrBackend.getTessdata() doesn't hit the CDN. ~keep
       const fakeTessdata = new Uint8Array([1, 2, 3]);
       vi.stubGlobal(
         "fetch",
@@ -135,7 +123,7 @@ describe("enableOcr()", () => {
 
       vi.unstubAllGlobals();
 
-      // The Rust bridge expects a JSON string, not an object
+      // The Rust bridge expects a JSON string, not an object ~keep
       expect(typeof result).toBe("string");
       expect(() => JSON.parse(result)).not.toThrow();
     });
@@ -148,7 +136,7 @@ describe("enableOcr()", () => {
       // The fix (issue #719): enableOcr() must THROW rather than succeed
       // silently. A silent return leaves the Rust registry empty, causing the
       // cryptic "OCR backend 'tesseract' not registered. Available backends: []"
-      // error at extraction time — far harder to diagnose than an early throw.
+      // error at extraction time — far harder to diagnose than an early throw. ~keep
       const wasm = makeWasmModule({ register_ocr_backend: undefined });
       vi.mocked(getWasmModule).mockReturnValue(wasm as any);
 
@@ -164,7 +152,7 @@ describe("enableOcr()", () => {
 
       // TesseractWasmBackend.initialize() will fail because tesseract-wasm
       // isn't installed in the test environment — that's fine, we just check
-      // it is attempted.
+      // it is attempted. ~keep
       await expect(enableOcr()).rejects.toThrow();
     });
 

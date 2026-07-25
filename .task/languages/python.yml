@@ -20,3 +20,8 @@ tasks:
       - cmd: |
           cd {{.PYTHON_PKG}} && uv sync --no-install-project --no-install-workspace --all-extras --upgrade --prerelease=allow
         ignore_error: false
+      # Generated e2e harness keeps its own uv.lock; refresh it so `task upgrade` covers e2e
+      # and its lock does not drift behind the workspace. ~keep
+      - cmd: |
+          cd e2e/python && uv lock --upgrade --prerelease=allow
+        ignore_error: true

@@ -237,6 +237,21 @@ pub(crate) fn extract_tables_bordered(doc: &mut OxideDocument, skip_pages: &Hash
     Ok(all_tables)
 }
 
+/// Owned hierarchy segments produced while detecting heuristic tables.
+///
+/// Structured PDF rendering can consume these segments directly instead of
+/// extracting the same hierarchy a second time.
+pub(crate) struct ExtractedHierarchySegments {
+    pub(crate) pages: Vec<Vec<crate::pdf::hierarchy::SegmentData>>,
+    pub(crate) used_structure_tree: bool,
+}
+
+/// Heuristic tables and the hierarchy segments used to derive them.
+pub(crate) struct HeuristicTableExtraction {
+    pub(crate) tables: Vec<Table>,
+    pub(crate) hierarchy_segments: ExtractedHierarchySegments,
+}
+
 /// Heuristic table reconstruction for text-layer PDFs without layout hints.
 ///
 /// Pulls per-page text segments via the same hierarchy extractor used by the
@@ -266,16 +281,16 @@ pub(crate) fn extract_tables_bordered(doc: &mut OxideDocument, skip_pages: &Hash
 /// whose tables aren't drawn with explicit rule lines that pdf_oxide's grid
 /// detector can lock onto.
 ///
-/// Returns an empty vec on any extraction failure (the caller treats this as
-/// "no heuristic tables found" and keeps going).
+/// Returns the detected tables together with ownership of the exact hierarchy
+/// segments used for reconstruction.
 pub(crate) fn extract_tables_heuristic(
     doc: &mut OxideDocument,
     allow_single_column: bool,
     skip_pages: &HashSet<u32>,
-) -> Result<Vec<Table>> {
+) -> Result<HeuristicTableExtraction> {
     use crate::pdf::table_reconstruct::{HocrWord, segments_to_words};
 
-    let (per_page_segments, _used_structure_tree) =
+    let (per_page_segments, used_structure_tree) =
         crate::pdf::oxide::hierarchy::extract_all_segments(doc).map_err(|e| {
             PdfError::TextExtractionFailed(format!(
                 "pdf_oxide hierarchy extraction failed for heuristic tables: {e}"
@@ -334,7 +349,13 @@ pub(crate) fn extract_tables_heuristic(
         }
     }
 
-    Ok(tables)
+    Ok(HeuristicTableExtraction {
+        tables,
+        hierarchy_segments: ExtractedHierarchySegments {
+            pages: per_page_segments,
+            used_structure_tree,
+        },
+    })
 }
 
 fn reconstruct_region_tables(
@@ -1740,8 +1761,13 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read tiny.pdf");
         let mut doc = OxideDocument::open_bytes(&bytes).expect("open tiny.pdf");
         let skip = HashSet::new();
-        let tables = extract_tables_heuristic(&mut doc, false, &skip).expect("heuristic must not error on minimal PDF");
-        assert!(tables.is_empty(), "expected no tables on minimal PDF, got: {tables:?}");
+        let extraction =
+            extract_tables_heuristic(&mut doc, false, &skip).expect("heuristic must not error on minimal PDF");
+        assert!(
+            extraction.tables.is_empty(),
+            "expected no tables on minimal PDF, got: {:?}",
+            extraction.tables
+        );
     }
 
     /// On a real text-layer PDF that contains a table, the heuristic should
@@ -1757,7 +1783,14 @@ mod tests {
         let mut doc = OxideDocument::open_bytes(&bytes).expect("open table_document.pdf");
 
         let skip = HashSet::new();
-        let tables = extract_tables_heuristic(&mut doc, false, &skip).expect("heuristic must not error");
+        let page_count = doc.doc.page_count().expect("table fixture page count");
+        let extraction = extract_tables_heuristic(&mut doc, false, &skip).expect("heuristic must not error");
+        assert_eq!(
+            extraction.hierarchy_segments.pages.len(),
+            page_count,
+            "owned hierarchy segments must preserve one slot per PDF page"
+        );
+        let tables = extraction.tables;
 
         if tables.is_empty() {
             eprintln!(
@@ -1797,7 +1830,9 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read embedded table fixture");
         let mut doc = OxideDocument::open_bytes(&bytes).expect("open embedded table fixture");
 
-        let tables = extract_tables_heuristic(&mut doc, false, &HashSet::new()).expect("heuristic extraction");
+        let tables = extract_tables_heuristic(&mut doc, false, &HashSet::new())
+            .expect("heuristic extraction")
+            .tables;
         let table = tables
             .iter()
             .find(|table| table.cells[0].iter().any(|cell| cell.contains("Inhibitor")))
@@ -1838,14 +1873,18 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read table_document.pdf");
         let mut doc = OxideDocument::open_bytes(&bytes).expect("open table_document.pdf");
 
-        let baseline = extract_tables_heuristic(&mut doc, false, &HashSet::new()).expect("baseline heuristic");
+        let baseline = extract_tables_heuristic(&mut doc, false, &HashSet::new())
+            .expect("baseline heuristic")
+            .tables;
         if baseline.is_empty() {
             return;
         }
         let pages_baseline_touched: HashSet<u32> = baseline.iter().map(|t| t.page_number).collect();
 
         let skip = pages_baseline_touched.clone();
-        let suppressed = extract_tables_heuristic(&mut doc, false, &skip).expect("skip-pages heuristic");
+        let suppressed = extract_tables_heuristic(&mut doc, false, &skip)
+            .expect("skip-pages heuristic")
+            .tables;
 
         for t in &suppressed {
             assert!(

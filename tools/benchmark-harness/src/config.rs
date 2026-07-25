@@ -182,10 +182,11 @@ pub struct BenchmarkConfig {
     /// Maximum number of concurrent extractions
     pub max_concurrent: usize,
 
-    /// Xberg's configured thread budget for native batch extraction.
+    /// Xberg's configured extraction thread budget.
     ///
-    /// When unset, Xberg uses [`Self::max_concurrent`] to preserve the legacy
-    /// benchmark behavior. This setting does not affect other frameworks.
+    /// When unset, single-file extraction keeps Xberg's automatic budget and
+    /// native batch extraction uses [`Self::max_concurrent`]. This setting
+    /// does not affect other frameworks.
     #[serde(default)]
     pub xberg_max_threads: Option<usize>,
 

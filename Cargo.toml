@@ -23,7 +23,7 @@ default-members = ["crates/xberg", "crates/xberg-cli"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.0-rc.38"
+version = "1.0.0-rc.39"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Na'aman Hirschfeld <naaman@xberg.io>"]
@@ -131,8 +131,8 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Response",
 ] }
-xberg = { path = "./crates/xberg", version = "1.0.0-rc.38", default-features = false }
-xberg-gliner = { path = "./crates/xberg-gliner", version = "1.0.0-rc.38", default-features = false }
+xberg = { path = "./crates/xberg", version = "1.0.0-rc.39", default-features = false }
+xberg-gliner = { path = "./crates/xberg-gliner", version = "1.0.0-rc.39", default-features = false }
 
 [patch.crates-io]
 xberg = { path = "crates/xberg" }

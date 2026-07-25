@@ -243,12 +243,22 @@ pub struct PipelineResult {
     pub pipeline: Pipeline,
     pub sf1: f64,
     pub tf1: f64,
+    /// Order-/character-sensitive text similarity (`1 − CER`, 0.0–1.0). Report-only
+    /// OCR diagnostic; NaN for empty or very long documents (see `quality`).
+    #[serde(default)]
+    pub char_similarity: f64,
     /// Reading order score (LIS-based, 0.0-1.0).
     #[serde(default)]
     pub order_score: f64,
     /// Per-block-type structural F1 scores (e.g. "H1" -> 0.85).
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub per_type_sf1: HashMap<String, f64>,
+    /// Per-dimension precision (report-only): low value ⇒ over-fabrication.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub per_type_precision: HashMap<String, f64>,
+    /// Per-dimension recall (report-only): low value ⇒ omission.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub per_type_recall: HashMap<String, f64>,
     pub time_ms: f64,
     /// Top tokens present in GT but missing/under-represented in extraction (recall misses).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -560,30 +570,52 @@ pub fn build_extraction_config(pipeline: Pipeline) -> xberg::ExtractionConfig {
     }
 }
 
-/// Score extracted content against ground truth, returning (tf1, sf1, order_score, per_type_sf1).
-pub fn score_document(
-    content: &str,
-    gt_text: &str,
-    gt_markdown: Option<&str>,
-) -> (f64, f64, f64, HashMap<String, f64>) {
+/// Structural scoring outputs for one document: the SF1 rollup, reading-order
+/// score, and the per-dimension F1 / precision / recall maps used by triage.
+/// Precision/recall are report-only diagnostics (not part of SF1).
+#[derive(Debug, Clone, Default)]
+pub struct StructuralBreakdown {
+    pub sf1: f64,
+    pub order_score: f64,
+    pub per_type_sf1: HashMap<String, f64>,
+    pub per_type_precision: HashMap<String, f64>,
+    pub per_type_recall: HashMap<String, f64>,
+}
+
+impl StructuralBreakdown {
+    /// Explode a canonical [`StructuralScore`] into per-dimension maps.
+    pub fn from_score(score: &structural_sidecar::StructuralScore) -> Self {
+        let mut per_type_sf1 = HashMap::new();
+        let mut per_type_precision = HashMap::new();
+        let mut per_type_recall = HashMap::new();
+        for (name, bd) in score.dimensions_pr() {
+            per_type_sf1.insert(name.to_string(), bd.f1);
+            per_type_precision.insert(name.to_string(), bd.precision);
+            per_type_recall.insert(name.to_string(), bd.recall);
+        }
+        Self {
+            sf1: score.sf1,
+            order_score: score.d5_order,
+            per_type_sf1,
+            per_type_precision,
+            per_type_recall,
+        }
+    }
+}
+
+/// Score extracted content against ground truth, returning the text F1 and the
+/// structural breakdown (SF1, reading order, per-dimension F1/precision/recall).
+pub fn score_document(content: &str, gt_text: &str, gt_markdown: Option<&str>) -> (f64, StructuralBreakdown) {
     let tf1 = {
         let ext_tokens = tokenize(content);
         let gt_tokens = tokenize(gt_text);
         compute_f1(&ext_tokens, &gt_tokens)
     };
-    let (sf1, order_score, per_type_sf1) = match gt_markdown {
-        Some(md) => {
-            let score = structural_sidecar::score_markdown(content, md);
-            let dimensions = score
-                .dimensions()
-                .into_iter()
-                .map(|(name, value)| (name.to_string(), value))
-                .collect();
-            (score.sf1, score.d5_order, dimensions)
-        }
-        None => (0.0, 0.0, HashMap::new()),
+    let breakdown = match gt_markdown {
+        Some(md) => StructuralBreakdown::from_score(&structural_sidecar::score_markdown(content, md)),
+        None => StructuralBreakdown::default(),
     };
-    (tf1, sf1, order_score, per_type_sf1)
+    (tf1, breakdown)
 }
 
 fn resolve_vendored_dir(fixtures_path: &Path, vendored_name: &str) -> std::path::PathBuf {
@@ -725,10 +757,23 @@ async fn run_pipeline(
     let (content_opt, time_ms) = extract_pipeline(pipeline, doc, fixtures_dir).await;
     let extraction_failed = content_opt.is_none();
     let content = content_opt.unwrap_or_default();
-    let (tf1, sf1, order_score, per_type_sf1) = if extraction_failed || (content.is_empty() && time_ms > 170_000.0) {
-        (f64::NAN, f64::NAN, f64::NAN, std::collections::HashMap::new())
+    let (tf1, structural) = if extraction_failed || (content.is_empty() && time_ms > 170_000.0) {
+        (
+            f64::NAN,
+            StructuralBreakdown {
+                sf1: f64::NAN,
+                order_score: f64::NAN,
+                ..Default::default()
+            },
+        )
     } else {
         score_document(&content, gt_text, gt_markdown)
+    };
+
+    let char_similarity = if extraction_failed {
+        f64::NAN
+    } else {
+        crate::quality::normalized_edit_similarity(&content, gt_text)
     };
 
     let ext_tokens = tokenize(&content);
@@ -739,10 +784,13 @@ async fn run_pipeline(
 
     PipelineResult {
         pipeline,
-        sf1,
+        sf1: structural.sf1,
         tf1,
-        order_score,
-        per_type_sf1,
+        char_similarity,
+        order_score: structural.order_score,
+        per_type_sf1: structural.per_type_sf1,
+        per_type_precision: structural.per_type_precision,
+        per_type_recall: structural.per_type_recall,
         time_ms,
         missing_tokens,
         extra_tokens,
@@ -1497,53 +1545,56 @@ mod tests {
     #[test]
     fn test_score_document_identical() {
         let text = "Hello world this is a test document";
-        let (tf1, sf1, order_score, per_type) = score_document(text, text, None);
+        let (tf1, structural) = score_document(text, text, None);
         assert!(
             (tf1 - 1.0).abs() < f64::EPSILON,
             "TF1 should be 1.0 for identical text, got {tf1}"
         );
         assert!(
-            (sf1 - 0.0).abs() < f64::EPSILON,
+            (structural.sf1 - 0.0).abs() < f64::EPSILON,
             "SF1 should be 0.0 when no markdown GT"
         );
         assert!(
-            (order_score - 0.0).abs() < f64::EPSILON,
+            (structural.order_score - 0.0).abs() < f64::EPSILON,
             "order_score should be 0.0 when no markdown GT"
         );
-        assert!(per_type.is_empty(), "per_type should be empty when no markdown GT");
+        assert!(
+            structural.per_type_sf1.is_empty(),
+            "per_type should be empty when no markdown GT"
+        );
     }
 
     #[test]
     fn test_score_document_no_markdown_gt() {
         let content = "Some extracted content here";
         let gt_text = "Some ground truth content here";
-        let (tf1, sf1, order_score, per_type) = score_document(content, gt_text, None);
+        let (tf1, structural) = score_document(content, gt_text, None);
         assert!(
             tf1 > 0.0 && tf1 < 1.0,
             "TF1 should be between 0 and 1 for partially matching text, got {tf1}"
         );
         assert!(
-            (sf1 - 0.0).abs() < f64::EPSILON,
+            (structural.sf1 - 0.0).abs() < f64::EPSILON,
             "SF1 should be 0.0 when no markdown GT"
         );
-        assert!((order_score - 0.0).abs() < f64::EPSILON);
-        assert!(per_type.is_empty());
+        assert!((structural.order_score - 0.0).abs() < f64::EPSILON);
+        assert!(structural.per_type_sf1.is_empty());
     }
 
     #[test]
     fn test_score_document_empty() {
-        let (tf1, sf1, order_score, per_type) = score_document("", "", None);
+        let (tf1, structural) = score_document("", "", None);
         let _ = tf1;
-        assert!((sf1 - 0.0).abs() < f64::EPSILON);
-        assert!((order_score - 0.0).abs() < f64::EPSILON);
-        assert!(per_type.is_empty());
+        assert!((structural.sf1 - 0.0).abs() < f64::EPSILON);
+        assert!((structural.order_score - 0.0).abs() < f64::EPSILON);
+        assert!(structural.per_type_sf1.is_empty());
     }
 
     #[test]
     fn test_score_document_completely_different() {
         let content = "alpha bravo charlie";
         let gt_text = "delta echo foxtrot";
-        let (tf1, _sf1, _order_score, _per_type) = score_document(content, gt_text, None);
+        let (tf1, _structural) = score_document(content, gt_text, None);
         assert!(
             (tf1 - 0.0).abs() < f64::EPSILON,
             "TF1 should be 0.0 for completely different text, got {tf1}"
@@ -1555,13 +1606,16 @@ mod tests {
         let content = "# Heading\n\nSome paragraph text.\n";
         let gt_markdown = "# Heading\n\nSome paragraph text.\n";
         let gt_text = "Heading Some paragraph text.";
-        let (tf1, sf1, _order_score, per_type) = score_document(content, gt_text, Some(gt_markdown));
+        let (tf1, structural) = score_document(content, gt_text, Some(gt_markdown));
         assert!(tf1 > 0.0, "TF1 should be positive, got {tf1}");
         assert!(
-            sf1 > 0.0,
-            "SF1 should be positive when structural GT is provided, got {sf1}"
+            structural.sf1 > 0.0,
+            "SF1 should be positive when structural GT is provided, got {}",
+            structural.sf1
         );
-        let _ = per_type;
+        // Structural GT present ⇒ per-dimension precision/recall are populated too.
+        assert_eq!(structural.per_type_sf1.len(), structural.per_type_precision.len());
+        assert_eq!(structural.per_type_sf1.len(), structural.per_type_recall.len());
     }
 
     #[test]
@@ -1699,8 +1753,11 @@ mod tests {
                 pipeline: Pipeline::Docling,
                 sf1: f64::NAN,
                 tf1: f64::NAN,
+                char_similarity: f64::NAN,
                 order_score: f64::NAN,
                 per_type_sf1: HashMap::new(),
+                per_type_precision: HashMap::new(),
+                per_type_recall: HashMap::new(),
                 time_ms: f64::NAN,
                 missing_tokens: Vec::new(),
                 extra_tokens: Vec::new(),
@@ -1749,8 +1806,11 @@ mod tests {
                     pipeline: Pipeline::PdfOxideReadingOrder,
                     sf1: 0.9,
                     tf1: 0.9,
+                    char_similarity: 0.9,
                     order_score: 0.9,
                     per_type_sf1: HashMap::new(),
+                    per_type_precision: HashMap::new(),
+                    per_type_recall: HashMap::new(),
                     time_ms: 1.0,
                     missing_tokens: Vec::new(),
                     extra_tokens: Vec::new(),
@@ -1862,8 +1922,11 @@ mod tests {
                 pipeline: Pipeline::Docling,
                 sf1: f64::NAN,
                 tf1: f64::NAN,
+                char_similarity: f64::NAN,
                 order_score: f64::NAN,
                 per_type_sf1: HashMap::new(),
+                per_type_precision: HashMap::new(),
+                per_type_recall: HashMap::new(),
                 time_ms: f64::NAN,
                 missing_tokens: Vec::new(),
                 extra_tokens: Vec::new(),

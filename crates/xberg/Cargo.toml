@@ -369,7 +369,16 @@ diff = ["dep:similar"]
 # Each feature lands in its own module under `crates/xberg/src/text/` (or
 # `crates/xberg/src/extractors/` for QR) and is wired through a built-in
 # post-processor under `crates/xberg/src/plugins/processor/builtin/`.
-ner-candle = ["ner", "dep:xberg-gliner", "xberg-gliner/candle", "tokio-runtime"]
+# The candle GLiNER2 backend (`crate::text::ner::candle`), runtime-neutral. Enable one
+# of the two siblings below rather than this directly; they differ only in tokio.
+ner-candle-backend = ["ner", "dep:xberg-gliner", "xberg-gliner/candle"]
+# Needs the multi-threaded runtime: `CandleBackend::detect` uses `block_in_place`.
+ner-candle = ["ner-candle-backend", "tokio-runtime"]
+# The sibling that does not pull `tokio-runtime` in, mirroring `layout-tract` /
+# `auto-rotate-tract`. This is about what the feature requires, not what ends up in the
+# build — `layout-tract` already enables `tokio-runtime` inside `wasm-target`. Builds
+# natively too, for callers wanting candle NER without a runtime dependency.
+ner-candle-wasm = ["ner-candle-backend"]
 ner = [] # NER result types only; safe on every target.
 ner-llm-types = ["ner"] # LlmBackend stub for targets without full ner-llm (Windows, Android x86_64, WASM).
 ner-llm = ["ner", "liter-llm"] # LLM-driven zero-shot NER (no ORT).
@@ -505,7 +514,14 @@ no-ort-target = [
 # past ~100 MB, over jsDelivr's 50 MB per-file limit, which broke the live demo
 # (the CDN 403s the oversized .wasm). Code intelligence is therefore unavailable
 # in the WASM build; native targets keep `tree-sitter`. See docs (WASM limitations).
-wasm-target = ["no-ort-target", "excel-wasm", "ocr-wasm", "layout-tract", "auto-rotate-tract"]
+wasm-target = [
+    "no-ort-target",
+    "excel-wasm",
+    "ocr-wasm",
+    "layout-tract",
+    "auto-rotate-tract",
+    "ner-candle-wasm",
+]
 # android-target: no-ort-target plus native-Linux variants that work on Android ABI
 # (excel with tokio, native tree-sitter, Tesseract OCR, and API/MCP transport).
 # Excludes ORT-dependent ML (paddle-ocr, embeddings, reranker, transcription); document
@@ -763,7 +779,7 @@ indexmap = "2.14.0"
 infer = "0.22.0"
 itertools = { workspace = true, optional = true }
 jotdown = "0.10"
-jsonschema = { version = "0.48", optional = true, default-features = false }
+jsonschema = { version = "0.49", optional = true, default-features = false }
 libc = { workspace = true }
 # lofty: pure-Rust audio tag reader (ID3v1/v2, MP4 atoms, Vorbis comments, FLAC, etc.)
 # MIT license. Used for metadata extraction independent of the inference backend.
@@ -865,7 +881,7 @@ uuid = { version = "1", features = ["v4"], optional = true }
 v_htmlescape = { version = "0.17", optional = true }
 whatlang = { version = "0.18.0", optional = true }
 xberg-gliner = { workspace = true, optional = true }
-xberg-libheif = { path = "../xberg-libheif", version = "1.0.0-rc.38", optional = true }
+xberg-libheif = { path = "../xberg-libheif", version = "1.0.0-rc.39", optional = true }
 # No `version` on this path-dep: xberg-tesseract carries `links =
 # "xberg_tesseract"`, and a versioned path-dep makes the maturin sdist
 # resolve two copies (path + registry) of a `links` crate, which cargo rejects
@@ -886,9 +902,9 @@ tokenizers = { version = "0.23", default-features = false, features = ["fancy-re
 # Note: candle-core unconditionally links platform-specific deps (cudarc on Linux, metal-kernels on macOS).
 # To avoid conflicts during feature unification, GPU features (candle-cuda/metal/mkl/accelerate) should
 # only be explicitly enabled with platform awareness. CI uses `--features full` which excludes GPU accel.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.38", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.39", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.38", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.39", optional = true }
 
 # Desktop / server hosts (Linux + macOS, NOT Android): xberg's direct `ureq` client uses
 # ring-backed rustls plus `platform-verifier`, which trusts the OS certificate store
@@ -917,9 +933,9 @@ ureq = { version = "3.3", default-features = false, features = [
     "json",
 ], optional = true }
 # Candle-based VLM OCR backends - pure-Rust transformer inference, not on WASM yet.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.38", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.0-rc.39", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.38", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.0-rc.39", optional = true }
 
 # tokio OS features (every native target, including Android and Windows): `process`, `fs`, and
 # `rt-multi-thread` all fail to compile on wasm32 — tokio's own wasm32 gate only allows
@@ -1020,7 +1036,7 @@ filetime = "0.2"
 image = { workspace = true, default-features = false, features = ["png"] }
 # default-features=false drops jsonschema's `resolve-http` (reqwest→native-tls→openssl-sys);
 # tests validate local schemas only. Keeps the test build openssl-free.
-jsonschema = { version = "0.48", default-features = false }
+jsonschema = { version = "0.49", default-features = false }
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
 # Test-only: builds an in-memory model2vec fixture (safetensors bytes) for the
 # static_engine unit tests, without a network fetch.

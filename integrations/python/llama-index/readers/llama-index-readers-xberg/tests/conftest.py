@@ -46,6 +46,7 @@ def make_element(
 
 
 def make_chunk(
+    *,
     content: str = "Chunk content.",
     chunk_type: str = "unknown",
     chunk_index: int = 0,
@@ -80,6 +81,7 @@ def make_page_content(
 
 
 def make_document(
+    *,
     content: str = "Hello world",
     mime_type: str = "application/pdf",
     metadata: SimpleNamespace | None = None,

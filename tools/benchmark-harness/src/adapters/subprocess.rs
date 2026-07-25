@@ -295,10 +295,10 @@ pub struct SubprocessAdapter {
     native_batch_command: Option<PathBuf>,
     /// Per-adapter sequence used to distinguish repeated batch invocations.
     batch_sequence: AtomicU64,
-    /// Explicit `--max-threads` budget passed only to Xberg's native batch CLI.
+    /// Explicit `--max-threads` budget passed to Xberg in either mode.
     ///
-    /// When unset, Xberg receives [`Self::batch_workers`] to preserve the
-    /// legacy coupled behavior.
+    /// When unset, single-file mode preserves Xberg's automatic budget while
+    /// native batch mode falls back to [`Self::batch_workers`].
     xberg_max_threads: Option<usize>,
 }
 
@@ -345,8 +345,47 @@ impl SubprocessAdapter {
         self.request_args_from(&self.args, force_ocr)
     }
 
+    fn is_xberg(&self) -> bool {
+        self.name.starts_with("xberg-")
+    }
+
+    fn append_explicit_xberg_thread_budget(&self, args: &mut Vec<String>) {
+        if self.is_xberg()
+            && let Some(max_threads) = self.xberg_max_threads
+        {
+            args.extend(["--max-threads".to_string(), max_threads.to_string()]);
+        }
+    }
+
     fn single_file_request_args(&self, force_ocr: bool) -> Vec<String> {
-        self.request_args_from(self.single_file_args.as_deref().unwrap_or(&self.args), force_ocr)
+        let mut args = self.request_args_from(self.single_file_args.as_deref().unwrap_or(&self.args), force_ocr);
+        self.append_explicit_xberg_thread_budget(&mut args);
+        args
+    }
+
+    fn provenance_args_for_mode(&self, mode: crate::config::BenchmarkMode) -> Vec<String> {
+        let mut args = match mode {
+            crate::config::BenchmarkMode::SingleFile => self.single_file_args.as_deref().unwrap_or(&self.args).to_vec(),
+            crate::config::BenchmarkMode::Batch => self.args.clone(),
+        };
+        match mode {
+            crate::config::BenchmarkMode::SingleFile => self.append_explicit_xberg_thread_budget(&mut args),
+            crate::config::BenchmarkMode::Batch
+                if self.is_xberg()
+                    && self
+                        .batch_capability
+                        .is_some_and(|capability| capability.entry_point == BatchEntryPoint::XbergCliExtractBatch) =>
+            {
+                args.extend([
+                    "--max-concurrent".to_string(),
+                    self.batch_workers.to_string(),
+                    "--max-threads".to_string(),
+                    self.effective_xberg_max_threads().to_string(),
+                ]);
+            }
+            crate::config::BenchmarkMode::Batch => {}
+        }
+        args
     }
 
     fn resolve_ocr_status(&self, value: Option<&serde_json::Value>, force_ocr: bool) -> OcrStatus {
@@ -1152,11 +1191,11 @@ impl SubprocessAdapter {
             } else {
                 stdout.to_string()
             };
-            eprintln!(
-                "[parse_output:{}] raw_len={} preview={}",
-                self.name,
-                stdout.len(),
-                preview.trim()
+            tracing::debug!(
+                framework = %self.name,
+                raw_len = stdout.len(),
+                preview = %preview.trim(),
+                "parsed subprocess output preview"
             );
         }
 
@@ -1262,13 +1301,10 @@ impl FrameworkAdapter for SubprocessAdapter {
                 &args,
             ));
         }
-        let args = match mode {
-            crate::config::BenchmarkMode::SingleFile => self.single_file_args.as_deref().unwrap_or(&self.args),
-            crate::config::BenchmarkMode::Batch => &self.args,
-        };
+        let args = self.provenance_args_for_mode(mode);
         Some(crate::provenance::ExecutableProvenance::from_invocation(
             &self.command,
-            args,
+            &args,
         ))
     }
 
@@ -1283,9 +1319,14 @@ impl FrameworkAdapter for SubprocessAdapter {
     }
 
     fn configured_thread_budget(&self) -> Option<usize> {
-        self.batch_capability
-            .is_some_and(|capability| capability.entry_point == BatchEntryPoint::XbergCliExtractBatch)
-            .then(|| self.effective_xberg_max_threads())
+        if !self.is_xberg() {
+            return None;
+        }
+        self.xberg_max_threads.or_else(|| {
+            self.batch_capability
+                .is_some_and(|capability| capability.entry_point == BatchEntryPoint::XbergCliExtractBatch)
+                .then(|| self.effective_xberg_max_threads())
+        })
     }
 
     async fn extract(
@@ -1351,11 +1392,11 @@ impl FrameworkAdapter for SubprocessAdapter {
 
         let extraction_time_raw = parsed.get("_extraction_time_ms");
         if is_debug_enabled() {
-            eprintln!(
-                "[extract:{}] _extraction_time_ms raw={:?}, keys={:?}",
-                self.name,
-                extraction_time_raw,
-                parsed.as_object().map(|o| o.keys().collect::<Vec<_>>())
+            tracing::debug!(
+                framework = %self.name,
+                extraction_time_ms = ?extraction_time_raw,
+                keys = ?parsed.as_object().map(|object| object.keys().collect::<Vec<_>>()),
+                "parsed subprocess extraction metadata"
             );
         }
 
@@ -2365,6 +2406,102 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn xberg_single_passes_explicit_thread_limit() {
+        let script = r#"
+            threads=""
+            while [ "$#" -gt 1 ]; do
+                case "$1" in
+                    --max-threads) threads="$2"; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+            [ "$threads" = "7" ] || exit 64
+            printf '{"content":"ok"}'
+        "#;
+        let adapter = SubprocessAdapter::new(
+            "xberg-test",
+            "sh",
+            vec!["-c".to_string(), script.to_string(), "single-budget-probe".to_string()],
+            vec![],
+            vec!["pdf".to_string()],
+        )
+        .with_xberg_max_threads(7);
+        let file = tempfile::NamedTempFile::new().unwrap();
+
+        let result = adapter
+            .extract(file.path(), Duration::from_secs(1), false, OutputFormat::Markdown)
+            .await
+            .unwrap();
+
+        assert!(result.success);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn xberg_single_without_explicit_budget_preserves_cli_auto_threads() {
+        let script = r#"
+            while [ "$#" -gt 1 ]; do
+                [ "$1" != "--max-threads" ] || exit 64
+                shift
+            done
+            printf '{"content":"ok"}'
+        "#;
+        let adapter = SubprocessAdapter::new(
+            "xberg-test",
+            "sh",
+            vec![
+                "-c".to_string(),
+                script.to_string(),
+                "single-auto-budget-probe".to_string(),
+            ],
+            vec![],
+            vec!["pdf".to_string()],
+        )
+        .with_batch_workers(7);
+        let file = tempfile::NamedTempFile::new().unwrap();
+
+        let result = adapter
+            .extract(file.path(), Duration::from_secs(1), false, OutputFormat::Markdown)
+            .await
+            .unwrap();
+
+        assert!(result.success);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn non_xberg_single_ignores_xberg_thread_limit() {
+        let script = r#"
+            while [ "$#" -gt 1 ]; do
+                [ "$1" != "--max-threads" ] || exit 64
+                shift
+            done
+            printf '{"content":"ok"}'
+        "#;
+        let adapter = SubprocessAdapter::new(
+            "docling",
+            "sh",
+            vec![
+                "-c".to_string(),
+                script.to_string(),
+                "non-xberg-budget-probe".to_string(),
+            ],
+            vec![],
+            vec!["pdf".to_string()],
+        )
+        .with_xberg_max_threads(7);
+        let file = tempfile::NamedTempFile::new().unwrap();
+
+        let result = adapter
+            .extract(file.path(), Duration::from_secs(1), false, OutputFormat::Markdown)
+            .await
+            .unwrap();
+
+        assert!(result.success);
     }
 
     #[test]

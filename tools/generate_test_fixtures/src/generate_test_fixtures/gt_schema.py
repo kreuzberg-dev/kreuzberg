@@ -52,6 +52,7 @@ def write_ground_truth(
     sidecar_path: Path,
     fixture_path: Path,
     repo_root: Path,
+    *,
     document_format: str,
     feature: str,
     expectations: dict[str, Any],

@@ -14,9 +14,10 @@ use super::ocr_flag;
 /// Maximum per-extraction timeout for persistent adapters (seconds).
 const PERSISTENT_MAX_TIMEOUT_SECS: u64 = 180;
 
-/// Higher timeout for slow ML frameworks (mineru, pymupdf4llm) that load
-/// large models and can take significantly longer on first extractions.
-const SLOW_ML_TIMEOUT_SECS: u64 = 300;
+/// Higher timeout for PyMuPDF4LLM, which can take longer on first extraction.
+const PYMUPDF4LLM_MAX_TIMEOUT_SECS: u64 = 300;
+/// MinerU can spend several minutes loading model weights on CPU-only runners.
+const MINERU_MAX_TIMEOUT_SECS: u64 = 900;
 
 /// Margin between the Python-side and Rust-side timeouts.
 /// The Python script handles timeouts internally (via multiprocessing fork),
@@ -26,6 +27,9 @@ const PYTHON_TIMEOUT_MARGIN_SECS: u64 = 30;
 
 /// Python-side extraction timeout passed via `--timeout=N` CLI arg.
 const PYTHON_EXTRACTION_TIMEOUT_SECS: u64 = PERSISTENT_MAX_TIMEOUT_SECS - PYTHON_TIMEOUT_MARGIN_SECS;
+const MINERU_EXTRACTION_TIMEOUT_SECS: u64 = MINERU_MAX_TIMEOUT_SECS - PYTHON_TIMEOUT_MARGIN_SECS;
+const _: () = assert!(MINERU_EXTRACTION_TIMEOUT_SECS + PYTHON_TIMEOUT_MARGIN_SECS == MINERU_MAX_TIMEOUT_SECS);
+const _: () = assert!(MINERU_MAX_TIMEOUT_SECS > PYMUPDF4LLM_MAX_TIMEOUT_SECS);
 const LITEPARSE_BINARY: &str = "lit";
 const LITEPARSE_VERSION_PREFIX: &str = "lit ";
 const LITEPARSE_REQUIRED_BATCH_OPTIONS: [&str; 3] = ["--format", "--no-ocr", "--num-workers"];
@@ -537,7 +541,7 @@ pub fn create_pymupdf4llm_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter
     Ok(
         SubprocessAdapter::new("pymupdf4llm", command, args, vec![], supported_formats)
             .with_configured_ocr(ocr_enabled)
-            .with_max_timeout(Duration::from_secs(SLOW_ML_TIMEOUT_SECS)),
+            .with_max_timeout(Duration::from_secs(PYMUPDF4LLM_MAX_TIMEOUT_SECS)),
     )
 }
 
@@ -549,7 +553,7 @@ pub fn create_mineru_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter> {
     let script_path = get_script_path("mineru_extract.py")?;
     let (command, mut args) = find_python_with_framework("mineru")?;
     args.push(script_path.to_string_lossy().to_string());
-    args.push(format!("--timeout={}", PYTHON_EXTRACTION_TIMEOUT_SECS));
+    args.push(format!("--timeout={}", MINERU_EXTRACTION_TIMEOUT_SECS));
     args.push(ocr_flag(ocr_enabled));
     let mut single_file_args = args.clone();
     single_file_args.push("sync".to_string());
@@ -567,7 +571,7 @@ pub fn create_mineru_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter> {
     .with_configured_ocr(ocr_enabled)
     .with_format_aware(true)
     .with_single_file_args(single_file_args)
-    .with_max_timeout(Duration::from_secs(SLOW_ML_TIMEOUT_SECS)))
+    .with_max_timeout(Duration::from_secs(MINERU_MAX_TIMEOUT_SECS)))
 }
 
 #[cfg(test)]

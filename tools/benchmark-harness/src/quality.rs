@@ -244,6 +244,58 @@ pub fn compute_f1(extracted: &[String], truth: &[String]) -> f64 {
     2.0 * precision * recall / (precision + recall)
 }
 
+/// Above this character length, char-level edit distance (O(n·m)) is too slow to
+/// run per document, so the CER helpers report NaN rather than stall the bench.
+const CER_MAX_CHARS: usize = 16_384;
+
+/// Levenshtein edit distance between two char slices. Two-row DP: O(n·m) time,
+/// O(min(n, m)) space.
+fn edit_distance(a: &[char], b: &[char]) -> usize {
+    // Keep the shorter sequence on the inner (column) axis to minimize memory.
+    let (a, b) = if a.len() < b.len() { (b, a) } else { (a, b) };
+    if b.is_empty() {
+        return a.len();
+    }
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut curr = vec![0usize; b.len() + 1];
+    for (i, &ca) in a.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let substitution = prev[j] + usize::from(ca != cb);
+            curr[j + 1] = substitution.min(prev[j + 1] + 1).min(curr[j] + 1);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[b.len()]
+}
+
+/// Character error rate: edit distance normalized by the reference length. 0.0
+/// is identical; values above 1.0 are possible when the hypothesis runs long.
+/// Returns NaN for an empty reference or when either side exceeds
+/// [`CER_MAX_CHARS`] (the metric is a report-only OCR diagnostic).
+pub fn char_error_rate(reference: &str, hypothesis: &str) -> f64 {
+    let reference_chars: Vec<char> = reference.chars().collect();
+    let hypothesis_chars: Vec<char> = hypothesis.chars().collect();
+    if reference_chars.is_empty() || reference_chars.len().max(hypothesis_chars.len()) > CER_MAX_CHARS {
+        return f64::NAN;
+    }
+    edit_distance(&reference_chars, &hypothesis_chars) as f64 / reference_chars.len() as f64
+}
+
+/// Order- and character-sensitive text similarity in `[0, 1]`: `1 − distance /
+/// max(len)`. 1.0 is identical, 0.0 fully dissimilar. Complements the
+/// bag-of-words TF1 by penalizing transpositions and character-level OCR slips.
+/// Returns NaN when both sides are empty or either exceeds [`CER_MAX_CHARS`].
+pub fn normalized_edit_similarity(a: &str, b: &str) -> f64 {
+    let a_chars: Vec<char> = a.chars().collect();
+    let b_chars: Vec<char> = b.chars().collect();
+    let max_len = a_chars.len().max(b_chars.len());
+    if max_len == 0 || max_len > CER_MAX_CHARS {
+        return f64::NAN;
+    }
+    1.0 - edit_distance(&a_chars, &b_chars) as f64 / max_len as f64
+}
+
 /// Build a token frequency map
 fn build_counts(tokens: &[String]) -> HashMap<&str, usize> {
     let mut counts = HashMap::new();
@@ -446,5 +498,46 @@ mod tests {
         );
 
         assert_eq!(metrics.f1_score_layout, Some(expected));
+    }
+
+    #[test]
+    fn edit_distance_counts_single_edits() {
+        let chars = |s: &str| s.chars().collect::<Vec<_>>();
+        assert_eq!(edit_distance(&chars("kitten"), &chars("sitting")), 3);
+        assert_eq!(edit_distance(&chars(""), &chars("abc")), 3);
+        assert_eq!(edit_distance(&chars("abc"), &chars("abc")), 0);
+    }
+
+    #[test]
+    fn normalized_edit_similarity_is_order_sensitive() {
+        // Identical strings ⇒ 1.0.
+        assert!((normalized_edit_similarity("hello world", "hello world") - 1.0).abs() < 1e-9);
+        // A transposition costs TF1 nothing (same bag of words) but the char
+        // metric registers it, so similarity drops below 1.0.
+        let sim = normalized_edit_similarity("ab", "ba");
+        assert!(
+            (0.0..1.0).contains(&sim),
+            "transposition should lower similarity, got {sim}"
+        );
+        // One substitution in ten chars ⇒ 0.9.
+        assert!((normalized_edit_similarity("abcdefghij", "abcdefghiX") - 0.9).abs() < 1e-9);
+    }
+
+    #[test]
+    fn char_metrics_guard_empty_and_oversized_inputs() {
+        assert!(char_error_rate("", "anything").is_nan(), "empty reference ⇒ NaN CER");
+        assert!(
+            normalized_edit_similarity("", "").is_nan(),
+            "empty pair ⇒ NaN similarity"
+        );
+        let huge = "a".repeat(CER_MAX_CHARS + 1);
+        assert!(
+            normalized_edit_similarity(&huge, &huge).is_nan(),
+            "oversized input is skipped"
+        );
+        assert!(
+            (char_error_rate("abcd", "abXd") - 0.25).abs() < 1e-9,
+            "one of four chars wrong ⇒ 0.25"
+        );
     }
 }

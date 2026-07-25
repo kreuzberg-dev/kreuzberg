@@ -3,7 +3,7 @@
 // rationale. The engine tests never exercise the WASI-linked OCR C code, so
 // every syscall can report clean absence: 0 for close/yield, WASI errno 8
 // (EBADF) for the preopen probes libc runs at startup, and errno 63 (ENOSYS)
-// for everything else.
+// for everything else. ~keep
 const EBADF = 8;
 const ENOSYS = 63;
 

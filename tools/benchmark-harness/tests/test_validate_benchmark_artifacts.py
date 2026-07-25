@@ -234,7 +234,7 @@ class ValidateBenchmarkArtifactsTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "validated 22 native benchmark artifacts\n")
+        self.assertEqual(result.stdout, "validated 21 native benchmark artifacts\n")
         self.assertEqual(result.stderr, "")
 
     def test_accepts_exact_ocr_contract(self) -> None:
@@ -443,11 +443,17 @@ class ValidateBenchmarkArtifactsTests(unittest.TestCase):
 
     def test_contract_key_counts_are_exact(self) -> None:
         """Capability matrices contain the documented unique keys."""
-        self.assertEqual(len(validator.CONTRACTS["native"].matrix), 22)
-        self.assertEqual(len(validator.CONTRACTS["ocr"].matrix), 18)
+        self.assertEqual(len(validator.CONTRACTS["native"].matrix), 21)
+        self.assertEqual(len(validator.CONTRACTS["ocr"].matrix), 17)
         for contract in validator.CONTRACTS.values():
             self.assertEqual(len({entry.artifact for entry in contract.matrix}), len(contract.matrix))
             self.assertEqual(len({entry.aggregate_key for entry in contract.matrix}), len(contract.matrix))
+
+    def test_mineru_contract_is_single_file_only(self) -> None:
+        """MinerU remains excluded from native-batch comparisons."""
+        for contract in validator.CONTRACTS.values():
+            mineru_entries = [entry for entry in contract.matrix if entry.framework == "mineru"]
+            self.assertEqual([entry.mode for entry in mineru_entries], ["single-file"])
 
 
 if __name__ == "__main__":

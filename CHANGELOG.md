@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Entity detection runs in the browser.** The WASM package exposes `NerModel`, which loads GLiNER2
+  weights into the page and detects entities locally — no server round-trip and no ONNX Runtime.
+  The host fetches the model and hands over the bytes:
+
+  ```js
+  const model = await NerModel.load({ weights, tokenizer, encoderConfig });
+  const entities = await model.detect(text, { categories: ["person", "organization"] });
+  model.free();
+  ```
+
+  The model stays resident, so the weights are parsed once no matter how many times you call
+  `detect`. Inference is synchronous on a single-threaded target; run it in a Web Worker if you care
+  about main-thread responsiveness. The existing injected-JS `ner` backend is unchanged.
+- New `ner-candle-wasm` feature: the no-tokio sibling of `ner-candle`, now part of `wasm-target`.
+  Both resolve to the same candle GLiNER2 backend and differ only in whether the tokio runtime comes
+  along, mirroring how `layout-tract` and `auto-rotate-tract` shadow their ORT-backed counterparts.
+
 ### Fixed
 
 - PaddleOCR now applies `PaddleOcrConfig::rec_batch_num` to recognition inference.

@@ -243,22 +243,25 @@ The `run` command writes `provenance.json` beside the backward-compatible `resul
 Schema version 2 records the Xberg repository commit/dirty bit, the ordered fixture descriptors
 and document BLAKE3 digests, cohort manifest identity, adapter versions and executable digests,
 explicit model revision identities, timing configuration, fixed batch partitions, requested
-workers, framework-specific worker semantics, and the configured Xberg batch thread budget.
+workers, framework-specific worker semantics, and the configured Xberg thread budget.
 Local absolute paths are never serialized.
 
-For Xberg native batch rows, `frameworks[].configured_thread_budget` is the value the adapter
-actually passes to `xberg batch --max-threads`. It is distinct from
+For Xberg rows, `frameworks[].configured_thread_budget` records an explicit
+`--xberg-max-threads` value in either mode. For native batch rows without an explicit
+value, it records the legacy `--max-concurrent` fallback passed to `xberg batch
+--max-threads`. It is distinct from
 `frameworks[].requested_workers`, which records the `--max-concurrent` document-concurrency
 cap. `effective_workers` remains `null` because Xberg resolves effective document concurrency
-from the workload. Non-Xberg and single-file rows omit `configured_thread_budget`.
+from the workload. Non-Xberg rows and automatic-budget single-file rows omit
+`configured_thread_budget`.
 
 #### Run provenance migration from schema 1 to schema 2
 
 - Added optional `FrameworkProvenance.configured_thread_budget`.
 - Existing schema-1 sidecars remain readable; a missing field deserializes as `null`.
 - Consumers should treat `null` as unavailable, not infer a thread budget from worker fields.
-- Producers that omit `--xberg-max-threads` record the legacy fallback value from
-  `--max-concurrent`.
+- Native-batch producers that omit `--xberg-max-threads` record the legacy fallback
+  value from `--max-concurrent`; single-file producers omit the field.
 
 ### Key Format Rationale
 

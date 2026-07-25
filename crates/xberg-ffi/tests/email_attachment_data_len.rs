@@ -25,8 +25,7 @@ use xberg_ffi::{xberg_email_attachment_free, xberg_email_attachment_from_json, x
 /// an embedded NUL and a trailing high byte (0xEF). This defeats any strlen-based
 /// or "read first byte only" implementations.
 fn attachment_json_with_nuls() -> CString {
-    // 8 bytes: JPEG-ish magic + NUL in the middle + high byte at the end.
-    // Length is authoritative and known.
+    // 8 bytes: JPEG-ish magic + NUL in the middle + high byte at the end. ~keep
     let data: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0x00, 0xDE, 0xAD, 0xBE, 0xEF];
     let json = format!(
         r#"{{
@@ -52,7 +51,6 @@ fn email_attachment_data_accessor_must_provide_out_len_in_header() {
     let header_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("include/xberg.h");
     let header = fs::read_to_string(&header_path).expect("committed xberg.h must be readable by the test");
 
-    // Simple and robust: the declaration for this specific function must mention out_len.
     let has_out_len = header.contains("xberg_email_attachment_data") && header.contains("out_len");
 
     assert!(
@@ -87,7 +85,7 @@ fn email_attachment_data_none_returns_null_pointer() {
 
     let mut out_len: usize = usize::MAX;
     // SAFETY: handle is a valid non-null pointer returned by from_json;
-    // out_len is a valid stack-allocated usize.
+    // out_len is a valid stack-allocated usize. ~keep
     let data_ptr = unsafe { xberg_ffi::xberg_email_attachment_data(handle, &mut out_len) };
 
     assert!(
@@ -119,7 +117,7 @@ fn email_attachment_data_with_out_len_returns_full_buffer_including_embedded_nul
 
     // SAFETY: handle is non-null and freshly allocated by from_json;
     // out_len is a valid stack-allocated usize. The returned pointer must not
-    // be freed by us — it borrows the internal Bytes of the handle.
+    // be freed by us — it borrows the internal Bytes of the handle. ~keep
     let data_ptr = unsafe { xberg_ffi::xberg_email_attachment_data(handle, &mut out_len) };
 
     assert!(
@@ -134,7 +132,7 @@ fn email_attachment_data_with_out_len_returns_full_buffer_including_embedded_nul
     // SAFETY: data_ptr is valid for [0..out_len] because:
     // - it came from the handle's internal Bytes (which we control),
     // - out_len was written by the accessor,
-    // - the handle is still alive (we have not called free yet).
+    // - the handle is still alive (we have not called free yet). ~keep
     let slice = unsafe { std::slice::from_raw_parts(data_ptr, out_len) };
 
     assert_eq!(slice.len(), 8);
@@ -145,7 +143,6 @@ fn email_attachment_data_with_out_len_returns_full_buffer_including_embedded_nul
         "must be able to read bytes after the NUL (no truncation)"
     );
 
-    // Cleanup
     // SAFETY: handle came from from_json; we are the owner.
     unsafe { xberg_email_attachment_free(handle) };
 }
@@ -164,7 +161,7 @@ fn email_attachment_data_null_out_len_is_safe() {
     assert!(!handle.is_null());
 
     // SAFETY: handle is valid; passing null for out_len is a defined contract
-    // (the accessor null-checks before writing).
+    // (the accessor null-checks before writing). ~keep
     let data_ptr = unsafe { xberg_ffi::xberg_email_attachment_data(handle, std::ptr::null_mut()) };
 
     assert!(

@@ -2151,11 +2151,16 @@ jobs:
 
   tag-go-module:
     name: Tag Go module for pkg.go.dev resolution
-    needs: [prepare, upload-go-release]
+    # Must run AFTER update-swift-package-manifest force-moves the release tag onto
+    # the Package.swift-checksum commit. Otherwise this job races the tag-mover and
+    # its checkout asserts the original triggering SHA, failing with "ref does not
+    # point to expected commit". Ordering also removes a concurrent tag-push race.
+    # `skipped` is accepted so a non-Swift release still tags the Go module. ~keep
+    needs: [prepare, upload-go-release, update-swift-package-manifest]
     # dry-run releases must NEVER mint real remote tags; the tag script has no
     # dry-run awareness of its own, so this job is skipped entirely when dry_run
     # is true instead of trying to thread a flag through the script. ~keep
-    if: ${{ needs.prepare.outputs.is_tag == 'true' && needs.prepare.outputs.dry_run != 'true' && needs.upload-go-release.result == 'success' }}
+    if: ${{ !cancelled() && needs.prepare.outputs.is_tag == 'true' && needs.prepare.outputs.dry_run != 'true' && needs.upload-go-release.result == 'success' && (needs.update-swift-package-manifest.result == 'success' || needs.update-swift-package-manifest.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v2
