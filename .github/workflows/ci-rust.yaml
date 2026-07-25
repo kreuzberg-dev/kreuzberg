@@ -155,7 +155,8 @@ jobs:
           done
         shell: bash
 
-  # `cfg(target_os = "windows")` dependency blocks (ureq/tokenizers/liter-llm)
+  # `cfg(target_os = "windows")` dependency blocks (ureq/tokenizers/liter-llm).
+  # Also the only job that builds/tests xberg-libwpd on Windows.
   clippy-windows:
     name: Clippy Windows ORT surface
     if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
@@ -185,6 +186,12 @@ jobs:
 
       - name: Clippy Windows ORT surface
         run: cargo clippy --locked -p xberg --no-default-features --features windows-target --all-targets -- -D warnings
+        shell: bash
+
+      - name: Clippy + test xberg-libwpd (Windows)
+        run: |
+          cargo clippy --locked -p xberg-libwpd --all-targets -- -D warnings
+          cargo test --locked -p xberg-libwpd
         shell: bash
 
   live-hf:

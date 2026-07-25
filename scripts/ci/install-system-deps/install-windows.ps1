@@ -114,11 +114,11 @@ else {
 
 $libheifCacheHit = $env:LIBHEIF_CACHE_HIT -eq "true"
 if (-not $libheifCacheHit) {
-  Write-Host "libheif cache miss, installing via vcpkg..."
+  Write-Host "libheif/boost/zlib cache miss, installing via vcpkg..."
   $vcpkgRoot = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
   $vcpkgExe = Join-Path $vcpkgRoot "vcpkg.exe"
   if (-not (Test-Path $vcpkgExe)) {
-    Write-Host "::warning::vcpkg.exe not found at $vcpkgExe; skipping libheif install"
+    Write-Host "::warning::vcpkg.exe not found at $vcpkgExe; skipping libheif/boost/zlib install"
   }
   else {
     if (-not (Retry-Command { & $vcpkgExe install "libheif:x64-windows-static-md" --recurse } -MaxAttempts 2)) {
@@ -127,11 +127,19 @@ if (-not $libheifCacheHit) {
     else {
       Write-Host "✓ libheif installed via vcpkg (x64-windows-static-md)"
     }
+    # boost-spirit (header-only, used by librevenge/libwpd) and zlib (linked
+    # by librevenge's zip stream) — needed by xberg-libwpd's build.rs.
+    if (-not (Retry-Command { & $vcpkgExe install "boost-spirit:x64-windows-static-md" "zlib:x64-windows-static-md" --recurse } -MaxAttempts 2)) {
+      Write-Host "::warning::Failed to install boost-spirit/zlib via vcpkg after retries (xberg-libwpd build will fail)"
+    }
+    else {
+      Write-Host "✓ boost-spirit + zlib installed via vcpkg (x64-windows-static-md)"
+    }
   }
   Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$vcpkgRoot"
 }
 else {
-  Write-Host "✓ libheif found in cache"
+  Write-Host "✓ libheif/boost/zlib found in cache"
   $vcpkgRoot = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
   Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$vcpkgRoot"
 }

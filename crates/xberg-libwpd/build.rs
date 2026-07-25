@@ -1,10 +1,9 @@
 //! Builds libwpd + librevenge from source and compiles the C++ shim into a
 //! single static library.
 //!
-//! WordPerfect support is desktop-only. On any target other than Linux or
-//! macOS this build script is a no-op and the crate exposes stub functions
-//! (see `src/lib.rs`), so wasm/android/windows builds never pull in a C++
-//! toolchain.
+//! WordPerfect support targets Linux, macOS and Windows. On any other target
+//! this build script is a no-op and the crate exposes stub functions (see
+//! `src/lib.rs`), so wasm/android builds never pull in a C++ toolchain.
 //!
 //! Both libraries are built against their MPL-2.0 arm. They are downloaded from
 //! their upstream release tarballs at build time (checksum-verified) and cached
@@ -15,7 +14,7 @@
 //! at build time (header-only `boost::spirit`), which must be present on the
 //! system.
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod build_libwpd {
     use flate2::read::GzDecoder;
     use sha2::{Digest, Sha256};
@@ -46,8 +45,31 @@ mod build_libwpd {
         ]
     }
 
+    /// vcpkg triplet used for Windows native deps across this workspace's CI
+    /// (see `scripts/ci/install-system-deps/install-windows.ps1`, which
+    /// installs `libheif` the same way).
+    #[cfg(target_os = "windows")]
+    const VCPKG_TRIPLET: &str = "x64-windows-static-md";
+
+    /// Root of a vcpkg installation, honoring `VCPKG_ROOT`/
+    /// `VCPKG_INSTALLATION_ROOT` (both set by CI), falling back to the
+    /// default `C:\vcpkg` install location.
+    #[cfg(target_os = "windows")]
+    fn vcpkg_root() -> PathBuf {
+        env::var("VCPKG_ROOT")
+            .or_else(|_| env::var("VCPKG_INSTALLATION_ROOT"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(r"C:\vcpkg"))
+    }
+
+    #[cfg(target_os = "windows")]
+    fn vcpkg_triplet_dir() -> PathBuf {
+        vcpkg_root().join("installed").join(VCPKG_TRIPLET)
+    }
+
     /// Locate a directory containing `boost/version.hpp`. Honors
-    /// `BOOST_INCLUDE_DIR`, otherwise probes the usual system locations.
+    /// `BOOST_INCLUDE_DIR`, otherwise probes the usual system locations
+    /// (a vcpkg install on Windows, Homebrew/system paths elsewhere).
     fn find_boost_include() -> PathBuf {
         if let Ok(dir) = env::var("BOOST_INCLUDE_DIR") {
             let p = PathBuf::from(dir);
@@ -56,21 +78,37 @@ mod build_libwpd {
             }
             panic!("BOOST_INCLUDE_DIR={p:?} does not contain boost/version.hpp");
         }
-        let candidates = [
-            "/opt/homebrew/include", // Homebrew on Apple Silicon
-            "/usr/local/include",    // Homebrew on Intel / manual installs
-            "/usr/include",          // Linux libboost-dev
-        ];
-        for c in candidates {
-            if Path::new(c).join("boost/version.hpp").is_file() {
-                return PathBuf::from(c);
+
+        #[cfg(target_os = "windows")]
+        {
+            let vcpkg_include = vcpkg_triplet_dir().join("include");
+            if vcpkg_include.join("boost/version.hpp").is_file() {
+                return vcpkg_include;
             }
+            panic!(
+                "boost headers not found under {vcpkg_include:?}. Install via \
+                 `vcpkg install boost-spirit:{VCPKG_TRIPLET}` or set BOOST_INCLUDE_DIR."
+            );
         }
-        panic!(
-            "boost headers not found. librevenge and libwpd need boost::spirit at \
-             build time. Install boost (e.g. `brew install boost` or \
-             `apt-get install libboost-dev`) or set BOOST_INCLUDE_DIR."
-        );
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let candidates = [
+                "/opt/homebrew/include", // Homebrew on Apple Silicon
+                "/usr/local/include",    // Homebrew on Intel / manual installs
+                "/usr/include",          // Linux libboost-dev
+            ];
+            for c in candidates {
+                if Path::new(c).join("boost/version.hpp").is_file() {
+                    return PathBuf::from(c);
+                }
+            }
+            panic!(
+                "boost headers not found. librevenge and libwpd need boost::spirit at \
+                 build time. Install boost (e.g. `brew install boost` or \
+                 `apt-get install libboost-dev`) or set BOOST_INCLUDE_DIR."
+            );
+        }
     }
 
     fn download(urls: &[String]) -> Vec<u8> {
@@ -156,7 +194,10 @@ mod build_libwpd {
             return workspace_cache;
         }
 
-        if cfg!(target_os = "macos") {
+        if cfg!(target_os = "windows") {
+            let local_app_data = env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\".to_string());
+            PathBuf::from(local_app_data).join("xberg-libwpd")
+        } else if cfg!(target_os = "macos") {
             let home_dir = env::var("HOME").unwrap_or_else(|_| {
                 env::var("USER")
                     .map(|user| format!("/Users/{user}"))
@@ -174,6 +215,20 @@ mod build_libwpd {
             });
             PathBuf::from(home_dir).join(".cache").join("xberg-libwpd")
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn link_zlib() {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            vcpkg_triplet_dir().join("lib").display()
+        );
+        println!("cargo:rustc-link-lib=zlib");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn link_zlib() {
+        println!("cargo:rustc-link-lib=z");
     }
 
     fn cpp_files(dir: &Path) -> Vec<PathBuf> {
@@ -223,17 +278,25 @@ mod build_libwpd {
         build.file("src/shim.cpp");
         build.compile("xberg_libwpd");
 
-        // librevenge's zip stream links against system zlib.
-        println!("cargo:rustc-link-lib=z");
+        // librevenge's zip stream links against zlib. On Windows there's no
+        // system zlib, so link the vcpkg-provided static lib (installed
+        // alongside boost, under the same triplet dir); "z" is the correct
+        // system lib name everywhere else.
+        link_zlib();
 
         println!("cargo:rerun-if-changed=build.rs");
         println!("cargo:rerun-if-changed=src/shim.cpp");
         println!("cargo:rerun-if-env-changed=BOOST_INCLUDE_DIR");
         println!("cargo:rerun-if-env-changed=XBERG_LIBWPD_CACHE_DIR");
+        #[cfg(target_os = "windows")]
+        {
+            println!("cargo:rerun-if-env-changed=VCPKG_ROOT");
+            println!("cargo:rerun-if-env-changed=VCPKG_INSTALLATION_ROOT");
+        }
     }
 }
 
 fn main() {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     build_libwpd::build();
 }

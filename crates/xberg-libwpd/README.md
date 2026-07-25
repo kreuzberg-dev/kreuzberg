@@ -44,16 +44,21 @@ the location with `XBERG_LIBWPD_CACHE_DIR`.
 
 - A C++17 compiler.
 - **boost headers.** librevenge and libwpd both use header-only `boost::spirit`
-  at build time. Install boost (`brew install boost`, or
-  `apt-get install libboost-dev`) or point `BOOST_INCLUDE_DIR` at a directory
-  containing `boost/version.hpp`.
-- system zlib (librevenge's zip stream links against it).
+  at build time. Install boost (`brew install boost`, `apt-get install
+  libboost-dev`, or on Windows `vcpkg install boost-spirit:x64-windows-static-md`)
+  or point `BOOST_INCLUDE_DIR` at a directory containing `boost/version.hpp`.
+- zlib (librevenge's zip stream links against it) — system zlib on
+  Linux/macOS, or `vcpkg install zlib:x64-windows-static-md` on Windows
+  (resolved via `VCPKG_ROOT`/`VCPKG_INSTALLATION_ROOT`, matching the
+  `x64-windows-static-md` triplet this workspace's CI already uses for
+  `libheif`).
 
 ## Platform support
 
-Desktop only: Linux (glibc and musl) and macOS. On any other target the crate
-compiles to stub functions that return `WpdError::UnsupportedPlatform`, so
-wasm/android/windows builds pull in no C++ toolchain.
+Desktop only: Linux (glibc and musl), macOS, and Windows (MSVC). On any other
+target the crate compiles to stub functions that return
+`WpdError::UnsupportedPlatform`, so wasm/android builds pull in no C++
+toolchain.
 
 ## Licensing
 

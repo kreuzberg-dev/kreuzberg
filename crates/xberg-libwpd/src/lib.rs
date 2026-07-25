@@ -11,14 +11,14 @@
 //! Markdown-marked-up rendering, and exposes a flat C API this crate wraps.
 //! Footnotes, endnotes, comments, text boxes, headers and footers are always
 //! bracketed apart from body text rather than concatenated into it. WordPerfect
-//! support is desktop-only (Linux and macOS); on other platforms the functions
+//! support targets Linux, macOS and Windows; on other platforms the functions
 //! return [`WpdError::UnsupportedPlatform`].
 
 mod error;
 
 pub use error::WpdError;
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod imp {
     use crate::WpdError;
     use std::ffi::CStr;
@@ -58,7 +58,7 @@ mod imp {
     /// Extract a Markdown-marked-up rendering of a WordPerfect document:
     /// heading paragraphs, bold/italic spans and list items are rendered as
     /// Markdown syntax. Tables remain tab/newline-separated in both modes (see
-    /// the shim's `TextCollector` for why). Footnotes, endnotes, comments, text
+    /// the shim's `render` for why). Footnotes, endnotes, comments, text
     /// boxes, headers and footers are always bracketed apart from body text,
     /// in this mode as in [`extract_text`].
     pub fn extract_markdown(data: &[u8]) -> Result<String, WpdError> {
@@ -130,7 +130,7 @@ mod imp {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 mod imp {
     use crate::WpdError;
 
