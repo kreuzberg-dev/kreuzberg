@@ -46,7 +46,7 @@ mod imp {
             return false;
         }
         // SAFETY: `data` is a valid slice of `len` bytes; the shim only reads it
-        // and catches any C++ exception internally.
+        // and catches any C++ exception internally. ~keep
         unsafe { xberg_wpd_is_supported(data.as_ptr(), data.len() as c_ulong) != 0 }
     }
 
@@ -77,7 +77,7 @@ mod imp {
         // are valid out-pointers. The shim catches any C++ exception and reports
         // it via the return code (plus, optionally, a detail message). On a zero
         // return it hands back a malloc'd buffer of exactly `out_len` bytes whose
-        // ownership transfers to us.
+        // ownership transfers to us. ~keep
         let code = unsafe {
             xberg_wpd_extract(
                 data.as_ptr(),
@@ -90,7 +90,7 @@ mod imp {
         };
         if !out_err.is_null() {
             // SAFETY: `out_err` is a malloc'd, NUL-terminated buffer the shim
-            // handed us; freed unconditionally right after reading it.
+            // handed us; freed unconditionally right after reading it. ~keep
             let detail = unsafe {
                 let msg = CStr::from_ptr(out_err).to_string_lossy().into_owned();
                 xberg_wpd_free_string(out_err);
@@ -109,7 +109,7 @@ mod imp {
         // `out_len` bytes long; we copy it out and free it through the matching
         // deallocator before returning. Using the explicit length (rather than
         // scanning for a NUL terminator) means an embedded NUL in the extracted
-        // text can't silently truncate the result.
+        // text can't silently truncate the result. ~keep
         let text = unsafe {
             let bytes = slice::from_raw_parts(out as *const u8, out_len as usize).to_vec();
             xberg_wpd_free_string(out);
@@ -124,7 +124,7 @@ mod imp {
 
         #[test]
         fn collector_separates_asides_from_body() {
-            // SAFETY: takes no arguments and only touches its own stack-local state.
+            // SAFETY: takes no arguments and only touches its own stack-local state. ~keep
             assert_eq!(unsafe { xberg_wpd_self_test_separation() }, 1);
         }
     }

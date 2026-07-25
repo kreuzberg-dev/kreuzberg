@@ -11871,7 +11871,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libwpd"
-version = "1.0.0-rc.38"
+version = "1.0.0-rc.39"
 dependencies = [
  "cc",
  "flate2",

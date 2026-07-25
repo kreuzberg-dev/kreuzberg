@@ -32,8 +32,6 @@ pub enum WpdError {
     UnsupportedPlatform,
 }
 
-// Only the desktop `imp` module maps shim result codes; the stub module never
-// reaches the shim, so on other targets this would be dead code.
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 impl WpdError {
     /// Map a shim result code (see `shim.cpp`) to an error. Code 0 is success

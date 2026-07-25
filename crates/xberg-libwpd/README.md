@@ -45,7 +45,8 @@ the location with `XBERG_LIBWPD_CACHE_DIR`.
 - A C++17 compiler.
 - **boost headers.** librevenge and libwpd both use header-only `boost::spirit`
   at build time. Install boost (`brew install boost`, `apt-get install
-  libboost-dev`, or on Windows `vcpkg install boost-spirit:x64-windows-static-md`)
+  libboost-dev`, or on Windows `vcpkg install boost-spirit:x64-windows-static-md
+  boost-serialization:x64-windows-static-md`)
   or point `BOOST_INCLUDE_DIR` at a directory containing `boost/version.hpp`.
 - zlib (librevenge's zip stream links against it) — system zlib on
   Linux/macOS, or `vcpkg install zlib:x64-windows-static-md` on Windows

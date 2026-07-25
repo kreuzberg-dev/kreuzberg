@@ -138,10 +138,11 @@ runs:
           C:\vcpkg\buildtrees\libde265
           C:\vcpkg\buildtrees\libaom
           C:\vcpkg\buildtrees\boost-spirit
+          C:\vcpkg\buildtrees\boost-serialization
           C:\vcpkg\buildtrees\zlib
-        key: libheif-windows-${{ runner.arch }}-vcpkg-v3
+        key: libheif-windows-${{ runner.arch }}-vcpkg-v4
         restore-keys: |
-          libheif-windows-${{ runner.arch }}-vcpkg-v3-
+          libheif-windows-${{ runner.arch }}-vcpkg-v4-
 
     - name: Install dependencies (Windows)
       if: runner.os == 'Windows'

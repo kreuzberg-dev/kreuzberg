@@ -127,13 +127,14 @@ if (-not $libheifCacheHit) {
     else {
       Write-Host "✓ libheif installed via vcpkg (x64-windows-static-md)"
     }
-    # boost-spirit (header-only, used by librevenge/libwpd) and zlib (linked
+    # boost-spirit + boost-serialization (header-only, used by librevenge/libwpd:
+    # RVNGBinaryData.cpp needs boost/archive/iterators/*) and zlib (linked
     # by librevenge's zip stream) — needed by xberg-libwpd's build.rs.
-    if (-not (Retry-Command { & $vcpkgExe install "boost-spirit:x64-windows-static-md" "zlib:x64-windows-static-md" --recurse } -MaxAttempts 2)) {
-      Write-Host "::warning::Failed to install boost-spirit/zlib via vcpkg after retries (xberg-libwpd build will fail)"
+    if (-not (Retry-Command { & $vcpkgExe install "boost-spirit:x64-windows-static-md" "boost-serialization:x64-windows-static-md" "zlib:x64-windows-static-md" --recurse } -MaxAttempts 2)) {
+      Write-Host "::warning::Failed to install boost/zlib via vcpkg after retries (xberg-libwpd build will fail)"
     }
     else {
-      Write-Host "✓ boost-spirit + zlib installed via vcpkg (x64-windows-static-md)"
+      Write-Host "✓ boost-spirit + boost-serialization + zlib installed via vcpkg (x64-windows-static-md)"
     }
   }
   Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$vcpkgRoot"

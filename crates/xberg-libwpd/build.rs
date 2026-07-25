@@ -20,8 +20,8 @@
 
 // Host-side gate: these `cfg`s mirror the `[target.'cfg(...)'.build-dependencies]`
 // block in Cargo.toml, which Cargo resolves against the host, so the module only
-// exists where `cc`/`reqwest`/`flate2`/`tar`/`sha2` are actually available.
-// Whether we *do* anything is a separate, target-driven decision in `main`.
+// exists where `cc`/`reqwest`/`flate2`/`tar`/`sha2` are available. Whether we
+// *do* anything is a separate, target-driven decision in `main`. ~keep
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 mod build_libwpd {
     use flate2::read::GzDecoder;
@@ -105,11 +105,7 @@ mod build_libwpd {
             );
         }
 
-        let candidates = [
-            "/opt/homebrew/include", // Homebrew on Apple Silicon
-            "/usr/local/include",    // Homebrew on Intel / manual installs
-            "/usr/include",          // Linux libboost-dev
-        ];
+        let candidates = ["/opt/homebrew/include", "/usr/local/include", "/usr/include"];
         for c in candidates {
             if Path::new(c).join("boost/version.hpp").is_file() {
                 return PathBuf::from(c);
@@ -155,16 +151,37 @@ mod build_libwpd {
     }
 
     /// Download, verify and extract `name-version.tar.gz` into `cache`, reusing
-    /// a prior extraction when the marker file is present. Returns the extracted
-    /// source root (e.g. `<cache>/libwpd-0.10.3`).
+    /// a prior extraction only when the archive it came from is still on disk
+    /// and still hashes to `sha256`. Returns the extracted source root (e.g.
+    /// `<cache>/libwpd-0.10.3`).
+    ///
+    /// The archive is re-verified on every build rather than only on first
+    /// download: the cache lives under `target/`, which CI restores from a
+    /// remote cache, so "we fetched this correctly once" is not evidence that
+    /// what is on disk now is what we fetched. Re-extraction is still skipped
+    /// on a hit, otherwise every build would re-touch the sources and force a
+    /// full C++ rebuild. ~keep
     fn provision(cache: &Path, name: &str, version: &str, urls: &[String], sha256: &str) -> PathBuf {
         let root = cache.join(format!("{name}-{version}"));
+        let archive_path = cache.join(format!("{name}-{version}.tar.gz"));
         let marker = cache.join(format!(".{name}-{version}.ok"));
-        if marker.is_file() && root.is_dir() {
+
+        let cached_ok = root.is_dir()
+            && fs::read_to_string(&marker).is_ok_and(|m| m.trim() == sha256)
+            && fs::read(&archive_path).is_ok_and(|b| hex(&Sha256::digest(&b)) == sha256);
+        if cached_ok {
             return root;
         }
-        let bytes = download(urls);
-        verify_sha256(&bytes, sha256);
+
+        let bytes = match fs::read(&archive_path) {
+            Ok(b) if hex(&Sha256::digest(&b)) == sha256 => b,
+            _ => {
+                let fetched = download(urls);
+                verify_sha256(&fetched, sha256);
+                fs::write(&archive_path, &fetched).ok();
+                fetched
+            }
+        };
         if root.exists() {
             fs::remove_dir_all(&root).ok();
         }
@@ -173,7 +190,7 @@ mod build_libwpd {
             .unpack(cache)
             .unwrap_or_else(|e| panic!("failed to extract {name}: {e}"));
         assert!(root.is_dir(), "expected {root:?} after extracting {name}");
-        fs::write(&marker, version).ok();
+        fs::write(&marker, sha256).ok();
         root
     }
 
@@ -279,6 +296,12 @@ mod build_libwpd {
             .include(&boost)
             .include("src");
 
+        // librevenge calls POSIX S_ISREG/S_ISDIR, which MSVC does not define.
+        // Force-include the shim rather than patch the upstream sources. ~keep
+        if targeting_windows() {
+            build.flag("/FImsvc_compat.h");
+        }
+
         for f in cpp_files(&rev.join("src/lib")) {
             build.file(f);
         }
@@ -288,10 +311,6 @@ mod build_libwpd {
         build.file("src/shim.cpp");
         build.compile("xberg_libwpd");
 
-        // librevenge's zip stream links against zlib. On Windows there's no
-        // system zlib, so link the vcpkg-provided static lib (installed
-        // alongside boost, under the same triplet dir); "z" is the correct
-        // system lib name everywhere else.
         link_zlib();
 
         println!("cargo:rerun-if-changed=src/shim.cpp");
