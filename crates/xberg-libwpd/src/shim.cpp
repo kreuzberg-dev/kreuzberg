@@ -3,9 +3,12 @@
  * libwpd exposes no `extract()` call. It drives librevenge's SAX-like
  * RVNGTextInterface: the caller passes a concrete implementation into
  * WPDocument::parse and libwpd invokes its callbacks. This file provides such
- * an implementation (TextCollector) that accumulates a text (or, optionally,
- * lightly-marked-up Markdown) rendering of the document, and exposes it to
- * Rust through a flat C API returning owned UTF-8 that the Rust side frees.
+ * an implementation (DocumentBuilder) that records a flat, format-agnostic
+ * internal document (a `std::vector<Node>`) as libwpd walks the document, and
+ * exposes it to Rust through a flat C API returning owned UTF-8 that the Rust
+ * side frees. Text and Markdown are two renderings of that one internal
+ * document, produced only at the end, not two different things recorded
+ * during the walk.
  *
  * Every entry point catches all C++ exceptions: libwpd throws on malformed
  * input, and an exception must never unwind across the FFI boundary.
@@ -23,117 +26,111 @@ namespace {
 using librevenge::RVNGPropertyList;
 using librevenge::RVNGString;
 
-/* Accumulates document text.
- *
- * Content is written through `sink`, a pointer that is redirected (via
- * `pushSink`/`popSink`) whenever we enter text that is not part of the main
- * narrative flow: headers, footers, footnotes, endnotes, comments and text
- * boxes. Each of these is collected into its own scratch buffer and then
- * spliced back in behind a `[kind: ...]` marker rather than being appended
- * directly to the surrounding prose, so callers can tell page furniture and
- * annotations apart from body text instead of finding them silently mixed
- * in. Headers and footers recur on every page rather than at one point in
- * the flow, so they are collected once and exposed at the start/end of the
- * document instead of spliced inline.
- *
- * When `markdown` is set, span-level emphasis (bold/italic), heading
- * paragraphs and list items are additionally rendered as Markdown syntax.
- * Tables are intentionally left as tab/newline-separated text in both modes:
- * WordPerfect tables can have ragged rows and merged cells that don't map
- * cleanly onto Markdown's fixed-column pipe-table syntax, and a best-effort
- * translation would risk producing tables that look valid but are wrong. */
-class TextCollector : public librevenge::RVNGTextInterface {
-  public:
-    explicit TextCollector(bool markdown) : markdown_(markdown) {}
+/* One recorded event from the libwpd/librevenge callback walk. The document
+ * is a flat `std::vector<Node>`; rendering (see `render` below) is the only
+ * place that knows about output formats. */
+enum class NodeKind {
+    Text,
+    Tab,
+    Space,
+    LineBreak,
+    ParagraphEnd,
+    ListItemEnd,
+    Heading, // level in `level`
+    BoldStart,
+    BoldEnd,
+    ItalicStart,
+    ItalicEnd,
+    ListItemStart, // level (nesting depth) + ordered + counter
+    TableCellEnd,
+    TableRowEnd,
+    TableEnd,
+    HeaderStart,
+    HeaderEnd,
+    FooterStart,
+    FooterEnd,
+    AsideStart, // `text` carries the kind label ("footnote", "endnote", ...)
+    AsideEnd,
+};
 
+struct Node {
+    NodeKind kind;
     std::string text;
-    std::string header;
-    std::string footer;
+    int level = 0;
+    int counter = 0;
+    bool ordered = false;
+};
 
-    std::string result() const {
-        std::string out;
-        if (!header.empty()) {
-            out += "[header: " + header + "]\n\n";
-        }
-        out += text;
-        if (!footer.empty()) {
-            out += "\n\n[footer: " + footer + "]";
-        }
-        return out;
-    }
+/* Records the document as a flat, format-agnostic `std::vector<Node>` while
+ * libwpd walks it. Carries no notion of "plain text" vs "Markdown" — that
+ * distinction exists only in `render`, which runs once, after the walk is
+ * complete, over the recorded nodes. */
+class DocumentBuilder : public librevenge::RVNGTextInterface {
+  public:
+    std::vector<Node> nodes;
 
-    // Content callbacks that carry text.
     void insertText(const RVNGString &s) override {
         if (s.cstr())
-            *sink += s.cstr();
+            nodes.push_back({NodeKind::Text, s.cstr()});
     }
     void insertTab() override {
-        *sink += '\t';
+        nodes.push_back({NodeKind::Tab});
     }
     void insertSpace() override {
-        *sink += ' ';
+        nodes.push_back({NodeKind::Space});
     }
     void insertLineBreak() override {
-        *sink += '\n';
+        nodes.push_back({NodeKind::LineBreak});
     }
     void closeParagraph() override {
-        *sink += "\n\n";
+        nodes.push_back({NodeKind::ParagraphEnd});
     }
     void closeListElement() override {
-        *sink += '\n';
+        nodes.push_back({NodeKind::ListItemEnd});
     }
-
-    // Tables: tab between cells, newline between rows, blank line after table.
     void closeTableCell() override {
-        *sink += '\t';
+        nodes.push_back({NodeKind::TableCellEnd});
     }
     void closeTableRow() override {
-        *sink += '\n';
+        nodes.push_back({NodeKind::TableRowEnd});
     }
     void closeTable() override {
-        *sink += '\n';
+        nodes.push_back({NodeKind::TableEnd});
     }
 
     void openParagraph(const RVNGPropertyList &props) override {
-        if (markdown_) {
-            const librevenge::RVNGProperty *outline = props["text:outline-level"];
-            if (outline) {
-                int level = outline->getInt();
-                if (level >= 1 && level <= 6) {
-                    *sink += std::string(static_cast<size_t>(level), '#') + ' ';
-                }
+        const librevenge::RVNGProperty *outline = props["text:outline-level"];
+        if (outline) {
+            int level = outline->getInt();
+            if (level >= 1 && level <= 6) {
+                Node n{NodeKind::Heading};
+                n.level = level;
+                nodes.push_back(n);
             }
         }
     }
 
     void openSpan(const RVNGPropertyList &props) override {
-        std::string markers;
-        if (markdown_) {
-            const librevenge::RVNGProperty *weight = props["fo:font-weight"];
-            const librevenge::RVNGProperty *style = props["fo:font-style"];
-            if (weight && weight->getStr() == "bold")
-                markers += "**";
-            if (style && style->getStr() == "italic")
-                markers += "_";
-        }
-        spanMarkers_.push_back(markers);
-        *sink += markers;
+        const librevenge::RVNGProperty *weight = props["fo:font-weight"];
+        const librevenge::RVNGProperty *style = props["fo:font-style"];
+        bool bold = weight && weight->getStr() == "bold";
+        bool italic = style && style->getStr() == "italic";
+        // Recorded in open order; closeSpan below closes in reverse.
+        if (bold)
+            nodes.push_back({NodeKind::BoldStart});
+        if (italic)
+            nodes.push_back({NodeKind::ItalicStart});
+        spanStack_.push_back({bold, italic});
     }
     void closeSpan() override {
-        if (spanMarkers_.empty())
+        if (spanStack_.empty())
             return;
-        std::string markers = spanMarkers_.back();
-        spanMarkers_.pop_back();
-        // Close in reverse of the order they were opened.
-        for (auto it = markers.rbegin(); it != markers.rend();) {
-            if (*it == '_') {
-                *sink += '_';
-                ++it;
-            } else {
-                *sink += "**";
-                it += 2;
-            }
-        }
+        SpanFlags flags = spanStack_.back();
+        spanStack_.pop_back();
+        if (flags.italic)
+            nodes.push_back({NodeKind::ItalicEnd});
+        if (flags.bold)
+            nodes.push_back({NodeKind::BoldEnd});
     }
 
     void openOrderedListLevel(const RVNGPropertyList &) override {
@@ -151,62 +148,64 @@ class TextCollector : public librevenge::RVNGTextInterface {
             listStack_.pop_back();
     }
     void openListElement(const RVNGPropertyList &) override {
-        if (markdown_ && !listStack_.empty()) {
-            std::string indent((listStack_.size() - 1) * 2, ' ');
-            ListLevel &level = listStack_.back();
-            if (level.ordered) {
-                level.counter += 1;
-                *sink += indent + std::to_string(level.counter) + ". ";
-            } else {
-                *sink += indent + "- ";
-            }
+        if (listStack_.empty())
+            return;
+        ListLevel &level = listStack_.back();
+        Node n{NodeKind::ListItemStart};
+        n.level = static_cast<int>(listStack_.size());
+        n.ordered = level.ordered;
+        if (level.ordered) {
+            level.counter += 1;
+            n.counter = level.counter;
         }
+        nodes.push_back(n);
     }
 
-    // Headers and footers: collected once into their own buffer, not spliced
-    // into the middle of body text (see class comment).
+    // Headers and footers recur on every page rather than at one point in the
+    // flow; rendering collects them once and exposes them at the start/end of
+    // the document instead of splicing them inline (see `render`).
     void openHeader(const RVNGPropertyList &) override {
-        pushSink(&header);
+        nodes.push_back({NodeKind::HeaderStart});
     }
     void closeHeader() override {
-        popSink();
+        nodes.push_back({NodeKind::HeaderEnd});
     }
     void openFooter(const RVNGPropertyList &) override {
-        pushSink(&footer);
+        nodes.push_back({NodeKind::FooterStart});
     }
     void closeFooter() override {
-        popSink();
+        nodes.push_back({NodeKind::FooterEnd});
     }
 
-    // Footnotes, endnotes, comments and text boxes: collected into a scratch
-    // buffer and spliced back into whichever sink was active as a labeled,
-    // bounded aside, so they never bleed into surrounding narrative text.
+    // Footnotes, endnotes, comments and text boxes: rendering brackets these
+    // apart from surrounding narrative text rather than letting them bleed
+    // into it (see `render`).
     void openFootnote(const RVNGPropertyList &) override {
-        openAside();
+        nodes.push_back({NodeKind::AsideStart, "footnote"});
     }
     void closeFootnote() override {
-        closeAside("footnote");
+        nodes.push_back({NodeKind::AsideEnd});
     }
     void openEndnote(const RVNGPropertyList &) override {
-        openAside();
+        nodes.push_back({NodeKind::AsideStart, "endnote"});
     }
     void closeEndnote() override {
-        closeAside("endnote");
+        nodes.push_back({NodeKind::AsideEnd});
     }
     void openComment(const RVNGPropertyList &) override {
-        openAside();
+        nodes.push_back({NodeKind::AsideStart, "comment"});
     }
     void closeComment() override {
-        closeAside("comment");
+        nodes.push_back({NodeKind::AsideEnd});
     }
     void openTextBox(const RVNGPropertyList &) override {
-        openAside();
+        nodes.push_back({NodeKind::AsideStart, "box"});
     }
     void closeTextBox() override {
-        closeAside("box");
+        nodes.push_back({NodeKind::AsideEnd});
     }
 
-    // Remaining pure virtuals are structural and produce no text of their own.
+    // Remaining pure virtuals are structural and record no node of their own.
     void setDocumentMetaData(const RVNGPropertyList &) override {}
     void startDocument(const RVNGPropertyList &) override {}
     void endDocument() override {}
@@ -241,45 +240,150 @@ class TextCollector : public librevenge::RVNGTextInterface {
     void drawConnector(const RVNGPropertyList &) override {}
 
   private:
+    struct SpanFlags {
+        bool bold;
+        bool italic;
+    };
     struct ListLevel {
         bool ordered;
         int counter;
     };
 
-    void pushSink(std::string *s) {
-        sinkStack_.push_back(sink);
-        sink = s;
-    }
-    void popSink() {
-        if (!sinkStack_.empty()) {
-            sink = sinkStack_.back();
-            sinkStack_.pop_back();
-        }
-    }
-    void openAside() {
-        asideStack_.push_back(std::string());
-        pushSink(&asideStack_.back());
-    }
-    void closeAside(const char *kind) {
-        if (asideStack_.empty())
-            return;
-        std::string content = std::move(asideStack_.back());
-        asideStack_.pop_back();
-        popSink();
-        // Trim the trailing blank-paragraph separator so the marker reads
-        // as one bounded aside rather than trailing empty lines.
-        while (!content.empty() && (content.back() == '\n'))
-            content.pop_back();
-        *sink += std::string("\n[") + kind + ": " + content + "]\n";
-    }
-
-    bool markdown_;
-    std::string *sink = &text;
-    std::vector<std::string *> sinkStack_;
-    std::vector<std::string> asideStack_;
-    std::vector<std::string> spanMarkers_;
+    std::vector<SpanFlags> spanStack_;
     std::vector<ListLevel> listStack_;
 };
+
+/* Renders a recorded `std::vector<Node>` to text (`markdown = false`) or to
+ * lightly Markdown-marked-up text (`markdown = true`). This is the only place
+ * that knows about output formats — `DocumentBuilder` above records the same
+ * structure regardless of which rendering will eventually be requested.
+ *
+ * Handles header/footer/aside placement identically in both modes: each is
+ * accumulated into its own buffer via a sink stack and spliced back in
+ * (headers/footers once, at the start/end; asides inline, bracketed) rather
+ * than left to bleed into the surrounding narrative text. Tables render as
+ * tab/newline-separated text in both modes: WordPerfect tables can have
+ * ragged rows and merged cells that don't map cleanly onto Markdown's
+ * fixed-column pipe-table syntax, and a best-effort translation would risk
+ * producing tables that look valid but are wrong. */
+std::string render(const std::vector<Node> &nodes, bool markdown) {
+    std::string body;
+    std::string header;
+    std::string footer;
+    std::string *sink = &body;
+    std::vector<std::string *> sinkStack;
+    std::vector<std::string> asideStack;
+    std::vector<std::string> asideLabels;
+
+    auto pushSink = [&](std::string *s) {
+        sinkStack.push_back(sink);
+        sink = s;
+    };
+    auto popSink = [&]() {
+        if (!sinkStack.empty()) {
+            sink = sinkStack.back();
+            sinkStack.pop_back();
+        }
+    };
+
+    for (const Node &n : nodes) {
+        switch (n.kind) {
+        case NodeKind::Text:
+            *sink += n.text;
+            break;
+        case NodeKind::Tab:
+            *sink += '\t';
+            break;
+        case NodeKind::Space:
+            *sink += ' ';
+            break;
+        case NodeKind::LineBreak:
+            *sink += '\n';
+            break;
+        case NodeKind::ParagraphEnd:
+            *sink += "\n\n";
+            break;
+        case NodeKind::ListItemEnd:
+            *sink += '\n';
+            break;
+        case NodeKind::Heading:
+            if (markdown)
+                *sink += std::string(static_cast<size_t>(n.level), '#') + ' ';
+            break;
+        case NodeKind::BoldStart:
+            if (markdown)
+                *sink += "**";
+            break;
+        case NodeKind::BoldEnd:
+            if (markdown)
+                *sink += "**";
+            break;
+        case NodeKind::ItalicStart:
+            if (markdown)
+                *sink += '_';
+            break;
+        case NodeKind::ItalicEnd:
+            if (markdown)
+                *sink += '_';
+            break;
+        case NodeKind::ListItemStart:
+            if (markdown) {
+                std::string indent(static_cast<size_t>(n.level - 1) * 2, ' ');
+                *sink += n.ordered ? indent + std::to_string(n.counter) + ". " : indent + "- ";
+            }
+            break;
+        case NodeKind::TableCellEnd:
+            *sink += '\t';
+            break;
+        case NodeKind::TableRowEnd:
+            *sink += '\n';
+            break;
+        case NodeKind::TableEnd:
+            *sink += '\n';
+            break;
+        case NodeKind::HeaderStart:
+            pushSink(&header);
+            break;
+        case NodeKind::HeaderEnd:
+            popSink();
+            break;
+        case NodeKind::FooterStart:
+            pushSink(&footer);
+            break;
+        case NodeKind::FooterEnd:
+            popSink();
+            break;
+        case NodeKind::AsideStart:
+            asideLabels.push_back(n.text);
+            asideStack.push_back(std::string());
+            pushSink(&asideStack.back());
+            break;
+        case NodeKind::AsideEnd: {
+            if (asideStack.empty())
+                break;
+            std::string content = std::move(asideStack.back());
+            asideStack.pop_back();
+            std::string label = std::move(asideLabels.back());
+            asideLabels.pop_back();
+            popSink();
+            // Trim the trailing paragraph separator so the marker reads as
+            // one bounded aside rather than trailing empty lines.
+            while (!content.empty() && content.back() == '\n')
+                content.pop_back();
+            *sink += "\n[" + label + ": " + content + "]\n";
+            break;
+        }
+        }
+    }
+
+    std::string out;
+    if (!header.empty())
+        out += "[header: " + header + "]\n\n";
+    out += body;
+    if (!footer.empty())
+        out += "\n\n[footer: " + footer + "]";
+    return out;
+}
 } // namespace
 
 extern "C" {
@@ -321,7 +425,11 @@ int xberg_wpd_is_supported(const unsigned char *data, unsigned long len) {
 }
 
 /* Extract text (or, if `markdown` is non-zero, lightly Markdown-marked-up
- * text) from an in-memory WordPerfect document.
+ * text) from an in-memory WordPerfect document. Parses once into an internal
+ * `std::vector<Node>` document via `DocumentBuilder`, then renders that one
+ * document to the requested format — the two output modes are two renderings
+ * of the same recorded structure, not two different things produced during
+ * the libwpd walk.
  *
  * On XBERG_WPD_OK, *out_text is a malloc'd buffer of *out_len bytes (NOT
  * necessarily NUL-terminated at that length if the document contained an
@@ -348,11 +456,11 @@ int xberg_wpd_extract(const unsigned char *data, unsigned long len, int markdown
         if (libwpd::WPDocument::isFileFormatSupported(&input) == libwpd::WPD_CONFIDENCE_NONE)
             return XBERG_WPD_UNSUPPORTED_FORMAT;
 
-        TextCollector collector(markdown != 0);
-        if (libwpd::WPDocument::parse(&input, &collector, nullptr) != libwpd::WPD_OK)
+        DocumentBuilder builder;
+        if (libwpd::WPDocument::parse(&input, &builder, nullptr) != libwpd::WPD_OK)
             return XBERG_WPD_PARSE_ERROR;
 
-        std::string rendered = collector.result();
+        std::string rendered = render(builder.nodes, markdown != 0);
         char *buf = dup_malloc(rendered.data(), rendered.size());
         if (!buf)
             return XBERG_WPD_OUT_OF_MEMORY;
@@ -372,33 +480,33 @@ void xberg_wpd_free_string(char *s) {
     std::free(s);
 }
 
-/* Internal self-test for TextCollector's aside-separation logic (see class
- * comment above): drives the collector's callbacks directly, the same way
+/* Internal self-test for the aside-separation logic in `render` (see its
+ * comment above): drives `DocumentBuilder`'s callbacks directly, the same way
  * libwpd would, without needing a real WordPerfect document on disk. Exposed
  * so the Rust test suite has real evidence that footnote/header content is
  * bracketed apart from body text rather than concatenated into it. Not part
  * of the crate's public API contract. Returns non-zero on success. */
 int xberg_wpd_self_test_separation(void) {
-    TextCollector c(false);
+    DocumentBuilder b;
 
     RVNGPropertyList empty;
-    c.openHeader(empty);
-    c.insertText(RVNGString("Confidential Draft"));
-    c.closeHeader();
+    b.openHeader(empty);
+    b.insertText(RVNGString("Confidential Draft"));
+    b.closeHeader();
 
-    c.openParagraph(empty);
-    c.insertText(RVNGString("Body start."));
-    c.openFootnote(empty);
-    c.insertText(RVNGString("See appendix A."));
-    c.closeFootnote();
-    c.insertText(RVNGString("Body continues."));
-    c.closeParagraph();
+    b.openParagraph(empty);
+    b.insertText(RVNGString("Body start."));
+    b.openFootnote(empty);
+    b.insertText(RVNGString("See appendix A."));
+    b.closeFootnote();
+    b.insertText(RVNGString("Body continues."));
+    b.closeParagraph();
 
-    c.openFooter(empty);
-    c.insertText(RVNGString("Page 1 of 1"));
-    c.closeFooter();
+    b.openFooter(empty);
+    b.insertText(RVNGString("Page 1 of 1"));
+    b.closeFooter();
 
-    std::string out = c.result();
+    std::string out = render(b.nodes, false);
 
     bool ok = true;
     ok = ok && out.find("[header: Confidential Draft]") != std::string::npos;
@@ -407,8 +515,10 @@ int xberg_wpd_self_test_separation(void) {
     ok = ok && out.find("Body start.Body continues.") == std::string::npos;
     ok = ok && out.find("Body start.") != std::string::npos;
     ok = ok && out.find("Body continues.") != std::string::npos;
-    // The header text must never appear in the body run itself.
-    ok = ok && c.text.find("Confidential Draft") == std::string::npos;
+    // The header text must never appear anywhere but inside its own marker.
+    size_t body_start = out.find("Body start.");
+    ok = ok && body_start != std::string::npos &&
+         out.find("Confidential Draft", body_start) == std::string::npos;
 
     return ok ? 1 : 0;
 }
