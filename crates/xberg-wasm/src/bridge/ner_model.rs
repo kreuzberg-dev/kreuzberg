@@ -4,8 +4,9 @@
 //! inference runs inside the binary via the pure-Rust candle GLiNER2 backend.
 //!
 //! Exported as a class, not a free function like `detectLayout`: the weights run
-//! to hundreds of MB, so the model is loaded once and stays resident, and `free()`
-//! lets the host reclaim it.
+//! to hundreds of MB, so the model is loaded once and stays resident. wasm-bindgen's
+//! generated `free()` is optional (a FinalizationRegistry reclaims it), but worth
+//! calling at this size — GC timing is unobservable and linear memory never shrinks.
 //!
 //! Inference is synchronous and wasm32 is single-threaded, so `detect` holds the
 //! thread until it returns; drive it from a Web Worker to avoid main-thread jank.

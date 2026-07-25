@@ -41,6 +41,10 @@ config and passes the bytes. The model stays resident, so repeated `detect` call
 Inference is synchronous on a single-threaded target — run it in a Web Worker if main-thread
 responsiveness matters.
 
+`free()` is optional: like every class in the package it is reclaimed by the garbage collector.
+Calling it is still worth it here, because GC timing is unobservable and WASM linear memory only ever
+grows, so a few hundred megabytes of weights can sit allocated long after the last `detect`.
+
 The ONNX backend downloads supported Xberg GLiNER aliases and catalog ids from
 `xberg-io/gliner-models`. The runtime consumes exported ONNX artifacts and
 tokenizer files; it does not load arbitrary source PyTorch model repositories.
