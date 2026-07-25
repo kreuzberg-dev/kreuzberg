@@ -57,7 +57,7 @@ fn extracts_text_from_sample() {
 }
 
 /// `extract_text`/`extract_markdown`/`is_supported` construct a fresh
-/// `TextCollector` per call and share no mutable state across the FFI
+/// `DocumentBuilder` per call and share no mutable state across the FFI
 /// boundary, so concurrent callers must not crash or corrupt each other's
 /// output. Runs on the same deterministic junk buffer from every thread so a
 /// data race would show up as a spurious `Ok` or a panic, not just noise.

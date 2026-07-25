@@ -27,8 +27,8 @@ tracing = { workspace = true }
 
 # libwpd and librevenge are built from vendored-at-build-time C++ source, so the
 # native toolchain and downloader are only needed on the desktop targets that
-# actually compile them. WordPerfect support is gated off wasm/android/windows.
-[target.'cfg(any(target_os = "linux", target_os = "macos"))'.build-dependencies]
+# actually compile them. WordPerfect support is gated off wasm/android.
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.build-dependencies]
 cc = { workspace = true }
 reqwest = { workspace = true, default-features = false, features = ["blocking", "rustls"] }
 flate2 = { workspace = true }
