@@ -79,4 +79,6 @@ require_exact_cli_build "$setup_job" \
 require_exact_cli_build "$aggregate_job" \
   "aggregate must build exactly one all-feature CLI for installation-size consistency"
 
+python3 -m unittest tools/benchmark-harness/tests/test_validate_benchmark_artifacts.py
+
 echo "benchmark workflow build configuration is valid"

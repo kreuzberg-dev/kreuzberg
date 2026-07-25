@@ -212,6 +212,8 @@ pub enum JobState {
     Completed,
     /// The job terminated with an error.
     Failed,
+    /// The job was cancelled via `DELETE /jobs/{job_id}`.
+    Cancelled,
 }
 
 /// The status of an async extraction job returned by `GET /jobs/{id}`.

@@ -90,6 +90,11 @@ jobs:
       - name: Install Task
         uses: xberg-io/actions/install-task@v1
 
+      - name: Install BLAKE3 verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y b3sum
+
       - name: Validate benchmark scripts
         run: task benchmark:validate:scripts
 
@@ -211,10 +216,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Setup ONNX Runtime
         uses: ./.github/actions/setup-onnx-runtime
@@ -285,10 +290,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -372,10 +377,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -424,7 +429,7 @@ jobs:
       fail-fast: false
       matrix:
         mode: [single-file]
-        output_format: [markdown, plaintext]
+        output_format: [plaintext]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -451,10 +456,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -537,10 +542,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -623,10 +628,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -670,7 +675,7 @@ jobs:
           retention-days: 30
 
   bench-mineru:
-    name: mineru (${{ matrix.output_format }}, ${{ matrix.mode }}, native-pdf-fast-b8)
+    name: mineru (${{ matrix.output_format }}, ${{ matrix.mode }}, ${{ matrix.cohort }})
     needs: [setup, bench-rust]
     if: ${{ needs.setup.result == 'success' && !cancelled() }}
     runs-on: runner-medium-arm64
@@ -680,8 +685,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [single-file]
+        mode: [single-file, batch]
         output_format: [markdown, plaintext]
+        cohort: [native-pdf-fast-b8, ocr-pdf-fast-b4]
+        exclude:
+          - output_format: plaintext
     steps:
       - uses: actions/checkout@v6
         with:
@@ -708,10 +716,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -740,8 +748,9 @@ jobs:
           OUTPUT_FORMAT: ${{ matrix.output_format }}
           ITERATIONS: ${{ env.ITERATIONS }}
           TIMEOUT: ${{ github.event.inputs.timeout }}
-          COHORT: tools/benchmark-harness/cohorts/native-pdf-fast-b8.json
-          OCR_ENABLED: "false"
+          COHORT: tools/benchmark-harness/cohorts/${{ matrix.cohort }}.json
+          BATCH_SIZE: ${{ matrix.mode == 'batch' && (matrix.cohort == 'native-pdf-fast-b8' && 8 || 4) || '' }}
+          OCR_ENABLED: ${{ matrix.cohort == 'ocr-pdf-fast-b4' }}
           UV_NO_SYNC: "1"
         run: scripts/benchmarks/run-benchmark.sh
 
@@ -749,7 +758,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: benchmarks-mineru-${{ matrix.output_format }}-${{ matrix.mode }}-native-pdf-fast-b8-${{ github.run_id }}
+          name: benchmarks-mineru-${{ matrix.output_format }}-${{ matrix.mode }}-${{ matrix.cohort }}-${{ github.run_id }}
           path: benchmark-results/
           retention-days: 30
 
@@ -793,10 +802,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: benchmark-corpus-cache
-          path: .
+          path: ${{ runner.temp }}/benchmark-corpus-cache
 
       - name: Unpack reference corpus cache
-        run: tar -C test_documents -xf corpus-cache.tar
+        run: tar -C test_documents -xf "${RUNNER_TEMP}/benchmark-corpus-cache/corpus-cache.tar"
 
       - name: Install system dependencies (libheif + native libs for harness binary)
         uses: ./.github/actions/install-system-deps
@@ -819,7 +828,7 @@ jobs:
 
       - name: Install liteparse CLI (lit)
         run: |
-          cargo install liteparse --locked
+          cargo install liteparse --version 2.9.0 --locked
           lit --version
 
       - name: Run benchmark
@@ -859,7 +868,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
-    if: ${{ needs.setup.result == 'success' && !cancelled() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ always() && !cancelled() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
     steps:
       - name: Create GitHub App token (if credentials available)
         id: app-token
@@ -872,205 +881,167 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.setup.outputs.source-sha }}
+          ref: ${{ needs.setup.outputs.source-sha || github.sha }}
           submodules: recursive
           lfs: true
 
       - name: Setup Rust
+        if: needs.setup.result == 'success'
         uses: xberg-io/actions/setup-rust@v1
         with:
           cache-key-prefix: aggregate
 
       - name: Install system dependencies (libheif + native libs for harness binary)
+        if: needs.setup.result == 'success'
         uses: ./.github/actions/install-system-deps
 
+      - name: Install BLAKE3 verifier
+        if: needs.setup.result == 'success'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y b3sum
+
       - name: Setup ONNX Runtime
+        if: needs.setup.result == 'success'
         uses: ./.github/actions/setup-onnx-runtime
         with:
           ort-version: ${{ env.ORT_VERSION }}
 
       - name: Build xberg-cli (release, all features) for disk measurement
+        if: needs.setup.result == 'success'
         run: cargo build --locked --release -p xberg-cli --features all
 
-      - name: Download all benchmark artifacts
+      - name: Download native benchmark artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
-          pattern: "benchmarks-*"
-          path: benchmark-artifacts/
+          pattern: "benchmarks-*-native-pdf-fast-b8-${{ github.run_id }}"
+          path: benchmark-artifacts/native/
           merge-multiple: false
 
-      - name: Validate artifacts before consolidation
-        id: validate-artifacts
+      - name: Download OCR benchmark artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "benchmarks-*-ocr-pdf-fast-b4-${{ github.run_id }}"
+          path: benchmark-artifacts/ocr/
+          merge-multiple: false
+
+      - name: Validate native benchmark artifacts
+        id: validate-native
+        if: always()
+        run: >-
+          python3 scripts/ci/benchmarks/validate-benchmark-artifacts.py
+          --cohort native
+          --artifacts-dir benchmark-artifacts/native
+          --cohort-manifest tools/benchmark-harness/cohorts/native-pdf-fast-b8.json
+          --fixtures-root tools/benchmark-harness/fixtures
+          --source-sha '${{ needs.setup.outputs.source-sha }}'
+          --run-id '${{ github.run_id }}'
+          --iterations '${{ env.ITERATIONS }}'
+
+      - name: Validate OCR benchmark artifacts
+        id: validate-ocr
+        if: always()
+        run: >-
+          python3 scripts/ci/benchmarks/validate-benchmark-artifacts.py
+          --cohort ocr
+          --artifacts-dir benchmark-artifacts/ocr
+          --cohort-manifest tools/benchmark-harness/cohorts/ocr-pdf-fast-b4.json
+          --fixtures-root tools/benchmark-harness/fixtures
+          --source-sha '${{ needs.setup.outputs.source-sha }}'
+          --run-id '${{ github.run_id }}'
+          --iterations '${{ env.ITERATIONS }}'
+
+      - name: Consolidate native and OCR results
+        if: ${{ always() && steps.validate-native.outcome == 'success' && steps.validate-ocr.outcome == 'success' }}
         run: |
           set -euo pipefail
-
-          echo "=== Validating benchmark artifacts ==="
-
-          # Check if benchmark-artifacts directory exists and is not empty
-          if [[ ! -d "benchmark-artifacts" ]]; then
-            echo "WARNING: benchmark-artifacts directory does not exist"
-            echo "This may indicate that no benchmarks completed successfully (e.g., setup job was cancelled)"
-            echo "has-artifacts=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          ARTIFACT_COUNT=$(find benchmark-artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)
-          if [[ $ARTIFACT_COUNT -eq 0 ]]; then
-            echo "WARNING: No artifact directories found in benchmark-artifacts"
-            echo "This may indicate that no benchmarks completed successfully"
-            echo "has-artifacts=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Found $ARTIFACT_COUNT artifact directories"
-          find benchmark-artifacts -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
-          echo "has-artifacts=true" >> "$GITHUB_OUTPUT"
-
-      - name: Consolidate results
-        if: steps.validate-artifacts.outputs.has-artifacts == 'true'
-        run: |
-          set -euo pipefail
-
-          # Check if we should skip (from validation step)
-          if [[ ! -d "benchmark-artifacts" ]]; then
-            echo "Skipping consolidation - no artifacts available"
-            exit 0
-          fi
-
-          ARTIFACT_COUNT=$(find benchmark-artifacts -mindepth 1 -maxdepth 1 -type d | wc -l)
-          if [[ $ARTIFACT_COUNT -eq 0 ]]; then
-            echo "Skipping consolidation - no artifact directories found"
-            exit 0
-          fi
-
-          echo "=== Consolidating benchmark results ==="
-
-          # Find all artifact subdirectories
-          ARTIFACT_DIRS=$(find benchmark-artifacts -mindepth 1 -maxdepth 1 -type d | tr '\n' ',' | sed 's/,$//')
-
-          if [[ -z "$ARTIFACT_DIRS" ]]; then
-            echo "ERROR: ARTIFACT_DIRS is empty after globbing"
-            exit 1
-          fi
-
-          echo "Artifact directories: $ARTIFACT_DIRS"
-
-          # Run consolidation
+          NATIVE_INPUTS=$(find benchmark-artifacts/native -mindepth 1 -maxdepth 1 -type d | sort | paste -sd, -)
+          OCR_INPUTS=$(find benchmark-artifacts/ocr -mindepth 1 -maxdepth 1 -type d | sort | paste -sd, -)
           cargo run --locked --release --package benchmark-harness --bin benchmark-harness -- consolidate \
-            --inputs "$ARTIFACT_DIRS" \
-            --output consolidated-output/
+            --inputs "$NATIVE_INPUTS" \
+            --output consolidated-output/native/
+          cargo run --locked --release --package benchmark-harness --bin benchmark-harness -- consolidate \
+            --inputs "$OCR_INPUTS" \
+            --output consolidated-output/ocr/
 
-          echo "Consolidation complete"
-          ls -lh consolidated-output/
-
-      - name: Validate aggregated data
-        if: steps.validate-artifacts.outputs.has-artifacts == 'true'
+      - name: Validate native and OCR aggregates
+        id: validate-aggregates
+        if: ${{ always() && steps.validate-native.outcome == 'success' && steps.validate-ocr.outcome == 'success' }}
         run: |
           set -euo pipefail
+          python3 scripts/ci/benchmarks/validate-benchmark-artifacts.py \
+            --cohort native \
+            --aggregated-file consolidated-output/native/aggregated.json
+          python3 scripts/ci/benchmarks/validate-benchmark-artifacts.py \
+            --cohort ocr \
+            --aggregated-file consolidated-output/ocr/aggregated.json
 
-          echo "=== Validating aggregated benchmark data ==="
-
-          AGGREGATED_FILE="consolidated-output/aggregated.json"
-
-          # Check if aggregated.json exists
-          if [[ ! -f "$AGGREGATED_FILE" ]]; then
-            echo "ERROR: aggregated.json not found at $AGGREGATED_FILE"
-            exit 1
-          fi
-
-          echo "Found aggregated.json ($(wc -c < "$AGGREGATED_FILE") bytes)"
-
-          # Validate JSON structure using jq
-          if ! jq empty "$AGGREGATED_FILE" 2>/dev/null; then
-            echo "ERROR: aggregated.json is not valid JSON"
-            exit 1
-          fi
-
-          echo "JSON validation passed"
-
-          # Check for required fields (by_framework_mode)
-          if ! jq -e '.by_framework_mode' "$AGGREGATED_FILE" > /dev/null 2>&1; then
-            echo "ERROR: Required field 'by_framework_mode' not found in aggregated.json"
-            exit 1
-          fi
-
-          echo "Required fields validated successfully"
-
-          # Display data structure summary
-          echo "Data structure summary:"
-          jq 'keys' "$AGGREGATED_FILE" | head -20
-
-      - name: Validate framework completeness
-        if: steps.validate-artifacts.outputs.has-artifacts == 'true'
+      - name: Prepare cohort release assets
+        id: prepare-release-assets
+        if: ${{ always() && steps.validate-aggregates.outcome == 'success' }}
         run: |
           set -euo pipefail
-
-          AGGREGATED_FILE="consolidated-output/aggregated.json"
-
-          echo "=== Validating framework completeness (schema v2.4.0) ==="
-
-          # Keys follow the v2.4.0 aggregate-key convention:
-          #   xberg-*  →  "{framework_name}:{mode}"       (format is encoded in the name)
-          #   competitors  →  "{framework}:{output_format}:{mode}"
-          #
-          # xberg: 2 pipelines × 2 output formats × 2 modes = 8
-          # competitors: 15 entries (format varies per tool: docling/unstructured/mineru emit
-          #   both markdown+plaintext; markitdown/pymupdf4llm markdown-only; tika plaintext-only;
-          #   docling and liteparse both expose verified native batch entry points)
-          # total expected: 23
-          EXPECTED_FRAMEWORKS=(
-            # xberg-* (slim keys — format encoded in name)
-            "xberg-markdown-baseline:single"   "xberg-markdown-baseline:batch"
-            "xberg-markdown-layout:single"     "xberg-markdown-layout:batch"
-            "xberg-plaintext-baseline:single"   "xberg-plaintext-baseline:batch"
-            "xberg-plaintext-layout:single"     "xberg-plaintext-layout:batch"
-            # competitors (format in key; single-file only unless noted)
-            # docling: full grid (markdown/plaintext × single/batch)
-            "docling:markdown:single"    "docling:plaintext:single"
-            "docling:markdown:batch"     "docling:plaintext:batch"
-            "markitdown:markdown:single"
-            "unstructured:markdown:single" "unstructured:plaintext:single"
-            "tika:plaintext:single"
-            "pymupdf4llm:markdown:single"
-            "mineru:markdown:single"     "mineru:plaintext:single"
-            # liteparse: full grid (markdown/plaintext × single/batch)
-            "liteparse:markdown:single"  "liteparse:plaintext:single"
-            "liteparse:markdown:batch"   "liteparse:plaintext:batch"
-          )
-
-          # Get actual frameworks from aggregated.json
-          ACTUAL_FRAMEWORKS=$(jq -r '.by_framework_mode | keys[]' "$AGGREGATED_FILE")
-
-          MISSING_COUNT=0
-          MISSING_LIST=""
-
-          for expected in "${EXPECTED_FRAMEWORKS[@]}"; do
-            if ! echo "$ACTUAL_FRAMEWORKS" | grep -qx "$expected"; then
-              MISSING_COUNT=$((MISSING_COUNT + 1))
-              MISSING_LIST="${MISSING_LIST}  - $expected"$'\n'
-            fi
-          done
-
-          echo "Present frameworks ($(echo "$ACTUAL_FRAMEWORKS" | wc -l | tr -d ' ')):"
-          while IFS= read -r framework; do
-            echo "  - $framework"
-          done <<< "$ACTUAL_FRAMEWORKS"
-
-          TOTAL_EXPECTED=${#EXPECTED_FRAMEWORKS[@]}
-          ACTUAL_COUNT=$(echo "$ACTUAL_FRAMEWORKS" | wc -l | tr -d ' ')
-
-          if [[ $MISSING_COUNT -gt 0 ]]; then
-            echo ""
-            echo "::warning::Missing $MISSING_COUNT of $TOTAL_EXPECTED expected framework:mode combinations (${ACTUAL_COUNT} present):"
-            echo "$MISSING_LIST"
-            echo "This is expected when some jobs fail — results will be published with available data."
-          else
-            echo ""
-            echo "All ${TOTAL_EXPECTED} expected framework:mode combinations present"
-          fi
+          mkdir -p release-assets
+          cp consolidated-output/native/aggregated.json release-assets/benchmarks-native-aggregated.json
+          cp consolidated-output/ocr/aggregated.json release-assets/benchmarks-ocr-aggregated.json
+          SOURCE_SHA="${{ needs.setup.outputs.source-sha }}"
+          UPDATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          jq -n \
+            --arg cohort "native-pdf-fast-b8-v1" \
+            --arg cohort_hash "c10d1f78d3f9d61070c0d91e7bfe90a904b69c9d3261536eb1dcff2081c73f6b" \
+            --arg commit "$SOURCE_SHA" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_url "$RUN_URL" \
+            --arg updated_at "$UPDATED_AT" \
+            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 22, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
+            > release-assets/benchmarks-native-metadata.json
+          jq -n \
+            --arg cohort "ocr-pdf-fast-b4-v1" \
+            --arg cohort_hash "c740a9480fd0ad4311a4905206345c58d7ef7a987682cc96644e2f0ffe616a13" \
+            --arg commit "$SOURCE_SHA" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_url "$RUN_URL" \
+            --arg updated_at "$UPDATED_AT" \
+            '{cohort: $cohort, cohort_manifest_blake3: $cohort_hash, expected_matrix_keys: 18, commit: $commit, run_id: $run_id, run_url: $run_url, updated_at: $updated_at}' \
+            > release-assets/benchmarks-ocr-metadata.json
+          jq -n \
+            --arg commit "$SOURCE_SHA" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg run_url "$RUN_URL" \
+            --arg updated_at "$UPDATED_AT" \
+            '{
+              schema_version: 1,
+              commit: $commit,
+              run_id: $run_id,
+              run_url: $run_url,
+              updated_at: $updated_at,
+              cohorts: {
+                native: {aggregated: "benchmarks-native-aggregated.json", metadata: "benchmarks-native-metadata.json"},
+                ocr: {aggregated: "benchmarks-ocr-aggregated.json", metadata: "benchmarks-ocr-metadata.json"}
+              }
+            }' > release-assets/benchmarks-index.json
 
       - name: Create GitHub Release with benchmark results
-        if: steps.validate-artifacts.outputs.has-artifacts == 'true'
+        if: >-
+          ${{
+            always() &&
+            steps.validate-native.outcome == 'success' &&
+            steps.validate-ocr.outcome == 'success' &&
+            steps.validate-aggregates.outcome == 'success' &&
+            steps.prepare-release-assets.outcome == 'success' &&
+            needs.setup.result == 'success' &&
+            needs.bench-rust.result == 'success' &&
+            needs.bench-docling.result == 'success' &&
+            needs.bench-markitdown.result == 'success' &&
+            needs.bench-unstructured.result == 'success' &&
+            needs.bench-tika.result == 'success' &&
+            needs.bench-pymupdf4llm.result == 'success' &&
+            needs.bench-mineru.result == 'success' &&
+            needs.bench-liteparse.result == 'success'
+          }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
         run: |
@@ -1084,16 +1055,6 @@ jobs:
           TAG="benchmark-run-${{ github.run_id }}"
           DATE=$(date -u +"%Y-%m-%d")
 
-          # Create metadata file alongside aggregated data
-          cat > consolidated-output/metadata.json <<EOF
-          {
-            "updated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "commit": "${SOURCE_SHA}",
-            "run_id": "${{ github.run_id }}",
-            "run_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }
-          EOF
-
           gh release create "$TAG" \
             --prerelease \
             --target "${SOURCE_SHA}" \
@@ -1102,5 +1063,8 @@ jobs:
 
           **Commit:** ${SOURCE_SHA}
           **Date:** ${DATE}" \
-            consolidated-output/aggregated.json \
-            consolidated-output/metadata.json
+            release-assets/benchmarks-native-aggregated.json \
+            release-assets/benchmarks-native-metadata.json \
+            release-assets/benchmarks-ocr-aggregated.json \
+            release-assets/benchmarks-ocr-metadata.json \
+            release-assets/benchmarks-index.json

@@ -237,7 +237,7 @@ pub(crate) fn extract_all_from_oxide_document(
                     .map(|l| l.table_overlap_preference)
                     .unwrap_or_default(),
                 #[cfg(feature = "layout-detection")]
-                acceleration: config.acceleration.as_ref(),
+                acceleration: config.resolved_layout_acceleration(),
                 #[cfg(feature = "layout-detection")]
                 session_thread_budget: crate::core::config::concurrency::resolve_thread_budget(
                     config.concurrency.as_ref(),

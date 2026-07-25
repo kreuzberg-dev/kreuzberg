@@ -244,7 +244,7 @@ impl RunProvenance {
         Ok(Self {
             schema_version: PROVENANCE_SCHEMA_VERSION,
             harness_version: env!("CARGO_PKG_VERSION").to_string(),
-            repository: capture_repository(),
+            repository: capture_repository(inputs.fixture_root),
             corpus,
             frameworks,
             timing: TimingProvenance {
@@ -320,32 +320,34 @@ fn hash_file(path: &Path) -> Result<String> {
     Ok(hasher.finalize().to_hex().to_string())
 }
 
-fn capture_repository() -> RepositoryProvenance {
-    let repository_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().and_then(Path::parent);
+fn capture_repository(start_directory: &Path) -> RepositoryProvenance {
+    let repository_root = git_output(start_directory, &["rev-parse", "--show-toplevel"]).map(PathBuf::from);
     let Some(repository_root) = repository_root else {
         return RepositoryProvenance {
             commit: None,
             dirty: None,
         };
     };
-    let commit = Command::new("git")
-        .arg("-C")
-        .arg(repository_root)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|value| value.trim().to_string());
-    let dirty = Command::new("git")
-        .arg("-C")
-        .arg(repository_root)
-        .args(["status", "--porcelain"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| !output.stdout.is_empty());
+    let commit = git_output(&repository_root, &["rev-parse", "HEAD"]);
+    let dirty = git_output_bytes(&repository_root, &["status", "--porcelain"]).map(|output| !output.is_empty());
     RepositoryProvenance { commit, dirty }
+}
+
+fn git_output(repository_root: &Path, args: &[&str]) -> Option<String> {
+    git_output_bytes(repository_root, args)
+        .and_then(|output| String::from_utf8(output).ok())
+        .map(|value| value.trim().to_string())
+}
+
+fn git_output_bytes(repository_root: &Path, args: &[&str]) -> Option<Vec<u8>> {
+    Command::new("git")
+        .arg("-C")
+        .arg(repository_root)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| output.stdout)
 }
 
 fn worker_counts(
@@ -371,6 +373,9 @@ fn worker_semantics(mode: BenchmarkMode, capability: Option<BatchCapability>) ->
         }
         (BenchmarkMode::Batch, Some(BatchEntryPoint::LiteparseBatchParse)) => {
             "OCR page workers; not document-level concurrency"
+        }
+        (BenchmarkMode::Batch, Some(BatchEntryPoint::MineruDoParse)) => {
+            "MinerU 3.4.4 do_parse pipeline; model batches span documents through doc_analyze_streaming processing windows"
         }
         (BenchmarkMode::Batch, None) => "batch harness concurrency",
     }
@@ -416,6 +421,40 @@ mod tests {
     }
 
     #[test]
+    fn repository_provenance_uses_runtime_checkout() {
+        let temp = tempfile::tempdir().unwrap();
+        let repository = temp.path().join("runtime-checkout");
+        let nested = repository.join("target").join("release");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(repository.join("tracked.txt"), b"clean").unwrap();
+
+        for args in [
+            vec!["init"],
+            vec!["config", "user.email", "benchmark@example.com"],
+            vec!["config", "user.name", "Benchmark Test"],
+            vec!["add", "tracked.txt"],
+            vec!["commit", "-m", "initial"],
+        ] {
+            assert!(
+                Command::new("git")
+                    .arg("-C")
+                    .arg(&repository)
+                    .args(args)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+
+        let clean = capture_repository(&nested);
+        assert!(clean.commit.is_some());
+        assert_eq!(clean.dirty, Some(false));
+
+        std::fs::write(repository.join("tracked.txt"), b"dirty").unwrap();
+        assert_eq!(capture_repository(&nested).dirty, Some(true));
+    }
+
+    #[test]
     fn single_file_worker_provenance_is_sequential() {
         assert_eq!(
             worker_counts(BenchmarkMode::SingleFile, 8, Some((Some(8), Some(8)))),
@@ -439,6 +478,21 @@ mod tests {
                 })
             ),
             "configured document concurrency cap; Xberg thread budget is recorded separately"
+        );
+    }
+
+    #[test]
+    fn mineru_batch_provenance_labels_cross_document_model_batching() {
+        assert_eq!(
+            worker_semantics(
+                BenchmarkMode::Batch,
+                Some(BatchCapability {
+                    entry_point: BatchEntryPoint::MineruDoParse,
+                    timing_scope: crate::types::BatchTimingScope::ColdEndToEndSubprocess,
+                    per_item_timing: false,
+                })
+            ),
+            "MinerU 3.4.4 do_parse pipeline; model batches span documents through doc_analyze_streaming processing windows"
         );
     }
 

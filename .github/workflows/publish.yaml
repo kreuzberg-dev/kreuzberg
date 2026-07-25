@@ -2127,13 +2127,27 @@ jobs:
           path: dist/go-ffi
           merge-multiple: true
 
+      # The generated Go cmd/setup tool verifies each downloaded archive against
+      # its .sha256 sidecar before extracting (dart download_libs parity), so the
+      # sidecars must ship as release assets alongside the tarballs. ~keep
+      - name: Generate SHA-256 sidecars for cmd/setup verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist/go-ffi
+          for t in xberg-go-*.tar.gz; do
+            sha256sum "$t" > "$t.sha256"
+          done
+          ls -la
+
       - uses: xberg-io/actions/upload-release-assets@v1
         with:
           tag: ${{ needs.prepare.outputs.tag }}
           working-directory: dist/go-ffi
           dry-run: ${{ needs.prepare.outputs.dry_run }}
           token: ${{ steps.app-token.outputs.token }}
-          assets: xberg-go-*.tar.gz
+          # Trailing * includes the .sha256 sidecars (same pattern as dart). ~keep
+          assets: xberg-go-*.tar.gz*
 
   tag-go-module:
     name: Tag Go module for pkg.go.dev resolution
@@ -3064,6 +3078,11 @@ jobs:
         with:
           working-directory: packages/zig
           tag: ${{ needs.prepare.outputs.tag }}
+          # ~keep The action's internal steps use `GH_TOKEN: ${{ inputs.token }}`, which
+          # ~keep defaults to the read-only github.token (workflow permissions are
+          # ~keep contents:read) — without forwarding the app token here the release
+          # ~keep asset upload fails 403 "Resource not accessible by integration".
+          token: ${{ steps.app-token.outputs.token }}
           # ~keep Override the auto-detected package-name (`.xberg` from
           # ~keep build.zig.zon) to match the alef-emitted test_app URL pattern
           # ~keep `{crate-name}-zig-v{version}.tar.gz`. Without this, the asset
@@ -3202,7 +3221,6 @@ jobs:
           github-repo: xberg-io/xberg
           upload: false
 
-      # Mint the token AFTER the slow build so its full 1h TTL is available for the upload.
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:

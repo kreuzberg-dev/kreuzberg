@@ -1,6 +1,6 @@
 {
   "name": "@xberg-io/langchain-xberg",
-  "version": "1.0.0-rc.37",
+  "version": "1.0.0-rc.38",
   "description": "LangChain.js document loader for Xberg — extract text, tables, and metadata from 90+ document formats with optional OCR.",
   "keywords": [
     "langchain",
@@ -42,11 +42,10 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
     "test": "vitest run"
   },
   "dependencies": {
-    "@xberg-io/xberg": "1.0.0-rc.37",
+    "@xberg-io/xberg": "1.0.0-rc.38",
     "fast-glob": "^3.3.2"
   },
   "peerDependencies": {
@@ -55,9 +54,6 @@
   "devDependencies": {
     "@langchain/core": "^0.3.0",
     "@types/node": "^20.19.0",
-    "@typescript-eslint/eslint-plugin": "^8.20.0",
-    "@typescript-eslint/parser": "^8.20.0",
-    "eslint": "^8.57.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"

@@ -149,13 +149,29 @@ impl CrnnNet {
             return Ok(Vec::new());
         }
 
-        let mut text_lines = self.get_text_lines_batched(part_imgs, batch_size)?;
+        let part_img_refs = part_imgs.iter().collect::<Vec<_>>();
+        let mut text_lines = self.get_text_lines_batched(&part_img_refs, batch_size)?;
 
-        for (index, text_line) in text_lines.iter_mut().enumerate() {
-            if (text_line.text_score.is_nan() || text_line.text_score < angle_rollback_threshold)
-                && let Some(angle_rollback_record) = angle_rollback_records.get(&index)
-            {
-                *text_line = self.get_text_line(angle_rollback_record)?;
+        let rollback_indices = text_lines
+            .iter()
+            .enumerate()
+            .filter_map(|(index, text_line)| {
+                if text_line.text_score.is_nan() || text_line.text_score < angle_rollback_threshold {
+                    angle_rollback_records.get(&index).map(|image| (index, image))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if rollback_indices.len() == 1 {
+            let (index, image) = rollback_indices[0];
+            text_lines[index] = self.get_text_line(image)?;
+        } else if !rollback_indices.is_empty() {
+            let images = rollback_indices.iter().map(|(_, image)| *image).collect::<Vec<_>>();
+            let replacements = self.get_text_lines_batched(&images, batch_size)?;
+            for ((index, _), replacement) in rollback_indices.into_iter().zip(replacements) {
+                text_lines[index] = replacement;
             }
         }
 
@@ -166,7 +182,7 @@ impl CrnnNet {
     /// run single ONNX inference per batch. Matches PaddleOCR/RapidOCR batching strategy.
     fn get_text_lines_batched(
         &self,
-        part_imgs: &[image::RgbImage],
+        part_imgs: &[&image::RgbImage],
         batch_size: u32,
     ) -> Result<Vec<TextLine>, OcrError> {
         let session = self.session.as_ref().ok_or(OcrError::SessionNotInitialized)?;
@@ -188,7 +204,7 @@ impl CrnnNet {
         for chunk in indexed_widths.chunks(batch_size) {
             if chunk.len() == 1 {
                 let (orig_idx, _) = chunk[0];
-                let text_line = self.get_text_line(&part_imgs[orig_idx])?;
+                let text_line = self.get_text_line(part_imgs[orig_idx])?;
                 results.push((orig_idx, text_line));
                 continue;
             }
@@ -199,7 +215,7 @@ impl CrnnNet {
             let mut batch_data = Array4::<f32>::zeros((n, 3, CRNN_DST_HEIGHT as usize, max_width as usize));
 
             for (batch_idx, &(orig_idx, dst_width)) in chunk.iter().enumerate() {
-                let img = &part_imgs[orig_idx];
+                let img = part_imgs[orig_idx];
                 let resized =
                     image::imageops::resize(img, dst_width, CRNN_DST_HEIGHT, image::imageops::FilterType::Triangle);
 
@@ -249,6 +265,17 @@ impl CrnnNet {
                 let text_line = Self::score_to_text_line(slice, timesteps, num_classes, &self.keys)?;
                 results.push((item.0, text_line));
             }
+        }
+
+        if results.len() != part_imgs.len() {
+            return Err(OcrError::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "batched CRNN recognition returned {} results for {} input images",
+                    results.len(),
+                    part_imgs.len()
+                ),
+            )));
         }
 
         results.sort_by_key(|&(idx, _)| idx);

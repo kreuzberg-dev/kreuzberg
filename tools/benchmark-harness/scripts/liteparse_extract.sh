@@ -51,11 +51,11 @@ fi
 START=$(date +%s%N)
 
 if command -v timeout &>/dev/null; then
-  CONTENT=$(timeout 180s lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet 2>/dev/null || echo "")
+  CONTENT=$(timeout 180s lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet)
 elif command -v gtimeout &>/dev/null; then
-  CONTENT=$(gtimeout 180s lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet 2>/dev/null || echo "")
+  CONTENT=$(gtimeout 180s lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet)
 else
-  CONTENT=$(lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet 2>/dev/null || echo "")
+  CONTENT=$(lit parse "$FILE_PATH" --format "$LIT_FORMAT" $LIT_EXTRA_FLAGS $OCR_FLAG --quiet)
 fi
 
 END=$(date +%s%N)

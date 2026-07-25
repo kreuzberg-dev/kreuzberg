@@ -29,6 +29,11 @@ const PYTHON_EXTRACTION_TIMEOUT_SECS: u64 = PERSISTENT_MAX_TIMEOUT_SECS - PYTHON
 const LITEPARSE_BINARY: &str = "lit";
 const LITEPARSE_VERSION_PREFIX: &str = "lit ";
 const LITEPARSE_REQUIRED_BATCH_OPTIONS: [&str; 3] = ["--format", "--no-ocr", "--num-workers"];
+const MINERU_BATCH_CAPABILITY: BatchCapability = BatchCapability {
+    entry_point: BatchEntryPoint::MineruDoParse,
+    timing_scope: BatchTimingScope::ColdEndToEndSubprocess,
+    per_item_timing: false,
+};
 
 /// Helper function to define supported file types for each framework
 ///
@@ -536,24 +541,33 @@ pub fn create_pymupdf4llm_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter
     )
 }
 
-/// Creates a subprocess adapter for MinerU (persistent server mode)
+/// Creates a subprocess adapter for MinerU 3.4.4.
 ///
-/// Uses wrapper script approach for extraction.
+/// Batch mode invokes `mineru.cli.common.do_parse` once, which delegates to
+/// `doc_analyze_streaming` for cross-document model batching.
 pub fn create_mineru_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter> {
     let script_path = get_script_path("mineru_extract.py")?;
     let (command, mut args) = find_python_with_framework("mineru")?;
     args.push(script_path.to_string_lossy().to_string());
     args.push(format!("--timeout={}", PYTHON_EXTRACTION_TIMEOUT_SECS));
     args.push(ocr_flag(ocr_enabled));
-    args.push("sync".to_string());
+    let mut single_file_args = args.clone();
+    single_file_args.push("sync".to_string());
+    args.push("batch".to_string());
 
     let supported_formats = get_supported_formats("mineru");
-    Ok(
-        SubprocessAdapter::new("mineru", command, args, vec![], supported_formats)
-            .with_configured_ocr(ocr_enabled)
-            .with_format_aware(true)
-            .with_max_timeout(Duration::from_secs(SLOW_ML_TIMEOUT_SECS)),
+    Ok(SubprocessAdapter::with_batch_capability(
+        "mineru",
+        command,
+        args,
+        vec![],
+        supported_formats,
+        MINERU_BATCH_CAPABILITY,
     )
+    .with_configured_ocr(ocr_enabled)
+    .with_format_aware(true)
+    .with_single_file_args(single_file_args)
+    .with_max_timeout(Duration::from_secs(SLOW_ML_TIMEOUT_SECS)))
 }
 
 #[cfg(test)]
@@ -665,11 +679,13 @@ exit 2
                 })
             );
         }
+        if let Ok(mineru) = create_mineru_adapter(true) {
+            assert_eq!(mineru.batch_capability(), Some(MINERU_BATCH_CAPABILITY));
+        }
         let _ = create_unstructured_adapter(true);
         let _ = create_markitdown_adapter(true);
         let _ = create_tika_adapter(true);
         let _ = create_pymupdf4llm_adapter(true);
-        let _ = create_mineru_adapter(true);
         let _ = create_liteparse_adapter(true);
     }
 

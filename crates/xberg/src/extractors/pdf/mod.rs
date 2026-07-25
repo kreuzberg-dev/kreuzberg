@@ -280,9 +280,9 @@ async fn run_ocr_with_layout(
 
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let owned_layout = if precomputed_layout_detections.is_none() || precomputed_layout_images.is_none() {
-        if let Some(layout_config) = config.layout.as_ref() {
+        if let Some(layout_config) = config.resolved_layout_config() {
             let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
-            match layout_runner::run_layout_for_ocr(content, layout_config, thread_budget).await {
+            match layout_runner::run_layout_for_ocr(content, layout_config.as_ref(), thread_budget).await {
                 Ok(layout) => Some(layout),
                 Err(error) => {
                     tracing::warn!(

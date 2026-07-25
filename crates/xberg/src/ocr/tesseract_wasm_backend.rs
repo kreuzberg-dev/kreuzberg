@@ -280,7 +280,7 @@ mod tests {
     fn should_respect_explicit_psm_from_tesseract_config() {
         let config = OcrConfig {
             tesseract_config: Some(crate::types::TesseractConfig {
-                psm: 7, 
+                psm: 7,
                 ..Default::default()
             }),
             ..Default::default()
@@ -293,7 +293,7 @@ mod tests {
     fn should_respect_explicit_psm_auto_when_caller_opts_in() {
         let config = OcrConfig {
             tesseract_config: Some(crate::types::TesseractConfig {
-                psm: 3, 
+                psm: 3,
                 ..Default::default()
             }),
             ..Default::default()

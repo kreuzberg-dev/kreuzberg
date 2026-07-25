@@ -364,14 +364,14 @@ pub(super) async fn maybe_run_layout_for_markdown(
     if !config.use_layout_for_markdown {
         return (None, None, None, None);
     }
-    let Some(ref layout_config) = config.layout else {
+    let Some(layout_config) = config.resolved_layout_config() else {
         return (None, None, None, None);
     };
     if config.force_ocr {
         return (None, None, None, None);
     }
     let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
-    match run_layout_for_pdf_pages_async(content, layout_config, thread_budget).await {
+    match run_layout_for_pdf_pages_async(content, layout_config.as_ref(), thread_budget).await {
         Ok((images, results, hints, detections)) => {
             let total_hints: usize = hints.iter().map(|h| h.len()).sum();
             tracing::info!(

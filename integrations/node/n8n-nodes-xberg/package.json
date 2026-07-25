@@ -1,6 +1,6 @@
 {
   "name": "@xberg-io/n8n-nodes-xberg",
-  "version": "1.0.0-rc.37",
+  "version": "1.0.0-rc.38",
   "description": "n8n community node for Xberg — extract text, tables, and metadata from 90+ document formats with optional OCR.",
   "keywords": [
     "n8n-community-node-package",
@@ -31,10 +31,7 @@
   "scripts": {
     "build": "tsc && gulp build:icons",
     "dev": "tsc --watch",
-    "format": "prettier nodes --write",
-    "lint": "eslint nodes package.json",
-    "lintfix": "eslint nodes package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint"
+    "prepublishOnly": "npm run build"
   },
   "files": ["dist"],
   "n8n": {
@@ -43,19 +40,15 @@
     "nodes": ["dist/nodes/Xberg/Xberg.node.js"]
   },
   "dependencies": {
-    "@xberg-io/xberg": "1.0.0-rc.37"
+    "@xberg-io/xberg": "1.0.0-rc.38"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
-    "@typescript-eslint/parser": "^8.20.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-n8n-nodes-base": "^1.16.3",
     "gulp": "^5.0.0",
     "n8n-workflow": "^2.16.0",
-    "prettier": "^3.4.2",
     "typescript": "^5.7.3"
   },
   "publishConfig": {

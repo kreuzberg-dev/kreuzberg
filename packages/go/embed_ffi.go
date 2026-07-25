@@ -1,18 +1,16 @@
-//go:build ignore
-// +build ignore
-
 package xberg
 
 import "embed"
 
-// This file ensures that FFI header files and library artifacts are included
-// when this module is vendored. The //go:embed directive tells Go to include
-// the include/ and .lib/ directories when running `go mod vendor`.
+// This file ensures that the C header is included when this module is vendored.
+// The //go:embed directive tells Go to include the include/ directory when
+// running `go mod vendor`. Native libraries are intentionally NOT embedded here
+// — they are too large to commit and are downloaded at consume-time by
+// `cmd/setup` into a per-user cache instead (see cmd/setup/main.go).
 //
-// This file itself is not compiled (//go:build ignore), but its directives are
-// processed by Go's module system to ensure all necessary files are present in
-// vendored installations.
+// Unlike the old vendor-only stub, this file is a real compiled member of the
+// package: dropping the `//go:build ignore` guard is what makes `go mod vendor`
+// (which only follows imports reachable from compiled files) include it.
 
 //go:embed include/*
-//go:embed .lib/*
 var _ embed.FS

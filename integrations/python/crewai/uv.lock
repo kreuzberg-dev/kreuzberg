@@ -896,7 +896,7 @@ wheels = [
 
 [[package]]
 name = "crewai-xberg"
-version = "1.0.0rc32"
+version = "1.0.0rc37"
 source = { editable = "." }
 dependencies = [
     { name = "crewai" },
@@ -916,7 +916,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "crewai", specifier = ">=1.15,<2" },
-    { name = "xberg", specifier = ">=1.0.0rc32,<2" },
+    { name = "xberg", specifier = ">=1.0.0rc37,<2" },
 ]
 
 [package.metadata.requires-dev]
@@ -4993,15 +4993,15 @@ wheels = [
 
 [[package]]
 name = "xberg"
-version = "1.0.0rc32"
+version = "1.0.0rc37"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6d/52/2fb4197dfc7593ae0c881475bb04ad9bb2ae9845d98a9f0b8ae4fa9ded6b/xberg-1.0.0rc32.tar.gz", hash = "sha256:b3cb4f04c7100cd883d2734120e292ac57859244ba352484da48bff70927ba31", size = 319129, upload-time = "2026-07-22T08:52:54.503Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/37/ec76b1a5d7774b4e5414965d7f41cb8c5433a3cb8748ade4698b6df468d6/xberg-1.0.0rc37.tar.gz", hash = "sha256:c37fd4db4dff2a53c58ac779f9a824ef2381461987eb6d926567e9aebabbbc56", size = 325536, upload-time = "2026-07-24T15:04:52.658Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/8f/2e095364237545bf1bbad2651ffbf16549b5178503fb7449f7d99a8dbf16/xberg-1.0.0rc32-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:029768f72af42452313aa9aa2601d01a6c206a04b72ce7e3d4354ea43dc371e6", size = 38577450, upload-time = "2026-07-22T08:52:33.057Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/cd/f1c539272151b5e357c42594e4a294b1be501754006e42b8d42c5f5e34f7/xberg-1.0.0rc32-cp310-abi3-macosx_11_0_x86_64.whl", hash = "sha256:bc071eb46088a9b463ddb17259c8819c381aea366385452e89aa8dd8378acd6a", size = 35310970, upload-time = "2026-07-22T08:52:37.622Z" },
-    { url = "https://files.pythonhosted.org/packages/7f/00/e81d546bbd854b8285ab30ed601c45e1179e26a067906863df480b22e70e/xberg-1.0.0rc32-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:386d1f52b8056f896dc49ae15735691068325020174290e9db6e57274b3d42ec", size = 43463206, upload-time = "2026-07-22T08:52:42.141Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/70/205a30e57a57ff5642a4f6394ea810e6519eddd2ff417c1dba350381ffc5/xberg-1.0.0rc32-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:a2b8d0bb69ecfeb636ea57d66aab8be61c82166cd0e6cb4825d94d5d59ad4226", size = 46006833, upload-time = "2026-07-22T08:52:47.103Z" },
-    { url = "https://files.pythonhosted.org/packages/35/a2/cdbd5d6186d9a71610d801d2ead21cadf5cfc47b252fc34232710f3fb0c2/xberg-1.0.0rc32-cp310-abi3-win_amd64.whl", hash = "sha256:8de6af2ace62c62e65223bdf3948f61b3edcfd1be64e5057040afbf4f1fd4f30", size = 41341813, upload-time = "2026-07-22T08:52:51.929Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/b7/17cad52a113a8f7fc4f4d501b543cbb54887561b17da883c613da395ff5d/xberg-1.0.0rc37-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:724cf983759261957da233274ed68038ed87552869b4beb3b93ab0bd94f0d5bf", size = 38844100, upload-time = "2026-07-24T15:04:27.654Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/4b/80be5c568043adccf2e430d861f40da9c3140f611f13c58d22db1e4c1534/xberg-1.0.0rc37-cp310-abi3-macosx_11_0_x86_64.whl", hash = "sha256:dda69d327ab3faed506be9066ddf63aecbc2bce4cb8c46506cc85f7a66ca109f", size = 35606755, upload-time = "2026-07-24T15:04:32.576Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/43/35855f2c9efd71f2dcd576e6b16be5df5bd2f8cccc18fa80cd001184d478/xberg-1.0.0rc37-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:810536ad536d46379ad91e481a5c42e6486d674db662910f083606ccd2df634e", size = 52402112, upload-time = "2026-07-24T15:04:38.198Z" },
+    { url = "https://files.pythonhosted.org/packages/95/67/e6559879eb316e92b01dc07c36a36010448052673eb2befb2761d9a7911f/xberg-1.0.0rc37-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:571abfae3b9937d39b19b08b4bfeb7ba265233f576aadaa6f7f431744a6eb4b1", size = 58514176, upload-time = "2026-07-24T15:04:44.377Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/48/17ed95403992d0924d47dd5ab5c44c1e58adbdcebd0c596d86c464fe7f3a/xberg-1.0.0rc37-cp310-abi3-win_amd64.whl", hash = "sha256:fe6a7fd5017cde83718299edcc0e83c4955e19bbe52de66de19359e1ce91c975", size = 41688089, upload-time = "2026-07-24T15:04:49.825Z" },
 ]
 
 [[package]]

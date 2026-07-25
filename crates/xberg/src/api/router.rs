@@ -21,9 +21,9 @@ use crate::{ExtractionConfig, core::ServerConfig, service::ExtractionServiceBuil
 
 use super::{
     handlers::{
-        cache_clear_handler, cache_manifest_handler, cache_stats_handler, cache_warm_handler, detect_handler,
-        extract_async_handler, extract_handler, formats_handler, health_handler, info_handler, job_status_handler,
-        not_found_handler, version_handler,
+        cache_clear_handler, cache_manifest_handler, cache_stats_handler, cache_warm_handler, cancel_job_handler,
+        detect_handler, extract_async_handler, extract_handler, formats_handler, health_handler, info_handler,
+        job_status_handler, not_found_handler, version_handler,
     },
     openweb::{openweb_docling_handler, openweb_external_handler},
     types::{ApiSizeLimits, ApiState},
@@ -168,7 +168,7 @@ pub(crate) fn create_router_with_limits_and_server_config(
     let mut router = Router::new()
         .route("/extract", post(extract_handler))
         .route("/extract-async", post(extract_async_handler))
-        .route("/jobs/{job_id}", get(job_status_handler))
+        .route("/jobs/{job_id}", get(job_status_handler).delete(cancel_job_handler))
         .route("/detect", post(detect_handler))
         .route("/formats", get(formats_handler))
         .route("/health", get(health_handler))

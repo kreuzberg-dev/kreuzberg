@@ -395,39 +395,10 @@ tasks:
     cmds:
       - alef publish package -o dist/
 
-  go:lint:
-    desc: "Lint Go binding with golangci-lint"
-    cmds:
-      - golangci-lint run ./...
-    dir: packages/go
-
-  ruby:format:
-    desc: "Format Ruby binding with rubocop"
-    cmds:
-      - export PATH="$HOME/.rbenv/shims:$HOME/.asdf/shims:$PATH" && ruby -S bundle exec rubocop --autocorrect
-    dir: packages/ruby
-
-  ruby:lint:
-    desc: "Lint Ruby binding with rubocop and steep"
-    cmds:
-      - export PATH="$HOME/.rbenv/shims:$HOME/.asdf/shims:$PATH" && ruby -S bundle exec rubocop
-      - export PATH="$HOME/.rbenv/shims:$HOME/.asdf/shims:$PATH" && ruby -S bundle exec steep check
-    dir: packages/ruby
-
   php:build:
     desc: "Build the xberg-php native extension (cdylib)"
     cmds:
       - cargo build --locked --release -p xberg-php
-
-  php:format:
-    desc: "Format PHP binding with poly (mago)"
-    cmds:
-      - poly fmt --fix packages/php
-
-  php:lint:
-    desc: "Lint PHP binding with poly (mago)"
-    cmds:
-      - poly lint packages/php
 
   python:build:sdist:publish:
     desc: "Build the Python sdist using maturin"
@@ -478,12 +449,6 @@ tasks:
       - gradle ktlintFormat --no-daemon
     dir: packages/kotlin-android
 
-  kotlin-android:lint:
-    desc: "Lint Kotlin/Android binding with ktlint via gradle"
-    cmds:
-      - gradle ktlintCheck --no-daemon
-    dir: packages/kotlin-android
-
   kotlin-android:test:
     desc: "Run Kotlin/Android binding tests"
     cmds:
@@ -514,12 +479,6 @@ tasks:
     desc: "Format Dart binding with dart format"
     cmds:
       - dart format .
-    dir: packages/dart
-
-  dart:lint:
-    desc: "Lint Dart binding with dart analyze"
-    cmds:
-      - dart analyze
     dir: packages/dart
 
   dart:test:

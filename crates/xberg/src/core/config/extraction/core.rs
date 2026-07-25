@@ -512,6 +512,33 @@ impl Default for ExtractionConfig {
 }
 
 impl ExtractionConfig {
+    /// Resolve layout acceleration, preferring an explicit nested setting.
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    pub(crate) fn resolved_layout_acceleration(&self) -> Option<&AccelerationConfig> {
+        self.layout
+            .as_ref()
+            .and_then(|layout| layout.acceleration.as_ref())
+            .or(self.acceleration.as_ref())
+    }
+
+    /// Resolve layout configuration with global acceleration as its fallback.
+    ///
+    /// An explicit layout-specific acceleration setting always takes precedence.
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    pub(crate) fn resolved_layout_config(
+        &self,
+    ) -> Option<std::borrow::Cow<'_, super::super::layout::LayoutDetectionConfig>> {
+        let layout = self.layout.as_ref()?;
+        let acceleration = self.resolved_layout_acceleration();
+        if layout.acceleration.is_some() || acceleration.is_none() {
+            return Some(std::borrow::Cow::Borrowed(layout));
+        }
+
+        let mut resolved = layout.clone();
+        resolved.acceleration = acceleration.cloned();
+        Some(std::borrow::Cow::Owned(resolved))
+    }
+
     /// Create a new `ExtractionConfig` by applying per-file overrides from a
     /// [`FileExtractionConfig`]. Fields that are `Some` in the override replace the
     /// corresponding field in `self`; `None` fields keep the original value.
@@ -832,10 +859,74 @@ mod tests {
     }
 
     use super::*;
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    use crate::core::config::{AccelerationConfig, ExecutionProviderType, LayoutDetectionConfig};
     use crate::core::config::{
         CaptioningConfig, LlmConfig, NerConfig, OcrConfig, PageClassificationConfig, RedactionConfig,
         SummarizationConfig, TranslationConfig,
     };
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[test]
+    fn resolved_layout_config_uses_global_acceleration_as_fallback() {
+        let config = ExtractionConfig {
+            layout: Some(Default::default()),
+            acceleration: Some(AccelerationConfig {
+                provider: ExecutionProviderType::Cpu,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let resolved = config.resolved_layout_config().expect("layout must be enabled");
+        assert_eq!(
+            config
+                .resolved_layout_acceleration()
+                .map(|acceleration| &acceleration.provider),
+            Some(&ExecutionProviderType::Cpu)
+        );
+        assert_eq!(
+            resolved
+                .acceleration
+                .as_ref()
+                .map(|acceleration| &acceleration.provider),
+            Some(&ExecutionProviderType::Cpu)
+        );
+    }
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[test]
+    fn resolved_layout_config_prefers_explicit_nested_auto_acceleration() {
+        let config = ExtractionConfig {
+            layout: Some(LayoutDetectionConfig {
+                acceleration: Some(AccelerationConfig {
+                    provider: ExecutionProviderType::Auto,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            acceleration: Some(AccelerationConfig {
+                provider: ExecutionProviderType::Cpu,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let resolved = config.resolved_layout_config().expect("layout must be enabled");
+        assert_eq!(
+            config
+                .resolved_layout_acceleration()
+                .map(|acceleration| &acceleration.provider),
+            Some(&ExecutionProviderType::Auto)
+        );
+        assert_eq!(
+            resolved
+                .acceleration
+                .as_ref()
+                .map(|acceleration| &acceleration.provider),
+            Some(&ExecutionProviderType::Auto)
+        );
+    }
 
     #[test]
     fn test_effective_disable_ocr_from_top_level_flag() {

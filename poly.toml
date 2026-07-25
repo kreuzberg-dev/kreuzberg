@@ -45,31 +45,57 @@ disable = ["MD012", "MD013", "MD024", "MD033", "MD036", "MD041", "MD046", "MD051
 disable = ["MD012", "MD013", "MD024", "MD033", "MD036", "MD041", "MD046", "MD051", "MD076"]
 
 [lint.python.ruff]
-select = ["ALL"]
+select = [
+  "F",
+  "E",
+  "W",
+  "I",
+  "N",
+  "D",
+  "UP",
+  "ANN",
+  "ASYNC",
+  "S",
+  "B",
+  "A",
+  "C4",
+  "DTZ",
+  "T10",
+  "T20",
+  "ISC",
+  "ICN",
+  "PIE",
+  "PT",
+  "Q",
+  "RSE",
+  "RET",
+  "SIM",
+  "TID",
+  "TC",
+  "ARG",
+  "PTH",
+  "PGH",
+  "PL",
+  "PERF",
+  "FURB",
+  "RUF",
+]
 ignore = [
   "ANN401",
   "ASYNC109",
   "ASYNC110",
-  "BLE001",
-  "COM812",
   "D100",
   "D104",
   "D107",
   "D205",
   "E501",
-  "EM",
-  "FBT",
-  "FIX",
   "ISC001",
-  "PD011",
   "PGH003",
   "PLR2004",
   "PLW0603",
   "S104",
   "S110",
   "S603",
-  "TD",
-  "TRY",
 ]
 mccabe_max_complexity = 15
 pydocstyle_convention = "google"
@@ -538,4 +564,53 @@ commit = { stages = ["commit-msg"] }
 
 [hooks.pre-commit.commands.pyrefly]
 run = "pyrefly check packages/python"
+workspace = true
 files = "packages/python/**/*.py"
+
+[hooks.pre-commit.commands.rubocop]
+run = "bundle exec rubocop"
+root = "packages/ruby"
+workspace = true
+files = "packages/ruby/**/*.rb"
+
+[hooks.pre-commit.commands.steep]
+run = "bundle exec steep check"
+root = "packages/ruby"
+workspace = true
+files = "packages/ruby/**/*.rb"
+
+[hooks.pre-commit.commands.golangci-lint]
+run = "golangci-lint run ./..."
+root = "packages/go"
+workspace = true
+files = "packages/go/**/*.go"
+
+[hooks.pre-commit.commands.checkstyle]
+run = "mvn -q checkstyle:check"
+root = "packages/java"
+workspace = true
+files = "packages/java/**/*.java"
+
+[hooks.pre-commit.commands.pmd]
+run = "mvn -q pmd:check"
+root = "packages/java"
+workspace = true
+files = "packages/java/**/*.java"
+
+[hooks.pre-commit.commands.ktlint]
+run = "gradle ktlintCheck --no-daemon"
+root = "packages/kotlin-android"
+workspace = true
+files = "packages/kotlin-android/**/*.{kt,kts}"
+
+[hooks.pre-commit.commands.dart-analyze]
+run = "dart analyze"
+root = "packages/dart"
+workspace = true
+files = "packages/dart/**/*.dart"
+
+[hooks.pre-commit.commands.credo]
+run = "mix credo --strict"
+root = "packages/elixir"
+workspace = true
+files = "packages/elixir/**/*.{ex,exs}"

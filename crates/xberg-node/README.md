@@ -99,6 +99,7 @@ pnpm add @xberg-io/xberg
 ```
 
 ### System Requirements
+
 - **Node.js 22+** required (NAPI-RS native bindings)
 - Optional: [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) version 1.24+ for ORT-dependent inference features
 - Optional: [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) for OCR functionality
@@ -106,6 +107,7 @@ pnpm add @xberg-io/xberg
 ### Platform Support
 
 Pre-built binaries available for:
+
 - macOS (arm64, x64)
 - Linux (x64)
 - Windows (x64)

@@ -1759,6 +1759,7 @@ pub(crate) fn extract_document_structure_from_segments(
     if strip_repeating_text {
         deduplicate_paragraphs(&mut all_page_paragraphs);
     }
+    compact_final_heading_hierarchy(&mut all_page_paragraphs);
 
     let total_paragraphs: usize = all_page_paragraphs.iter().map(|p| p.len()).sum();
     tracing::debug!(
@@ -3481,6 +3482,29 @@ fn synchronize_paragraph_text_metadata(paragraphs: &mut [PdfParagraph]) {
     }
 }
 
+fn compact_final_heading_hierarchy(all_pages: &mut [Vec<PdfParagraph>]) {
+    let headings = all_pages
+        .iter()
+        .flat_map(|page| page.iter())
+        .filter_map(|paragraph| paragraph.heading_level);
+    let (h1_count, has_h2, has_deeper) = headings.fold((0usize, false, false), |state, level| {
+        (
+            state.0 + usize::from(level == 1),
+            state.1 || level == 2,
+            state.2 || level >= 3,
+        )
+    });
+    if h1_count != 1 || has_h2 || !has_deeper {
+        return;
+    }
+
+    for paragraph in all_pages.iter_mut().flat_map(|page| page.iter_mut()) {
+        if let Some(level @ 3..) = paragraph.heading_level {
+            paragraph.heading_level = Some(level - 1);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4636,6 +4660,65 @@ mod tests {
         paragraph.text = text.to_string();
         paragraph.word_count = text.split_whitespace().count();
         paragraph
+    }
+
+    fn outline_heading(text: &str, level: u8) -> PdfParagraph {
+        let mut paragraph = outline_para(text);
+        paragraph.heading_level = Some(level);
+        paragraph
+    }
+
+    #[test]
+    fn final_heading_compaction_changes_rendered_markdown_levels() {
+        let mut pages = vec![vec![
+            outline_heading("Title", 1),
+            outline_heading("Section", 3),
+            outline_heading("Subsection", 4),
+            outline_para("Body text"),
+        ]];
+
+        compact_final_heading_hierarchy(&mut pages);
+        let document = crate::pdf::structure::assembly::assemble_internal_document(pages, &[], None, &[]);
+        let markdown = crate::rendering::render_markdown(&document);
+        let headings = markdown
+            .lines()
+            .filter(|line| line.starts_with('#'))
+            .collect::<Vec<_>>();
+
+        assert_eq!(headings, ["# Title", "## Section", "### Subsection"]);
+        assert!(markdown.find("# Title").unwrap() < markdown.find("Body text").unwrap());
+    }
+
+    #[test]
+    fn final_heading_compaction_is_conservatively_gated() {
+        let cases = [
+            vec![Some(1), Some(1), Some(3)],
+            vec![Some(1), Some(2), Some(3), Some(5)],
+            vec![Some(1), None],
+            vec![Some(3), None],
+        ];
+
+        for expected in cases {
+            let mut pages = vec![
+                expected
+                    .iter()
+                    .enumerate()
+                    .map(|(index, level)| {
+                        let mut paragraph = outline_para(&format!("Block {index}"));
+                        paragraph.heading_level = *level;
+                        paragraph
+                    })
+                    .collect::<Vec<_>>(),
+            ];
+
+            compact_final_heading_hierarchy(&mut pages);
+
+            let actual = pages[0]
+                .iter()
+                .map(|paragraph| paragraph.heading_level)
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+        }
     }
 
     /// Regression test for xberg-io/xberg#1301 (mode a): a colon-introduced,

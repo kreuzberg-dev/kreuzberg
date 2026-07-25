@@ -421,6 +421,7 @@ struct PlannedGroup {
     output: LayoutSegmentGroup,
     root_id: usize,
     order_block: Option<OrderBlock>,
+    content_block: Option<OrderBlock>,
     first_segment_index: usize,
 }
 
@@ -481,16 +482,31 @@ fn segment_block(segment: &crate::pdf::hierarchy::SegmentData) -> Option<OrderBl
 }
 
 fn segments_union_block(indices: &[usize], segments: &[crate::pdf::hierarchy::SegmentData]) -> Option<OrderBlock> {
-    let blocks = indices
+    indices
         .iter()
         .filter_map(|index| segment_block(&segments[*index]))
-        .collect::<Vec<_>>();
-    (!blocks.is_empty()).then(|| OrderBlock {
-        left: blocks.iter().map(|block| block.left).fold(f32::INFINITY, f32::min),
-        bottom: blocks.iter().map(|block| block.bottom).fold(f32::INFINITY, f32::min),
-        right: blocks.iter().map(|block| block.right).fold(f32::NEG_INFINITY, f32::max),
-        top: blocks.iter().map(|block| block.top).fold(f32::NEG_INFINITY, f32::max),
-    })
+        .reduce(union_order_blocks)
+}
+
+fn strict_segments_union_block(
+    indices: &[usize],
+    segments: &[crate::pdf::hierarchy::SegmentData],
+) -> Option<OrderBlock> {
+    let mut union = None;
+    for index in indices {
+        let block = segment_block(&segments[*index])?;
+        union = Some(union.map_or(block, |current| union_order_blocks(current, block)));
+    }
+    union
+}
+
+fn union_order_blocks(left: OrderBlock, right: OrderBlock) -> OrderBlock {
+    OrderBlock {
+        left: left.left.min(right.left),
+        bottom: left.bottom.min(right.bottom),
+        right: left.right.max(right.right),
+        top: left.top.max(right.top),
+    }
 }
 
 fn eligible_hints(hints: &[LayoutHint], wrapper_ownership: &[bool]) -> Vec<bool> {
@@ -940,6 +956,7 @@ fn uncovered_group(
 ) -> PlannedGroup {
     let first_segment_index = indices[0];
     let order_block = segments_union_block(&indices, segments);
+    let content_block = strict_segments_union_block(&indices, segments);
     PlannedGroup {
         output: LayoutSegmentGroup {
             segment_indices: indices,
@@ -954,6 +971,7 @@ fn uncovered_group(
         },
         root_id: synthetic_id,
         order_block,
+        content_block,
         first_segment_index,
     }
 }
@@ -1000,6 +1018,47 @@ fn ordered_indices(
     result
 }
 
+fn planned_content_union_block(groups: &[PlannedGroup]) -> Option<OrderBlock> {
+    let mut union = None;
+    for group in groups {
+        let block = group.content_block?;
+        union = Some(union.map_or(block, |current| union_order_blocks(current, block)));
+    }
+    union
+}
+
+fn root_preserves_wrapper_geometry(groups: &[PlannedGroup]) -> bool {
+    groups.iter().any(|group| {
+        group
+            .output
+            .region_path
+            .as_ref()
+            .and_then(|path| path.root.class_name)
+            .is_some_and(LayoutHintClass::is_wrapper)
+    })
+}
+
+fn effective_root_order_block(
+    root_id: usize,
+    groups: &[PlannedGroup],
+    root_blocks: &[Option<OrderBlock>],
+) -> Option<OrderBlock> {
+    let layout_block = root_blocks.get(root_id).copied().flatten();
+    if root_preserves_wrapper_geometry(groups) {
+        return layout_block;
+    }
+    match (planned_content_union_block(groups), layout_block) {
+        (Some(content), Some(layout)) => Some(OrderBlock {
+            left: layout.left,
+            bottom: content.bottom,
+            right: layout.right,
+            top: content.top,
+        }),
+        (Some(content), None) => Some(content),
+        (None, layout) => layout,
+    }
+}
+
 fn order_planned_groups(
     groups: Vec<PlannedGroup>,
     root_blocks: &[Option<OrderBlock>],
@@ -1014,7 +1073,7 @@ fn order_planned_groups(
     let root_ids = by_root.keys().copied().collect::<Vec<_>>();
     let root_order_blocks = root_ids
         .iter()
-        .map(|root_id| root_blocks.get(*root_id).copied().flatten())
+        .map(|root_id| effective_root_order_block(*root_id, &by_root[root_id], root_blocks))
         .collect::<Vec<_>>();
     let root_first_indices = root_ids
         .iter()
@@ -1026,6 +1085,21 @@ fn order_planned_groups(
                 .expect("non-empty root")
         })
         .collect::<Vec<_>>();
+
+    if tracing::enabled!(target: "xberg::pdf::reading_order", tracing::Level::TRACE) {
+        for (position, root_id) in root_ids.iter().enumerate() {
+            tracing::trace!(
+                target: "xberg::pdf::reading_order",
+                root_id,
+                group_count = by_root[root_id].len(),
+                first_segment_index = root_first_indices[position],
+                layout_block = ?root_blocks.get(*root_id).copied().flatten(),
+                content_block = ?planned_content_union_block(&by_root[root_id]),
+                effective_block = ?root_order_blocks[position],
+                "planned PDF layout root"
+            );
+        }
+    }
 
     let mut ordered = Vec::new();
     for root_position in ordered_indices(&root_order_blocks, &root_first_indices, no_reorder, page_width_pts) {
@@ -1113,6 +1187,7 @@ pub(crate) fn plan_segment_groups_by_layout(
                 });
             }
             let first_segment_index = *segment_indices.iter().min().expect("non-empty region group");
+            let content_block = strict_segments_union_block(&segment_indices, segments);
             let order_block = if is_wrapper_hint(&hints[owner]) {
                 segments_union_block(&segment_indices, segments)
             } else {
@@ -1136,6 +1211,7 @@ pub(crate) fn plan_segment_groups_by_layout(
                 },
                 root_id: roots[owner].expect("eligible owner has a root"),
                 order_block,
+                content_block,
             }
         })
         .collect::<Vec<_>>();
@@ -2258,6 +2334,106 @@ mod tests {
             groups[0].region_path.unwrap().root.id,
             groups[2].region_path.unwrap().root.id
         );
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn root_order_uses_owned_content_geometry_over_noisy_layout_geometry() {
+        let low_content = order_block(70.0, 100.0, 500.0, 112.0);
+        let high_content = order_block(70.0, 200.0, 280.0, 250.0);
+        let noisy_low_root = order_block(100.0, 105.0, 600.0, 260.0);
+        let make_groups = || {
+            vec![
+                PlannedGroup {
+                    output: LayoutSegmentGroup {
+                        segment_indices: vec![0],
+                        hint_indices: vec![0],
+                        region_path: None,
+                    },
+                    root_id: 0,
+                    order_block: Some(noisy_low_root),
+                    content_block: Some(low_content),
+                    first_segment_index: 0,
+                },
+                PlannedGroup {
+                    output: LayoutSegmentGroup {
+                        segment_indices: vec![1],
+                        hint_indices: Vec::new(),
+                        region_path: None,
+                    },
+                    root_id: 1,
+                    order_block: Some(high_content),
+                    content_block: Some(high_content),
+                    first_segment_index: 1,
+                },
+            ]
+        };
+        let root_blocks = [Some(noisy_low_root), Some(high_content)];
+
+        let reordered = order_planned_groups(make_groups(), &root_blocks, false, Some(600.0));
+        let native = order_planned_groups(make_groups(), &root_blocks, true, Some(600.0));
+
+        assert_eq!(reordered[0].segment_indices, [1]);
+        assert_eq!(reordered[1].segment_indices, [0]);
+        assert_eq!(native[0].segment_indices, [0]);
+        assert_eq!(native[1].segment_indices, [1]);
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn effective_root_geometry_preserves_layout_width_and_wrapper_bounds() {
+        let layout = order_block(0.0, 100.0, 600.0, 300.0);
+        let content = order_block(200.0, 150.0, 400.0, 175.0);
+        let make_group = |class_name, content_block| PlannedGroup {
+            output: LayoutSegmentGroup {
+                segment_indices: vec![0],
+                hint_indices: vec![0],
+                region_path: Some(LayoutRegionPath {
+                    root: LayoutRegionTag {
+                        id: 0,
+                        class_name: Some(class_name),
+                    },
+                    child: None,
+                }),
+            },
+            root_id: 0,
+            order_block: Some(layout),
+            content_block,
+            first_segment_index: 0,
+        };
+
+        let heading = effective_root_order_block(
+            0,
+            &[make_group(LayoutHintClass::SectionHeader, Some(content))],
+            &[Some(layout)],
+        );
+        let wrapper = effective_root_order_block(
+            0,
+            &[make_group(LayoutHintClass::Picture, Some(content))],
+            &[Some(layout)],
+        );
+        let invalid_content =
+            effective_root_order_block(0, &[make_group(LayoutHintClass::Text, None)], &[Some(layout)]);
+
+        assert_eq!(heading, Some(order_block(0.0, 150.0, 600.0, 175.0)));
+        assert_eq!(wrapper, Some(layout));
+        assert_eq!(invalid_content, Some(layout));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn strict_content_geometry_rejects_partially_invalid_groups() {
+        let segments = vec![
+            planned_segment("valid", 10.0, 20.0, 30.0, 10.0),
+            planned_segment("invalid", f32::NAN, 20.0, 30.0, 10.0),
+        ];
+
+        assert_eq!(
+            strict_segments_union_block(&[0], &segments),
+            segment_block(&segments[0])
+        );
+        assert_eq!(strict_segments_union_block(&[0, 1], &segments), None);
+        assert_eq!(strict_segments_union_block(&[1], &segments), None);
     }
 
     #[test]

@@ -31,9 +31,9 @@
         <dependency>
             <groupId>io.xberg</groupId>
             <artifactId>xberg</artifactId>
-            <version>1.0.0-rc.37</version>
+            <version>1.0.0-rc.38</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.37.jar</systemPath>
+            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.0.0-rc.38.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -49,7 +49,7 @@
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>24.1.0</version>
+            <version>26.1.0</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

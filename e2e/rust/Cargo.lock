@@ -8640,7 +8640,7 @@ dependencies = [
 
 [[package]]
 name = "xberg"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "aes-gcm",
  "ahash 0.8.12",
@@ -8762,7 +8762,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-e2e-rust"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8777,7 +8777,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-gliner"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.3.4",
@@ -8791,7 +8791,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libheif"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "cfg-if 1.0.4",
  "enumn",
@@ -8802,7 +8802,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-paddle-ocr"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "geo-clipper",
  "geo-types",
@@ -8817,7 +8817,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-tesseract"
-version = "1.0.0-rc.36"
+version = "1.0.0-rc.37"
 dependencies = [
  "cc",
  "cmake",

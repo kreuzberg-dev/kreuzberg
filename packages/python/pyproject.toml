@@ -4,7 +4,7 @@ requires = ["maturin>=1,<2"]
 
 [project]
 name = "xberg"
-version = "1.0.0rc37"
+version = "1.0.0rc38"
 description = "High-performance document intelligence library"
 keywords = ["document", "extraction", "ocr", "pdf", "text"]
 license = "MIT"
@@ -23,7 +23,7 @@ urls.repository = "https://github.com/xberg-io/xberg"
 homepage = "https://xberg.io"
 
 [dependency-groups]
-dev = ["pyrefly>=1.1.1", "ruff>=0.14.8"]
+dev = ["pyrefly>=1.1.1"]
 
 [tool.maturin]
 profile = "release"

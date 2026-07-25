@@ -1,5 +1,5 @@
 [workspace]
-alef_version = "0.44.0"
+alef_version = "0.46.0"
 # -D warnings (emitted into every generated Rust binding as #![allow(...)]).
 extra_clippy_allows = ["redundant_field_names"]
 languages = [
@@ -1607,59 +1607,6 @@ functions = [
   "batch_extract_files_sync",
 
 ]
-
-[crates.lint.python]
-precondition = "command -v ruff >/dev/null 2>&1"
-before = "cd packages/python && uv sync --no-install-project --no-install-workspace"
-typecheck = "cd packages/python && uv run --no-sync mypy ."
-
-[crates.lint.node]
-precondition = "command -v pnpm >/dev/null 2>&1"
-format = "pnpm dlx oxfmt crates/xberg-node"
-check = "pnpm dlx oxlint crates/xberg-node"
-
-[crates.lint.ruby]
-precondition = "command -v bundle >/dev/null 2>&1"
-before = "export PATH=\"$HOME/.rbenv/shims:$HOME/.asdf/shims:$PATH\" && cd packages/ruby && ruby -S bundle install"
-format = "export PATH=\"$HOME/.rbenv/shims:$HOME/.asdf/shims:$PATH\" && cd packages/ruby && ruby -S bundle exec rubocop -a ."
-
-[crates.lint.php]
-precondition = "command -v composer >/dev/null 2>&1"
-before = "composer install"
-format = "composer format"
-check = "composer phpstan"
-
-[crates.lint.go]
-before = "cargo build --release -p xberg-ffi"
-
-[crates.lint.elixir]
-precondition = "command -v mix >/dev/null 2>&1"
-before = "cd packages/elixir && mix deps.get"
-check = "cd packages/elixir && mix credo"
-
-[crates.lint.java]
-precondition = "command -v mvn >/dev/null 2>&1"
-check = "mvn -f packages/java/pom.xml spotless:check -q"
-
-[crates.lint.kotlin_android]
-precondition = "command -v ktfmt >/dev/null 2>&1"
-format = "find packages/kotlin-android \\( -name build -o -name .gradle \\) -prune -o \\( -name '*.kt' -o -name '*.kts' \\) -type f -print0 | xargs -0 ktfmt --kotlinlang-style"
-check = "find packages/kotlin-android \\( -name build -o -name .gradle \\) -prune -o \\( -name '*.kt' -o -name '*.kts' \\) -type f -print0 | xargs -0 ktfmt --kotlinlang-style --dry-run --set-exit-if-changed"
-
-[crates.lint.swift]
-precondition = "command -v swift >/dev/null 2>&1"
-format = "swift format --in-place --recursive packages/swift/Sources"
-check = "swift format lint --recursive packages/swift/Sources"
-
-[crates.lint.dart]
-precondition = "command -v dart >/dev/null 2>&1"
-format = "cd packages/dart && dart format ."
-check = "cd packages/dart && dart analyze"
-
-[crates.lint.zig]
-precondition = "command -v zig >/dev/null 2>&1"
-format = "cd packages/zig && zig fmt src"
-check = "cd packages/zig && zig fmt --check src"
 
 [crates.update.kotlin_android]
 precondition = "command -v gradle >/dev/null 2>&1"
@@ -3594,7 +3541,7 @@ path = "../../packages/swift"
 path = "../../packages/zig"
 
 [crates.e2e.registry.packages.zig]
-hash = "xberg-1.0.0-rc.37-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+hash = "xberg-1.0.0-rc.38-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [crates.e2e.packages.wasm]
 name = "@xberg-io/xberg-wasm"

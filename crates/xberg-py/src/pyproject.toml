@@ -4,7 +4,7 @@ requires = ["maturin>=1,<2"]
 
 [project]
 name = "xberg"
-version = "1.0.0rc37"
+version = "1.0.0rc38"
 description = "High-performance document intelligence library"
 keywords = ["document", "extraction", "ocr", "pdf", "text"]
 license = "MIT"
@@ -23,7 +23,7 @@ urls.repository = "https://github.com/xberg-io/xberg"
 homepage = "https://xberg.io"
 
 [dependency-groups]
-dev = ["mypy>=1.19", "ruff>=0.14.8"]
+dev = ["mypy>=1.19"]
 
 [tool.maturin]
 module-name = "xberg._xberg"
@@ -37,53 +37,6 @@ python-packages = ["xberg"]
 # the workspace [patch.crates-io] (when present) points at a path that is
 # missing from the tarball and the source build fails.
 include = [{ path = "../../crates/xberg/**/*", format = "sdist" }]
-
-[tool.ruff]
-target-version = "py310"
-line-length = 120
-format.docstring-code-line-length = 120
-format.docstring-code-format = true
-lint.select = ["ALL"]
-lint.ignore = [
-  "ANN401",
-  "ASYNC109",
-  "ASYNC110",
-  "BLE001",
-  "COM812",
-  "D100",
-  "D104",
-  "D107",
-  "D205",
-  "E501",
-  "EM",
-  "FBT",
-  "FIX",
-  "ISC001",
-  "PD011",
-  "PGH003",
-  "PLR2004",
-  "PLW0603",
-  "S104",
-  "S110",
-  "S603",
-  "TD",
-  "TRY",
-]
-lint.per-file-ignores."xberg/__init__.py" = ["I001"]
-# The alef Python codegen still emits cosmetic warnings on the wrapper
-# modules: api.py keeps the legacy `from typing import AsyncIterator` and a
-# single-line import block, options.py carries # noqa: TC001 / F401 markers
-# that turn out unused on every regen, __init__.py star-imports re-sort with
-# a different convention. Silence these specific rules on the wrappers until
-# the codegen is updated to emit ruff-clean output.
-lint.per-file-ignores."xberg/api.py" = ["F401", "I001", "UP035"]
-lint.per-file-ignores."xberg/options.py" = ["F401", "RUF100"]
-lint.per-file-ignores."tests/**" = ["ANN", "D103", "PLR2004", "S101"]
-lint.mccabe.max-complexity = 15
-lint.pydocstyle.convention = "google"
-lint.pylint.max-args = 10
-lint.pylint.max-branches = 15
-lint.pylint.max-returns = 10
 
 [tool.mypy]
 python_version = "3.10"

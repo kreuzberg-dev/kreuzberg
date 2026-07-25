@@ -1,12 +1,14 @@
-"""MinerU extraction wrapper for benchmark harness.
+# Copyright (c) 2026 Xberg. All rights reserved.
+"""MinerU 3.4.4 extraction wrapper for the benchmark harness.
 
 Supports three modes:
-- sync: process single file
-- batch: process multiple files
+- sync: process one file through the pipeline
+- batch: process multiple files through the native multi-document pipeline
 - server: persistent mode reading paths from stdin
 
-Attempts to use MinerU's Python API directly for better performance.
-Falls back to CLI subprocess if the Python API is not available.
+The batch path intentionally calls MinerU's public ``do_parse`` entry point once.
+In MinerU 3.4.4, that delegates to ``doc_analyze_streaming``, whose processing
+windows batch model inference across document boundaries.
 """
 
 from __future__ import annotations
@@ -21,19 +23,29 @@ import json
 import multiprocessing as _mp
 import platform
 import resource
-import subprocess
 import sys
 import tempfile
 import time
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
-try:
-    from magic_pdf.pipe.UNIPipe import UNIPipe  # noqa: F401
+PINNED_MINERU_VERSION = "3.4.4"
+DEFAULT_OCR_LANGUAGE = "ch"
+PIPELINE_BACKEND = "pipeline"
 
-    HAS_PYTHON_API = True
-except ImportError:
-    HAS_PYTHON_API = False
+
+def _load_mineru_api():
+    """Load the API whose call contract is pinned by the benchmark environment."""
+    installed_version = importlib_metadata.version("mineru")
+    if installed_version != PINNED_MINERU_VERSION:
+        raise RuntimeError(
+            f"MinerU {PINNED_MINERU_VERSION} is required by the benchmark harness; found {installed_version}"
+        )
+
+    from mineru.cli.common import do_parse, read_fn
+
+    return do_parse, read_fn
 
 
 def _get_peak_memory_bytes() -> int:
@@ -44,50 +56,55 @@ def _get_peak_memory_bytes() -> int:
     return usage.ru_maxrss
 
 
-def _extract_via_cli(file_path: str, ocr_enabled: bool) -> str:
-    """Extract using MinerU CLI (fallback)."""
-    cmd = ["mineru", "-p", file_path, "-b", "pipeline", "-d", "cpu"]
-    if not ocr_enabled:
-        cmd.extend(["--method", "txt"])
+def _native_pipeline_markdown(file_paths: list[str], ocr_enabled: bool) -> tuple[list[str], float]:
+    """Run one MinerU 3.4.4 multi-document pipeline invocation."""
+    if not file_paths:
+        return [], 0.0
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir) / "output"
-        cmd.extend(["-o", str(output_dir)])
+    do_parse, read_fn = _load_mineru_api()
+    task_stems = [f"benchmark_document_{index:08d}" for index in range(len(file_paths))]
+    document_bytes = [read_fn(Path(file_path)) for file_path in file_paths]
+    parse_method = "ocr" if ocr_enabled else "txt"
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
+    with tempfile.TemporaryDirectory() as output_dir:
+        output_root = Path(output_dir)
+        expected_markdown_paths = [Path(task_stem) / parse_method / f"{task_stem}.md" for task_stem in task_stems]
+        start = time.perf_counter()
+        do_parse(
+            output_dir=output_dir,
+            pdf_file_names=list(task_stems),
+            pdf_bytes_list=list(document_bytes),
+            p_lang_list=[DEFAULT_OCR_LANGUAGE] * len(file_paths),
+            backend=PIPELINE_BACKEND,
+            parse_method=parse_method,
+            f_draw_layout_bbox=False,
+            f_draw_span_bbox=False,
+            f_dump_md=True,
+            f_dump_middle_json=False,
+            f_dump_model_output=False,
+            f_dump_orig_pdf=False,
+            f_dump_content_list=False,
         )
 
-        md_files = list(output_dir.rglob("*.md"))
-        if md_files:
-            return md_files[0].read_text(encoding="utf-8")
+        produced_markdown_paths = sorted(path.relative_to(output_root) for path in output_root.rglob("*.md"))
+        expected_markdown_paths.sort()
+        if produced_markdown_paths != expected_markdown_paths:
+            missing = sorted(set(expected_markdown_paths) - set(produced_markdown_paths))
+            unexpected = sorted(set(produced_markdown_paths) - set(expected_markdown_paths))
+            raise RuntimeError(
+                "MinerU native batch output cardinality mismatch: "
+                f"expected {len(expected_markdown_paths)} Markdown outputs, "
+                f"found {len(produced_markdown_paths)}; "
+                f"missing={[path.as_posix() for path in missing]}; "
+                f"unexpected={[path.as_posix() for path in unexpected]}"
+            )
 
-        if result.returncode != 0:
-            raise RuntimeError(f"MinerU extraction failed: {result.stderr}")
+        markdown_outputs = [
+            (output_root / markdown_path).read_text(encoding="utf-8") for markdown_path in expected_markdown_paths
+        ]
+        total_duration_ms = (time.perf_counter() - start) * 1000.0
 
-        raise RuntimeError("No markdown output found from MinerU")
-
-
-def _extract_via_api(file_path: str, ocr_enabled: bool) -> str:
-    """Extract using MinerU Python API (preferred, avoids subprocess overhead)."""
-    # NOTE: The MinerU Python API is not yet stable. This is a best-effort attempt
-    from magic_pdf.pipe.UNIPipe import UNIPipe
-    from magic_pdf.rw.DiskReaderWriter import DiskReaderWriter
-
-    pdf_bytes = Path(file_path).read_bytes()
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        writer = DiskReaderWriter(tmpdir)
-        method = "ocr" if ocr_enabled else "txt"
-        pipe = UNIPipe(pdf_bytes, {"_pdf_type": "", "model_list": []}, writer, method=method)
-        pipe.pipe_classify()
-        pipe.pipe_analyze()
-        pipe.pipe_parse()
-        md_content = pipe.pipe_mk_markdown(str(Path(file_path).stem), tmpdir)
-        return md_content
+    return markdown_outputs, total_duration_ms
 
 
 _MD_STRIP_RE = None
@@ -119,59 +136,52 @@ def _strip_markdown(text: str) -> str:
 
 
 def extract_sync(file_path: str, ocr_enabled: bool, output_format: str = "markdown") -> dict[str, Any]:
-    """Extract a single file using the best available method."""
-    start = time.perf_counter()
-
-    if HAS_PYTHON_API:
-        try:
-            markdown = _extract_via_api(file_path, ocr_enabled)
-        except Exception:
-            markdown = _extract_via_cli(file_path, ocr_enabled)
-    else:
-        markdown = _extract_via_cli(file_path, ocr_enabled)
-
+    """Extract one file using the pinned MinerU pipeline."""
+    markdown_outputs, duration_ms = _native_pipeline_markdown([file_path], ocr_enabled)
+    markdown = markdown_outputs[0]
     content = _strip_markdown(markdown) if output_format == "plaintext" else markdown
-    duration_ms = (time.perf_counter() - start) * 1000.0
 
     return {
         "content": content,
-        "metadata": {"framework": "mineru", "output_format": output_format},
+        "metadata": {
+            "framework": "mineru",
+            "output_format": output_format,
+            "batch_api": "mineru.cli.common.do_parse",
+        },
         "_extraction_time_ms": duration_ms,
         "_peak_memory_bytes": _get_peak_memory_bytes(),
     }
 
 
-def extract_batch(file_paths: list[str], ocr_enabled: bool, output_format: str = "markdown") -> list[dict[str, Any]]:
-    """Extract multiple files in sequence."""
-    start = time.perf_counter()
-
-    results = []
-    for file_path in file_paths:
-        try:
-            payload = extract_sync(file_path, ocr_enabled, output_format)
-            payload.pop("_extraction_time_ms", None)
-            results.append(payload)
-        except Exception as e:
-            results.append(
-                {
-                    "content": "",
-                    "metadata": {
-                        "framework": "mineru",
-                        "error": str(e),
-                    },
-                }
-            )
-
-    total_duration_ms = (time.perf_counter() - start) * 1000.0
-    per_file_duration_ms = total_duration_ms / len(file_paths) if file_paths else 0
+def extract_batch(file_paths: list[str], ocr_enabled: bool, output_format: str = "markdown") -> dict[str, Any]:
+    """Extract a strict ordered batch using MinerU's multi-document pipeline."""
+    markdown_outputs, total_duration_ms = _native_pipeline_markdown(file_paths, ocr_enabled)
     peak_memory = _get_peak_memory_bytes()
-
-    for result in results:
-        result["_extraction_time_ms"] = per_file_duration_ms
-        result["_batch_total_ms"] = total_duration_ms
-        result["_peak_memory_bytes"] = peak_memory
-
-    return results
+    results = [
+        {
+            "content": _strip_markdown(markdown) if output_format == "plaintext" else markdown,
+            "metadata": {
+                "framework": "mineru",
+                "output_format": output_format,
+                "batch_api": "mineru.cli.common.do_parse",
+            },
+            "_peak_memory_bytes": peak_memory,
+        }
+        for markdown in markdown_outputs
+    ]
+    return {
+        "results": results,
+        "total_ms": total_duration_ms,
+        "per_file_ms": [None] * len(results),
+        "metadata": {
+            "framework": "mineru",
+            "batch_api": "mineru.cli.common.do_parse",
+            "model_batching": "cross_document_processing_windows_via_doc_analyze_streaming",
+            "reported_total_timing_scope": "do_parse_and_ordered_markdown_materialization",
+            "benchmark_timing_scope": "cold_end_to_end_subprocess",
+            "per_item_timing": "unavailable",
+        },
+    }
 
 
 def _worker(fn, args, conn):
@@ -311,12 +321,8 @@ def main() -> None:
                 print("Error: batch mode requires at least one file", file=sys.stderr)
                 sys.exit(1)
 
-            if len(file_paths) == 1:
-                results = extract_batch(file_paths, ocr_enabled, output_format)
-                print(json.dumps(results[0]), end="")
-            else:
-                results = extract_batch(file_paths, ocr_enabled, output_format)
-                print(json.dumps(results), end="")
+            payload = extract_batch(file_paths, ocr_enabled, output_format)
+            print(json.dumps(payload), end="")
 
         else:
             print(f"Error: Unknown mode '{mode}'. Use sync, batch, or server", file=sys.stderr)

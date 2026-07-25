@@ -100,6 +100,7 @@ pnpm add @xberg-io/xberg-wasm
 ```
 
 ### System Requirements
+
 - Modern browser with WebAssembly support, or Deno 1.0+, or Cloudflare Workers
 - Optional: [Tesseract WASM](https://github.com/naptha/tesseract.js) for OCR functionality
 

@@ -12,8 +12,10 @@ tasks:
     cmds:
       - scripts/ci/benchmarks/validate-workflow-build-config.sh
       - tools/benchmark-harness/tests/test_bench_local_frameworks.sh
+      - tools/benchmark-harness/tests/test_liteparse_extract.sh
       - tools/benchmark-harness/scripts/bench_local_profiles_test.sh
       - python3 -m unittest tools/benchmark-harness/tests/test_corpus_cache_manifest.py
+      - python3 -m unittest tools/benchmark-harness/tests/test_mineru_extract.py
       - tools/benchmark-harness/tests/test_restore_corpus_cache.sh
 
   run:

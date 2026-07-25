@@ -216,6 +216,28 @@ repository state, ordered fixture/document digests, framework executable identit
 timing configuration, worker semantics, and the actual Xberg thread budget reported by the
 adapter. It deliberately stores no local absolute paths.
 
+The remote comparative workflow publishes native and forced-OCR cohorts independently. Native
+releases contain exactly 22 framework/format/mode keys; OCR releases contain exactly 18. Before a
+release is created, every raw artifact is matched to the expected matrix cell and checked against
+the pinned source revision, ordered cohort manifest and BLAKE3 digest, fixed batch size, output
+format, OCR mode, fixture cardinality, iteration count, and zero-error result contract. The
+release attaches separate `benchmarks-native-*` and `benchmarks-ocr-*` data/metadata assets plus
+`benchmarks-index.json`, so consumers cannot accidentally merge native-text and OCR measurements.
+
+The capability matrix never fabricates an unsupported format or batch mode. Docling and LiteParse
+have native Markdown/plaintext plus single/batch entry points. MarkItDown and PyMuPDF4LLM are
+Markdown-only single-file tools; Tika and Unstructured are plaintext-only single-file tools.
+MinerU's canonical output is Markdown, so only its
+single-document and native `do_parse` batch entries are included in native and forced-OCR cohorts.
+
+Local profile runs also write `benchmark-profile.json`. Its `run_identity_sha256` binds the
+selected binary, profile configuration, and recursive Git worktree state at execution time,
+including executable modes, untracked files, and submodules. Untracked-file selection follows
+repository `.gitignore` files only; global and repository-local exclusion configuration is
+ignored. Hashing reads index and filesystem state directly without invoking configured Git
+filters, fsmonitor hooks, or external diff helpers. This identifies the binary and checkout used
+for a run; it does not claim that the binary was built from that checkout.
+
 ### `consolidate` -- Merge multi-job results
 
 Combines benchmark results from parallel CI jobs into a single aggregated report with percentiles.
@@ -244,6 +266,12 @@ benchmark-harness compare \
 | `--dump-outputs` | Write extraction outputs to `/tmp/xberg_compare/` |
 | `--guardrails`   | Fail on quality regressions (non-zero exit)           |
 | `--filter`       | Only run documents matching this substring            |
+
+Guardrail contracts may include a `relative_order` array of exact text anchors. The comparison
+fails unless every anchor is present in the listed order, allowing focused reading-order checks
+that are independent of aggregate SF1 thresholds. The known `681693`
+`pdf-oxide+layout+reading-order` sequence is installed when guardrails are loaded or generated,
+including for legacy guardrail files without `relative_order`.
 
 ### `pipeline-benchmark` -- 6-path extraction matrix
 

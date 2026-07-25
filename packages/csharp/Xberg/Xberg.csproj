@@ -3,10 +3,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Xberg</RootNamespace>
     <PackageId>XbergIo.Xberg</PackageId>
-    <Version>1.0.0-rc.37</Version>
+    <Version>1.0.0-rc.38</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0-rc.37</InformationalVersion>
+    <InformationalVersion>1.0.0-rc.38</InformationalVersion>
     <Description>High-performance document intelligence library</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <RepositoryUrl>https://github.com/xberg-io/xberg</RepositoryUrl>
@@ -17,20 +17,17 @@
     <Nullable>enable</Nullable>
     <!-- AnyCPU managed assembly so the PE `Machine` header stays processor-neutral
          and consumers never see `warning CS8012: ... targets a different processor`.
-         This meta package ships thin: no native assets baked in here, and no
-         single `<RuntimeIdentifier>` on the package author's side (which would
-         force runtime-specific output and break AnyCPU packaging). Native asset
-         resolution at consumer build time is driven transitively by the
-         rendered `runtime.json` (from runtime.json.template) pulling in the
-         per-RID `XbergIo.Xberg.runtime.<rid>` packages, each of which carries
-         only its own `runtimes/<rid>/native/` payload. -->
+         Native asset resolution at consumer build time is driven by the
+         `runtimes/<rid>/native/` payload baked into the NuGet package — not a
+         single `<RuntimeIdentifier>` on the package author's side, which would
+         force runtime-specific output and break AnyCPU packaging. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <RuntimeIdentifiers>win-x64;linux-x64;linux-arm64;linux-musl-x64;linux-musl-arm64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
-    <None Include="runtime.json" Pack="true" PackagePath="/" Condition="Exists('runtime.json')" />
+    <None Include="runtimes/**" Pack="true" PackagePath="runtimes/" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -428,6 +428,7 @@ pub enum BatchEntryPoint {
     XbergCliExtractBatch,
     DoclingConvertAll,
     LiteparseBatchParse,
+    MineruDoParse,
 }
 
 /// Scope represented by the measured batch makespan.

@@ -236,6 +236,15 @@ if version is None:
 print(version)
 "#;
 
+const MINERU_VERSION_PROBE: &str = r#"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    print(version("mineru"))
+except PackageNotFoundError:
+    raise SystemExit(1)
+"#;
+
 fn first_output_line(output: std::process::Output) -> Option<String> {
     output
         .status
@@ -751,6 +760,7 @@ impl SubprocessAdapter {
             Some(BatchEntryPoint::XbergCliExtractBatch) => b"xberg-cli-extract-batch",
             Some(BatchEntryPoint::DoclingConvertAll) => b"docling-convert-all",
             Some(BatchEntryPoint::LiteparseBatchParse) => b"liteparse-batch-parse",
+            Some(BatchEntryPoint::MineruDoParse) => b"mineru-do-parse",
             None => b"unverified",
         };
         for value in [self.name.as_bytes(), entry_point, output_format.as_bytes(), ocr_mode] {
@@ -1252,15 +1262,20 @@ impl FrameworkAdapter for SubprocessAdapter {
                 &args,
             ));
         }
+        let args = match mode {
+            crate::config::BenchmarkMode::SingleFile => self.single_file_args.as_deref().unwrap_or(&self.args),
+            crate::config::BenchmarkMode::Batch => &self.args,
+        };
         Some(crate::provenance::ExecutableProvenance::from_invocation(
             &self.command,
-            &self.args,
+            args,
         ))
     }
 
     fn worker_provenance(&self, requested: usize) -> (Option<usize>, Option<usize>) {
         match self.batch_capability.map(|capability| capability.entry_point) {
             Some(crate::types::BatchEntryPoint::DoclingConvertAll) => (None, None),
+            Some(crate::types::BatchEntryPoint::MineruDoParse) => (None, None),
             Some(crate::types::BatchEntryPoint::XbergCliExtractBatch) => (Some(requested), None),
             Some(crate::types::BatchEntryPoint::LiteparseBatchParse) => (Some(requested), Some(self.batch_workers)),
             None => (Some(requested), Some(requested)),
@@ -1441,6 +1456,10 @@ impl FrameworkAdapter for SubprocessAdapter {
                     .arg("--version")
                     .output()
             }
+            Some(crate::types::BatchEntryPoint::MineruDoParse) => std::process::Command::new(&self.command)
+                .args(["-c", MINERU_VERSION_PROBE])
+                .envs(self.env.iter().map(|(key, value)| (key, value)))
+                .output(),
             _ => std::process::Command::new(&self.command).arg("--version").output(),
         };
         output
@@ -2144,10 +2163,12 @@ mod tests {
 
     #[test]
     fn generic_batch_builder_preserves_separate_single_file_command() {
+        let batch_args = vec!["docling_extract.py".to_string(), "batch".to_string()];
+        let single_file_args = vec!["docling_extract.py".to_string(), "sync".to_string()];
         let adapter = SubprocessAdapter::with_batch_capability(
             "docling",
             "python",
-            vec!["docling_extract.py".to_string(), "batch".to_string()],
+            batch_args.clone(),
             vec![],
             vec!["pdf".to_string()],
             BatchCapability {
@@ -2156,7 +2177,7 @@ mod tests {
                 per_item_timing: false,
             },
         )
-        .with_single_file_args(vec!["docling_extract.py".to_string(), "sync".to_string()]);
+        .with_single_file_args(single_file_args.clone());
 
         assert!(adapter.batch_capability.is_some());
         assert_eq!(adapter.args.last().map(String::as_str), Some("batch"));
@@ -2167,6 +2188,20 @@ mod tests {
                 .and_then(|args| args.last())
                 .map(String::as_str),
             Some("sync")
+        );
+        assert_eq!(
+            adapter.executable_provenance_for_mode(crate::config::BenchmarkMode::SingleFile),
+            Some(crate::provenance::ExecutableProvenance::from_invocation(
+                Path::new("python"),
+                &single_file_args,
+            ))
+        );
+        assert_eq!(
+            adapter.executable_provenance_for_mode(crate::config::BenchmarkMode::Batch),
+            Some(crate::provenance::ExecutableProvenance::from_invocation(
+                Path::new("python"),
+                &batch_args,
+            ))
         );
     }
 

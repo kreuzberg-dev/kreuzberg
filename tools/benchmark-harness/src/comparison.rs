@@ -1107,13 +1107,29 @@ pub struct GuardrailContract {
     pub min_sf1: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_tf1: Option<f64>,
+    /// Exact text anchors that must occur in this relative order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relative_order: Vec<String>,
 }
+
+const READING_ORDER_GUARDRAIL_DOC: &str = "681693";
+const READING_ORDER_GUARDRAIL_PIPELINE: &str = "pdf-oxide+layout+reading-order";
+const READING_ORDER_GUARDRAIL_ANCHORS: &[&str] = &[
+    "maintainers wanted",
+    "See #182",
+    "MongoKit",
+    "MongoDB is a great schema-less document oriented database",
+    "Philosophy",
+];
 
 /// Load a guardrails configuration from a JSON file.
 pub fn load_guardrails(path: &Path) -> Result<GuardrailsConfig> {
     let data = std::fs::read_to_string(path)
         .map_err(|e| crate::Error::Benchmark(format!("Failed to read guardrails file {}: {}", path.display(), e)))?;
-    serde_json::from_str(&data).map_err(|e| crate::Error::Benchmark(format!("Failed to parse guardrails file: {}", e)))
+    let mut config: GuardrailsConfig = serde_json::from_str(&data)
+        .map_err(|e| crate::Error::Benchmark(format!("Failed to parse guardrails file: {}", e)))?;
+    install_reading_order_guardrail(&mut config);
+    Ok(config)
 }
 
 /// Generate a guardrails configuration from benchmark results.
@@ -1144,15 +1160,47 @@ pub fn generate_guardrails(results: &[DocResult], threshold_factor: f64) -> Guar
                 } else {
                     None
                 },
+                relative_order: reading_order_anchors(&doc.name, result.pipeline.name()),
             });
         }
     }
-    GuardrailsConfig {
+    let mut config = GuardrailsConfig {
         version: "1.0".to_string(),
         generated_at: chrono::Utc::now().to_rfc3339(),
         threshold_factor,
         contracts,
+    };
+    install_reading_order_guardrail(&mut config);
+    config
+}
+
+fn reading_order_anchors(doc: &str, pipeline: &str) -> Vec<String> {
+    if doc != READING_ORDER_GUARDRAIL_DOC || pipeline != READING_ORDER_GUARDRAIL_PIPELINE {
+        return Vec::new();
     }
+    READING_ORDER_GUARDRAIL_ANCHORS
+        .iter()
+        .map(|anchor| (*anchor).to_string())
+        .collect()
+}
+
+fn install_reading_order_guardrail(config: &mut GuardrailsConfig) {
+    if let Some(contract) = config.contracts.iter_mut().find(|contract| {
+        contract.doc == READING_ORDER_GUARDRAIL_DOC && contract.pipeline == READING_ORDER_GUARDRAIL_PIPELINE
+    }) {
+        if contract.relative_order.is_empty() {
+            contract.relative_order =
+                reading_order_anchors(READING_ORDER_GUARDRAIL_DOC, READING_ORDER_GUARDRAIL_PIPELINE);
+        }
+        return;
+    }
+    config.contracts.push(GuardrailContract {
+        doc: READING_ORDER_GUARDRAIL_DOC.to_string(),
+        pipeline: READING_ORDER_GUARDRAIL_PIPELINE.to_string(),
+        min_sf1: None,
+        min_tf1: None,
+        relative_order: reading_order_anchors(READING_ORDER_GUARDRAIL_DOC, READING_ORDER_GUARDRAIL_PIPELINE),
+    });
 }
 
 /// Check guardrails from a loaded config, returning a list of failure messages (empty = all passed).
@@ -1201,9 +1249,52 @@ pub fn check_guardrails(results: &[DocResult], config: &GuardrailsConfig) -> Vec
                 ));
             }
         }
+
+        if let Err(reason) = check_relative_order(&pr.content, &contract.relative_order) {
+            failures.push(format!(
+                "relative-order regression: {} {} {reason}",
+                contract.doc, contract.pipeline
+            ));
+        }
     }
 
     failures
+}
+
+fn check_relative_order(content: &str, anchors: &[String]) -> std::result::Result<(), String> {
+    let normalized_content = normalize_order_text(content);
+    let mut remainder = normalized_content.as_str();
+    for anchor in anchors {
+        if anchor.is_empty() {
+            return Err("contains an empty anchor".to_string());
+        }
+        let normalized_anchor = normalize_order_text(anchor);
+        let Some(position) = remainder.find(&normalized_anchor) else {
+            return Err(format!("missing or out-of-order anchor {anchor:?}"));
+        };
+        remainder = &remainder[position + normalized_anchor.len()..];
+    }
+    Ok(())
+}
+
+fn normalize_order_text(value: &str) -> String {
+    let mut normalized = String::with_capacity(value.len());
+    let mut characters = value.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '\\'
+            && let Some(escaped) = characters.peek()
+            && escaped.is_ascii_punctuation()
+        {
+            normalized.push(characters.next().expect("peeked escaped punctuation"));
+            continue;
+        }
+        match character {
+            '\u{00a0}' => normalized.push(' '),
+            '\u{2010}' | '\u{2011}' | '\u{2012}' | '\u{2013}' | '\u{2212}' => normalized.push('-'),
+            _ => normalized.push(character),
+        }
+    }
+    normalized
 }
 
 /// Run comparison with guardrails and return exit code (0 = pass, 1 = fail).
@@ -1625,6 +1716,7 @@ mod tests {
                 pipeline: "docling".to_string(),
                 min_sf1: Some(0.5),
                 min_tf1: Some(0.5),
+                relative_order: Vec::new(),
             }],
         };
 
@@ -1633,6 +1725,130 @@ mod tests {
         assert_eq!(failures.len(), 2);
         assert!(failures.iter().any(|failure| failure.starts_with("SF1 unavailable:")));
         assert!(failures.iter().any(|failure| failure.starts_with("TF1 unavailable:")));
+    }
+
+    #[test]
+    fn relative_order_guardrail_rejects_out_of_order_content_independently_of_scores() {
+        let config = GuardrailsConfig {
+            version: "1.0".to_string(),
+            generated_at: String::new(),
+            threshold_factor: 0.9,
+            contracts: vec![GuardrailContract {
+                doc: "681693".to_string(),
+                pipeline: "pdf-oxide+layout+reading-order".to_string(),
+                min_sf1: Some(0.8),
+                min_tf1: None,
+                relative_order: reading_order_anchors(READING_ORDER_GUARDRAIL_DOC, READING_ORDER_GUARDRAIL_PIPELINE),
+            }],
+        };
+        let make_results = |content: &str| {
+            vec![DocResult {
+                name: "681693".to_string(),
+                file_type: "pdf".to_string(),
+                results: vec![PipelineResult {
+                    pipeline: Pipeline::PdfOxideReadingOrder,
+                    sf1: 0.9,
+                    tf1: 0.9,
+                    order_score: 0.9,
+                    per_type_sf1: HashMap::new(),
+                    time_ms: 1.0,
+                    missing_tokens: Vec::new(),
+                    extra_tokens: Vec::new(),
+                    content: content.to_string(),
+                }],
+            }]
+        };
+
+        let expected = "maintainers wanted ! See #182\n# MongoKit\n\
+            MongoDB is a great schema-less document oriented database.\n## Philosophy";
+        assert!(check_guardrails(&make_results(expected), &config).is_empty());
+
+        let out_of_order = "MongoDB is a great schema-less document oriented database.\n\
+            ## Philosophy\nmaintainers wanted ! See #182\n# MongoKit";
+        let failures = check_guardrails(&make_results(out_of_order), &config);
+
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].starts_with("relative-order regression: 681693 pdf-oxide+layout+reading-order"));
+    }
+
+    #[test]
+    fn legacy_guardrail_json_defaults_relative_order_and_installs_active_contract() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("guardrails.json");
+        std::fs::write(
+            &path,
+            r#"{
+                "version": "1.0",
+                "generated_at": "",
+                "threshold_factor": 0.9,
+                "contracts": [{
+                    "doc": "legacy",
+                    "pipeline": "baseline",
+                    "min_sf1": 0.5
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_guardrails(&path).unwrap();
+        let legacy = config
+            .contracts
+            .iter()
+            .find(|contract| contract.doc == "legacy")
+            .unwrap();
+        assert!(legacy.relative_order.is_empty());
+        let active = config
+            .contracts
+            .iter()
+            .find(|contract| {
+                contract.doc == READING_ORDER_GUARDRAIL_DOC && contract.pipeline == READING_ORDER_GUARDRAIL_PIPELINE
+            })
+            .unwrap();
+        assert_eq!(
+            active.relative_order,
+            reading_order_anchors(READING_ORDER_GUARDRAIL_DOC, READING_ORDER_GUARDRAIL_PIPELINE)
+        );
+    }
+
+    #[test]
+    fn relative_order_rejects_missing_repeated_and_empty_anchors() {
+        assert_eq!(
+            check_relative_order("first then third", &["first".to_string(), "second".to_string()]),
+            Err("missing or out-of-order anchor \"second\"".to_string())
+        );
+        assert_eq!(
+            check_relative_order("once", &["once".to_string(), "once".to_string()]),
+            Err("missing or out-of-order anchor \"once\"".to_string())
+        );
+        assert_eq!(
+            check_relative_order("content", &["".to_string()]),
+            Err("contains an empty anchor".to_string())
+        );
+    }
+
+    #[test]
+    fn relative_order_normalizes_markdown_escapes_and_unicode_hyphens() {
+        let anchors = vec![
+            "maintainers wanted".to_string(),
+            "See #182".to_string(),
+            "MongoKit".to_string(),
+            "MongoDB is a great schema-less document oriented database".to_string(),
+            "Philosophy".to_string(),
+        ];
+        let equivalent = "maintainers wanted\nSee \\#182\n# MongoKit\n\
+            MongoDB is a great schema‑less document oriented database\n### Philosophy";
+        assert_eq!(check_relative_order(equivalent, &anchors), Ok(()));
+
+        let wrong_order = "maintainers wanted\n\
+            MongoDB is a great schema‑less document oriented database\n\
+            See \\#182\n# MongoKit\n### Philosophy";
+        assert_eq!(
+            check_relative_order(wrong_order, &anchors),
+            Err(
+                "missing or out-of-order anchor \"MongoDB is a great schema-less document oriented database\""
+                    .to_string()
+            )
+        );
     }
 
     #[test]

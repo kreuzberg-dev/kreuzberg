@@ -1077,6 +1077,7 @@ pub(crate) async fn extract_async_handler(
     let mut effective_config = request.config.unwrap_or_else(|| (*state.default_config).clone());
     apply_multipart_config_fields(&mut effective_config, request.output_format, request.pdf_passwords);
     enforce_api_uri_policy(&request.inputs)?;
+    effective_config.cancel_token = state.job_store.cancellation_token(&job_id);
     let inputs = request.inputs;
 
     let job_store = Arc::clone(&state.job_store);
@@ -1154,6 +1155,80 @@ pub(crate) async fn job_status_handler(
     }
 }
 
+/// Cancel a pending or running async extraction job.
+///
+/// DELETE /jobs/{job_id}
+///
+/// A pending job is removed from the queue; a running job's extraction is
+/// signalled to stop cooperatively at its next checkpoint. Both transition to
+/// `cancelled` and return the updated `JobStatus`. A job that already reached
+/// `completed`, `failed`, or `cancelled` cannot be cancelled again and returns
+/// 409. Jobs expire after 5 minutes and return 404 once evicted, as with
+/// `GET /jobs/{job_id}`.
+#[cfg(feature = "api")]
+#[utoipa::path(
+    delete,
+    path = "/jobs/{job_id}",
+    tag = "extraction",
+    params(
+        ("job_id" = String, Path, description = "Job ID returned by POST /extract-async"),
+    ),
+    responses(
+        (status = 200, description = "Job cancelled", body = crate::api::types::JobStatus),
+        (status = 404, description = "Job not found or expired", body = crate::api::types::ErrorResponse),
+        (status = 409, description = "Job already reached a terminal state", body = crate::api::types::ErrorResponse),
+    )
+)]
+#[cfg_attr(
+    feature = "otel",
+    tracing::instrument(
+        name = "api.cancel_job",
+        skip(state),
+        fields(job_id = %job_id, outcome = tracing::field::Empty)
+    )
+)]
+pub(crate) async fn cancel_job_handler(
+    State(state): State<ApiState>,
+    axum::extract::Path(job_id): axum::extract::Path<String>,
+) -> Result<axum::Json<JobStatusResponse>, ApiError> {
+    let outcome = state.job_store.cancel(&job_id, super::jobs::now_rfc3339());
+
+    #[cfg(feature = "otel")]
+    tracing::Span::current().record(
+        "outcome",
+        match &outcome {
+            super::jobs::CancelOutcome::Cancelled(_) => "cancelled",
+            super::jobs::CancelOutcome::Conflict(_) => "conflict",
+            super::jobs::CancelOutcome::NotFound => "not_found",
+        },
+    );
+
+    match outcome {
+        super::jobs::CancelOutcome::Cancelled(status) => Ok(axum::Json(status)),
+        super::jobs::CancelOutcome::Conflict(status) => Err(ApiError {
+            status: axum::http::StatusCode::CONFLICT,
+            body: super::types::ErrorResponse {
+                error_type: "ConflictError".to_string(),
+                message: format!(
+                    "Job '{}' already reached state '{:?}' and cannot be cancelled",
+                    job_id, status.state
+                ),
+                traceback: None,
+                status_code: axum::http::StatusCode::CONFLICT.as_u16(),
+            },
+        }),
+        super::jobs::CancelOutcome::NotFound => Err(ApiError {
+            status: axum::http::StatusCode::NOT_FOUND,
+            body: super::types::ErrorResponse {
+                error_type: "NotFoundError".to_string(),
+                message: format!("Job '{}' not found or expired", job_id),
+                traceback: None,
+                status_code: axum::http::StatusCode::NOT_FOUND.as_u16(),
+            },
+        }),
+    }
+}
+
 /// Handler for 404 Not Found errors.
 ///
 /// Returns a JSON error response instead of the default plain text.
@@ -1193,7 +1268,7 @@ mod tests {
         #[cfg(feature = "api")]
         let router = router
             .route("/extract-async", post(extract_async_handler))
-            .route("/jobs/{job_id}", get(job_status_handler));
+            .route("/jobs/{job_id}", get(job_status_handler).delete(cancel_job_handler));
 
         router.with_state(state)
     }
@@ -1427,6 +1502,164 @@ mod tests {
             response.status(),
             StatusCode::NOT_FOUND,
             "expected HTTP 404 for unknown job ID"
+        );
+    }
+
+    #[cfg(feature = "api")]
+    #[tokio::test]
+    async fn test_cancel_job_not_found() {
+        let app = test_router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/jobs/does-not-exist")
+                    .body(Body::empty())
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "expected HTTP 404 for unknown job ID"
+        );
+    }
+
+    #[cfg(feature = "api")]
+    #[tokio::test]
+    async fn test_cancel_job_immediately_after_submission() {
+        use crate::api::types::{JobState, JobStatus};
+        use tower::Service;
+
+        let mut app = test_router();
+        let boundary = "cancelboundary000";
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"test.txt\"\r\nContent-Type: text/plain\r\n\r\nhello world\r\n--{boundary}--\r\n",
+            boundary = boundary
+        );
+
+        let post_req: Request<Body> = Request::builder()
+            .method("POST")
+            .uri("/extract-async")
+            .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+            .body(Body::from(body))
+            .expect("valid request");
+        let post_response = tower::ServiceExt::<Request<Body>>::ready(&mut app)
+            .await
+            .expect("service ready")
+            .call(post_req)
+            .await
+            .expect("POST handler responded");
+        let post_bytes = axum::body::to_bytes(post_response.into_body(), usize::MAX)
+            .await
+            .expect("POST body bytes readable");
+        let async_resp: AsyncJobResponse =
+            serde_json::from_slice(&post_bytes).expect("POST response parses as AsyncJobResponse");
+        let job_id = async_resp.job_id;
+
+        let delete_req: Request<Body> = Request::builder()
+            .method("DELETE")
+            .uri(format!("/jobs/{}", job_id))
+            .body(Body::empty())
+            .expect("valid request");
+        let delete_response = tower::ServiceExt::<Request<Body>>::ready(&mut app)
+            .await
+            .expect("service ready")
+            .call(delete_req)
+            .await
+            .expect("DELETE handler responded");
+
+        assert_eq!(
+            delete_response.status(),
+            StatusCode::OK,
+            "expected HTTP 200 when cancelling a job that has not yet reached a terminal state"
+        );
+        let delete_bytes = axum::body::to_bytes(delete_response.into_body(), usize::MAX)
+            .await
+            .expect("DELETE body bytes readable");
+        let status: JobStatus = serde_json::from_slice(&delete_bytes).expect("response is JobStatus");
+        assert_eq!(status.job_id, job_id);
+        assert_eq!(status.state, JobState::Cancelled);
+    }
+
+    #[cfg(feature = "api")]
+    #[tokio::test]
+    async fn test_cancel_job_conflict_after_completion() {
+        use crate::api::types::{JobState, JobStatus};
+        use tower::Service;
+
+        let mut app = test_router();
+        let boundary = "conflictboundary111";
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"test.txt\"\r\nContent-Type: text/plain\r\n\r\nhello world\r\n--{boundary}--\r\n",
+            boundary = boundary
+        );
+
+        let post_req: Request<Body> = Request::builder()
+            .method("POST")
+            .uri("/extract-async")
+            .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+            .body(Body::from(body))
+            .expect("valid request");
+        let post_response = tower::ServiceExt::<Request<Body>>::ready(&mut app)
+            .await
+            .expect("service ready")
+            .call(post_req)
+            .await
+            .expect("POST handler responded");
+        let post_bytes = axum::body::to_bytes(post_response.into_body(), usize::MAX)
+            .await
+            .expect("POST body bytes readable");
+        let async_resp: AsyncJobResponse =
+            serde_json::from_slice(&post_bytes).expect("POST response parses as AsyncJobResponse");
+        let job_id = async_resp.job_id;
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            let poll_req: Request<Body> = Request::builder()
+                .method("GET")
+                .uri(format!("/jobs/{}", job_id))
+                .body(Body::empty())
+                .expect("valid request");
+            let resp = tower::ServiceExt::<Request<Body>>::ready(&mut app)
+                .await
+                .expect("service ready")
+                .call(poll_req)
+                .await
+                .expect("GET responded");
+            let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .expect("body readable");
+            let status: JobStatus = serde_json::from_slice(&bytes).expect("response is JobStatus");
+            if matches!(status.state, JobState::Completed | JobState::Failed) {
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "job did not reach terminal state within 2s"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+
+        let delete_req: Request<Body> = Request::builder()
+            .method("DELETE")
+            .uri(format!("/jobs/{}", job_id))
+            .body(Body::empty())
+            .expect("valid request");
+        let delete_response = tower::ServiceExt::<Request<Body>>::ready(&mut app)
+            .await
+            .expect("service ready")
+            .call(delete_req)
+            .await
+            .expect("DELETE handler responded");
+
+        assert_eq!(
+            delete_response.status(),
+            StatusCode::CONFLICT,
+            "expected HTTP 409 when cancelling a job that already completed"
         );
     }
 

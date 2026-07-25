@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "surrealdb-xberg"
-version = "1.0.0rc37"
+version = "1.0.0rc38"
 description = """\
   Xberg-to-SurrealDB connector for document ingestion pipelines — schema management, content deduplication, \
   chunk storage, and index configuration\
@@ -51,7 +51,7 @@ classifiers = [
 ]
 dependencies = [
   "anyio>=4,<5",
-  "xberg>=1.0.0rc37,<2",
+  "xberg>=1.0.0rc38,<2",
   "surrealdb>=2.0.0,<3",
   "typing-extensions>=4; python_version<'3.11'",
 ]
@@ -62,7 +62,7 @@ urls.Repository = "https://github.com/xberg-io/xberg/tree/main/integrations/pyth
 urls.SurrealDB = "https://surrealdb.com"
 
 [dependency-groups]
-dev = ["mypy>=1.19", "pre-commit>=4", "pytest>=9", "pytest-asyncio>=0.24", "pytest-cov>=6", "ruff>=0.14"]
+dev = ["mypy>=1.19", "pre-commit>=4", "pytest>=9", "pytest-asyncio>=0.24", "pytest-cov>=6"]
 
 [tool.hatch]
 build.targets.sdist.include = ["src/surrealdb_xberg", "CHANGELOG.md", "LICENSE", "README.md", "pyproject.toml"]

@@ -1,13 +1,13 @@
 {
   "name": "xberg-root",
-  "version": "1.0.0-rc.37",
+  "version": "1.0.0-rc.38",
   "private": true,
   "scripts": {
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
-    "@emnapi/core": "^1.11.2",
-    "@emnapi/runtime": "1.11.2",
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "1.11.3",
     "@vitest/coverage-v8": "^4.1.10",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",

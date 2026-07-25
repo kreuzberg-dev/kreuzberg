@@ -97,7 +97,7 @@ Extract text, tables, images, metadata, and code intelligence from 97 file forma
 Fetch the package and pin it in `build.zig.zon`:
 
 ```bash
-zig fetch --save https://github.com/xberg-io/xberg/archive/refs/tags/v1.0.0-rc.37.tar.gz
+zig fetch --save https://github.com/xberg-io/xberg/archive/refs/tags/v1.0.0-rc.38.tar.gz
 ```
 
 Then wire it into `build.zig`:
@@ -111,6 +111,7 @@ exe.root_module.addImport("xberg", xberg_dep.module("xberg"));
 ```
 
 ### System Requirements
+
 - **Zig 0.16.0+** required (`minimum_zig_version` declared in `build.zig.zon`)
 - Links the C FFI surface from `xberg-ffi`; the build resolves the library via `linkSystemLibrary` against the consumer-provided search path
 - Optional: [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) version 1.24+ for ORT-dependent inference features
