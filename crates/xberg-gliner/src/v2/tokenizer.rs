@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use crate::{GlinerError, Result};
@@ -26,6 +27,9 @@ pub struct V2Tokenizer {
 }
 
 impl V2Tokenizer {
+    /// Not built for wasm32: there is no filesystem there, and every caller is
+    /// itself native-only, so it would be dead code.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let inner = tokenizers::Tokenizer::from_file(path)
             .map_err(|error| GlinerError::Tokenizer(format!("failed to load tokenizer from file: {error}")))?;

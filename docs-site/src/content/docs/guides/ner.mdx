@@ -25,6 +25,22 @@ The result types ship in the `ner` Cargo feature (included in `no-ort-target`, `
 | `Onnx` (`xberg-gliner`) | `ner-onnx` | High throughput, local inference, deterministic | Available. |
 | `Llm` (liter-llm) | `ner-llm` | Domain-specific zero-shot labels, any of 143 providers | Available today. |
 
+### In the browser
+
+The WASM build detects entities inside the page, with no server round-trip. This is a direct API
+rather than a `backend` selection: load the GLiNER2 weights once and call the model.
+
+```js
+const model = await NerModel.load({ weights, tokenizer, encoderConfig });
+const entities = await model.detect(text, { categories: ["person", "organization"] });
+model.free();
+```
+
+Weights are not embedded in the `.wasm`, so the host fetches the safetensors, tokenizer, and encoder
+config and passes the bytes. The model stays resident, so repeated `detect` calls do not re-parse it.
+Inference is synchronous on a single-threaded target — run it in a Web Worker if main-thread
+responsiveness matters.
+
 The ONNX backend downloads supported Xberg GLiNER aliases and catalog ids from
 `xberg-io/gliner-models`. The runtime consumes exported ONNX artifacts and
 tokenizer files; it does not load arbitrary source PyTorch model repositories.

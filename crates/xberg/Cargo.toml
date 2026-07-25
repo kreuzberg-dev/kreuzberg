@@ -369,7 +369,16 @@ diff = ["dep:similar"]
 # Each feature lands in its own module under `crates/xberg/src/text/` (or
 # `crates/xberg/src/extractors/` for QR) and is wired through a built-in
 # post-processor under `crates/xberg/src/plugins/processor/builtin/`.
-ner-candle = ["ner", "dep:xberg-gliner", "xberg-gliner/candle", "tokio-runtime"]
+# The candle GLiNER2 backend (`crate::text::ner::candle`), runtime-neutral. Enable one
+# of the two siblings below rather than this directly; they differ only in tokio.
+ner-candle-backend = ["ner", "dep:xberg-gliner", "xberg-gliner/candle"]
+# Needs the multi-threaded runtime: `CandleBackend::detect` uses `block_in_place`.
+ner-candle = ["ner-candle-backend", "tokio-runtime"]
+# The sibling that does not pull `tokio-runtime` in, mirroring `layout-tract` /
+# `auto-rotate-tract`. This is about what the feature requires, not what ends up in the
+# build — `layout-tract` already enables `tokio-runtime` inside `wasm-target`. Builds
+# natively too, for callers wanting candle NER without a runtime dependency.
+ner-candle-wasm = ["ner-candle-backend"]
 ner = [] # NER result types only; safe on every target.
 ner-llm-types = ["ner"] # LlmBackend stub for targets without full ner-llm (Windows, Android x86_64, WASM).
 ner-llm = ["ner", "liter-llm"] # LLM-driven zero-shot NER (no ORT).
@@ -505,7 +514,14 @@ no-ort-target = [
 # past ~100 MB, over jsDelivr's 50 MB per-file limit, which broke the live demo
 # (the CDN 403s the oversized .wasm). Code intelligence is therefore unavailable
 # in the WASM build; native targets keep `tree-sitter`. See docs (WASM limitations).
-wasm-target = ["no-ort-target", "excel-wasm", "ocr-wasm", "layout-tract", "auto-rotate-tract"]
+wasm-target = [
+    "no-ort-target",
+    "excel-wasm",
+    "ocr-wasm",
+    "layout-tract",
+    "auto-rotate-tract",
+    "ner-candle-wasm",
+]
 # android-target: no-ort-target plus native-Linux variants that work on Android ABI
 # (excel with tokio, native tree-sitter, Tesseract OCR, and API/MCP transport).
 # Excludes ORT-dependent ML (paddle-ocr, embeddings, reranker, transcription); document

@@ -121,22 +121,15 @@ impl XbergEngine {
     /// Perform Named Entity Recognition on `text` through the injected NER
     /// backend. `opts` may contain `categories`, an array of category names;
     /// unknown names are treated as custom zero-shot labels.
+    ///
+    /// This is the injected-backend path. To run a model inside the browser
+    /// instead, load one with
+    /// [`NerModel`](crate::bridge::ner_model::NerModel) and call its `detect`
+    /// method directly — it needs none of the promise bridging or timeout this
+    /// path provides.
     #[allow(clippy::missing_errors_doc)]
     pub async fn ner(&self, text: String, opts: JsValue) -> Result<JsValue, JsValue> {
-        let categories: Vec<xberg::types::entity::EntityCategory> = if opts.is_undefined() || opts.is_null() {
-            Vec::new()
-        } else {
-            js_sys::Reflect::get(&opts, &JsValue::from_str("categories"))
-                .ok()
-                .and_then(|v| v.dyn_into::<js_sys::Array>().ok())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_string())
-                        .map(xberg::types::entity::EntityCategory::from)
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
+        let categories = crate::bridge::ner::categories_from_opts(&opts);
 
         let entities = resolve_ner_with_timeout(self.ner.clone(), &text, &categories, self.bridge_timeout_ms)
             .await

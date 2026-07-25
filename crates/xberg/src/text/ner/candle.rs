@@ -2,16 +2,16 @@
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 use std::path::PathBuf;
 use std::sync::Mutex;
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 use std::sync::{Arc, LazyLock};
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 use ahash::AHashMap;
 use async_trait::async_trait;
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 use parking_lot::RwLock;
 use xberg_gliner::candle::Gliner2Candle;
 
@@ -26,15 +26,15 @@ const DEFAULT_THRESHOLD: f32 = 0.5;
 /// the independent `ner-onnx` feature, so a `ner-candle`-only build must not depend on
 /// it) so a given (model, adapter) pair is loaded and LoRA-merged at most once per
 /// process, instead of on every `process()` call.
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 type CandleBackendCacheKey = (PathBuf, Option<PathBuf>);
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 static CANDLE_BACKEND_CACHE: LazyLock<RwLock<AHashMap<CandleBackendCacheKey, Arc<CandleBackend>>>> =
     LazyLock::new(|| RwLock::new(AHashMap::default()));
 
 /// Return the cached backend for `key`, or build and cache one via `build`.
-#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
 fn get_or_insert_arc(
     key: CandleBackendCacheKey,
     build: impl FnOnce() -> crate::Result<CandleBackend>,
@@ -107,7 +107,7 @@ impl CandleBackend {
     /// is the entry point [`crate::plugins::processor::builtin::ner::make_backend`]
     /// should use so a document-processing pipeline pays the model-load + LoRA-merge
     /// cost once per (model, adapter) pair, not once per document.
-    #[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
     pub fn get_or_init(model_dir: &Path, lora_adapter_dir: Option<&Path>) -> crate::Result<Arc<Self>> {
         let key: CandleBackendCacheKey = (model_dir.to_path_buf(), lora_adapter_dir.map(Path::to_path_buf));
         get_or_insert_arc(key, || Self::from_local(model_dir, lora_adapter_dir))
@@ -159,11 +159,13 @@ impl NerBackend for CandleBackend {
             plugin_name: "ner-candle".to_string(),
         })?;
 
-        // extract_ner is CPU-bound (tensor inference). On native targets, block_in_place
-        // signals tokio to move other tasks off this thread for the duration without
-        // requiring Send. wasm32 has no multi-threaded tokio runtime (and is single-threaded
-        // regardless), so extract_ner is called directly; it is already synchronous. ~keep
-        #[cfg(not(target_arch = "wasm32"))]
+        // extract_ner is CPU-bound and already synchronous; block_in_place lets tokio move
+        // other tasks off this thread without requiring Send.
+        //
+        // Gated on tokio's presence, not the target: `ner-candle-wasm` omits `tokio-runtime`
+        // and builds natively too, so a `target_arch` gate alone would reach `block_in_place`
+        // with no tokio in the graph. The arms are exact complements. ~keep
+        #[cfg(all(not(target_arch = "wasm32"), feature = "tokio-runtime"))]
         let spans =
             tokio::task::block_in_place(|| model.extract_ner(text, &labels, DEFAULT_THRESHOLD)).map_err(|e| {
                 crate::XbergError::Plugin {
@@ -172,7 +174,7 @@ impl NerBackend for CandleBackend {
                 }
             })?;
 
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(not(all(not(target_arch = "wasm32"), feature = "tokio-runtime")))]
         let spans = model
             .extract_ner(text, &labels, DEFAULT_THRESHOLD)
             .map_err(|e| crate::XbergError::Plugin {
@@ -266,7 +268,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle"))]
+    #[cfg(all(not(target_arch = "wasm32"), feature = "ner-candle-backend"))]
     #[test]
     fn get_or_init_propagates_load_errors_without_panicking() {
         let missing_dir = std::path::Path::new("/nonexistent/xberg-candle-cache-test-model-dir");

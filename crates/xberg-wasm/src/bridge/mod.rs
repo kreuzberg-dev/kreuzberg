@@ -1,9 +1,16 @@
-//! JS bridge utilities for injected backends.
+//! JS-facing backend plumbing.
+//!
+//! Two ways a capability gets satisfied here: an *injected* JS backend the host
+//! supplies ([`ner`], [`ocr`]), or an *in-binary* model the host feeds bytes to
+//! ([`ner_model`]). Both report failures through [`js_from_any`]. The timeout
+//! race below serves only the injected paths: in-binary inference is synchronous,
+//! so a `Promise.race` could not interrupt it even if one were armed.
 //!
 //! Hand-written module (declared via `custom_rust_modules` in `alef.toml`),
 //! not managed by alef.
 
 pub mod ner;
+pub mod ner_model;
 pub mod ocr;
 
 use std::sync::OnceLock;
