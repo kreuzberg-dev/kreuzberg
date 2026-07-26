@@ -208,7 +208,11 @@ To wrap a model you already load — `sentence-transformers`, `llama-cpp-python`
 
 The protocol returns **raw scores in input order**. The dispatcher handles sorting and `top_k` truncation; the plugin must not sort.
 
+Scores can be any sequence of floats — a NumPy array or a plain list. The bridge reads both, so a model that already returns an array needs no conversion.
+
 ```python
+from collections.abc import Iterable
+
 from xberg import register_reranker_backend, rerank_sync, RerankerConfig, RerankerModelType
 
 class MyReranker:
@@ -228,9 +232,9 @@ class MyReranker:
     def shutdown(self) -> None:
         pass
 
-    async def rerank(self, query: str, documents: list[str]) -> list[float]:
-        scores = self._model.predict([(query, doc) for doc in documents])
-        return scores.tolist()
+    async def rerank(self, query: str, documents: list[str]) -> Iterable[float]:
+        return self._model.predict([(query, doc) for doc in documents])   # ndarray
+        # return [0.82, 0.13]   # a plain list works the same
 
 
 register_reranker_backend(MyReranker())
