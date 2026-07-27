@@ -30,10 +30,33 @@ const FAILED_RENDER_PLACEHOLDER_SIDE: u32 = 64;
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 use crate::{
     Result, XbergError,
-    core::config::{ExtractionConfig, layout::LayoutDetectionConfig},
+    core::config::{
+        ExtractionConfig,
+        layout::{LayoutDetectionConfig, LayoutStrategy},
+    },
     extractors::pdf::layout_hints::pixel_detection_to_layout_hints_pdf_space,
+    pdf::layout_gate::PageGateDecision,
     pdf::structure::types::{LayoutHint, PageLayoutResult},
 };
+
+/// How [`run_layout_for_pdf_pages`] treats pages the `Auto` gate skips.
+///
+/// The markdown path only needs rasters for pages the model inspects, so it
+/// skips rendering entirely. The OCR path reuses the layout pass's rasters as
+/// OCR input images, so gated pages must still render; only inference is
+/// skipped there.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum GatedPageHandling {
+    /// Skip both the raster render and model inference for gated pages.
+    SkipRender,
+    /// Render the page raster but skip model inference for gated pages.
+    ///
+    /// Only the OCR entry point constructs this, so builds without an OCR
+    /// feature see the variant as unused.
+    #[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(dead_code))]
+    RenderWithoutInference,
+}
 
 /// Render every page of `content` to RGB (in chunks) and run layout detection.
 ///
@@ -73,6 +96,10 @@ struct RenderedLayoutPage {
     page_height_pts: f32,
     rotation: u32,
     image: Option<image::RgbImage>,
+    /// `false` when the `Auto` gate skipped this page: it stays out of the
+    /// ONNX batch and keeps an empty detection, exactly like a page where the
+    /// model ran and found nothing.
+    run_inference: bool,
 }
 
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
@@ -88,18 +115,21 @@ async fn run_layout_for_pdf_pages_async(
     content: &[u8],
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
+    gated_handling: GatedPageHandling,
 ) -> Result<LayoutForMarkdownOutput> {
     #[cfg(feature = "tokio-runtime")]
     {
         let owned_content = content.to_vec();
         let owned_config = layout_config.clone();
-        tokio::task::spawn_blocking(move || run_layout_for_pdf_pages(&owned_content, &owned_config, thread_budget))
-            .await
-            .map_err(|error| XbergError::Other(format!("layout runner task failed: {error}")))?
+        tokio::task::spawn_blocking(move || {
+            run_layout_for_pdf_pages(&owned_content, &owned_config, thread_budget, gated_handling)
+        })
+        .await
+        .map_err(|error| XbergError::Other(format!("layout runner task failed: {error}")))?
     }
 
     #[cfg(not(feature = "tokio-runtime"))]
-    run_layout_for_pdf_pages(content, layout_config, thread_budget)
+    run_layout_for_pdf_pages(content, layout_config, thread_budget, gated_handling)
 }
 
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
@@ -130,12 +160,24 @@ fn displayed_page_dimensions(width: f32, height: f32, rotation_degrees: u32) -> 
     }
 }
 
+/// Whether the `Auto` gate selected `page_index` for the model.
+///
+/// `None` gate decisions (strategy `Always`) select every page; a page index
+/// beyond the decision vector also runs, so a gate bug can only ever cost
+/// speed, never coverage.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+fn gate_selects_page(gate_decisions: Option<&[PageGateDecision]>, page_index: usize) -> bool {
+    gate_decisions.is_none_or(|decisions| decisions.get(page_index).is_none_or(|decision| decision.run_layout))
+}
+
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 fn render_layout_chunk(
     doc: &pdf_oxide::PdfDocument,
     page_rotations: &[u32],
     chunk_start: usize,
     chunk_end: usize,
+    gate_decisions: Option<&[PageGateDecision]>,
+    gated_handling: GatedPageHandling,
 ) -> Vec<RenderedLayoutPage> {
     (chunk_start..chunk_end)
         .map(|page_index| {
@@ -145,7 +187,13 @@ fn render_layout_chunk(
                 .unwrap_or((612.0, 792.0));
             let rotation = page_rotations.get(page_index).copied().unwrap_or(0);
             let (page_width_pts, page_height_pts) = displayed_page_dimensions(media_width, media_height, rotation);
-            let image = render_layout_page(doc, page_index, page_width_pts, page_height_pts);
+            let run_inference = gate_selects_page(gate_decisions, page_index);
+            let skip_render = !run_inference && gated_handling == GatedPageHandling::SkipRender;
+            let image = if skip_render {
+                None
+            } else {
+                render_layout_page(doc, page_index, page_width_pts, page_height_pts)
+            };
 
             RenderedLayoutPage {
                 page_index,
@@ -153,6 +201,7 @@ fn render_layout_chunk(
                 page_height_pts,
                 rotation,
                 image,
+                run_inference,
             }
         })
         .collect()
@@ -198,7 +247,7 @@ fn detect_layout_chunk(
     let rendered_positions: Vec<usize> = pages
         .iter()
         .enumerate()
-        .filter_map(|(position, page)| page.image.as_ref().map(|_| position))
+        .filter_map(|(position, page)| (page.run_inference && page.image.is_some()).then_some(position))
         .collect();
     if rendered_positions.is_empty() {
         return Ok((0..pages.len()).map(|_| None).collect());
@@ -280,6 +329,7 @@ pub(super) fn run_layout_for_pdf_pages(
     content: &[u8],
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
+    gated_handling: GatedPageHandling,
 ) -> Result<LayoutForMarkdownOutput> {
     let doc = pdf_oxide::PdfDocument::from_bytes(content.to_vec()).map_err(|e| XbergError::Parsing {
         message: format!("layout runner: failed to open PDF: {e}"),
@@ -295,6 +345,21 @@ pub(super) fn run_layout_for_pdf_pages(
         return Ok((Vec::new(), Vec::new(), Vec::new(), Vec::new()));
     }
 
+    let gate_decisions = match layout_config.strategy {
+        LayoutStrategy::Always => None,
+        LayoutStrategy::Auto => {
+            let decisions = crate::pdf::layout_gate::decide_pages(&doc, page_count);
+            let selected = decisions.iter().filter(|decision| decision.run_layout).count();
+            tracing::info!(
+                pages = page_count,
+                selected,
+                skipped = page_count - selected,
+                "layout gate: auto strategy page selection"
+            );
+            Some(decisions)
+        }
+    };
+
     let mut engine = crate::layout::take_or_create_engine(layout_config, thread_budget)
         .map_err(|e| XbergError::Other(format!("layout runner: engine init failed: {e}")))?;
 
@@ -309,7 +374,14 @@ pub(super) fn run_layout_for_pdf_pages(
 
     for (chunk_idx, chunk_start) in (0..page_count).step_by(LAYOUT_BATCH_CHUNK_SIZE).enumerate() {
         let chunk_end = (chunk_start + LAYOUT_BATCH_CHUNK_SIZE).min(page_count);
-        let pages = render_layout_chunk(&doc, &page_rotations, chunk_start, chunk_end);
+        let pages = render_layout_chunk(
+            &doc,
+            &page_rotations,
+            chunk_start,
+            chunk_end,
+            gate_decisions.as_deref(),
+            gated_handling,
+        );
         let rendered = pages.iter().filter(|page| page.image.is_some()).count();
         tracing::debug!(
             chunk_idx,
@@ -371,7 +443,14 @@ pub(super) async fn maybe_run_layout_for_markdown(
         return (None, None, None, None);
     }
     let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
-    match run_layout_for_pdf_pages_async(content, layout_config.as_ref(), thread_budget).await {
+    match run_layout_for_pdf_pages_async(
+        content,
+        layout_config.as_ref(),
+        thread_budget,
+        GatedPageHandling::SkipRender,
+    )
+    .await
+    {
         Ok((images, results, hints, detections)) => {
             let total_hints: usize = hints.iter().map(|h| h.len()).sum();
             tracing::info!(
@@ -402,15 +481,25 @@ pub(super) async fn run_layout_for_ocr(
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
 ) -> Result<LayoutForMarkdownOutput> {
-    run_layout_for_pdf_pages_async(content, layout_config, thread_budget).await
+    // OCR consumes the layout pass's rasters as its input images, so gated
+    // pages still render; only model inference is skipped for them.
+    run_layout_for_pdf_pages_async(
+        content,
+        layout_config,
+        thread_budget,
+        GatedPageHandling::RenderWithoutInference,
+    )
+    .await
 }
 
 #[cfg(all(test, feature = "pdf", feature = "layout-detection"))]
 mod tests {
     use super::{
-        FAILED_RENDER_PLACEHOLDER_SIDE, RenderedLayoutPage, assemble_layout_chunk, displayed_page_dimensions,
-        render_failure_placeholder, validate_batch_cardinality,
+        FAILED_RENDER_PLACEHOLDER_SIDE, GatedPageHandling, RenderedLayoutPage, assemble_layout_chunk,
+        displayed_page_dimensions, gate_selects_page, render_failure_placeholder, render_layout_chunk,
+        validate_batch_cardinality,
     };
+    use crate::pdf::layout_gate::PageGateDecision;
 
     fn rendered_page(page_index: usize, width: u32, page_width_pts: f32) -> RenderedLayoutPage {
         RenderedLayoutPage {
@@ -419,6 +508,7 @@ mod tests {
             page_height_pts: 200.0,
             rotation: 0,
             image: Some(image::RgbImage::new(width, 20)),
+            run_inference: true,
         }
     }
 
@@ -554,6 +644,59 @@ mod tests {
             .expect("missing detection slot must fail");
 
         assert!(error.to_string().contains("0 results for 1 rendered pages"));
+    }
+
+    fn gate_decision(run_layout: bool) -> PageGateDecision {
+        PageGateDecision {
+            run_layout,
+            reason: if run_layout {
+                crate::pdf::layout_gate::GateReason::MultiColumn
+            } else {
+                crate::pdf::layout_gate::GateReason::PlainText
+            },
+        }
+    }
+
+    #[test]
+    fn absent_gate_decisions_select_every_page() {
+        assert!(gate_selects_page(None, 0));
+        assert!(gate_selects_page(None, 7));
+    }
+
+    #[test]
+    fn gate_decisions_beyond_the_vector_fail_open_to_running_the_model() {
+        let decisions = vec![gate_decision(false)];
+        assert!(gate_selects_page(Some(&decisions), 1));
+    }
+
+    #[test]
+    fn gated_page_is_excluded_and_selected_page_is_kept() {
+        let decisions = vec![gate_decision(false), gate_decision(true)];
+        assert!(!gate_selects_page(Some(&decisions), 0));
+        assert!(gate_selects_page(Some(&decisions), 1));
+    }
+
+    /// SkipRender must not rasterise gated pages; RenderWithoutInference must.
+    #[test]
+    fn gated_handling_controls_whether_gated_pages_render() {
+        let bytes = rotated_pdf(false);
+        let doc = pdf_oxide::PdfDocument::from_bytes(bytes).expect("fixture PDF must open");
+        let decisions = vec![gate_decision(false)];
+
+        let skipped = render_layout_chunk(&doc, &[0], 0, 1, Some(&decisions), GatedPageHandling::SkipRender);
+        assert!(skipped[0].image.is_none(), "gated page must not render");
+        assert!(!skipped[0].run_inference);
+
+        let rendered = render_layout_chunk(
+            &doc,
+            &[0],
+            0,
+            1,
+            Some(&decisions),
+            GatedPageHandling::RenderWithoutInference,
+        );
+        assert!(rendered[0].image.is_some(), "OCR-path gated page must still render");
+        assert!(!rendered[0].run_inference, "gated page must stay out of the ONNX batch");
     }
 
     #[test]
