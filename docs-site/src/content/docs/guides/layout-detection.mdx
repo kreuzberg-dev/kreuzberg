@@ -117,6 +117,9 @@ xberg extract document.pdf --layout-confidence 0.5 --content-format markdown
 # Specific table model
 xberg extract document.pdf --layout --layout-table-model slanet_wired
 
+# Adaptive page selection: run the model only on pages that can benefit
+xberg extract document.pdf --layout --layout-strategy auto
+
 # Combined with GPU acceleration
 xberg extract document.pdf --layout --acceleration coreml
 ```
@@ -131,6 +134,22 @@ See [LayoutDetectionConfig](/reference/configuration/#layoutdetectionconfig) for
 `use_layout_for_markdown` feeds detected regions into the non-OCR PDF markdown pipeline to drive heading, table, list, and figure detection that would otherwise rely on font-clustering heuristics alone. It is a top-level `ExtractionConfig` field — set it alongside `layout`, not inside `LayoutDetectionConfig`.
 
 Enabling it improves structural F1 at the cost of inference latency (~150-300 ms/page CPU, ~20-50 ms/page GPU). Default: `false`. Requires the `layout-detection` feature and a set `layout` config; it is skipped when `force_ocr` is enabled. On the CLI, pass `--use-layout-for-markdown`.
+
+## Page Selection Strategy
+
+`LayoutDetectionConfig.strategy` controls which pages the layout model runs on:
+
+- `always` (default): every page is rendered and inferred, the historical behavior.
+- `auto`: a cheap per-page pre-screen runs first, and the model only processes pages likely to benefit: multi-column text, table geometry, ruled grids, heavy graphics, form widgets, sparse or absent text layers, or pages whose signals could not be gathered.
+
+The pre-screen reads geometry the PDF already carries (text-span boxes, straight lines, image and path bounding boxes, annotations) without decoding any pixels, so it costs a small fraction of one model pass. It is recall-biased: an ambiguous page always runs the model. A skipped page is processed exactly like a page where the model ran and found no regions, and on plain single-column prose that output is identical at a fraction of the cost.
+
+Two behaviors to know:
+
+- On the OCR path the pre-screen skips inference only; page rasters are still produced because OCR consumes them.
+- Skipped pages are auditable: `metadata.pdf.layout_gated_pages` lists them (1-indexed), and `metadata.pdf.layout_gate_reasons` records each page's decision reason (`multi_column`, `table_grid`, `plain_text`, and so on).
+
+Note that `auto` trades the model's per-paragraph refinements on skipped pages (heading promotion, code and formula tagging) for throughput; content and reading order are unchanged. Keep `always` when you need the model's classification on every page.
 
 ## Table Structure Models
 
