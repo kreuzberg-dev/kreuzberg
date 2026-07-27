@@ -1,6 +1,8 @@
 //! Character encoding utilities for RTF parsing.
 //!
-//! Provides hex byte parsing and Windows-1252 character mapping for the 0x80-0x9F range.
+//! Provides hex byte parsing and legacy Windows codepage decoding for RTF byte escapes.
+
+use encoding_rs::Encoding;
 
 /// Convert a hex digit character to its numeric value.
 ///
@@ -67,6 +69,48 @@ pub(crate) fn decode_windows_1252(byte: u8) -> char {
         0x9F => '\u{0178}',
         _ => byte as char,
     }
+}
+
+/// Map a Windows codepage number to an `encoding_rs` encoding.
+///
+/// Unknown values fall back to Windows-1252, the RTF default ANSI codepage.
+#[inline]
+pub(crate) fn encoding_for_windows_codepage(codepage: u32) -> &'static Encoding {
+    let label: &[u8] = match codepage {
+        65001 => b"utf-8",
+        20127 => b"us-ascii",
+        1250 => b"windows-1250",
+        1251 => b"windows-1251",
+        1252 => b"windows-1252",
+        1253 => b"windows-1253",
+        1254 => b"windows-1254",
+        1255 => b"windows-1255",
+        1256 => b"windows-1256",
+        1257 => b"windows-1257",
+        1258 => b"windows-1258",
+        932 | 10001 => b"shift_jis",
+        936 | 10008 => b"gbk",
+        949 | 10003 => b"euc-kr",
+        950 | 10002 => b"big5",
+        28591 => b"iso-8859-1",
+        28592 => b"iso-8859-2",
+        28595 => b"iso-8859-5",
+        28597 => b"iso-8859-7",
+        28599 => b"iso-8859-9",
+        _ => b"windows-1252",
+    };
+    Encoding::for_label(label).unwrap_or(encoding_rs::WINDOWS_1252)
+}
+
+/// Decode RTF hex escape bytes using the active ANSI codepage.
+#[inline]
+pub(crate) fn decode_ansi_bytes(bytes: &[u8], codepage: u32) -> String {
+    if codepage == 1252 {
+        return bytes.iter().map(|&byte| decode_windows_1252(byte)).collect();
+    }
+
+    let (decoded, _, _) = encoding_for_windows_codepage(codepage).decode(bytes);
+    decoded.into_owned()
 }
 
 /// Parse an RTF control word and extract its value.

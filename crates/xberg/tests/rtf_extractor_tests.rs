@@ -98,6 +98,33 @@ async fn test_rtf_accent_extraction() {
     );
 }
 
+/// Test extraction of RTF file with CP1251 hex byte escapes.
+///
+/// File: ansicpg1251.rtf
+/// Content: Cyrillic text encoded as `\'hh` bytes with `\ansicpg1251`
+/// Expected: Decodes byte escapes with the declared ANSI codepage
+#[tokio::test]
+async fn test_rtf_ansicpg1251_extraction() {
+    let config = ExtractionConfig::default();
+    let path = get_rtf_path("ansicpg1251.rtf");
+
+    let result = extract_uri_document(&path, Some("application/rtf"), &config).await;
+
+    assert!(result.is_ok(), "RTF extraction should succeed for ansicpg1251.rtf");
+    let extraction = result.expect("Operation failed");
+
+    assert_eq!(extraction.mime_type, "application/rtf");
+    assert!(
+        extraction.content.contains("Привет, мир!"),
+        "Should decode CP1251 hex escapes as Cyrillic text (found: {})",
+        extraction.content
+    );
+    assert!(
+        !extraction.content.contains("Ïðèâåò"),
+        "Should not decode CP1251 bytes as Windows-1252 mojibake"
+    );
+}
+
 /// Test extraction of RTF file with bookmarks (internal anchors/references).
 ///
 /// File: bookmark.rtf
@@ -531,6 +558,7 @@ async fn test_rtf_no_critical_content_loss() {
 
     let must_extract = vec![
         "unicode.rtf",
+        "ansicpg1251.rtf",
         "accent.rtf",
         "heading.rtf",
         "list_simple.rtf",
@@ -574,7 +602,13 @@ async fn test_rtf_no_critical_content_loss() {
 async fn test_rtf_mime_type_preservation() {
     let config = ExtractionConfig::default();
 
-    let test_files = vec!["unicode.rtf", "accent.rtf", "heading.rtf", "list_simple.rtf"];
+    let test_files = vec![
+        "unicode.rtf",
+        "ansicpg1251.rtf",
+        "accent.rtf",
+        "heading.rtf",
+        "list_simple.rtf",
+    ];
 
     for filename in test_files {
         let path = get_rtf_path(filename);

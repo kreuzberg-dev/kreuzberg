@@ -503,6 +503,19 @@ mod tests {
     }
 
     #[test]
+    fn test_rtf_ansicpg1251_hex_escape_extraction() {
+        let rtf_content =
+            r#"{\rtf1\ansi\ansicpg1251\deff0{\fonttbl{\f0\fnil\fcharset204 Arial;}}\f0 \'cf\'f0\'e8\'e2\'e5\'f2}"#;
+        let (text, _, _, _, _) = extract_text_from_rtf(rtf_content, true);
+
+        assert!(text.contains("Привет"), "expected readable Cyrillic, got: {text:?}");
+        assert!(
+            !text.contains("Ïðèâåò"),
+            "should not decode CP1251 bytes as Windows-1252"
+        );
+    }
+
+    #[test]
     fn test_bold_italic_span_alignment() {
         let rtf_content = r#"{\rtf1 Normal {\b bold text} more normal}"#;
         let (text, _, _, _, formatting) = extract_text_from_rtf(rtf_content, false);

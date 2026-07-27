@@ -1,6 +1,6 @@
 //! Core RTF parsing logic.
 
-use crate::extractors::rtf::encoding::{decode_windows_1252, parse_hex_byte, parse_rtf_control_word};
+use crate::extractors::rtf::encoding::{decode_ansi_bytes, parse_hex_byte, parse_rtf_control_word};
 use crate::extractors::rtf::formatting::{map_offset, normalize_whitespace_with_mapping};
 use crate::extractors::rtf::images::{RtfImage, extract_pict_image};
 use crate::extractors::rtf::tables::TableState;
@@ -921,6 +921,10 @@ pub(crate) fn extract_text_from_rtf(
 
     let mut hidden_stack: Vec<bool> = vec![false];
 
+    // ANSI codepage for \'hh escapes. RTF defaults to Windows-1252 unless
+    // overridden by \ansicpgNNNN. Scoped like other document properties.
+    let mut ansi_codepage_stack: Vec<u32> = vec![1252];
+
     let ensure_table = |table_state: &mut Option<TableState>| {
         if table_state.is_none() {
             *table_state = Some(TableState::new());
@@ -945,6 +949,8 @@ pub(crate) fn extract_text_from_rtf(
                 uc_stack.push(current_uc);
                 let current_hidden = hidden_stack.last().copied().unwrap_or(false);
                 hidden_stack.push(current_hidden);
+                let current_codepage = ansi_codepage_stack.last().copied().unwrap_or(1252);
+                ansi_codepage_stack.push(current_codepage);
                 fmt_tracker.push();
                 pending_boundary_space = false;
             }
@@ -958,6 +964,9 @@ pub(crate) fn extract_text_from_rtf(
                 }
                 if hidden_stack.len() > 1 {
                     hidden_stack.pop();
+                }
+                if ansi_codepage_stack.len() > 1 {
+                    ansi_codepage_stack.pop();
                 }
                 if skip_depth > 0 && group_depth < skip_depth {
                     skip_depth = 0;
@@ -1053,6 +1062,7 @@ pub(crate) fn extract_text_from_rtf(
                                 &mut para_metas,
                                 &mut para_meta_emitted,
                                 &mut uc_stack,
+                                &mut ansi_codepage_stack,
                                 &mut footnote_count,
                                 in_footnote,
                                 &mut footnote_buf,
@@ -1095,11 +1105,21 @@ pub(crate) fn extract_text_from_rtf(
                             expect_destination = false;
                             let hex1 = chars.next();
                             let hex2 = chars.next();
-                            if in_footnote
-                                && let (Some(h1), Some(h2)) = (hex1, hex2)
+                            let bytes = if let (Some(h1), Some(h2)) = (hex1, hex2)
                                 && let Some(byte) = parse_hex_byte(h1 as u8, h2 as u8)
                             {
-                                footnote_buf.push(decode_windows_1252(byte));
+                                let mut bytes = vec![byte];
+                                while let Some(next_byte) = consume_adjacent_hex_escape(&mut chars) {
+                                    bytes.push(next_byte);
+                                }
+                                Some(bytes)
+                            } else {
+                                None
+                            };
+
+                            if in_footnote && let Some(bytes) = bytes.as_deref() {
+                                let codepage = ansi_codepage_stack.last().copied().unwrap_or(1252);
+                                footnote_buf.push_str(&decode_ansi_bytes(bytes, codepage));
                             }
                             if skip_depth > 0 {
                                 continue;
@@ -1107,14 +1127,13 @@ pub(crate) fn extract_text_from_rtf(
                             if hidden_stack.last().copied().unwrap_or(false) {
                                 continue;
                             }
-                            if let (Some(h1), Some(h2)) = (hex1, hex2)
-                                && let Some(byte) = parse_hex_byte(h1 as u8, h2 as u8)
-                            {
-                                let decoded = decode_windows_1252(byte);
+                            if let Some(bytes) = bytes.as_deref() {
+                                let codepage = ansi_codepage_stack.last().copied().unwrap_or(1252);
+                                let decoded = decode_ansi_bytes(bytes, codepage);
                                 if let Some(state) = table_state.as_mut()
                                     && state.in_row
                                 {
-                                    state.current_cell.push(decoded);
+                                    state.current_cell.push_str(&decoded);
                                 } else {
                                     if pending_boundary_space
                                         && !result.is_empty()
@@ -1125,7 +1144,7 @@ pub(crate) fn extract_text_from_rtf(
                                     }
                                     pending_boundary_space = false;
                                     para_meta_emitted = false;
-                                    result.push(decoded);
+                                    result.push_str(&decoded);
                                     if let Some(flag) = group_has_text.last_mut() {
                                         *flag = true;
                                     }
@@ -1220,6 +1239,13 @@ pub(crate) fn extract_text_from_rtf(
                                 {
                                     *uc = val.max(0) as u8;
                                 }
+                                if control_word == "ansicpg"
+                                    && let Some(val) = _param
+                                    && val > 0
+                                    && let Some(codepage) = ansi_codepage_stack.last_mut()
+                                {
+                                    *codepage = val as u32;
+                                }
                                 if in_footnote
                                     && control_word == "u"
                                     && let Some(code_num) = _param
@@ -1268,6 +1294,7 @@ pub(crate) fn extract_text_from_rtf(
                                 &mut para_metas,
                                 &mut para_meta_emitted,
                                 &mut uc_stack,
+                                &mut ansi_codepage_stack,
                                 &mut footnote_count,
                                 in_footnote,
                                 &mut footnote_buf,
@@ -1402,6 +1429,27 @@ pub(crate) fn extract_text_from_rtf(
     (final_result, tables, images, para_metas, formatting_data)
 }
 
+/// Consume the next `\'hh` hex escape if it immediately follows the current one.
+///
+/// Adjacent hex escapes form one multi-byte run that must be decoded together
+/// so multi-byte ANSI codepages (e.g. Shift-JIS, GBK) decode correctly.
+fn consume_adjacent_hex_escape(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<u8> {
+    let mut lookahead = chars.clone();
+    if lookahead.next()? != '\\' || lookahead.next()? != '\'' {
+        return None;
+    }
+    let h1 = lookahead.next()?;
+    let h2 = lookahead.next()?;
+    let byte = parse_hex_byte(h1 as u8, h2 as u8)?;
+
+    chars.next();
+    chars.next();
+    chars.next();
+    chars.next();
+
+    Some(byte)
+}
+
 /// Handle an RTF control word during parsing.
 #[allow(clippy::too_many_arguments, clippy::ptr_arg)]
 fn handle_control_word(
@@ -1423,6 +1471,7 @@ fn handle_control_word(
     para_metas: &mut Vec<ParagraphMeta>,
     para_meta_emitted: &mut bool,
     uc_stack: &mut Vec<u8>,
+    ansi_codepage_stack: &mut [u32],
     footnote_count: &mut usize,
     _in_footnote: bool,
     _footnote_buf: &mut String,
@@ -1475,6 +1524,14 @@ fn handle_control_word(
                 && let Some(uc) = uc_stack.last_mut()
             {
                 *uc = val.max(0) as u8;
+            }
+        }
+        "ansicpg" => {
+            if let Some(val) = param
+                && val > 0
+                && let Some(codepage) = ansi_codepage_stack.last_mut()
+            {
+                *codepage = val as u32;
             }
         }
         "u" => {
