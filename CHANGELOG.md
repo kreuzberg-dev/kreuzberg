@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `LayoutStrategy` enum on `LayoutDetectionConfig` (`strategy` field, default `always`). `auto` pre-screens each PDF page with cheap geometry signals and runs the layout model only on pages likely to benefit; existing configs keep the every-page behavior bit-for-bit ([#1322](https://github.com/xberg-io/xberg/issues/1322)).
+
 ## [1.0.0] - 2026-07-27
 
 xberg 1.0.0 is the first stable release of the document-intelligence engine previously developed as
