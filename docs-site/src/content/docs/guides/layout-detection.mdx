@@ -147,7 +147,7 @@ The pre-screen reads geometry the PDF already carries (text-span boxes, straight
 Two behaviors to know:
 
 - On the OCR path the pre-screen skips inference only; page rasters are still produced because OCR consumes them.
-- Skipped pages are auditable: `metadata.pdf.layout_gated_pages` lists them (1-indexed), and `metadata.pdf.layout_gate_reasons` records each page's decision reason (`multi_column`, `table_grid`, `plain_text`, and so on).
+- Skipped pages are auditable: `metadata.format.layout_gated_pages` lists them (1-indexed), and `metadata.format.layout_gate_reasons` records each page's decision reason (`multi_column`, `table_grid`, `plain_text`, and so on). The `format` object is tagged `format_type: "pdf"`.
 
 Note that `auto` trades the model's per-paragraph refinements on skipped pages (heading promotion, code and formula tagging) for throughput; content and reading order are unchanged. Keep `always` when you need the model's classification on every page.
 

@@ -49,6 +49,10 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum GatedPageHandling {
     /// Skip both the raster render and model inference for gated pages.
+    ///
+    /// The page-aligned output still carries a small white placeholder image
+    /// for gated pages (see [`render_failure_placeholder`]); downstream
+    /// markdown consumers never read it because gated pages have no hints.
     SkipRender,
     /// Render the page raster but skip model inference for gated pages.
     ///
@@ -58,29 +62,17 @@ pub(super) enum GatedPageHandling {
     RenderWithoutInference,
 }
 
-/// Render every page of `content` to RGB (in chunks) and run layout detection.
+/// Page-aligned layout pass data: `(images, results, hints_per_page,
+/// detections_per_page)`, one entry per page at every index.
 ///
-/// Returns `(images, results, hints_per_page, detections_per_page)` where:
-/// - `images[i]` is the rendered RGB image for page `i` (or a small white placeholder
-///   if the page failed to render).
+/// - `images[i]` is the rendered RGB image for page `i`, or a small white
+///   placeholder when the page failed to render or the `Auto` gate skipped it
+///   on the markdown path.
 /// - `results[i]` holds per-region detection metadata in PDF coordinate space.
-/// - `hints_per_page[i]` holds the layout hints derived from detections on
-///   page `i` (empty for pages that failed to render or produced no detections).
-/// - `detections_per_page[i]` preserves the pixel-space detections for OCR
-///   layout assembly (empty for pages that failed to render).
-///
-/// # Memory behaviour
-///
-/// Pages are rendered and detected in chunks of [`LAYOUT_BATCH_CHUNK_SIZE`]
-/// so the peak ONNX batch tensor size is bounded.  The returned `images` vec
-/// accumulates all page images for downstream table recognition.
-///
-/// # Errors
-///
-/// Returns an error if the PDF cannot be opened, the layout engine cannot be
-/// initialised, or detection fails on any chunk.  Individual page render
-/// failures are logged and produce empty layout for that page without aborting
-/// the whole document.
+/// - `hints_per_page[i]` holds the layout hints for page `i` (empty for
+///   render-failed, gate-skipped, and no-detection pages).
+/// - `detections_per_page[i]` preserves pixel-space detections for OCR layout
+///   assembly (empty for render-failed and gate-skipped pages).
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 type LayoutForMarkdownOutput = (
     Vec<image::RgbImage>,
@@ -172,6 +164,29 @@ fn displayed_page_dimensions(width: f32, height: f32, rotation_degrees: u32) -> 
     }
 }
 
+/// Run the `Auto` gate over every page, or `None` under strategy `Always`.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+fn auto_gate_decisions(
+    doc: &pdf_oxide::PdfDocument,
+    layout_config: &LayoutDetectionConfig,
+    page_count: usize,
+) -> Option<Vec<PageGateDecision>> {
+    match layout_config.strategy {
+        LayoutStrategy::Always => None,
+        LayoutStrategy::Auto => {
+            let decisions = crate::pdf::layout_gate::decide_pages(doc, page_count);
+            let selected = decisions.iter().filter(|decision| decision.run_layout).count();
+            tracing::info!(
+                pages = page_count,
+                selected,
+                skipped = page_count - selected,
+                "layout gate: auto strategy page selection"
+            );
+            Some(decisions)
+        }
+    }
+}
+
 /// Whether the `Auto` gate selected `page_index` for the model.
 ///
 /// `None` gate decisions (strategy `Always`) select every page; a page index
@@ -251,6 +266,14 @@ fn render_layout_page(
         .ok()
 }
 
+/// Whether a page joins the ONNX batch: it must both be gate-selected and
+/// have a real raster. Render-failed and gate-skipped pages stay out and end
+/// up with empty detections.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+fn enters_inference_batch(page: &RenderedLayoutPage) -> bool {
+    page.run_inference && page.image.is_some()
+}
+
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 fn detect_layout_chunk(
     engine: &mut crate::layout::LayoutEngine,
@@ -259,7 +282,7 @@ fn detect_layout_chunk(
     let rendered_positions: Vec<usize> = pages
         .iter()
         .enumerate()
-        .filter_map(|(position, page)| (page.run_inference && page.image.is_some()).then_some(position))
+        .filter_map(|(position, page)| enters_inference_batch(page).then_some(position))
         .collect();
     if rendered_positions.is_empty() {
         return Ok((0..pages.len()).map(|_| None).collect());
@@ -360,29 +383,18 @@ pub(super) fn run_layout_for_pdf_pages(
         });
     }
 
-    let gate_decisions = match layout_config.strategy {
-        LayoutStrategy::Always => None,
-        LayoutStrategy::Auto => {
-            let decisions = crate::pdf::layout_gate::decide_pages(&doc, page_count);
-            let selected = decisions.iter().filter(|decision| decision.run_layout).count();
-            tracing::info!(
-                pages = page_count,
-                selected,
-                skipped = page_count - selected,
-                "layout gate: auto strategy page selection"
-            );
-            if selected == 0 {
-                // No page can benefit: behave exactly as if layout were off,
-                // with no engine init and no renders. The OCR path then
-                // produces its own rasters once, as it does without layout. ~keep
-                return Ok(LayoutRunOutput {
-                    data: None,
-                    gate_decisions: Some(decisions),
-                });
-            }
-            Some(decisions)
-        }
-    };
+    let gate_decisions = auto_gate_decisions(&doc, layout_config, page_count);
+    if let Some(decisions) = &gate_decisions
+        && decisions.iter().all(|decision| !decision.run_layout)
+    {
+        // No page can benefit: behave exactly as if layout were off, with no
+        // engine init and no renders. The OCR path then produces its own
+        // rasters once, as it does without layout. ~keep
+        return Ok(LayoutRunOutput {
+            data: None,
+            gate_decisions,
+        });
+    }
 
     let mut engine = crate::layout::take_or_create_engine(layout_config, thread_budget)
         .map_err(|e| XbergError::Other(format!("layout runner: engine init failed: {e}")))?;
@@ -443,9 +455,11 @@ pub(super) fn run_layout_for_pdf_pages(
 /// conditions from `config` and, when they are all satisfied, runs
 /// [`run_layout_for_pdf_pages`].
 ///
-/// Returns four `None` values when the feature is not requested, or on soft
-/// failure (logged as a warning so the markdown path can continue without
-/// layout hints). Rendering and inference run off the async executor when a
+/// The first four values are `None` when the feature is not requested, when
+/// the `Auto` gate skipped every page, or on soft failure (logged so the
+/// markdown path continues without layout hints). The fifth value carries the
+/// `Auto` gate's per-page decisions whenever the gate ran, including the
+/// all-gated case. Rendering and inference run off the async executor when a
 /// Tokio runtime is enabled.
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 type LayoutForMarkdownOptional = (
@@ -515,13 +529,14 @@ pub(super) async fn maybe_run_layout_for_markdown(
 }
 
 /// Run the layout pass used by OCR without blocking a Tokio worker thread.
+///
+/// `data: None` means the `Auto` gate skipped every page: the caller proceeds
+/// exactly as if layout were off, rendering its own OCR rasters once.
 #[cfg(all(
     feature = "pdf",
     feature = "layout-detection",
     any(feature = "ocr", feature = "ocr-pipeline")
 ))]
-/// `data: None` means the `Auto` gate skipped every page: the caller proceeds
-/// exactly as if layout were off, rendering its own OCR rasters once.
 pub(super) async fn run_layout_for_ocr(
     content: &[u8],
     layout_config: &LayoutDetectionConfig,
@@ -701,6 +716,115 @@ mod tests {
                 crate::pdf::layout_gate::GateReason::PlainText
             },
         }
+    }
+
+    /// A one-page single-column prose PDF with a real text content stream:
+    /// the gate must classify it as plain text and skip the model.
+    fn prose_pdf(lines: usize) -> Vec<u8> {
+        use lopdf::{Document, Object, Stream, dictionary};
+
+        let mut document = Document::with_version("1.5");
+        let pages_id = document.new_object_id();
+        let font_id = document.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+        let mut content = String::from("BT /F1 10 Tf 72 720 Td 14 TL\n");
+        for line in 0..lines {
+            content.push_str(&format!(
+                "(Line {line} of steady single column prose with enough characters to pass the floor.) Tj T*\n"
+            ));
+        }
+        content.push_str("ET");
+        let content_id = document.add_object(Stream::new(dictionary! {}, content.into_bytes()));
+        let page_id = document.new_object_id();
+        document.objects.insert(
+            page_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Page",
+                "Parent" => pages_id,
+                "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+                "Resources" => dictionary! { "Font" => dictionary! { "F1" => font_id } },
+                "Contents" => content_id,
+            }),
+        );
+        document.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![page_id.into()],
+                "Count" => 1,
+            }),
+        );
+        let catalog_id = document.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        document.trailer.set("Root", catalog_id);
+
+        let mut bytes = Vec::new();
+        document.save_to(&mut bytes).expect("fixture PDF must serialize");
+        bytes
+    }
+
+    /// End-to-end `Auto` on real PDF bytes: the gate skips plain prose, and
+    /// the runner returns no layout data before any engine init (this test
+    /// must never need ONNX models). The gate is asserted first so a gate
+    /// regression fails here rather than in an engine-init attempt.
+    #[test]
+    fn auto_strategy_gates_prose_page_and_skips_the_layout_pass_entirely() {
+        use crate::core::config::layout::LayoutStrategy;
+
+        let bytes = prose_pdf(20);
+        let doc = pdf_oxide::PdfDocument::from_bytes(bytes.clone()).expect("fixture PDF must open");
+        let decisions = crate::pdf::layout_gate::decide_pages(&doc, 1);
+        assert_eq!(decisions.len(), 1);
+        assert!(
+            !decisions[0].run_layout,
+            "prose fixture must be gated, got {:?}",
+            decisions[0].reason
+        );
+        assert_eq!(decisions[0].reason, crate::pdf::layout_gate::GateReason::PlainText);
+
+        let config = crate::core::config::layout::LayoutDetectionConfig {
+            strategy: LayoutStrategy::Auto,
+            ..Default::default()
+        };
+        let output = super::run_layout_for_pdf_pages(&bytes, &config, 1, GatedPageHandling::SkipRender)
+            .expect("all-gated run must succeed without a layout engine");
+        assert!(output.data.is_none(), "all-gated prose must skip the layout pass");
+        let recorded = output.gate_decisions.expect("auto strategy must record decisions");
+        assert_eq!(recorded, decisions);
+    }
+
+    #[test]
+    fn only_gate_selected_pages_with_real_rasters_enter_the_inference_batch() {
+        let selected_with_image = rendered_page(0, 10, 100.0);
+        let mut gated_with_image = rendered_page(1, 10, 100.0);
+        gated_with_image.run_inference = false;
+        let mut selected_render_failed = rendered_page(2, 10, 100.0);
+        selected_render_failed.image = None;
+
+        assert!(super::enters_inference_batch(&selected_with_image));
+        assert!(!super::enters_inference_batch(&gated_with_image));
+        assert!(!super::enters_inference_batch(&selected_render_failed));
+    }
+
+    #[test]
+    fn gated_page_assembles_placeholder_image_with_empty_detection_and_hints() {
+        let mut gated = rendered_page(0, 10, 100.0);
+        gated.image = None;
+        gated.run_inference = false;
+
+        let assembled = assemble_layout_chunk(vec![gated], vec![None]).expect("gated page must stay aligned");
+
+        assert_eq!(
+            assembled[0].image.dimensions(),
+            (FAILED_RENDER_PLACEHOLDER_SIDE, FAILED_RENDER_PLACEHOLDER_SIDE)
+        );
+        assert!(assembled[0].detection.detections.is_empty());
+        assert!(assembled[0].hints.is_empty());
     }
 
     #[test]

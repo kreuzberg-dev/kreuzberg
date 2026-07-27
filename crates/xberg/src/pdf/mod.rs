@@ -33,7 +33,6 @@ pub(crate) mod oxide_text;
 #[cfg(feature = "pdf")]
 /// PDF page rendering to raster images.
 pub mod render;
-
 #[cfg(feature = "pdf")]
 /// Scanned-page detection.
 pub(crate) mod scan_detect;

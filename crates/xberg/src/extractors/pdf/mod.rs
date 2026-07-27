@@ -256,10 +256,23 @@ fn prepare_ocr_layout_inputs(
 /// Auto layout gate audit trail: 1-indexed skipped pages and per-page
 /// decision reasons, both `None` unless the `Auto` gate ran.
 ///
-/// Referenced by the OCR helper's return tuple, so builds without an OCR
-/// feature see the alias as unused.
+/// Unused only when both OCR features and the pdf + layout-detection pair
+/// are off; the allow is scoped wider because cfg algebra for "either user
+/// present" is not worth the noise.
 #[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(dead_code))]
 type OcrLayoutGateDecisions = (Option<Vec<u32>>, Option<Vec<String>>);
+
+/// Whether the markdown layout pass's rasters may be reused as OCR input.
+///
+/// Under `LayoutStrategy::Auto` with `SkipRender`, gate-skipped pages carry
+/// 64x64 white placeholders. Reusing those as OCR rasters would OCR blank
+/// squares (silent empty pages), so reuse is allowed only when every page ran
+/// the model. When it is refused, the OCR path runs its own layout pass in
+/// `RenderWithoutInference` mode, which renders gated pages correctly.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+fn markdown_layout_reusable_for_ocr(decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>) -> bool {
+    decisions.is_none_or(|decisions| decisions.iter().all(|decision| decision.run_layout))
+}
 
 /// Convert gate decisions into the metadata representation.
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
@@ -639,6 +652,12 @@ impl PdfExtractor {
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         #[allow(unused_assignments)]
         let mut ocr_layout_gate_audit: OcrLayoutGateDecisions = (None, None);
+
+        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+        if !markdown_layout_reusable_for_ocr(markdown_layout_gate_decisions.as_deref()) {
+            markdown_layout_images = None;
+            markdown_layout_detections = None;
+        }
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let (text, extraction_method) = if config.effective_disable_ocr() {
@@ -1303,6 +1322,52 @@ mod tests {
     use crate::core::config::OcrQualityThresholds;
     #[cfg(all(feature = "pdf", feature = "ocr"))]
     use serial_test::serial;
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    fn gate_decision(run_layout: bool) -> crate::pdf::layout_gate::PageGateDecision {
+        crate::pdf::layout_gate::PageGateDecision {
+            run_layout,
+            reason: if run_layout {
+                crate::pdf::layout_gate::GateReason::MultiColumn
+            } else {
+                crate::pdf::layout_gate::GateReason::PlainText
+            },
+        }
+    }
+
+    /// Gate-skipped pages carry placeholder rasters; any skip must refuse
+    /// raster reuse so OCR never reads a blank square.
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[test]
+    fn markdown_layout_rasters_are_reusable_for_ocr_only_when_no_page_was_gated() {
+        assert!(markdown_layout_reusable_for_ocr(None));
+        assert!(markdown_layout_reusable_for_ocr(Some(&[
+            gate_decision(true),
+            gate_decision(true)
+        ])));
+        assert!(!markdown_layout_reusable_for_ocr(Some(&[
+            gate_decision(true),
+            gate_decision(false)
+        ])));
+    }
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[test]
+    fn layout_gate_metadata_reports_one_indexed_skipped_pages_and_all_reasons() {
+        let decisions = [gate_decision(true), gate_decision(false), gate_decision(false)];
+        let (gated, reasons) = layout_gate_metadata(Some(&decisions));
+        assert_eq!(gated, Some(vec![2, 3]));
+        assert_eq!(
+            reasons,
+            Some(vec![
+                "multi_column".to_string(),
+                "plain_text".to_string(),
+                "plain_text".to_string()
+            ])
+        );
+
+        assert_eq!(layout_gate_metadata(None), (None, None));
+    }
 
     #[cfg(feature = "pdf")]
     fn catalog(

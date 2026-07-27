@@ -261,6 +261,13 @@ mod tests {
     }
 
     #[test]
+    fn layout_strategy_deserializes_from_toml_config() {
+        let config: LayoutDetectionConfig =
+            toml::from_str("strategy = \"auto\"").expect("toml config must deserialize");
+        assert_eq!(config.strategy, LayoutStrategy::Auto);
+    }
+
+    #[test]
     fn layout_strategy_from_str_accepts_wire_names_and_rejects_unknown() {
         assert_eq!("always".parse::<LayoutStrategy>(), Ok(LayoutStrategy::Always));
         assert_eq!("auto".parse::<LayoutStrategy>(), Ok(LayoutStrategy::Auto));

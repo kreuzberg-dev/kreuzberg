@@ -57,6 +57,9 @@ const GRID_MIN_COLS: usize = 2;
 /// Rows are clustered on span vertical centers within this tolerance, points.
 const GRID_ROW_TOLERANCE_PTS: f32 = 5.0;
 
+/// Row clustering widens to this fraction of the span height for large fonts.
+const GRID_ROW_TOLERANCE_HEIGHT_FRACTION: f32 = 0.6;
+
 /// Straight lines shorter than this are decoration, not rules, in points.
 const RULED_LINE_MIN_LENGTH_PTS: f32 = 20.0;
 
@@ -216,6 +219,11 @@ pub(crate) fn decide_page(signals: &PageGateSignals) -> PageGateDecision {
 /// [`COLUMN_GUTTER_MIN_WIDTH_PTS`] with [`COLUMN_SIDE_MIN_SPANS`] spans on
 /// each side, both sides covering [`COLUMN_SIDE_MIN_HEIGHT_FRACTION`] of the
 /// text height, reads as a column gutter.
+///
+/// A single full-width span crossing the gutter (a heading over two columns)
+/// hides the gap from this projection; such pages are still selected through
+/// the [`has_aligned_grid`] backstop, since column bodies share left anchors
+/// across many rows.
 fn has_column_split(spans: &[SpanBox]) -> bool {
     if spans.len() < COLUMN_SIDE_MIN_SPANS * 2 {
         return false;
@@ -287,7 +295,7 @@ fn cluster_rows(spans: &[SpanBox]) -> Vec<Vec<&SpanBox>> {
         match rows.last_mut() {
             Some(row)
                 if (span.vertical_center() - row[0].vertical_center()).abs()
-                    <= GRID_ROW_TOLERANCE_PTS.max(span.height() * 0.6) =>
+                    <= GRID_ROW_TOLERANCE_PTS.max(span.height() * GRID_ROW_TOLERANCE_HEIGHT_FRACTION) =>
             {
                 row.push(span);
             }
@@ -299,8 +307,10 @@ fn cluster_rows(spans: &[SpanBox]) -> Vec<Vec<&SpanBox>> {
 
 /// Count edge positions that recur on at least [`GRID_MIN_ROWS`] rows.
 ///
-/// Edges are clustered within [`GRID_EDGE_ALIGN_TOLERANCE_PTS`]; each cluster
-/// counts the number of distinct rows contributing to it.
+/// Edges are clustered within [`GRID_EDGE_ALIGN_TOLERANCE_PTS`] of the
+/// cluster's first edge, anchored rather than chained: adjacent edges 3pt
+/// apart must not link scattered prose-span edges into one wide false anchor.
+/// Each cluster counts the number of distinct rows contributing to it.
 fn recurring_edge_clusters(rows: &[&Vec<&SpanBox>], edge: fn(&SpanBox) -> f32) -> usize {
     let mut edges: Vec<(f32, usize)> = rows
         .iter()
@@ -312,7 +322,8 @@ fn recurring_edge_clusters(rows: &[&Vec<&SpanBox>], edge: fn(&SpanBox) -> f32) -
     let mut anchors = 0usize;
     let mut cluster_start = 0usize;
     for index in 1..=edges.len() {
-        let cluster_ended = index == edges.len() || edges[index].0 - edges[index - 1].0 > GRID_EDGE_ALIGN_TOLERANCE_PTS;
+        let cluster_ended =
+            index == edges.len() || edges[index].0 - edges[cluster_start].0 > GRID_EDGE_ALIGN_TOLERANCE_PTS;
         if cluster_ended {
             let mut row_indices: Vec<usize> = edges[cluster_start..index].iter().map(|(_, row)| *row).collect();
             row_indices.sort_unstable();
@@ -357,43 +368,48 @@ fn page_signals(doc: &PdfDocument, page_index: usize) -> Option<PageGateSignals>
         .map(|span| span.text.chars().filter(|c| !c.is_whitespace()).count())
         .sum();
 
-    let (horizontal_rules, vertical_rules) = count_rules(doc, page_index)?;
+    // One content-stream path parse serves both the rule counter and the
+    // vector-coverage signal; pdf_oxide's extract_lines would re-run
+    // extract_paths internally. ~keep
+    let paths = super::oxide::guard_oxide_panic(
+        || doc.extract_paths(page_index).map_err(|error| error.to_string()),
+        |message| message,
+    )
+    .ok()?;
+    let (horizontal_rules, vertical_rules) = count_rules(&paths);
 
     Some(PageGateSignals {
         spans,
         text_chars,
         horizontal_rules,
         vertical_rules,
-        graphics_coverage: graphics_coverage(doc, page_index)?,
+        graphics_coverage: graphics_coverage(doc, page_index, &paths)?,
         has_form_widgets: has_form_widgets(doc, page_index)?,
     })
 }
 
-/// Count horizontal and vertical rules at least [`RULED_LINE_MIN_LENGTH_PTS`] long.
-fn count_rules(doc: &PdfDocument, page_index: usize) -> Option<(usize, usize)> {
-    let lines = super::oxide::guard_oxide_panic(
-        || doc.extract_lines(page_index).map_err(|error| error.to_string()),
-        |message| message,
-    )
-    .ok()?;
-
+/// Count horizontal and vertical rules at least [`RULED_LINE_MIN_LENGTH_PTS`]
+/// long. A rule must also be thin (minor bbox dimension within
+/// [`GRID_EDGE_ALIGN_TOLERANCE_PTS`]) so long diagonals on chart-heavy pages
+/// do not count.
+fn count_rules(paths: &[pdf_oxide::elements::PathContent]) -> (usize, usize) {
     let mut horizontal = 0usize;
     let mut vertical = 0usize;
-    for line in &lines {
-        let width = line.bbox.width.abs();
-        let height = line.bbox.height.abs();
-        if width >= RULED_LINE_MIN_LENGTH_PTS && width > height {
+    for path in paths.iter().filter(|path| path.is_straight_line()) {
+        let width = path.bbox.width.abs();
+        let height = path.bbox.height.abs();
+        if width >= RULED_LINE_MIN_LENGTH_PTS && height <= GRID_EDGE_ALIGN_TOLERANCE_PTS {
             horizontal += 1;
-        } else if height >= RULED_LINE_MIN_LENGTH_PTS && height > width {
+        } else if height >= RULED_LINE_MIN_LENGTH_PTS && width <= GRID_EDGE_ALIGN_TOLERANCE_PTS {
             vertical += 1;
         }
     }
-    Some((horizontal, vertical))
+    (horizontal, vertical)
 }
 
 /// Fraction of the page under raster images plus stroked or filled vector
 /// paths, without decoding pixels. Summed, not unioned: an upper bound.
-fn graphics_coverage(doc: &PdfDocument, page_index: usize) -> Option<f32> {
+fn graphics_coverage(doc: &PdfDocument, page_index: usize, paths: &[pdf_oxide::elements::PathContent]) -> Option<f32> {
     let (x0, y0, x1, y1) = doc.get_page_media_box(page_index).ok()?;
     let page_area = ((x1 - x0) * (y1 - y0)).abs();
     if page_area <= f32::EPSILON {
@@ -406,15 +422,11 @@ fn graphics_coverage(doc: &PdfDocument, page_index: usize) -> Option<f32> {
         .iter()
         .map(|handle| (handle.bbox.width * handle.bbox.height).abs())
         .sum();
-    let vector: f32 = super::oxide::guard_oxide_panic(
-        || doc.extract_paths(page_index).map_err(|error| error.to_string()),
-        |message| message,
-    )
-    .ok()?
-    .iter()
-    .filter(|path| !path.is_straight_line())
-    .map(|path| (path.bbox.width * path.bbox.height).abs())
-    .sum();
+    let vector: f32 = paths
+        .iter()
+        .filter(|path| !path.is_straight_line())
+        .map(|path| (path.bbox.width * path.bbox.height).abs())
+        .sum();
 
     Some(((raster + vector) / page_area).clamp(0.0, 1.0))
 }
@@ -569,6 +581,58 @@ mod tests {
         // Every prose line shares one left anchor; one anchor is below
         // GRID_MIN_COLS so justified prose must not read as a table. ~keep
         assert!(!has_aligned_grid(&prose_spans(40)));
+    }
+
+    #[test]
+    fn prose_lines_split_into_scattered_spans_are_not_a_grid() {
+        // Kerning and style changes split real prose lines into several
+        // spans whose edges land at unaligned x positions. Anchored edge
+        // clustering must not chain them into false column anchors. ~keep
+        let mut spans = Vec::new();
+        for line in 0..20 {
+            let top = 720.0 - line as f32 * 14.0;
+            // Left anchor plus two mid-line breaks drifting 2pts per line:
+            // chained clustering would merge the drift into wide anchors. ~keep
+            let drift = line as f32 * 2.0;
+            spans.push(span(72.0, top - 10.0, 200.0 + drift, top));
+            spans.push(span(202.0 + drift, top - 10.0, 380.0 - drift, top));
+            spans.push(span(382.0 - drift, top - 10.0, 540.0, top));
+        }
+        let signals = PageGateSignals {
+            spans,
+            text_chars: 2_000,
+            horizontal_rules: 0,
+            vertical_rules: 0,
+            graphics_coverage: 0.0,
+            has_form_widgets: false,
+        };
+        let decision = decide_page(&signals);
+        assert!(
+            !decision.run_layout,
+            "drifting mid-line span edges must not read as a table grid, got {:?}",
+            decision.reason
+        );
+    }
+
+    #[test]
+    fn full_width_heading_over_two_columns_still_runs_the_model() {
+        // The heading span crosses the gutter, hiding it from the
+        // x-projection; the aligned-grid backstop must still select the page. ~keep
+        let mut spans = vec![span(72.0, 710.0, 540.0, 726.0)];
+        for line in 0..20 {
+            let top = 690.0 - line as f32 * 14.0;
+            spans.push(span(72.0, top - 10.0, 290.0, top));
+            spans.push(span(322.0, top - 10.0, 540.0, top));
+        }
+        let signals = PageGateSignals {
+            spans,
+            text_chars: 2_000,
+            horizontal_rules: 0,
+            vertical_rules: 0,
+            graphics_coverage: 0.0,
+            has_form_widgets: false,
+        };
+        assert!(decide_page(&signals).run_layout);
     }
 
     #[test]
