@@ -94,6 +94,23 @@ pub(crate) enum GateReason {
     PlainText,
 }
 
+impl GateReason {
+    /// Snake_case wire name recorded in extraction metadata.
+    pub(crate) fn wire_name(self) -> &'static str {
+        match self {
+            Self::SparseText => "sparse_text",
+            Self::NoTextLayer => "no_text_layer",
+            Self::MultiColumn => "multi_column",
+            Self::TableGrid => "table_grid",
+            Self::RuledLines => "ruled_lines",
+            Self::GraphicsHeavy => "graphics_heavy",
+            Self::FormWidgets => "form_widgets",
+            Self::SignalsUnavailable => "signals_unavailable",
+            Self::PlainText => "plain_text",
+        }
+    }
+}
+
 /// One page's gate outcome.
 #[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
