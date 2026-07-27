@@ -116,7 +116,7 @@ async fn run_layout_for_pdf_pages_async(
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
     gated_handling: GatedPageHandling,
-) -> Result<LayoutForMarkdownOutput> {
+) -> Result<Option<LayoutForMarkdownOutput>> {
     #[cfg(feature = "tokio-runtime")]
     {
         let owned_content = content.to_vec();
@@ -330,7 +330,7 @@ pub(super) fn run_layout_for_pdf_pages(
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
     gated_handling: GatedPageHandling,
-) -> Result<LayoutForMarkdownOutput> {
+) -> Result<Option<LayoutForMarkdownOutput>> {
     let doc = pdf_oxide::PdfDocument::from_bytes(content.to_vec()).map_err(|e| XbergError::Parsing {
         message: format!("layout runner: failed to open PDF: {e}"),
         source: None,
@@ -342,7 +342,7 @@ pub(super) fn run_layout_for_pdf_pages(
     })?;
 
     if page_count == 0 {
-        return Ok((Vec::new(), Vec::new(), Vec::new(), Vec::new()));
+        return Ok(Some((Vec::new(), Vec::new(), Vec::new(), Vec::new())));
     }
 
     let gate_decisions = match layout_config.strategy {
@@ -356,6 +356,12 @@ pub(super) fn run_layout_for_pdf_pages(
                 skipped = page_count - selected,
                 "layout gate: auto strategy page selection"
             );
+            if selected == 0 {
+                // No page can benefit: behave exactly as if layout were off,
+                // with no engine init and no renders. The OCR path then
+                // produces its own rasters once, as it does without layout. ~keep
+                return Ok(None);
+            }
             Some(decisions)
         }
     };
@@ -409,7 +415,7 @@ pub(super) fn run_layout_for_pdf_pages(
 
     crate::layout::return_engine(engine);
 
-    Ok((all_images, all_layout_results, all_hints, all_detections))
+    Ok(Some((all_images, all_layout_results, all_hints, all_detections)))
 }
 
 /// Convenience wrapper that reads `use_layout_for_markdown` and other gate
@@ -451,7 +457,7 @@ pub(super) async fn maybe_run_layout_for_markdown(
     )
     .await
     {
-        Ok((images, results, hints, detections)) => {
+        Ok(Some((images, results, hints, detections))) => {
             let total_hints: usize = hints.iter().map(|h| h.len()).sum();
             tracing::info!(
                 pages = images.len(),
@@ -459,6 +465,10 @@ pub(super) async fn maybe_run_layout_for_markdown(
                 "layout-for-markdown: detection succeeded"
             );
             (Some(images), Some(results), Some(hints), Some(detections))
+        }
+        Ok(None) => {
+            tracing::info!("layout-for-markdown: auto gate skipped every page, continuing without layout hints");
+            (None, None, None, None)
         }
         Err(e) => {
             tracing::warn!(
@@ -476,11 +486,13 @@ pub(super) async fn maybe_run_layout_for_markdown(
     feature = "layout-detection",
     any(feature = "ocr", feature = "ocr-pipeline")
 ))]
+/// `Ok(None)` means the `Auto` gate skipped every page: the caller proceeds
+/// exactly as if layout were off, rendering its own OCR rasters once.
 pub(super) async fn run_layout_for_ocr(
     content: &[u8],
     layout_config: &LayoutDetectionConfig,
     thread_budget: usize,
-) -> Result<LayoutForMarkdownOutput> {
+) -> Result<Option<LayoutForMarkdownOutput>> {
     // OCR consumes the layout pass's rasters as its input images, so gated
     // pages still render; only model inference is skipped for them.
     run_layout_for_pdf_pages_async(

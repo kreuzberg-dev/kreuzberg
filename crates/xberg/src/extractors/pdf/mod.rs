@@ -283,7 +283,11 @@ async fn run_ocr_with_layout(
         if let Some(layout_config) = config.resolved_layout_config() {
             let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
             match layout_runner::run_layout_for_ocr(content, layout_config.as_ref(), thread_budget).await {
-                Ok(layout) => Some(layout),
+                Ok(Some(layout)) => Some(layout),
+                Ok(None) => {
+                    tracing::info!("OCR layout: auto gate skipped every page, continuing without layout assembly");
+                    None
+                }
                 Err(error) => {
                     tracing::warn!(
                         error = %error,
