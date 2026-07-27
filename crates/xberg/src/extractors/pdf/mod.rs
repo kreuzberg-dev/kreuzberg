@@ -269,7 +269,11 @@ type OcrLayoutGateDecisions = (Option<Vec<u32>>, Option<Vec<String>>);
 /// squares (silent empty pages), so reuse is allowed only when every page ran
 /// the model. When it is refused, the OCR path runs its own layout pass in
 /// `RenderWithoutInference` mode, which renders gated pages correctly.
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+#[cfg(all(
+    feature = "pdf",
+    feature = "layout-detection",
+    any(feature = "ocr", feature = "ocr-pipeline")
+))]
 fn markdown_layout_reusable_for_ocr(decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>) -> bool {
     decisions.is_none_or(|decisions| decisions.iter().all(|decision| decision.run_layout))
 }
@@ -653,7 +657,11 @@ impl PdfExtractor {
         #[allow(unused_assignments)]
         let mut ocr_layout_gate_audit: OcrLayoutGateDecisions = (None, None);
 
-        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+        #[cfg(all(
+            feature = "pdf",
+            feature = "layout-detection",
+            any(feature = "ocr", feature = "ocr-pipeline")
+        ))]
         if !markdown_layout_reusable_for_ocr(markdown_layout_gate_decisions.as_deref()) {
             markdown_layout_images = None;
             markdown_layout_detections = None;
@@ -1337,7 +1345,11 @@ mod tests {
 
     /// Gate-skipped pages carry placeholder rasters; any skip must refuse
     /// raster reuse so OCR never reads a blank square.
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[cfg(all(
+        feature = "pdf",
+        feature = "layout-detection",
+        any(feature = "ocr", feature = "ocr-pipeline")
+    ))]
     #[test]
     fn markdown_layout_rasters_are_reusable_for_ocr_only_when_no_page_was_gated() {
         assert!(markdown_layout_reusable_for_ocr(None));
