@@ -205,13 +205,13 @@ async fn test_batch_documents_preserves_order() {
 async fn test_multipage_pdf_extraction() {
     use helpers::{get_test_file_path, skip_if_missing};
 
-    if skip_if_missing("pdfs/multi_page.pdf") {
+    if skip_if_missing("pdf/multi_page.pdf") {
         tracing::debug!("Skipping multi-page PDF test: test file not available");
         return;
     }
 
     let config = ExtractionConfig::default();
-    let pdf_path = get_test_file_path("pdfs/multi_page.pdf");
+    let pdf_path = get_test_file_path("pdf/multi_page.pdf");
 
     let start = Instant::now();
     let result = helpers::extract_uri_document(&pdf_path, None, &config).await;
@@ -230,7 +230,7 @@ async fn test_multipage_pdf_extraction() {
 async fn test_concurrent_pdf_extractions() {
     use helpers::{get_test_file_path, skip_if_missing};
 
-    if skip_if_missing("pdfs/simple.pdf") {
+    if skip_if_missing("pdf/simple.pdf") {
         tracing::debug!("Skipping concurrent PDF test: test file not available");
         return;
     }
@@ -240,7 +240,7 @@ async fn test_concurrent_pdf_extractions() {
     let mut paths: Vec<UriBatchInput> = Vec::new();
     for _ in 0..10 {
         paths.push(UriBatchInput {
-            path: get_test_file_path("pdfs/simple.pdf"),
+            path: get_test_file_path("pdf/simple.pdf"),
             config: None,
         });
     }

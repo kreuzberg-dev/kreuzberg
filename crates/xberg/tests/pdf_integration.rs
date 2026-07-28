@@ -36,11 +36,11 @@ fn test_corrupted_pdf_returns_error_not_panic() {
 
 #[test]
 fn test_pdf_password_protected_fails_gracefully() {
-    if skip_if_missing("pdfs/copy_protected.pdf") {
+    if skip_if_missing("pdf/copy_protected.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/copy_protected.pdf");
+    let file_path = get_test_file_path("pdf/copy_protected.pdf");
     let result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default());
 
     match result {
@@ -68,11 +68,11 @@ fn test_pdf_password_protected_fails_gracefully() {
 
 #[test]
 fn test_pdf_password_protected_succeeds_with_correct_password() {
-    if skip_if_missing("pdfs/copy_protected.pdf") {
+    if skip_if_missing("pdf/copy_protected.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/copy_protected.pdf");
+    let file_path = get_test_file_path("pdf/copy_protected.pdf");
 
     let config = ExtractionConfig {
         pdf_options: Some(PdfConfig {
