@@ -1,6 +1,8 @@
 //! Character encoding utilities for RTF parsing.
 //!
-//! Provides hex byte parsing and Windows-1252 character mapping for the 0x80-0x9F range.
+//! Provides hex byte parsing and legacy Windows codepage decoding for RTF byte escapes.
+
+pub(crate) use crate::text::windows_codepage::encoding_for_windows_codepage;
 
 /// Convert a hex digit character to its numeric value.
 ///
@@ -25,48 +27,11 @@ pub(crate) fn parse_hex_byte(h1: u8, h2: u8) -> Option<u8> {
     Some((high << 4) | low)
 }
 
-/// Decode a byte using Windows-1252 encoding for the 0x80-0x9F range.
-///
-/// This function maps Windows-1252 bytes in the 0x80-0x9F range to their
-/// corresponding Unicode characters. For other values, it returns the byte
-/// as a character directly.
+/// Decode RTF hex escape bytes using the active ANSI codepage.
 #[inline]
-pub(crate) fn decode_windows_1252(byte: u8) -> char {
-    match byte {
-        0x80 => '\u{20AC}',
-        0x81 => '?',
-        0x82 => '\u{201A}',
-        0x83 => '\u{0192}',
-        0x84 => '\u{201E}',
-        0x85 => '\u{2026}',
-        0x86 => '\u{2020}',
-        0x87 => '\u{2021}',
-        0x88 => '\u{02C6}',
-        0x89 => '\u{2030}',
-        0x8A => '\u{0160}',
-        0x8B => '\u{2039}',
-        0x8C => '\u{0152}',
-        0x8D => '?',
-        0x8E => '\u{017D}',
-        0x8F => '?',
-        0x90 => '?',
-        0x91 => '\u{2018}',
-        0x92 => '\u{2019}',
-        0x93 => '\u{201C}',
-        0x94 => '\u{201D}',
-        0x95 => '\u{2022}',
-        0x96 => '\u{2013}',
-        0x97 => '\u{2014}',
-        0x98 => '\u{02DC}',
-        0x99 => '\u{2122}',
-        0x9A => '\u{0161}',
-        0x9B => '\u{203A}',
-        0x9C => '\u{0153}',
-        0x9D => '?',
-        0x9E => '\u{017E}',
-        0x9F => '\u{0178}',
-        _ => byte as char,
-    }
+pub(crate) fn decode_ansi_bytes(bytes: &[u8], codepage: u32) -> String {
+    let (decoded, _, _) = encoding_for_windows_codepage(codepage).decode(bytes);
+    decoded.into_owned()
 }
 
 /// Parse an RTF control word and extract its value.

@@ -11645,6 +11645,7 @@ dependencies = [
  "cfb 0.14.0",
  "chardetng",
  "chrono",
+ "codepage",
  "comrak",
  "crawlberg",
  "criterion 0.8.2",

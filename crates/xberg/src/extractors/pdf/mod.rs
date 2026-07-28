@@ -253,6 +253,50 @@ fn prepare_ocr_layout_inputs(
     (images, detections)
 }
 
+/// Auto layout gate audit trail: 1-indexed skipped pages and per-page
+/// decision reasons, both `None` unless the `Auto` gate ran.
+///
+/// Unused only when both OCR features and the pdf + layout-detection pair
+/// are off; the allow is scoped wider because cfg algebra for "either user
+/// present" is not worth the noise.
+#[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(dead_code))]
+type OcrLayoutGateDecisions = (Option<Vec<u32>>, Option<Vec<String>>);
+
+/// Whether the markdown layout pass's rasters may be reused as OCR input.
+///
+/// Under `LayoutStrategy::Auto` with `SkipRender`, gate-skipped pages carry
+/// 64x64 white placeholders. Reusing those as OCR rasters would OCR blank
+/// squares (silent empty pages), so reuse is allowed only when every page ran
+/// the model. When it is refused, the OCR path runs its own layout pass in
+/// `RenderWithoutInference` mode, which renders gated pages correctly.
+#[cfg(all(
+    feature = "pdf",
+    feature = "layout-detection",
+    any(feature = "ocr", feature = "ocr-pipeline")
+))]
+fn markdown_layout_reusable_for_ocr(decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>) -> bool {
+    decisions.is_none_or(|decisions| decisions.iter().all(|decision| decision.run_layout))
+}
+
+/// Convert gate decisions into the metadata representation.
+#[cfg(all(feature = "pdf", feature = "layout-detection"))]
+fn layout_gate_metadata(decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>) -> OcrLayoutGateDecisions {
+    let Some(decisions) = decisions else {
+        return (None, None);
+    };
+    let gated = decisions
+        .iter()
+        .enumerate()
+        .filter(|(_, decision)| !decision.run_layout)
+        .map(|(page_index, _)| page_index as u32 + 1)
+        .collect();
+    let reasons = decisions
+        .iter()
+        .map(|decision| decision.reason.wire_name().to_string())
+        .collect();
+    (Some(gated), Some(reasons))
+}
+
 /// Run OCR with optional layout detection on PDF bytes.
 ///
 /// Reuses detections from native extraction when available. Otherwise, when
@@ -274,16 +318,36 @@ async fn run_ocr_with_layout(
     Vec<String>,
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
+    OcrLayoutGateDecisions,
 )> {
     let default_ocr_config = crate::core::config::OcrConfig::default();
     let ocr_config = config.ocr.as_ref().unwrap_or(&default_ocr_config);
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    let mut ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
+    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
+    let ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
 
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let owned_layout = if precomputed_layout_detections.is_none() || precomputed_layout_images.is_none() {
         if let Some(layout_config) = config.resolved_layout_config() {
             let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
             match layout_runner::run_layout_for_ocr(content, layout_config.as_ref(), thread_budget).await {
-                Ok(layout) => Some(layout),
+                Ok(layout_runner::LayoutRunOutput {
+                    data: Some(layout),
+                    gate_decisions,
+                }) => {
+                    ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
+                    Some(layout)
+                }
+                Ok(layout_runner::LayoutRunOutput {
+                    data: None,
+                    gate_decisions,
+                }) => {
+                    tracing::info!("OCR layout: auto gate skipped every page, continuing without layout assembly");
+                    ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
+                    None
+                }
                 Err(error) => {
                     tracing::warn!(
                         error = %error,
@@ -341,6 +405,7 @@ async fn run_ocr_with_layout(
             ocr_pts,
             pipeline_rasters,
             pipeline_formulas,
+            ocr_layout_gate_decisions,
         ));
     }
 
@@ -366,6 +431,7 @@ async fn run_ocr_with_layout(
         ocr_pts,
         ocr_rasters,
         formulas,
+        ocr_layout_gate_decisions,
     ))
 }
 
@@ -471,6 +537,7 @@ impl PdfExtractor {
             markdown_layout_results,
             markdown_layout_hints,
             mut markdown_layout_detections,
+            markdown_layout_gate_decisions,
         ) = layout_runner::maybe_run_layout_for_markdown(content, config).await;
 
         #[cfg(all(feature = "pdf", feature = "layout-detection"))]
@@ -586,12 +653,25 @@ impl PdfExtractor {
         let mut ocr_formulas: Vec<crate::types::Formula> = Vec::new();
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let mut ocr_fallback_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
+        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[allow(unused_assignments)]
+        let mut ocr_layout_gate_audit: OcrLayoutGateDecisions = (None, None);
+
+        #[cfg(all(
+            feature = "pdf",
+            feature = "layout-detection",
+            any(feature = "ocr", feature = "ocr-pipeline")
+        ))]
+        if !markdown_layout_reusable_for_ocr(markdown_layout_gate_decisions.as_deref()) {
+            markdown_layout_images = None;
+            markdown_layout_detections = None;
+        }
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let (text, extraction_method) = if config.effective_disable_ocr() {
             (native_text, ExtractionMethod::Native)
         } else if config.force_ocr {
-            let (ocr_text, ocr_tbls, ocr_elems, ocr_doc, llm_usage, ocr_pts, ocr_rstrs, formulas) =
+            let (ocr_text, ocr_tbls, ocr_elems, ocr_doc, llm_usage, ocr_pts, ocr_rstrs, formulas, gate_audit) =
                 run_ocr_with_layout(
                     content,
                     config,
@@ -602,6 +682,7 @@ impl PdfExtractor {
                     markdown_layout_detections.take(),
                 )
                 .await?;
+            ocr_layout_gate_audit = gate_audit;
             ocr_tables = ocr_tbls;
             ocr_elements = ocr_elems;
             ocr_internal_doc = ocr_doc;
@@ -737,7 +818,18 @@ impl PdfExtractor {
                         )
                         .await
                         {
-                            Ok((ocr_text, ocr_tbls, ocr_elems, ocr_doc, llm_usage, ocr_pts, ocr_rstrs, formulas)) => {
+                            Ok((
+                                ocr_text,
+                                ocr_tbls,
+                                ocr_elems,
+                                ocr_doc,
+                                llm_usage,
+                                ocr_pts,
+                                ocr_rstrs,
+                                formulas,
+                                gate_audit,
+                            )) => {
+                                ocr_layout_gate_audit = gate_audit;
                                 ocr_tables = ocr_tbls;
                                 ocr_elements = ocr_elems;
                                 ocr_internal_doc = ocr_doc;
@@ -955,6 +1047,27 @@ impl PdfExtractor {
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         doc.processing_warnings.append(&mut ocr_fallback_warnings);
+
+        // Record the auto layout gate's audit trail from whichever pass ran
+        // it. Compiled whenever `pdf` is on so `ocr_layout_gate_audit` keeps
+        // a reader in profiles without layout-detection (it is always
+        // `(None, None)` there and the fields stay `None`). ~keep
+        {
+            #[cfg(feature = "layout-detection")]
+            #[allow(unused_mut)]
+            let (mut gated_pages, mut gate_reasons) = layout_gate_metadata(markdown_layout_gate_decisions.as_deref());
+            #[cfg(not(feature = "layout-detection"))]
+            #[allow(unused_mut)]
+            let (mut gated_pages, mut gate_reasons): OcrLayoutGateDecisions = (None, None);
+            #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+            if gated_pages.is_none() {
+                let (ocr_gated_pages, ocr_gate_reasons) = ocr_layout_gate_audit;
+                gated_pages = ocr_gated_pages;
+                gate_reasons = ocr_gate_reasons;
+            }
+            pdf_metadata.pdf_specific.layout_gated_pages = gated_pages;
+            pdf_metadata.pdf_specific.layout_gate_reasons = gate_reasons;
+        }
 
         doc.metadata = Metadata {
             output_format: pre_formatted_output,
@@ -1223,6 +1336,56 @@ mod tests {
     use crate::core::config::OcrQualityThresholds;
     #[cfg(all(feature = "pdf", feature = "ocr"))]
     use serial_test::serial;
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    fn gate_decision(run_layout: bool) -> crate::pdf::layout_gate::PageGateDecision {
+        crate::pdf::layout_gate::PageGateDecision {
+            run_layout,
+            reason: if run_layout {
+                crate::pdf::layout_gate::GateReason::MultiColumn
+            } else {
+                crate::pdf::layout_gate::GateReason::PlainText
+            },
+        }
+    }
+
+    /// Gate-skipped pages carry placeholder rasters; any skip must refuse
+    /// raster reuse so OCR never reads a blank square.
+    #[cfg(all(
+        feature = "pdf",
+        feature = "layout-detection",
+        any(feature = "ocr", feature = "ocr-pipeline")
+    ))]
+    #[test]
+    fn markdown_layout_rasters_are_reusable_for_ocr_only_when_no_page_was_gated() {
+        assert!(markdown_layout_reusable_for_ocr(None));
+        assert!(markdown_layout_reusable_for_ocr(Some(&[
+            gate_decision(true),
+            gate_decision(true)
+        ])));
+        assert!(!markdown_layout_reusable_for_ocr(Some(&[
+            gate_decision(true),
+            gate_decision(false)
+        ])));
+    }
+
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    #[test]
+    fn layout_gate_metadata_reports_one_indexed_skipped_pages_and_all_reasons() {
+        let decisions = [gate_decision(true), gate_decision(false), gate_decision(false)];
+        let (gated, reasons) = layout_gate_metadata(Some(&decisions));
+        assert_eq!(gated, Some(vec![2, 3]));
+        assert_eq!(
+            reasons,
+            Some(vec![
+                "multi_column".to_string(),
+                "plain_text".to_string(),
+                "plain_text".to_string()
+            ])
+        );
+
+        assert_eq!(layout_gate_metadata(None), (None, None));
+    }
 
     #[cfg(feature = "pdf")]
     fn catalog(

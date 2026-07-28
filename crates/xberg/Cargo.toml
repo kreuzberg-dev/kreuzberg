@@ -827,6 +827,7 @@ calamine = { version = "0.36.1", features = ["dates"], optional = true }
 cfb = { workspace = true, optional = true }
 chardetng = { version = "1.0.0", optional = true }
 chrono = { workspace = true, optional = true }
+codepage = "0.1.2"
 comrak = { workspace = true }
 crawlberg = { workspace = true, optional = true }
 dbase = { workspace = true, optional = true }

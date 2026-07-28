@@ -259,6 +259,15 @@ pub struct ExtractionOverrides {
     #[arg(long)]
     pub layout_confidence: Option<f32>,
 
+    /// Which pages the layout model runs on: always (default, every page) or
+    /// auto (pre-screen each page and skip the model where it cannot help).
+    #[cfg(feature = "layout-detection")]
+    #[arg(
+        long,
+        help = "Layout page selection: always (default, every page) or auto (pre-screen pages)"
+    )]
+    pub layout_strategy: Option<String>,
+
     /// Table structure model: tatr (default), slanet_wired, slanet_wireless, slanet_plus, slanet_auto, disabled.
     #[cfg(feature = "layout-detection")]
     #[arg(
@@ -423,6 +432,14 @@ impl ExtractionOverrides {
             }
             if self.layout == Some(false) && (self.layout_confidence.is_some() || self.layout_table_model.is_some()) {
                 bail!("--layout false cannot be combined with --layout-confidence or --layout-table-model");
+            }
+            if self.layout == Some(false) && self.layout_strategy.is_some() {
+                bail!("--layout false cannot be combined with --layout-strategy");
+            }
+            if let Some(ref strategy) = self.layout_strategy
+                && strategy.parse::<xberg::LayoutStrategy>().is_err()
+            {
+                bail!("Invalid layout strategy: '{strategy}'. Valid: always, auto.");
             }
         }
 
@@ -764,6 +781,7 @@ impl ExtractionOverrides {
             let has_layout_flag = self.layout == Some(true)
                 || self.layout_confidence.is_some()
                 || self.layout_table_model.is_some()
+                || self.layout_strategy.is_some()
                 || self.use_layout_for_markdown;
             if has_layout_flag {
                 let mut layout = config.layout.clone().unwrap_or_default();
@@ -772,6 +790,9 @@ impl ExtractionOverrides {
                 }
                 if let Some(ref table_model) = self.layout_table_model {
                     layout.table_model = table_model.parse().unwrap_or_default();
+                }
+                if let Some(ref strategy) = self.layout_strategy {
+                    layout.strategy = strategy.parse().unwrap_or_default();
                 }
                 config.layout = Some(layout);
             }
@@ -1334,6 +1355,42 @@ mod tests {
         overrides.apply(&mut config);
         let layout = config.layout.unwrap();
         assert_eq!(layout.table_model, xberg::TableModel::SlanetWired);
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_layout_strategy_applied() {
+        let mut config = ExtractionConfig::default();
+        let overrides = ExtractionOverrides {
+            layout_strategy: Some("auto".to_string()),
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let layout = config.layout.unwrap();
+        assert_eq!(layout.strategy, xberg::LayoutStrategy::Auto);
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_layout_strategy_rejects_unknown_value() {
+        let overrides = ExtractionOverrides {
+            layout_strategy: Some("adaptive".to_string()),
+            ..default_overrides()
+        };
+        let error = overrides.validate().expect_err("unknown strategy must fail");
+        assert!(error.to_string().contains("Invalid layout strategy"));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_layout_strategy_conflicts_with_layout_false() {
+        let overrides = ExtractionOverrides {
+            layout: Some(false),
+            layout_strategy: Some("auto".to_string()),
+            ..default_overrides()
+        };
+        let error = overrides.validate().expect_err("conflicting flags must fail");
+        assert!(error.to_string().contains("--layout-strategy"));
     }
 
     #[cfg(feature = "layout-detection")]

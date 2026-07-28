@@ -58,13 +58,17 @@ echo "=== Starting cargo test ==="
 # NOTE: We intentionally avoid `--all-features` for the `xberg` crate because
 TEST_LOG="/tmp/cargo-test-$$.log"
 
+# ~keep The whole `{ ... } | tee` pipeline is the `if` condition, where `set -e`
+# ~keep is suspended (bash suppresses errexit for every command in an `if` test),
+# ~keep so the block's status is the LAST leg's. Each leg needs `|| exit` to stop
+# ~keep the block and surface its own failure; pipefail carries it past `tee`.
 if ! {
   # ~keep `--all-targets` runs --lib --bins --tests --examples --benches but excludes
   # ~keep `--doc`. The xberg crate still has rustdoc examples for private/internal
   # ~keep APIs; `cargo test -p xberg --features full --doc` currently fails those
   # ~keep examples because rustdoc compiles them as an external crate.
   echo "=== cargo test -p xberg --features full ==="
-  RUST_BACKTRACE=full cargo test --locked -p xberg --features full --all-targets --verbose
+  RUST_BACKTRACE=full cargo test --locked -p xberg --features full --all-targets --verbose || exit
 
   echo "=== cargo test --workspace (all features, excluding xberg) ==="
   extra_excludes=()
@@ -90,7 +94,7 @@ if ! {
     ${extra_excludes[@]+"${extra_excludes[@]}"} \
     --all-features \
     --all-targets \
-    --verbose
+    --verbose || exit
 
   echo "=== cargo test -p xberg-gliner (explicit features) ==="
   # cuda/metal cannot build on CPU-only runners, so xberg-gliner gets an
@@ -107,7 +111,7 @@ if ! {
   fi
   RUST_BACKTRACE=full cargo test --locked -p xberg-gliner \
     ${gliner_features[@]+"${gliner_features[@]}"} \
-    --all-targets --verbose
+    --all-targets --verbose || exit
 } 2>&1 | tee "$TEST_LOG"; then
   echo "=== Test execution failed ==="
   echo "Last 50 lines of test output:"

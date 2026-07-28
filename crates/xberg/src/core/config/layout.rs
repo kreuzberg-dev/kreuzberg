@@ -106,6 +106,51 @@ impl fmt::Display for TableOverlapPreference {
     }
 }
 
+/// Which PDF pages the layout model runs on.
+///
+/// Layout detection renders each selected page to a raster and runs ONNX
+/// inference on it, which dominates extraction cost. This controls page
+/// selection; [`LayoutStrategy::Always`] preserves the historical behavior of
+/// running on every page. Wire format is snake_case in all serializers
+/// (JSON, TOML, YAML).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LayoutStrategy {
+    /// Run layout detection unconditionally on every page.
+    #[default]
+    Always,
+    /// Pre-screen each page with cheap geometry signals and run the model
+    /// only on pages likely to benefit (multi-column, table-bearing,
+    /// figure-heavy, form-like, or rotated pages).
+    ///
+    /// Pages the pre-screen skips are processed exactly like pages where the
+    /// model ran and found no regions. On the OCR path only inference is
+    /// skipped; page rasters are still produced because OCR consumes them.
+    /// For non-PDF inputs `Auto` behaves as [`LayoutStrategy::Always`].
+    Auto,
+}
+
+impl std::str::FromStr for LayoutStrategy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "always" => Ok(Self::Always),
+            "auto" => Ok(Self::Auto),
+            other => Err(format!("unknown layout strategy: '{other}'. Valid: always, auto")),
+        }
+    }
+}
+
+impl fmt::Display for LayoutStrategy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LayoutStrategy::Always => write!(f, "always"),
+            LayoutStrategy::Auto => write!(f, "auto"),
+        }
+    }
+}
+
 /// Layout detection configuration.
 ///
 /// Controls layout detection behavior in the extraction pipeline.
@@ -113,6 +158,15 @@ impl fmt::Display for TableOverlapPreference {
 /// is enabled for PDF extraction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutDetectionConfig {
+    /// Which pages the layout model runs on.
+    ///
+    /// Defaults to [`LayoutStrategy::Always`], the historical behavior:
+    /// every page is rendered and inferred. [`LayoutStrategy::Auto`]
+    /// pre-screens pages with cheap signals and skips the model where it
+    /// cannot help.
+    #[serde(default)]
+    pub strategy: LayoutStrategy,
+
     /// Confidence threshold override (None = use model default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence_threshold: Option<f32>,
@@ -158,6 +212,7 @@ pub struct LayoutDetectionConfig {
 impl Default for LayoutDetectionConfig {
     fn default() -> Self {
         Self {
+            strategy: LayoutStrategy::default(),
             confidence_threshold: None,
             apply_heuristics: true,
             table_model: TableModel::default(),
@@ -179,9 +234,53 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = LayoutDetectionConfig::default();
+        assert_eq!(config.strategy, LayoutStrategy::Always);
         assert_eq!(config.table_model, TableModel::Tatr);
         assert!(config.apply_heuristics);
         assert!(config.confidence_threshold.is_none());
+    }
+
+    #[test]
+    fn layout_strategy_defaults_to_always_when_field_absent() {
+        let config: LayoutDetectionConfig = serde_json::from_str("{}").expect("empty config must deserialize");
+        assert_eq!(config.strategy, LayoutStrategy::Always);
+    }
+
+    #[test]
+    fn layout_strategy_serde_roundtrip_is_snake_case() {
+        let auto: LayoutStrategy = serde_json::from_str(r#""auto""#).expect("auto must deserialize");
+        assert_eq!(auto, LayoutStrategy::Auto);
+        assert_eq!(serde_json::to_string(&auto).expect("auto must serialize"), r#""auto""#);
+
+        let always: LayoutStrategy = serde_json::from_str(r#""always""#).expect("always must deserialize");
+        assert_eq!(always, LayoutStrategy::Always);
+        assert_eq!(
+            serde_json::to_string(&always).expect("always must serialize"),
+            r#""always""#
+        );
+    }
+
+    #[test]
+    fn layout_strategy_deserializes_from_toml_config() {
+        let config: LayoutDetectionConfig =
+            toml::from_str("strategy = \"auto\"").expect("toml config must deserialize");
+        assert_eq!(config.strategy, LayoutStrategy::Auto);
+    }
+
+    #[test]
+    fn layout_strategy_from_str_accepts_wire_names_and_rejects_unknown() {
+        assert_eq!("always".parse::<LayoutStrategy>(), Ok(LayoutStrategy::Always));
+        assert_eq!("auto".parse::<LayoutStrategy>(), Ok(LayoutStrategy::Auto));
+
+        let error = "adaptive".parse::<LayoutStrategy>().expect_err("unknown must fail");
+        assert!(error.contains("unknown layout strategy: 'adaptive'"));
+        assert!(error.contains("always, auto"));
+    }
+
+    #[test]
+    fn layout_strategy_display_matches_wire_format() {
+        assert_eq!(LayoutStrategy::Always.to_string(), "always");
+        assert_eq!(LayoutStrategy::Auto.to_string(), "auto");
     }
 
     #[test]

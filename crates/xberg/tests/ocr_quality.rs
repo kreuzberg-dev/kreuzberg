@@ -144,11 +144,11 @@ fn layout_delta(truth_lines: usize, ocr_lines: usize) -> f64 {
 
 #[test]
 fn test_ocr_quality_simple_text_high_accuracy() {
-    if skip_if_missing("pdfs/fake_memo.pdf") {
+    if skip_if_missing("pdf/fake_memo.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/fake_memo.pdf");
+    let file_path = get_test_file_path("pdf/fake_memo.pdf");
 
     let truth_result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default())
         .expect("Should extract ground truth text");
@@ -218,11 +218,11 @@ fn test_ocr_quality_simple_text_high_accuracy() {
 
 #[test]
 fn test_ocr_quality_numeric_accuracy() {
-    if skip_if_missing("pdfs/embedded_images_tables.pdf") {
+    if skip_if_missing("pdf/embedded_images_tables.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/embedded_images_tables.pdf");
+    let file_path = get_test_file_path("pdf/embedded_images_tables.pdf");
 
     let truth_result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default())
         .expect("Should extract ground truth text");
@@ -283,11 +283,11 @@ fn test_ocr_quality_numeric_accuracy() {
 
 #[test]
 fn test_ocr_quality_layout_preservation() {
-    if skip_if_missing("pdfs/fake_memo.pdf") {
+    if skip_if_missing("pdf/fake_memo.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/fake_memo.pdf");
+    let file_path = get_test_file_path("pdf/fake_memo.pdf");
 
     let truth_result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default())
         .expect("Should extract ground truth text");
@@ -342,11 +342,11 @@ fn test_ocr_quality_layout_preservation() {
 
 #[test]
 fn test_ocr_quality_technical_document() {
-    if skip_if_missing("pdfs/code_and_formula.pdf") {
+    if skip_if_missing("pdf/code_and_formula.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/code_and_formula.pdf");
+    let file_path = get_test_file_path("pdf/code_and_formula.pdf");
 
     let truth_result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default())
         .expect("Should extract ground truth text");
@@ -399,11 +399,11 @@ fn test_ocr_quality_technical_document() {
 
 #[test]
 fn test_ocr_consistency_across_runs() {
-    if skip_if_missing("pdfs/fake_memo.pdf") {
+    if skip_if_missing("pdf/fake_memo.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/fake_memo.pdf");
+    let file_path = get_test_file_path("pdf/fake_memo.pdf");
     let ocr_config = ExtractionConfig {
         ocr: Some(OcrConfig {
             backend: "tesseract".to_string(),
@@ -460,11 +460,11 @@ fn test_ocr_consistency_across_runs() {
 
 #[test]
 fn test_ocr_consistency_with_different_psm() {
-    if skip_if_missing("pdfs/fake_memo.pdf") {
+    if skip_if_missing("pdf/fake_memo.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/fake_memo.pdf");
+    let file_path = get_test_file_path("pdf/fake_memo.pdf");
 
     let config_psm3 = ExtractionConfig {
         ocr: Some(OcrConfig {
@@ -533,7 +533,7 @@ fn test_ocr_consistency_with_different_psm() {
 
 #[test]
 fn test_ocr_quality_multi_page_consistency() {
-    if skip_if_missing("pdfs/a_course_in_machine_learning_ciml_v0_9_all.pdf") {
+    if skip_if_missing("pdf/a_course_in_machine_learning_ciml_v0_9_all.pdf") {
         return;
     }
 
@@ -542,7 +542,7 @@ fn test_ocr_quality_multi_page_consistency() {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/a_course_in_machine_learning_ciml_v0_9_all.pdf");
+    let file_path = get_test_file_path("pdf/a_course_in_machine_learning_ciml_v0_9_all.pdf");
 
     let truth_result = extract_uri_document_blocking(&file_path, None, &ExtractionConfig::default())
         .expect("Should extract ground truth text");
@@ -597,11 +597,11 @@ fn test_ocr_quality_multi_page_consistency() {
 
 #[test]
 fn test_ocr_quality_with_tables() {
-    if skip_if_missing("pdfs/embedded_images_tables.pdf") {
+    if skip_if_missing("pdf/embedded_images_tables.pdf") {
         return;
     }
 
-    let file_path = get_test_file_path("pdfs/embedded_images_tables.pdf");
+    let file_path = get_test_file_path("pdf/embedded_images_tables.pdf");
 
     let ocr_config = ExtractionConfig {
         ocr: Some(OcrConfig {
