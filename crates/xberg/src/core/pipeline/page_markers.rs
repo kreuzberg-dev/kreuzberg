@@ -69,6 +69,14 @@ mod tests {
         InternalElement::text(ElementKind::Paragraph, text, 0)
     }
 
+    // `InternalElement::with_page` is cfg-gated out of lean builds such as
+    // `--no-default-features --features layout-tract`. ~keep
+    fn paragraph_on_page(text: &str, page: u32) -> InternalElement {
+        let mut element = paragraph(text);
+        element.page = Some(page);
+        element
+    }
+
     #[test]
     fn converts_flat_marker_paragraphs_to_raw_blocks() {
         let mut doc = InternalDocument::new("pdf");
@@ -108,9 +116,9 @@ mod tests {
     #[test]
     fn uses_element_page_numbers_when_present() {
         let mut doc = InternalDocument::new("pdf");
-        doc.push_element(paragraph("Page three text.").with_page(3));
+        doc.push_element(paragraph_on_page("Page three text.", 3));
         doc.push_element(InternalElement::text(ElementKind::PageBreak, "", 0));
-        doc.push_element(paragraph("Page seven text.").with_page(7));
+        doc.push_element(paragraph_on_page("Page seven text.", 7));
 
         inject_page_marker_elements(&mut doc, DEFAULT_FORMAT);
 
