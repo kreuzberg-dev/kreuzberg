@@ -1,6 +1,10 @@
 /// UTF-8 validation and safe decoding helpers.
 pub mod utf8_validation;
 
+#[cfg(any(feature = "office", feature = "email"))]
+/// Windows codepage number to `encoding_rs` encoding mapping.
+pub(crate) mod windows_codepage;
+
 #[cfg(feature = "quality")]
 /// OCR quality scoring: noise detection, confidence aggregation, and artifact removal.
 pub mod quality;

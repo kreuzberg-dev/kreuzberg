@@ -516,6 +516,67 @@ mod tests {
     }
 
     #[test]
+    fn test_rtf_ansicpg932_multibyte_run() {
+        let rtf_content =
+            r#"{\rtf1\ansi\ansicpg932\deff0{\fonttbl{\f0\fnil\fcharset128 MS Mincho;}}\f0 \'93\'fa\'96\'7b}"#;
+        let (text, _, _, _, _) = extract_text_from_rtf(rtf_content, true);
+
+        assert!(
+            text.contains("日本"),
+            "adjacent escapes should decode as one Shift-JIS run, got: {text:?}"
+        );
+        assert!(!text.contains('\u{FFFD}'), "run must not decode byte-by-byte");
+    }
+
+    #[test]
+    fn test_rtf_hex_escape_run_split_by_newline() {
+        let rtf_content = "{\\rtf1\\ansi\\ansicpg932 \\'93\r\n\\'fa}";
+        let (text, _, _, _, _) = extract_text_from_rtf(rtf_content, true);
+
+        assert!(
+            text.contains('日'),
+            "a line wrap between the bytes of one character must not split the run, got: {text:?}"
+        );
+        assert!(!text.contains('\u{FFFD}'), "wrapped run must not decode as U+FFFD");
+    }
+
+    #[test]
+    fn test_rtf_ansicpg_codepage_table() {
+        let cases = [
+            (1251, r"\'cf\'f0\'e8\'e2\'e5\'f2", "Привет"),
+            (932, r"\'93\'fa\'96\'7b", "日本"),
+            (936, r"\'c4\'e3\'ba\'c3", "你好"),
+            (874, r"\'a1", "ก"),
+            (866, r"\'80\'81", "АБ"),
+            (20866, r"\'e1\'e2", "АБ"),
+            // Unknown codepage falls back to Windows-1252.
+            (1717, r"\'e9", "é"),
+        ];
+        for (codepage, escapes, expected) in cases {
+            let rtf_content = format!(r"{{\rtf1\ansi\ansicpg{codepage} {escapes}}}");
+            let (text, _, _, _, _) = extract_text_from_rtf(&rtf_content, true);
+            assert!(
+                text.contains(expected),
+                "codepage {codepage}: expected {expected:?}, got: {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_rtf_multibyte_formatting_span_alignment() {
+        let rtf_content = r#"{\rtf1\ansi\ansicpg932 before {\b \'93\'fa\'96\'7b} after}"#;
+        let (text, _, _, _, formatting) = extract_text_from_rtf(rtf_content, false);
+        let bold_spans: Vec<_> = formatting.spans.iter().filter(|s| s.bold).collect();
+        assert!(!bold_spans.is_empty(), "Should have bold spans");
+        let span = &bold_spans[0];
+        let bold_text = &text[span.start..span.end];
+        assert_eq!(
+            bold_text, "日本",
+            "Bold span should exactly cover the decoded multi-byte run, got: {bold_text:?}"
+        );
+    }
+
+    #[test]
     fn test_bold_italic_span_alignment() {
         let rtf_content = r#"{\rtf1 Normal {\b bold text} more normal}"#;
         let (text, _, _, _, formatting) = extract_text_from_rtf(rtf_content, false);

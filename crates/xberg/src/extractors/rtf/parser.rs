@@ -322,6 +322,10 @@ pub(crate) fn extract_rtf_formatting(content: &str) -> RtfFormattingData {
     let mut expect_destination = false;
     let mut ignorable_pending = false;
 
+    // Mirrors the extraction pass's codepage tracking so both passes count the
+    // same number of output bytes for `\'hh` escape runs.
+    let mut ansi_codepage_stack: Vec<u32> = vec![1252];
+
     let skip_dests = [
         "fonttbl",
         "stylesheet",
@@ -362,11 +366,16 @@ pub(crate) fn extract_rtf_formatting(content: &str) -> RtfFormattingData {
                 fmt_stack.push(fmt.clone());
                 group_has_text.push(false);
                 pending_boundary_space = false;
+                let current_codepage = ansi_codepage_stack.last().copied().unwrap_or(1252);
+                ansi_codepage_stack.push(current_codepage);
             }
             '}' => {
                 group_depth -= 1;
                 expect_destination = false;
                 ignorable_pending = false;
+                if ansi_codepage_stack.len() > 1 {
+                    ansi_codepage_stack.pop();
+                }
                 if let Some(parent) = fmt_stack.pop() {
                     let changed = fmt.bold != parent.bold
                         || fmt.italic != parent.italic
@@ -457,18 +466,33 @@ pub(crate) fn extract_rtf_formatting(content: &str) -> RtfFormattingData {
                         '\'' => {
                             chars.next();
                             expect_destination = false;
-                            let _ = chars.next();
-                            let _ = chars.next();
+                            let hex1 = chars.next();
+                            let hex2 = chars.next();
+                            let bytes = if let (Some(h1), Some(h2)) = (hex1, hex2)
+                                && let Some(byte) = parse_hex_byte(h1 as u8, h2 as u8)
+                            {
+                                let mut bytes = vec![byte];
+                                while let Some(next_byte) = consume_adjacent_hex_escape(&mut chars) {
+                                    bytes.push(next_byte);
+                                }
+                                Some(bytes)
+                            } else {
+                                None
+                            };
                             if skip_depth > 0 {
                                 continue;
                             }
-                            if pending_boundary_space && text_offset > 0 {
-                                text_offset += 1;
-                            }
-                            pending_boundary_space = false;
-                            text_offset += 1;
-                            if let Some(flag) = group_has_text.last_mut() {
-                                *flag = true;
+                            if let Some(bytes) = bytes.as_deref() {
+                                let codepage = ansi_codepage_stack.last().copied().unwrap_or(1252);
+                                let decoded = decode_ansi_bytes(bytes, codepage);
+                                if pending_boundary_space && text_offset > 0 {
+                                    text_offset += 1;
+                                }
+                                pending_boundary_space = false;
+                                text_offset += decoded.len();
+                                if let Some(flag) = group_has_text.last_mut() {
+                                    *flag = true;
+                                }
                             }
                         }
                         '*' => {
@@ -525,6 +549,13 @@ pub(crate) fn extract_rtf_formatting(content: &str) -> RtfFormattingData {
 
                             if in_fldinst {
                                 fldinst_content.push_str(&word);
+                            }
+                            if word == "ansicpg"
+                                && let Some(val) = param
+                                && val > 0
+                                && let Some(codepage) = ansi_codepage_stack.last_mut()
+                            {
+                                *codepage = val as u32;
                             }
                             if skip_depth > 0 {
                                 continue;
@@ -1432,9 +1463,16 @@ pub(crate) fn extract_text_from_rtf(
 /// Consume the next `\'hh` hex escape if it immediately follows the current one.
 ///
 /// Adjacent hex escapes form one multi-byte run that must be decoded together
-/// so multi-byte ANSI codepages (e.g. Shift-JIS, GBK) decode correctly.
+/// so multi-byte ANSI codepages (e.g. Shift-JIS, GBK) decode correctly. Raw
+/// CR/LF between escapes is skipped: RTF readers ignore bare line breaks, and
+/// writers wrap lines freely, including between the bytes of one character.
 fn consume_adjacent_hex_escape(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<u8> {
     let mut lookahead = chars.clone();
+    let mut skipped = 0usize;
+    while matches!(lookahead.peek(), Some('\r' | '\n')) {
+        lookahead.next();
+        skipped += 1;
+    }
     if lookahead.next()? != '\\' || lookahead.next()? != '\'' {
         return None;
     }
@@ -1442,10 +1480,9 @@ fn consume_adjacent_hex_escape(chars: &mut std::iter::Peekable<std::str::Chars>)
     let h2 = lookahead.next()?;
     let byte = parse_hex_byte(h1 as u8, h2 as u8)?;
 
-    chars.next();
-    chars.next();
-    chars.next();
-    chars.next();
+    for _ in 0..skipped + 4 {
+        chars.next();
+    }
 
     Some(byte)
 }

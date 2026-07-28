@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **#1323**: RTF hex byte escapes now honor `\ansicpgNNNN` via the shared Windows-codepage table, so
+  CP1251 Cyrillic and other non-1252 ANSI byte runs decode as readable text instead of Windows-1252
+  mojibake; adjacent escapes decode as one multi-byte run, surviving line wraps, and formatting spans
+  stay aligned with the decoded text.
+
 ## [1.0.0] - 2026-07-27
 
 xberg 1.0.0 is the first stable release of the document-intelligence engine previously developed as
