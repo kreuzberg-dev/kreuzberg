@@ -1048,11 +1048,17 @@ impl PdfExtractor {
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         doc.processing_warnings.append(&mut ocr_fallback_warnings);
 
-        // Record the auto layout gate's audit trail from whichever pass ran it. ~keep
-        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+        // Record the auto layout gate's audit trail from whichever pass ran
+        // it. Compiled whenever `pdf` is on so `ocr_layout_gate_audit` keeps
+        // a reader in profiles without layout-detection (it is always
+        // `(None, None)` there and the fields stay `None`). ~keep
         {
+            #[cfg(feature = "layout-detection")]
             #[allow(unused_mut)]
             let (mut gated_pages, mut gate_reasons) = layout_gate_metadata(markdown_layout_gate_decisions.as_deref());
+            #[cfg(not(feature = "layout-detection"))]
+            #[allow(unused_mut)]
+            let (mut gated_pages, mut gate_reasons): OcrLayoutGateDecisions = (None, None);
             #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
             if gated_pages.is_none() {
                 let (ocr_gated_pages, ocr_gate_reasons) = ocr_layout_gate_audit;
