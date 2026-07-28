@@ -235,6 +235,13 @@ pub struct InternalDocument {
     #[serde(skip)]
     pub escape_markdown: bool,
 
+    /// Page marker format (with `{page_num}` placeholder) when
+    /// `PageConfig::insert_page_markers` is enabled, `None` otherwise. Set by
+    /// the pipeline. Renderers use it to emit page markers verbatim instead of
+    /// escaping or stripping them.
+    #[serde(skip)]
+    pub page_marker_format: Option<String>,
+
     /// When `true`, Markdown rendering inserts a `[TABLE:{table_id}]` marker
     /// immediately before each table's rendered Markdown block. Set by the
     /// pipeline from `ExtractionConfig::table_anchors`. Defaults to `false`.
@@ -298,6 +305,7 @@ impl InternalDocument {
             ocr_text_only: false,
             append_ocr_text: false,
             escape_markdown: true,
+            page_marker_format: None,
             table_anchors: false,
             form_fields: Vec::new(),
             formulas: Vec::new(),

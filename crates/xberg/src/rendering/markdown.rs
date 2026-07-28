@@ -143,11 +143,17 @@ pub(crate) fn render_markdown(doc: &InternalDocument) -> String {
     format_commonmark(root, &options, &mut output).expect("comrak formatting should not fail");
 
     if output.contains("<!--") {
+        let marker_re = doc
+            .page_marker_format
+            .as_deref()
+            .map(crate::core::config::page::marker_line_regex);
         output = output
             .lines()
             .filter(|line| {
                 let trimmed = line.trim();
-                !trimmed.starts_with("<!--") || !trimmed.ends_with("-->")
+                !trimmed.starts_with("<!--")
+                    || !trimmed.ends_with("-->")
+                    || marker_re.as_ref().is_some_and(|re| re.is_match(trimmed))
             })
             .collect::<Vec<_>>()
             .join("\n");

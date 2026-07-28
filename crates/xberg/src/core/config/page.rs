@@ -43,6 +43,19 @@ fn default_page_marker_format() -> String {
     "\n\n<!-- PAGE {page_num} -->\n\n".to_string()
 }
 
+/// Regex matching one whole line that is a rendered instance of `marker_format`
+/// (every `{page_num}` placeholder replaced by digits). Used to recognize page
+/// marker lines so renderers pass them through verbatim.
+pub(crate) fn marker_line_regex(marker_format: &str) -> regex::Regex {
+    let pattern = marker_format
+        .trim()
+        .split("{page_num}")
+        .map(regex::escape)
+        .collect::<Vec<_>>()
+        .join(r"\d+");
+    regex::Regex::new(&format!("^{pattern}$")).expect("escaped marker format is a valid regex")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

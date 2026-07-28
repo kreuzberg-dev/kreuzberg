@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **#1328**: Page markers now appear verbatim in Markdown and Djot output. Flat documents no longer
+  backslash-escape the marker (`\<\!-- PAGE 1 --\>`), and structured native documents no longer drop
+  it entirely.
+
 ## [1.0.0] - 2026-07-27
 
 xberg 1.0.0 is the first stable release of the document-intelligence engine previously developed as
