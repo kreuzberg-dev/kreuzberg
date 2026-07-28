@@ -137,10 +137,15 @@ mod build_libwpd {
 
     fn link_zlib() {
         if !targeting_windows() {
-            // On unix, zlib is provided by the `libz-sys` dependency, which
-            // builds a static zlib from source for the target and links it (and
-            // exports its headers via `DEP_Z_INCLUDE`, consumed in `build`).
-            // Nothing to emit here.
+            // On unix, `libz-sys` (static feature) builds a `libz.a` for the
+            // target and puts it on the link search path. Re-emit the link from
+            // this crate — whose objects (librevenge's RVNGZipStream.o) call
+            // `inflate*` — so the archive is ordered after those objects on the
+            // GNU-ld command line. Relying on libz-sys's own directive alone
+            // ordered the archive before the references, so ld discarded it and
+            // the final binary failed with `undefined reference to inflateInit2_`.
+            // Headers come from `DEP_Z_INCLUDE` (consumed in `build`).
+            println!("cargo:rustc-link-lib=static=z");
             return;
         }
 
