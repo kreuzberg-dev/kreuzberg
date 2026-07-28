@@ -68,6 +68,8 @@ ingress:
   enabled: false
   # -- Ingress class name (e.g. "nginx")
   className: ""
+  # -- Extra labels on the Ingress resource
+  extraLabels: {}
   # -- Ingress annotations
   annotations: {}
   # -- Ingress hosts

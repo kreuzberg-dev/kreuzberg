@@ -66,6 +66,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "className": { "type": "string" },
+        "extraLabels": { "type": "object" },
         "annotations": { "type": "object" },
         "hosts": { "type": "array" },
         "tls": { "type": "array" }

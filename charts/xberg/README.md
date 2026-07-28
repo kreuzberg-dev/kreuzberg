@@ -32,7 +32,9 @@ Values are validated against `values.schema.json`. Common keys:
 | `image.tag`          | `""`               | Defaults to the chart `appVersion`.                     |
 | `service.type`       | `ClusterIP`        | Service type.                                            |
 | `service.port`       | `80`               | Service port.                                            |
-| `ingress.enabled`    | `false`            | Enable Ingress.                                          |
+| `ingress.enabled`     | `false`            | Enable Ingress.                                          |
+| `ingress.extraLabels` | `{}`               | Extra labels on the Ingress resource.                    |
+| `ingress.annotations` | `{}`               | Annotations on the Ingress resource.                     |
 | `resources`          | 512Mi/500m → 2Gi/2 | Container requests and limits.                           |
 | `autoscaling.enabled`| `false`            | Enable a HorizontalPodAutoscaler.                        |
 | `xberg.logLevel`     | `info`             | Log level: trace, debug, info, warn, error.             |
