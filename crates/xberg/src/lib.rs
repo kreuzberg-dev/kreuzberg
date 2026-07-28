@@ -358,7 +358,7 @@ pub use paddle_ocr::{ModelCacheStats, ModelManager, ModelManifestEntry, PaddleOc
 pub use cache::CacheStats;
 
 #[cfg(feature = "layout-types")]
-pub use core::config::{LayoutDetectionConfig, TableModel};
+pub use core::config::{LayoutDetectionConfig, LayoutStrategy, TableModel};
 
 #[cfg(feature = "layout-types")]
 pub use layout::types::{BBox, DetectionResult, LayoutClass, LayoutDetection};

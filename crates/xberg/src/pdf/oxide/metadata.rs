@@ -115,6 +115,10 @@ fn extract_pdf_specific_metadata(
         page_count: Some(page_count as u32),
         scanned_confidence,
         scanned_pages,
+        // Filled by the extractor after the layout pass runs, not here:
+        // metadata extraction never runs the layout gate itself. ~keep
+        layout_gated_pages: None,
+        layout_gate_reasons: None,
     })
 }
 

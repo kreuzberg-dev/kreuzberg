@@ -52,6 +52,21 @@ pub struct PdfMetadata {
     /// `None` when the document could not be inspected; empty when no page qualifies.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scanned_pages: Option<Vec<u32>>,
+
+    /// Pages the `auto` layout strategy skipped (1-indexed).
+    ///
+    /// `None` unless layout detection ran with `LayoutStrategy::Auto`; empty
+    /// when the gate selected every page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout_gated_pages: Option<Vec<u32>>,
+
+    /// Why the `auto` layout gate selected or skipped each page.
+    ///
+    /// Index `i` is page `i + 1`. Snake_case values such as `multi_column`,
+    /// `table_grid`, or `plain_text` (the skip reason). `None` unless layout
+    /// detection ran with `LayoutStrategy::Auto`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout_gate_reasons: Option<Vec<String>>,
 }
 /// Complete PDF extraction metadata including common and PDF-specific fields.
 ///
