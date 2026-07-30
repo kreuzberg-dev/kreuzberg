@@ -146,3 +146,106 @@ pub(crate) fn map_language_code(xberg_code: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+
+/// Select the PaddleOCR recognition language for a request and report what the
+/// selection cannot cover.
+///
+/// PaddleOCR loads one recognition model per call, chosen from the first
+/// requested language. Any additional language whose script family the selected
+/// model does not cover will not be recognized, so a `ProcessingWarning` is
+/// emitted instead of silently dropping its text (#1346). An unmapped first
+/// language falls back to the English model, also with a warning.
+#[cfg(feature = "paddle-ocr")]
+pub(crate) fn select_paddle_language(languages: &[String]) -> (&'static str, Vec<crate::types::ProcessingWarning>) {
+    use std::borrow::Cow;
+
+    let mut warnings = Vec::new();
+    let primary = languages.first().map(String::as_str).unwrap_or("eng");
+    let paddle_lang = match map_language_code(primary) {
+        Some(code) => code,
+        None => {
+            warnings.push(crate::types::ProcessingWarning {
+                source: Cow::Borrowed("paddle-ocr"),
+                message: Cow::Owned(format!(
+                    "requested language '{primary}' is not supported by paddle-ocr; falling back to the 'en' recognition model"
+                )),
+            });
+            "en"
+        }
+    };
+
+    let family = language_to_script_family(paddle_lang);
+    let uncovered: Vec<&str> = languages
+        .iter()
+        .skip(1)
+        .map(String::as_str)
+        .filter(|lang| map_language_code(lang).is_none_or(|code| language_to_script_family(code) != family))
+        .collect();
+
+    if !uncovered.is_empty() {
+        warnings.push(crate::types::ProcessingWarning {
+            source: Cow::Borrowed("paddle-ocr"),
+            message: Cow::Owned(format!(
+                "paddle-ocr uses a single recognition model per run; requested languages [{}] are not covered by the selected '{paddle_lang}' model and their text may be dropped",
+                uncovered.join(", ")
+            )),
+        });
+    }
+
+    (paddle_lang, warnings)
+}
+
+#[cfg(all(test, feature = "paddle-ocr"))]
+mod language_selection_tests {
+    use super::select_paddle_language;
+
+    fn langs(codes: &[&str]) -> Vec<String> {
+        codes.iter().map(|c| c.to_string()).collect()
+    }
+
+    #[test]
+    fn test_single_language_no_warnings() {
+        let (lang, warnings) = select_paddle_language(&langs(&["rus"]));
+        assert_eq!(lang, "cyrillic");
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_same_family_languages_no_warnings() {
+        let (lang, warnings) = select_paddle_language(&langs(&["fra", "deu", "spa"]));
+        assert_eq!(lang, "french");
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_cross_family_language_warns() {
+        let (lang, warnings) = select_paddle_language(&langs(&["eng", "rus"]));
+        assert_eq!(lang, "en");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("rus"));
+        assert!(warnings[0].message.contains("'en'"));
+    }
+
+    #[test]
+    fn test_unmapped_primary_falls_back_with_warning() {
+        let (lang, warnings) = select_paddle_language(&langs(&["xyz"]));
+        assert_eq!(lang, "en");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("xyz"));
+    }
+
+    #[test]
+    fn test_unmapped_secondary_warns() {
+        let (lang, warnings) = select_paddle_language(&langs(&["eng", "xyz"]));
+        assert_eq!(lang, "en");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("xyz"));
+    }
+
+    #[test]
+    fn test_empty_list_defaults_to_english() {
+        let (lang, warnings) = select_paddle_language(&[]);
+        assert_eq!(lang, "en");
+        assert!(warnings.is_empty());
+    }
+}

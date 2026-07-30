@@ -450,8 +450,7 @@ impl OcrBackend for PaddleOcrBackend {
         };
 
         let languages = config.effective_languages();
-        let primary_lang = languages[0].as_str();
-        let paddle_lang = map_language_code(primary_lang).unwrap_or("en");
+        let (paddle_lang, language_warnings) = super::select_paddle_language(&languages);
 
         let ocr_image_bytes: std::borrow::Cow<'_, [u8]> = if config.auto_rotate {
             match self.detect_and_rotate(image_bytes) {
@@ -547,7 +546,7 @@ impl OcrBackend for PaddleOcrBackend {
 
         let metadata = Metadata {
             format: Some(FormatMetadata::Ocr(OcrMetadata {
-                language: config.effective_languages().join("+"),
+                language: paddle_lang.to_string(),
                 psm: 3,
                 output_format: "text".to_string(),
                 table_count,
@@ -570,9 +569,10 @@ impl OcrBackend for PaddleOcrBackend {
             mime_type: Cow::Borrowed("text/plain"),
             metadata,
             tables,
-            detected_languages: Some(config.effective_languages()),
+            detected_languages: Some(languages),
             ocr_elements: ocr_elements_opt,
             ocr_internal_document: Some(ocr_doc),
+            processing_warnings: language_warnings,
             ..Default::default()
         })
     }

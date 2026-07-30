@@ -125,6 +125,53 @@ async fn test_ocr_hello_world_english() {
     );
 }
 
+/// Requested languages the selected recognition model cannot cover must surface
+/// as a `ProcessingWarning` instead of silently dropping their text (#1346),
+/// and OCR metadata must report the model actually used rather than every
+/// requested language.
+#[tokio::test]
+#[ignore = "requires ONNX Runtime and downloaded models"]
+async fn test_ocr_uncovered_language_emits_warning() {
+    let image_path = test_documents_dir().join("images/test_hello_world.png");
+    assert!(image_path.exists(), "Test image not found: {:?}", image_path);
+
+    let image_bytes = std::fs::read(&image_path).expect("Failed to read image");
+
+    let config = PaddleOcrConfig::new("en").with_cache_dir(test_cache_dir());
+    let backend = PaddleOcrBackend::with_config(config).expect("Failed to create backend");
+
+    let ocr_config = OcrConfig {
+        backend: "paddle-ocr".to_string(),
+        language: vec!["en".to_string(), "ru".to_string()],
+        ..Default::default()
+    };
+
+    let extraction: ExtractedDocument = backend
+        .process_image(&image_bytes, &ocr_config)
+        .await
+        .expect("OCR failed");
+
+    assert_eq!(
+        extraction.processing_warnings.len(),
+        1,
+        "expected one uncovered-language warning, got: {:?}",
+        extraction.processing_warnings
+    );
+    let warning = &extraction.processing_warnings[0];
+    assert_eq!(warning.source, "paddle-ocr");
+    assert!(
+        warning.message.contains("[ru]") && warning.message.contains("'en'"),
+        "warning should name the uncovered language and the selected model: {}",
+        warning.message
+    );
+
+    let language = match &extraction.metadata.format {
+        Some(xberg::types::FormatMetadata::Ocr(ocr)) => ocr.language.clone(),
+        other => panic!("expected OCR metadata, got: {:?}", other),
+    };
+    assert_eq!(language, "en", "metadata must report the model actually used");
+}
+
 /// Test PP-OCRv6 recognition on English across all three v6 tiers.
 ///
 /// v6 routes English (a v6-unified family) to the unified recognition model at the

@@ -597,6 +597,26 @@ fn render_selected_pages_from_document(
     Ok(images)
 }
 
+/// Accumulate per-page backend warnings without repeating identical entries.
+///
+/// A backend that warns about its configuration (e.g. paddle-ocr's unsupported
+/// language warning) emits the same warning on every page; one copy per
+/// document is enough.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn extend_warnings_deduped(
+    accumulated: &mut Vec<crate::types::ProcessingWarning>,
+    new: Vec<crate::types::ProcessingWarning>,
+) {
+    for warning in new {
+        if !accumulated
+            .iter()
+            .any(|w| w.source == warning.source && w.message == warning.message)
+        {
+            accumulated.push(warning);
+        }
+    }
+}
+
 /// Build mixed text from native extraction and per-page OCR results.
 ///
 /// For each page boundary, if the page is in `ocr_page_numbers` (1-indexed),
@@ -760,7 +780,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     let (text, _tables, _elements, doc, usage, page_texts, _rasters, formulas) = result?;
                     accumulated_llm_usage.extend(usage);
                     if let Some(d) = doc {
-                        accumulated_warnings.extend(d.processing_warnings);
+                        extend_warnings_deduped(&mut accumulated_warnings, d.processing_warnings);
                     }
                     for mut formula in formulas {
                         formula.page = (page_idx + 1) as u32;
@@ -791,7 +811,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                         .await?;
                     accumulated_llm_usage.extend(usage);
                     if let Some(d) = doc {
-                        accumulated_warnings.extend(d.processing_warnings);
+                        extend_warnings_deduped(&mut accumulated_warnings, d.processing_warnings);
                     }
                     for mut formula in formulas {
                         formula.page = (*page_idx + 1) as u32;
@@ -2592,6 +2612,24 @@ fn inject_layout_config_to_backend(
 #[cfg(all(test, feature = "ocr"))]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn test_extend_warnings_deduped_drops_identical_keeps_distinct() {
+        use std::borrow::Cow;
+
+        let warning = |msg: &str| crate::types::ProcessingWarning {
+            source: Cow::Borrowed("paddle-ocr"),
+            message: Cow::Owned(msg.to_string()),
+        };
+
+        let mut accumulated = vec![warning("a")];
+        extend_warnings_deduped(&mut accumulated, vec![warning("a"), warning("b")]);
+        extend_warnings_deduped(&mut accumulated, vec![warning("a"), warning("b")]);
+
+        let messages: Vec<&str> = accumulated.iter().map(|w| w.message.as_ref()).collect();
+        assert_eq!(messages, vec!["a", "b"]);
+    }
 
     #[cfg(feature = "ocr")]
     fn t() -> OcrQualityThresholds {

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **#1346**: PaddleOCR emits a `ProcessingWarning` when requested languages are not covered by
+  the single selected recognition model (previously their text was silently dropped), and OCR
+  metadata now reports the recognition model actually used instead of joining every requested
+  language.
+
 ## [1.0.4] - 2026-07-30
 
 ### Added
