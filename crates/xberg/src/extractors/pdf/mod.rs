@@ -332,7 +332,10 @@ async fn run_ocr_with_layout(
 )> {
     let default_ocr_config = crate::core::config::OcrConfig::default();
     let ocr_config = config.ocr.as_ref().unwrap_or(&default_ocr_config);
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let mut layout_warning = None;
+    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
+    let layout_warning = None;
 
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let mut ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
