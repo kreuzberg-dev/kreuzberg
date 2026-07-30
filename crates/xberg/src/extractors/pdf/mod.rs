@@ -328,9 +328,11 @@ async fn run_ocr_with_layout(
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
     OcrLayoutGateDecisions,
+    Option<crate::types::ProcessingWarning>,
 )> {
     let default_ocr_config = crate::core::config::OcrConfig::default();
     let ocr_config = config.ocr.as_ref().unwrap_or(&default_ocr_config);
+    let mut layout_warning = None;
 
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let mut ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
@@ -362,6 +364,7 @@ async fn run_ocr_with_layout(
                         error = %error,
                         "OCR layout detection failed; continuing without layout assembly"
                     );
+                    layout_warning = Some(layout_runner::layout_failure_warning(&error));
                     None
                 }
             }
@@ -415,6 +418,7 @@ async fn run_ocr_with_layout(
             pipeline_rasters,
             pipeline_formulas,
             ocr_layout_gate_decisions,
+            layout_warning,
         ));
     }
 
@@ -441,6 +445,7 @@ async fn run_ocr_with_layout(
         ocr_rasters,
         formulas,
         ocr_layout_gate_decisions,
+        layout_warning,
     ))
 }
 
@@ -681,17 +686,30 @@ impl PdfExtractor {
         let (text, extraction_method) = if config.effective_disable_ocr() {
             (native_text, ExtractionMethod::Native)
         } else if config.force_ocr {
-            let (ocr_text, ocr_tbls, ocr_elems, ocr_doc, llm_usage, ocr_pts, ocr_rstrs, formulas, gate_audit) =
-                run_ocr_with_layout(
-                    content,
-                    config,
-                    path,
-                    #[cfg(feature = "layout-detection")]
-                    markdown_layout_images.take(),
-                    #[cfg(feature = "layout-detection")]
-                    markdown_layout_detections.take(),
-                )
-                .await?;
+            let (
+                ocr_text,
+                ocr_tbls,
+                ocr_elems,
+                ocr_doc,
+                llm_usage,
+                ocr_pts,
+                ocr_rstrs,
+                formulas,
+                gate_audit,
+                layout_warning,
+            ) = run_ocr_with_layout(
+                content,
+                config,
+                path,
+                #[cfg(feature = "layout-detection")]
+                markdown_layout_images.take(),
+                #[cfg(feature = "layout-detection")]
+                markdown_layout_detections.take(),
+            )
+            .await?;
+            if let Some(warning) = layout_warning {
+                crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
+            }
             ocr_layout_gate_audit = gate_audit;
             ocr_tables = ocr_tbls;
             ocr_elements = ocr_elems;
@@ -846,7 +864,11 @@ impl PdfExtractor {
                                 ocr_rstrs,
                                 formulas,
                                 gate_audit,
+                                layout_warning,
                             )) => {
+                                if let Some(warning) = layout_warning {
+                                    crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
+                                }
                                 ocr_layout_gate_audit = gate_audit;
                                 ocr_tables = ocr_tbls;
                                 ocr_elements = ocr_elems;

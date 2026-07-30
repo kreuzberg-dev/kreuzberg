@@ -3,6 +3,9 @@ use std::time::Instant;
 use image::RgbImage;
 use ndarray::{Array, Array2, Array4};
 
+use crate::core::config::acceleration::AccelerationConfig;
+#[cfg(target_os = "macos")]
+use crate::core::config::acceleration::ExecutionProviderType;
 use crate::inference::{InferenceSession, InferenceTensor, default_backend};
 use crate::layout::error::LayoutError;
 use crate::layout::models::LayoutModel;
@@ -14,6 +17,19 @@ const DEFAULT_THRESHOLD: f32 = 0.3;
 
 /// RT-DETR input resolution.
 const INPUT_SIZE: u32 = 640;
+
+fn effective_acceleration(accel: Option<&AccelerationConfig>) -> Option<AccelerationConfig> {
+    // The current RT-DETR export fails under CoreML; keep auto reliable while preserving explicit CoreML.
+    #[cfg(target_os = "macos")]
+    if accel.is_none_or(|config| config.provider == ExecutionProviderType::Auto) {
+        return Some(AccelerationConfig {
+            provider: ExecutionProviderType::Cpu,
+            device_id: accel.map_or(0, |config| config.device_id),
+        });
+    }
+
+    accel.cloned()
+}
 
 /// Docling RT-DETR v2 layout detection model.
 ///
@@ -44,11 +60,12 @@ impl RtDetrModel {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn from_file(
         path: &str,
-        accel: Option<&crate::core::config::acceleration::AccelerationConfig>,
+        accel: Option<&AccelerationConfig>,
         thread_budget: usize,
     ) -> Result<Self, LayoutError> {
+        let accel = effective_acceleration(accel);
         let session = default_backend()
-            .load_with_thread_budget(std::path::Path::new(path), accel, thread_budget)
+            .load_with_thread_budget(std::path::Path::new(path), accel.as_ref(), thread_budget)
             .map_err(|e| LayoutError::Inference(e.to_string()))?;
         let input_names: Vec<String> = session.input_names().to_vec();
         Ok(Self { session, input_names })
@@ -59,12 +76,10 @@ impl RtDetrModel {
     /// Used where there is no filesystem path to read from, e.g. WASM builds where
     /// the JS host fetches and hands over the model weights directly. Uses the same
     /// engine-neutral [`crate::inference`] seam as [`Self::from_file`].
-    pub(crate) fn from_bytes(
-        model_bytes: &[u8],
-        accel: Option<&crate::core::config::acceleration::AccelerationConfig>,
-    ) -> Result<Self, LayoutError> {
+    pub(crate) fn from_bytes(model_bytes: &[u8], accel: Option<&AccelerationConfig>) -> Result<Self, LayoutError> {
+        let accel = effective_acceleration(accel);
         let session = default_backend()
-            .load_from_memory(model_bytes, accel)
+            .load_from_memory(model_bytes, accel.as_ref())
             .map_err(|e| LayoutError::Inference(e.to_string()))?;
         let input_names: Vec<String> = session.input_names().to_vec();
         Ok(Self { session, input_names })
@@ -433,6 +448,10 @@ impl LayoutModel for RtDetrModel {
 #[cfg(test)]
 mod tests {
     use super::clamp_output_box;
+    #[cfg(target_os = "macos")]
+    use super::effective_acceleration;
+    #[cfg(target_os = "macos")]
+    use crate::core::config::acceleration::{AccelerationConfig, ExecutionProviderType};
 
     #[test]
     fn output_boxes_are_already_in_portrait_source_coordinates() {
@@ -446,5 +465,31 @@ mod tests {
         let bbox = clamp_output_box([-5.0, 32.0, 650.0, 340.0], 640, 320);
 
         assert_eq!([bbox.x1, bbox.y1, bbox.x2, bbox.y2], [0.0, 32.0, 640.0, 320.0]);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn rtdetr_auto_uses_cpu_but_explicit_coreml_is_preserved() {
+        assert_eq!(
+            effective_acceleration(None).expect("auto must resolve").provider,
+            ExecutionProviderType::Cpu
+        );
+
+        let automatic = AccelerationConfig {
+            provider: ExecutionProviderType::Auto,
+            device_id: 2,
+        };
+        let automatic = effective_acceleration(Some(&automatic)).expect("auto must resolve");
+        assert_eq!(automatic.provider, ExecutionProviderType::Cpu);
+        assert_eq!(automatic.device_id, 2);
+
+        let coreml = AccelerationConfig {
+            provider: ExecutionProviderType::CoreMl,
+            device_id: 0,
+        };
+        assert_eq!(
+            effective_acceleration(Some(&coreml)).expect("explicit CoreML must be preserved"),
+            coreml
+        );
     }
 }

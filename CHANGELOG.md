@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   language.
 - **#1344**: A hard layout-inference failure (for example a CoreML `ExecuteKernel` runtime error)
   now surfaces a `ProcessingWarning` instead of silently returning byte-identical no-layout output
-  with empty `processing_warnings`; the failure is also logged at `warn` level.
+  with empty `processing_warnings`; the failure is also logged at `warn` level. macOS auto
+  acceleration uses CPU for RT-DETR, whose current export fails under CoreML.
 
 ### Changed
 

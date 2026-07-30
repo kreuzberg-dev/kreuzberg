@@ -16,7 +16,27 @@ mod helpers;
 use helpers::extract_uri_document_blocking;
 
 use helpers::{get_test_file_path, test_documents_available};
+#[cfg(target_os = "macos")]
+use xberg::core::config::{AccelerationConfig, ExecutionProviderType};
 use xberg::core::config::{ExtractionConfig, OutputFormat, layout::LayoutDetectionConfig};
+
+#[cfg(target_os = "macos")]
+fn accelerated_layout(provider: ExecutionProviderType) -> LayoutDetectionConfig {
+    LayoutDetectionConfig {
+        acceleration: Some(AccelerationConfig {
+            provider,
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn has_layout_warning(warnings: &[xberg::types::ProcessingWarning]) -> bool {
+    warnings
+        .iter()
+        .any(|warning| warning.source == "layout" && warning.message.contains("layout detection failed"))
+}
 
 /// Extract `relative_path` (from `test_documents/`) with the given config.
 fn extract_md(relative_path: &str, config: &ExtractionConfig) -> String {
@@ -141,6 +161,81 @@ fn test_use_layout_for_markdown_preserves_native_headings() {
     assert_eq!(
         baseline_headings, layout_headings,
         "layout geometry must preserve native heading texts and levels"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires layout model files and CoreML"]
+fn test_auto_layout_avoids_coreml_failure() {
+    if !test_documents_available() {
+        return;
+    }
+
+    let config = ExtractionConfig {
+        output_format: OutputFormat::Markdown,
+        disable_ocr: true,
+        layout: Some(accelerated_layout(ExecutionProviderType::Auto)),
+        use_layout_for_markdown: true,
+        ..Default::default()
+    };
+    let path = get_test_file_path("pdf/tiny.pdf");
+    let result = extract_uri_document_blocking(&path, None, &config).expect("auto layout extraction should succeed");
+
+    assert!(!result.content.trim().is_empty());
+    assert!(
+        !has_layout_warning(&result.processing_warnings),
+        "auto layout unexpectedly degraded: {:?}",
+        result.processing_warnings
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires layout model files and CoreML"]
+fn test_coreml_layout_failure_emits_processing_warning() {
+    if !test_documents_available() {
+        return;
+    }
+
+    let config = ExtractionConfig {
+        output_format: OutputFormat::Markdown,
+        disable_ocr: true,
+        layout: Some(accelerated_layout(ExecutionProviderType::CoreMl)),
+        use_layout_for_markdown: true,
+        ..Default::default()
+    };
+    let path = get_test_file_path("pdf/tiny.pdf");
+    let result =
+        extract_uri_document_blocking(&path, None, &config).expect("extraction should soft-fail to native text");
+
+    assert!(
+        has_layout_warning(&result.processing_warnings),
+        "expected a caller-visible layout warning, got {:?}",
+        result.processing_warnings
+    );
+}
+
+#[cfg(all(target_os = "macos", feature = "ocr"))]
+#[test]
+#[ignore = "requires layout model files, CoreML, and Tesseract"]
+fn test_coreml_ocr_layout_failure_emits_processing_warning() {
+    if !test_documents_available() {
+        return;
+    }
+
+    let config = ExtractionConfig {
+        force_ocr: true,
+        layout: Some(accelerated_layout(ExecutionProviderType::CoreMl)),
+        ..Default::default()
+    };
+    let path = get_test_file_path("pdf/tiny.pdf");
+    let result = extract_uri_document_blocking(&path, None, &config).expect("OCR should continue without layout");
+
+    assert!(
+        has_layout_warning(&result.processing_warnings),
+        "expected a caller-visible OCR layout warning, got {:?}",
+        result.processing_warnings
     );
 }
 

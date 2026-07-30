@@ -475,6 +475,15 @@ type LayoutForMarkdownOptional = (
     Option<crate::types::ProcessingWarning>,
 );
 
+pub(super) fn layout_failure_warning(error: &crate::XbergError) -> crate::types::ProcessingWarning {
+    crate::types::ProcessingWarning {
+        source: std::borrow::Cow::Borrowed("layout"),
+        message: std::borrow::Cow::Owned(format!(
+            "layout detection failed ({error}); document extracted without layout hints"
+        )),
+    }
+}
+
 #[cfg(all(feature = "pdf", feature = "layout-detection"))]
 pub(super) async fn maybe_run_layout_for_markdown(
     content: &[u8],
@@ -529,12 +538,7 @@ pub(super) async fn maybe_run_layout_for_markdown(
                 error = %e,
                 "layout-for-markdown: detection failed, continuing without layout hints"
             );
-            let warning = crate::types::ProcessingWarning {
-                source: std::borrow::Cow::Borrowed("layout"),
-                message: std::borrow::Cow::Owned(format!(
-                    "layout detection failed ({e}); document extracted without layout hints"
-                )),
-            };
+            let warning = layout_failure_warning(&e);
             (None, None, None, None, None, Some(warning))
         }
     }
