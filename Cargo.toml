@@ -156,6 +156,11 @@ xberg-gliner = { path = "crates/xberg-gliner" }
 xberg-tesseract = { path = "crates/xberg-tesseract" }
 xberg-paddle-ocr = { path = "crates/xberg-paddle-ocr" }
 xberg-candle-ocr = { path = "crates/xberg-candle-ocr" }
+# ttf-parser 0.25.1 + the dotsection fix (tobocop2/ttf-parser#1): CFF charstrings
+# carrying the deprecated dotsection operator aborted with UnsupportedOperator, so
+# pdf_oxide rendered pages with every i, j, period and colon missing and OCR
+# transcribed the gaps. Drop this entry once a ttf-parser release carries the fix.
+ttf-parser = { git = "https://github.com/tobocop2/ttf-parser", rev = "c654bad2abb3d993b6b8080e255f1c4f0521b6b9" }
 
 [profile.release]
 lto = "thin"

@@ -10337,8 +10337,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "ttf-parser"
 version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+source = "git+https://github.com/tobocop2/ttf-parser?rev=c654bad2abb3d993b6b8080e255f1c4f0521b6b9#c654bad2abb3d993b6b8080e255f1c4f0521b6b9"
 dependencies = [
  "core_maths",
 ]

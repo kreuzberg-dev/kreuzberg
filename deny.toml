@@ -99,7 +99,9 @@ skip-tree = []
 unknown-registry = "warn"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+# ttf-parser dotsection fix; remove together with the [patch.crates-io] entry
+# in Cargo.toml once a ttf-parser release carries it.
+allow-git = ["https://github.com/tobocop2/ttf-parser"]
 
 [sources.allow-org]
 github = []
