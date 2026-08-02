@@ -91,7 +91,7 @@ xml = ["dep:quick-xml", "dep:roxmltree"]
 archives = ["dep:zip", "dep:tar", "dep:sevenz-rust2", "dep:flate2"]
 mdx = []
 
-liter-llm = ["dep:liter-llm", "dep:minijinja", "ocr-pipeline"]
+liter-llm = ["dep:liter-llm", "dep:minijinja", "dep:ureq", "ocr-pipeline"]
 
 # Gate for the centralised image re-encode pass (image_encode module).
 # Enabled by every feature that activates `dep:image` so the module is always

@@ -560,7 +560,7 @@ fn is_sha256_hex(value: &str) -> bool {
     )
 ))]
 #[allow(dead_code)]
-fn hf_client(cache_dir: Option<&Path>) -> Result<hf_hub::HFClientSync, String> {
+pub(crate) fn hf_client(cache_dir: Option<&Path>) -> Result<hf_hub::HFClientSync, String> {
     let builder = hf_client_builder();
     let builder = match cache_dir {
         Some(path) => builder.cache_dir(path.to_path_buf()),
@@ -1228,7 +1228,7 @@ pub(crate) fn hf_cached_revision(
         feature = "static-embeddings"
     )
 ))]
-fn hf_cached_revision_with_client(
+pub(crate) fn hf_cached_revision_with_client(
     api: &hf_hub::HFClientSync,
     repo_id: &str,
     remote_filename: &str,

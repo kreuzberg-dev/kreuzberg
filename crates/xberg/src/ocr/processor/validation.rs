@@ -76,52 +76,13 @@ pub(super) fn validate_language_and_traineddata(language: &str, tessdata_path: &
 /// `Ok(String)` with the path to a valid tessdata directory containing all
 /// requested languages, or `Err(OcrError)` if resolution fails.
 pub(super) fn resolve_tessdata_path(languages: &[String], override_path: Option<&Path>) -> Result<String, OcrError> {
-    let fallback_paths = [
-        "/opt/homebrew/share/tessdata",
-        "/opt/homebrew/opt/tesseract/share/tessdata",
-        "/usr/local/opt/tesseract/share/tessdata",
-        "/usr/share/tesseract-ocr/5/tessdata",
-        "/usr/share/tesseract-ocr/4/tessdata",
-        "/usr/share/tessdata",
-        "/usr/local/share/tessdata",
-        r#"C:\Program Files\Tesseract-OCR\tessdata"#,
-        r#"C:\ProgramData\Tesseract-OCR\tessdata"#,
-    ];
-
-    if let Some(path) = override_path
-        && let Some(path_str) = path.to_str()
-        && !path_str.is_empty()
-        && all_languages_exist(path_str, languages)?
-    {
-        return Ok(path_str.to_string());
-    }
-
-    if let Ok(path) = env::var("TESSDATA_PREFIX")
-        && !path.is_empty()
-        && all_languages_exist(&path, languages)?
-    {
-        return Ok(path);
-    }
-
-    if let Ok(cache_dir) = env::var("XBERG_CACHE_DIR") {
-        let tessdata = PathBuf::from(cache_dir).join("tessdata");
-        if tessdata.exists() && all_languages_exist(tessdata.to_str().unwrap_or(""), languages)? {
-            return Ok(tessdata.to_string_lossy().into_owned());
+    for dir in tessdata_search_dirs(override_path) {
+        if all_languages_exist(&dir, languages)? {
+            return Ok(dir);
         }
     }
 
-    let cache_base = crate::cache_dir::resolve_cache_base().join("tessdata");
-    if cache_base.exists() && all_languages_exist(cache_base.to_str().unwrap_or(""), languages)? {
-        return Ok(cache_base.to_string_lossy().into_owned());
-    }
-
-    for path in &fallback_paths {
-        if Path::new(path).exists() && all_languages_exist(path, languages)? {
-            return Ok(path.to_string());
-        }
-    }
-
-    let download_dest = cache_base;
+    let download_dest = crate::cache_dir::resolve_cache_base().join("tessdata");
     std::fs::create_dir_all(&download_dest).map_err(|e| {
         OcrError::TesseractInitializationFailed(format!(
             "Failed to create tessdata cache directory '{}': {}",
@@ -145,6 +106,58 @@ pub(super) fn resolve_tessdata_path(languages: &[String], override_path: Option<
         )))
     }
 }
+
+/// Candidate tessdata directories in the resolver's priority order:
+/// `override_path` (`OcrConfig.tessdata_path`), `TESSDATA_PREFIX`,
+/// `XBERG_CACHE_DIR/tessdata`, the xberg cache base, then system paths.
+///
+/// Shared by [`resolve_tessdata_path`] and doctor's check-only probe so both
+/// report on the same search chain.
+pub(crate) fn tessdata_search_dirs(override_path: Option<&Path>) -> Vec<String> {
+    let mut dirs = Vec::new();
+
+    if let Some(path) = override_path
+        && let Some(path_str) = path.to_str()
+        && !path_str.is_empty()
+    {
+        dirs.push(path_str.to_string());
+    }
+
+    if let Ok(path) = env::var("TESSDATA_PREFIX")
+        && !path.is_empty()
+    {
+        dirs.push(path);
+    }
+
+    if let Ok(cache_dir) = env::var("XBERG_CACHE_DIR") {
+        dirs.push(PathBuf::from(cache_dir).join("tessdata").to_string_lossy().into_owned());
+    }
+
+    dirs.push(
+        crate::cache_dir::resolve_cache_base()
+            .join("tessdata")
+            .to_string_lossy()
+            .into_owned(),
+    );
+
+    for path in SYSTEM_TESSDATA_PATHS {
+        dirs.push((*path).to_string());
+    }
+
+    dirs
+}
+
+const SYSTEM_TESSDATA_PATHS: &[&str] = &[
+    "/opt/homebrew/share/tessdata",
+    "/opt/homebrew/opt/tesseract/share/tessdata",
+    "/usr/local/opt/tesseract/share/tessdata",
+    "/usr/share/tesseract-ocr/5/tessdata",
+    "/usr/share/tesseract-ocr/4/tessdata",
+    "/usr/share/tessdata",
+    "/usr/local/share/tessdata",
+    r#"C:\Program Files\Tesseract-OCR\tessdata"#,
+    r#"C:\ProgramData\Tesseract-OCR\tessdata"#,
+];
 
 /// Check if all languages in the list exist as traineddata files in the given directory.
 fn all_languages_exist(tessdata_path: &str, languages: &[String]) -> Result<bool, OcrError> {

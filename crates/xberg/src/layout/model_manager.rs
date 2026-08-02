@@ -271,6 +271,14 @@ const MODELS: &[ModelDefinition] = &[
     },
 ];
 
+/// All Hub revisions the runtime pins across its model set (deduplicated).
+pub(crate) fn pinned_revisions() -> Vec<&'static str> {
+    let mut revisions: Vec<&'static str> = MODELS.iter().map(|model| model.hf_revision).collect();
+    revisions.sort_unstable();
+    revisions.dedup();
+    revisions
+}
+
 fn verify_model_file(path: &Path, expected_size: u64, expected_sha256: &str, label: &str) -> Result<(), String> {
     let actual_size = fs::metadata(path)
         .map_err(|error| format!("Failed to inspect cached {label} model: {error}"))?

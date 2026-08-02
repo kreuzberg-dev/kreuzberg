@@ -494,6 +494,147 @@ impl ModelManager {
         })
     }
 
+    /// The immutable Hub revision the runtime pins its model set to.
+    pub(crate) fn pinned_revision() -> &'static str {
+        HF_REPO_REVISION
+    }
+
+    /// Cache status of every artifact a run with the given version, script
+    /// family, and tier would need — WITHOUT downloading.
+    ///
+    /// Mirrors the resolution arms of [`Self::ensure_shared_models_versioned`]
+    /// and [`Self::resolve_rec_model_versioned`] so doctor reports on exactly
+    /// the files the runtime would request. Invalid version/tier/family
+    /// combinations error the same way the runtime would.
+    #[cfg(feature = "paddle-ocr")]
+    pub(crate) fn check_models_cached(
+        &self,
+        version: &str,
+        family: &str,
+        tier: &str,
+        include_doc_ori: bool,
+    ) -> Result<Vec<(String, bool)>, XbergError> {
+        let mut artifacts: Vec<(String, String, &str)> = Vec::new();
+
+        let invalid_tier = |tier: &str| XbergError::Plugin {
+            message: format!("Invalid model_tier \"{tier}\". Valid values: \"server\", \"mobile\""),
+            plugin_name: "paddle-ocr".to_string(),
+        };
+
+        if version == "pp-ocrv6" {
+            let tier = effective_v6_tier(tier);
+            let det = V6_DET_MODELS
+                .iter()
+                .find(|d| d.tier == tier)
+                .ok_or_else(|| invalid_tier(tier))?;
+            artifacts.push((
+                format!("det ({version}/{tier})"),
+                det.remote_filename.to_string(),
+                det.sha256_checksum,
+            ));
+        } else {
+            let det = V2_DET_MODELS
+                .iter()
+                .find(|d| d.tier == tier)
+                .ok_or_else(|| invalid_tier(tier))?;
+            artifacts.push((
+                format!("det ({tier})"),
+                det.remote_filename.to_string(),
+                det.sha256_checksum,
+            ));
+        }
+        artifacts.push((
+            "cls (PP-LCNet textline_ori)".to_string(),
+            V2_CLS_MODEL.remote_filename.to_string(),
+            V2_CLS_MODEL.sha256_checksum,
+        ));
+
+        if version == "pp-ocrv6" && V6_UNIFIED_FAMILIES.contains(&family) {
+            let tier = effective_v6_tier(tier);
+            let rec = V6_REC_MODELS
+                .iter()
+                .find(|d| d.tier == tier)
+                .ok_or_else(|| invalid_tier(tier))?;
+            artifacts.push((
+                format!("rec ({version}/{tier})"),
+                rec.remote_model.to_string(),
+                rec.model_sha256,
+            ));
+            artifacts.push((
+                format!("dict ({version}/{tier})"),
+                rec.remote_dict.to_string(),
+                rec.dict_sha256,
+            ));
+        } else {
+            let model_key = match (family, tier) {
+                ("english", "server") | ("chinese", "server") => Some("unified_server"),
+                ("english", "mobile") | ("chinese", "mobile") => Some("unified_mobile"),
+                _ => None,
+            };
+            if let Some(model_key) = model_key {
+                let rec =
+                    V2_REC_MODELS
+                        .iter()
+                        .find(|d| d.model_key == model_key)
+                        .ok_or_else(|| XbergError::Plugin {
+                            message: format!("Unknown v2 rec model key: {model_key}"),
+                            plugin_name: "paddle-ocr".to_string(),
+                        })?;
+                artifacts.push((
+                    format!("rec ({model_key})"),
+                    rec.remote_model.to_string(),
+                    rec.model_sha256,
+                ));
+                artifacts.push((
+                    format!("dict ({model_key})"),
+                    rec.remote_dict.to_string(),
+                    rec.dict_sha256,
+                ));
+            } else {
+                let rec = Self::find_rec_definition(family).ok_or_else(|| XbergError::Plugin {
+                    message: format!("Unsupported script family: {family}"),
+                    plugin_name: "paddle-ocr".to_string(),
+                })?;
+                artifacts.push((
+                    format!("rec ({family})"),
+                    format!("rec/{family}/model.onnx"),
+                    rec.model_sha256,
+                ));
+                artifacts.push((
+                    format!("dict ({family})"),
+                    format!("rec/{family}/dict.txt"),
+                    rec.dict_sha256,
+                ));
+            }
+        }
+
+        if include_doc_ori {
+            artifacts.push((
+                "doc orientation (PP-LCNet doc_ori)".to_string(),
+                V2_DOC_ORI_MODEL.remote_filename.to_string(),
+                V2_DOC_ORI_MODEL.sha256_checksum,
+            ));
+        }
+
+        Ok(artifacts
+            .into_iter()
+            .map(|(label, remote, sha)| (label, self.cached_artifact_ok(&remote, sha)))
+            .collect())
+    }
+
+    /// Whether a pinned artifact is present in the local HF cache and passes
+    /// its checksum. Never downloads.
+    #[cfg(feature = "paddle-ocr")]
+    fn cached_artifact_ok(&self, remote_filename: &str, sha256: &str) -> bool {
+        let Ok(api) = model_download::hf_client(Some(&self.cache_dir)) else {
+            return false;
+        };
+        model_download::hf_cached_revision_with_client(&api, HF_REPO_ID, remote_filename, Some(HF_REPO_REVISION))
+            .ok()
+            .flatten()
+            .is_some_and(|path| model_download::verify_sha256(&path, sha256, remote_filename).is_ok())
+    }
+
     /// Returns the manifest of all PaddleOCR model files with checksums and sizes.
     ///
     /// Entries are the exact pinned Hub artifacts used by the runtime. Paths are
@@ -1011,5 +1152,48 @@ mod tests {
         ] {
             assert!(!V6_UNIFIED_FAMILIES.contains(uncovered));
         }
+    }
+}
+
+#[cfg(all(test, feature = "paddle-ocr"))]
+mod check_cached_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn empty_cache_reports_everything_missing() {
+        let temp = TempDir::new().unwrap();
+        let manager = ModelManager::new(temp.path().to_path_buf());
+        let artifacts = manager
+            .check_models_cached("pp-ocrv6", "english", "server", false)
+            .unwrap();
+        assert!(artifacts.len() >= 4, "det + cls + rec + dict, got {artifacts:?}");
+        assert!(artifacts.iter().all(|(_, cached)| !cached));
+    }
+
+    #[test]
+    fn per_script_family_resolves_its_own_model() {
+        let temp = TempDir::new().unwrap();
+        let manager = ModelManager::new(temp.path().to_path_buf());
+        let artifacts = manager
+            .check_models_cached("pp-ocrv5", "eslav", "server", false)
+            .unwrap();
+        assert!(artifacts.iter().any(|(label, _)| label.contains("eslav")));
+    }
+
+    #[test]
+    fn invalid_tier_and_family_error_like_the_runtime() {
+        let temp = TempDir::new().unwrap();
+        let manager = ModelManager::new(temp.path().to_path_buf());
+        assert!(
+            manager
+                .check_models_cached("pp-ocrv5", "english", "huge", false)
+                .is_err()
+        );
+        assert!(
+            manager
+                .check_models_cached("pp-ocrv5", "klingon", "server", false)
+                .is_err()
+        );
     }
 }

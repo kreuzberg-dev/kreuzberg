@@ -16,6 +16,7 @@ pub mod cache;
 #[cfg(feature = "core-cli")]
 pub mod chunk;
 pub mod config;
+pub mod doctor;
 #[cfg(feature = "embeddings")]
 pub mod embed;
 pub mod extract;
@@ -37,6 +38,7 @@ pub use cache::{clear_command, manifest_command, stats_command};
 #[cfg(feature = "core-cli")]
 pub use chunk::chunk_command;
 pub use config::load_config;
+pub use doctor::doctor_command;
 #[cfg(feature = "embeddings")]
 pub use embed::embed_command;
 pub use extract::{

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `xberg doctor` command and `doctor()` API probe the configured OCR backend, layout
+  detection, and caches, then report pass / fail / skip with a one-line reason — answering
+  "is it my document or my environment?" before the first document. Tesseract checks tessdata
+  per configured language, PaddleOCR verifies its pinned model checksums, VLM checks API-key
+  resolution and endpoint reachability (no billable call), and RT-DETR runs one real inference
+  on a synthetic page, catching silent-degradation cases like the CoreML layout failure (#1347).
+  `xberg doctor --clean` removes stray files from xberg-owned cache dirs; the shared Hugging
+  Face cache is inspected but never modified. Backends self-report via a new `OcrBackend::probe`
+  hook, so custom backends can add their own diagnostics. Bindings (e.g. Python `xberg.doctor()`)
+  are picked up by the next `alef generate`.
+
 ### Fixed
 
 - CSV header inference no longer misclassifies all-text tables as headerless. A first row such as

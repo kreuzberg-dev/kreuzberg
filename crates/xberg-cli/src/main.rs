@@ -81,8 +81,8 @@ use commands::serve_command;
 ))]
 use commands::warm_command;
 use commands::{
-    BatchInputFormat, batch_command, clear_command, extract_command, load_config, manifest_command, stats_command,
-    validate_file_exists, validate_output_dir,
+    BatchInputFormat, batch_command, clear_command, doctor_command, extract_command, load_config, manifest_command,
+    stats_command, validate_file_exists, validate_output_dir,
 };
 #[cfg(feature = "core-cli")]
 use commands::{chunk_command, validate_chunk_params};
@@ -271,6 +271,25 @@ enum Commands {
     Cache {
         #[command(subcommand)]
         command: CacheCommands,
+    },
+
+    /// Probe configured backends and report what will actually execute on this host
+    Doctor {
+        /// Path to config file (TOML, YAML, or JSON). If not specified, searches for xberg.toml/yaml/json in current and parent directories.
+        #[arg(short, long)]
+        config: Option<PathBuf>,
+
+        /// Skip project and user config discovery and start from built-in defaults.
+        #[arg(long, conflicts_with = "config")]
+        no_config_discovery: bool,
+
+        /// Output format
+        #[arg(short, long, default_value = "text")]
+        format: WireFormat,
+
+        /// Delete stray files reported in xberg-owned cache directories after probing
+        #[arg(long)]
+        clean: bool,
     },
 
     /// Start the API server
@@ -888,6 +907,15 @@ fn main() -> Result<()> {
             }
         },
 
+        Commands::Doctor {
+            config,
+            no_config_discovery,
+            format,
+            clean,
+        } => {
+            doctor_command(config, no_config_discovery, format, clean)?;
+        }
+
         #[cfg(feature = "api")]
         Commands::Api { command } => match command {
             ApiCommands::Schema => {
@@ -1005,6 +1033,14 @@ mod feature_profile_tests {
     #[test]
     fn lean_profile_omits_url_flag() {
         assert!(!command_arg_ids("extract").iter().any(|id| id == "url"));
+    }
+
+    #[test]
+    fn doctor_command_is_always_exposed() {
+        let args = command_arg_ids("doctor");
+        for required in ["config", "no_config_discovery", "format", "clean"] {
+            assert!(args.iter().any(|id| id == required), "missing doctor arg {required}");
+        }
     }
 
     #[cfg(feature = "url-surface")]

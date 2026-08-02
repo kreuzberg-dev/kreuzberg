@@ -40,7 +40,7 @@
 #[cfg(feature = "paddle-ocr")]
 mod backend;
 mod config;
-mod model_manager;
+pub(crate) mod model_manager;
 
 #[cfg(feature = "paddle-ocr")]
 pub use backend::PaddleOcrBackend;

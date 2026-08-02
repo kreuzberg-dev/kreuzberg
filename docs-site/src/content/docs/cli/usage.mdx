@@ -401,6 +401,23 @@ xberg cache clear
 xberg cache stats
 ```
 
+### Environment Diagnostics
+
+`doctor` checks whether the backends in your config will actually run on this machine, before the first document. Each check reports pass, fail, or skip with a one-line reason; the command exits nonzero on any failure.
+
+```bash title="Terminal"
+# Probe the backends from xberg.toml (or the discovered config)
+xberg doctor
+
+# JSON output for bug reports
+xberg doctor --format json
+
+# Also remove stray files from xberg-owned cache dirs
+xberg doctor --clean
+```
+
+Tesseract checks tessdata per configured language, PaddleOCR verifies model checksums, VLM checks the API key and endpoint reachability (no billable call), and layout detection runs one real RT-DETR inference. Models that aren't downloaded yet report `skip` rather than failing.
+
 ## Extraction Override Flags
 
 `extract` and `batch` accept the flags below; they take precedence over config-file settings.

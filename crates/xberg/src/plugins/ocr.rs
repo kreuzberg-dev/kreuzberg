@@ -329,6 +329,21 @@ pub trait OcrBackend: Plugin {
             "Document-level OCR processing not supported by this backend".to_string(),
         ))
     }
+
+    /// Optional: Probe whether this backend will actually execute on this host
+    /// with the given configuration.
+    ///
+    /// Used by `doctor` diagnostics. Implementations must not download models
+    /// or make billable API calls; anything not yet local is reported as
+    /// `ProbeStatus::Skip`. Defaults to `Skip` so custom backends need no
+    /// changes; implement it to give users real environment diagnostics.
+    ///
+    /// Excluded from the polyglot binding surface: doctor results are produced
+    /// by the generated `doctor()` function, not per-backend calls.
+    #[cfg_attr(alef, alef(skip))]
+    fn probe(&self, _config: &OcrConfig) -> crate::doctor::DoctorCheck {
+        crate::doctor::DoctorCheck::skip(self.name(), "no probe implemented for this backend")
+    }
 }
 
 /// Register an OCR backend with the global registry.

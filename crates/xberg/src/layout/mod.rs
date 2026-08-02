@@ -34,7 +34,7 @@ pub(crate) mod inference_timings;
 #[cfg(all(layout_detection, not(target_arch = "wasm32")))]
 /// Model downloading and caching (Hugging Face Hub). Not available on `wasm32` — the JS
 /// host supplies model bytes directly, see `crate::layout::engine::LayoutEngine::from_rtdetr_bytes`.
-mod model_manager;
+pub(crate) mod model_manager;
 #[cfg(layout_detection)]
 /// Model implementations for layout detection (RT-DETR, and ORT-only: YOLO, TATR, SLANeXT,
 /// PP-DocLayout-V3, table classifier).
