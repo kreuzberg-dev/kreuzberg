@@ -130,7 +130,9 @@ public final class XbergDocumentReader implements DocumentReader {
    * Returns a new {@link Builder} for constructing a
    * {@link XbergDocumentReader}.
    */
-  public static Builder builder() { return new Builder(); }
+  public static Builder builder() {
+    return new Builder();
+  }
 
   /**
    * Builder for {@link XbergDocumentReader}.
@@ -150,7 +152,7 @@ public final class XbergDocumentReader implements DocumentReader {
     private final Map<String, Object> additionalMetadata =
         new LinkedHashMap<>();
 
-    private Builder() {}
+    private Builder() { }
 
     /**
      * Adds a Spring {@link Resource} to extract text from. At least one is
@@ -310,8 +312,8 @@ public final class XbergDocumentReader implements DocumentReader {
     String detail = errors.stream()
                         .map(error -> error.source() + ": " + error.message())
                         .collect(Collectors.joining("; "));
-    throw new IllegalStateException("Xberg extraction reported errors: " +
-                                    detail);
+    throw new IllegalStateException("Xberg extraction reported errors: "
+                                    + detail);
   }
 
   private String resolveSource(Resource resource) {
@@ -385,8 +387,8 @@ public final class XbergDocumentReader implements DocumentReader {
           if (chunkMeta.lastPage() != null) {
             metadata.put("last_page", chunkMeta.lastPage());
           }
-          if (chunkMeta.headingPath() != null &&
-              !chunkMeta.headingPath().isEmpty()) {
+          if (chunkMeta.headingPath() != null
+              && !chunkMeta.headingPath().isEmpty()) {
             metadata.put("heading_path",
                          String.join(" > ", chunkMeta.headingPath()));
           }
@@ -555,9 +557,9 @@ public final class XbergDocumentReader implements DocumentReader {
     }
     for (Map.Entry<String, Object> entry : additional.entrySet()) {
       Object value = entry.getValue();
-      if (value instanceof String || value instanceof Integer ||
-          value instanceof Long || value instanceof Float ||
-          value instanceof Double || value instanceof Boolean) {
+      if (value instanceof String || value instanceof Integer
+          || value instanceof Long || value instanceof Float
+          || value instanceof Double || value instanceof Boolean) {
         metadata.put(entry.getKey(), value);
       } else if (value instanceof List || value instanceof Map) {
         metadata.put(entry.getKey(), toJson(value));
