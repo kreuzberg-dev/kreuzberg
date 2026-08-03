@@ -476,11 +476,26 @@ Pre-generated extraction outputs from reference tools are stored in `vendored/` 
 | `vendored/paddleocr-python/` | PaddleOCR Python outputs with timing (`.ms` files) |
 | `vendored/rapidocr/`         | RapidOCR extraction outputs                        |
 
-Regenerate with:
+Regenerate each backend in its locked, isolated dependency group. Python 3.12 is pinned because PaddlePaddle does not
+publish Python 3.14 wheels:
 
 ```bash
-python tools/benchmark-harness/scripts/generate_vendored_baselines.py
+uv run --locked --isolated --python 3.12 --only-group bench-paddleocr-python \
+  python tools/benchmark-harness/scripts/generate_vendored_baselines.py \
+  paddleocr-python --force
+
+uv run --locked --isolated --python 3.12 --only-group bench-rapidocr \
+  python tools/benchmark-harness/scripts/generate_vendored_baselines.py \
+  rapidocr --force
+
+# Limit one backend to fixtures in an exact metadata category
+uv run --locked --isolated --python 3.12 --only-group bench-rapidocr \
+  python tools/benchmark-harness/scripts/generate_vendored_baselines.py \
+  rapidocr --force --category image-ocr-realgt
 ```
+
+`--only-group` omits the editable Xberg workspace package, while `--isolated` prevents another benchmark environment
+from changing the selected OCR runtime.
 
 ## Development
 

@@ -24,7 +24,16 @@ dev = [
 bench-docling = ["docling-jobkit==3.2.0", "easyocr>=1.7.2"]
 bench-markitdown = ["markitdown[all]==0.1.6"]
 bench-mineru = ["mineru[pipeline]==3.4.4", "onnxruntime", "six"]
+bench-paddleocr-python = [
+  "numpy>=2.0",
+  "paddleocr==3.4.0; python_version < '3.14'",
+  "paddlepaddle==3.2.1; python_version < '3.14'",
+  "pillow>=10.0.0",
+  "pymupdf==1.28.0",
+  "setuptools>=80.9; python_version < '3.14'",
+]
 bench-pymupdf4llm = ["pillow>=10.0.0", "pymupdf-layout==1.28.0", "pymupdf4llm==1.28.0"]
+bench-rapidocr = ["numpy>=2.0", "onnxruntime==1.28.0", "pillow>=10.0.0", "pymupdf==1.28.0", "rapidocr==3.9.2"]
 bench-unstructured = ["unstructured[docx,pdf,pptx,xlsx,md,odt,rtf,epub,org,rst]==0.24.1"]
 
 [tool.uv]
@@ -39,7 +48,9 @@ conflicts = [
     { package = "xberg", group = "bench-docling" },
     { package = "xberg", group = "bench-markitdown" },
     { package = "xberg", group = "bench-mineru" },
+    { package = "xberg", group = "bench-paddleocr-python" },
     { package = "xberg", group = "bench-pymupdf4llm" },
+    { package = "xberg", group = "bench-rapidocr" },
     { package = "xberg", group = "bench-unstructured" },
   ],
 ]

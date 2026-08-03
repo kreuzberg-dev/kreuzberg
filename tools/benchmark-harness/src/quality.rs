@@ -159,47 +159,66 @@ pub fn tokenize(text: &str) -> Vec<String> {
             kept.trim_matches(|c: char| c == '.' || c == ',').to_string()
         })
         .filter(|w| !w.is_empty())
-        .map(|token| {
-            let digit_count = token.chars().filter(|c| c.is_ascii_digit()).count();
-            if digit_count == 0 || digit_count > 15 {
-                return token;
-            }
-            // Normalize thousands separators ("1,000" -> "1000") before the numeric parse so a
-            // grouped number and its bare form become the same token. Only strip commas that form
-            // well-shaped 3-digit groups, to avoid corrupting European decimals like "3,14". ~keep
-            let candidate = if is_thousands_grouped(&token) {
-                token.replace(',', "")
-            } else {
-                token.clone()
-            };
-            if let Ok(num) = candidate.parse::<f64>() {
-                let normalized = format!("{num}");
-                if normalized != token { normalized } else { token }
-            } else {
-                token
-            }
-        })
         .collect();
     tokenize_cjk_bigrams(tokens)
 }
 
-/// Expand each CJK run into overlapping character bigrams. This keeps TF1
-/// insensitive to OCR line ordering without inflating overlap from common
-/// individual characters. A one-character run remains a unigram.
+fn normalize_numeric_token(token: String) -> String {
+    let digit_count = token.chars().filter(|c| c.is_ascii_digit()).count();
+    if digit_count == 0 || digit_count > 15 {
+        return token;
+    }
+    // Normalize thousands separators ("1,000" -> "1000") before the numeric parse so a
+    // grouped number and its bare form become the same token. Only strip commas that form
+    // well-shaped 3-digit groups, to avoid corrupting European decimals like "3,14". ~keep
+    let candidate = if is_thousands_grouped(&token) {
+        token.replace(',', "")
+    } else {
+        token.clone()
+    };
+    candidate
+        .parse::<f64>()
+        .map_or(token.clone(), |number| format!("{number}"))
+}
+
+/// Expand CJK script runs into overlapping bigrams while preserving non-CJK tokens.
+/// Whitespace between CJK characters is decorative OCR layout, not a word boundary. ~keep
 fn tokenize_cjk_bigrams(tokens: Vec<String>) -> Vec<String> {
-    tokens
-        .into_iter()
-        .flat_map(|token| {
-            if !token.chars().all(is_cjk_character) {
-                return vec![token];
+    let mut result = Vec::new();
+    let mut cjk_run = String::new();
+    for token in tokens {
+        let characters: Vec<char> = token.chars().collect();
+        let mut start = 0;
+        while start < characters.len() {
+            let is_cjk = is_cjk_character(characters[start]);
+            let mut end = start + 1;
+            while end < characters.len() && is_cjk_character(characters[end]) == is_cjk {
+                end += 1;
             }
-            let characters: Vec<char> = token.chars().collect();
-            if characters.len() == 1 {
-                return vec![token];
+            let run: String = characters[start..end].iter().collect();
+            if is_cjk {
+                cjk_run.push_str(&run);
+            } else if run.chars().all(|character| matches!(character, '.' | ',')) {
+                // Punctuation between CJK characters is decorative and must not split the run. ~keep
+            } else {
+                push_cjk_bigrams(&mut result, &mut cjk_run);
+                result.push(normalize_numeric_token(run));
             }
-            characters.windows(2).map(|pair| pair.iter().collect()).collect()
-        })
-        .collect()
+            start = end;
+        }
+    }
+    push_cjk_bigrams(&mut result, &mut cjk_run);
+    result
+}
+
+fn push_cjk_bigrams(result: &mut Vec<String>, run: &mut String) {
+    let characters: Vec<char> = run.chars().collect();
+    if characters.len() == 1 {
+        result.push(run.clone());
+    } else {
+        result.extend(characters.windows(2).map(|pair| pair.iter().collect()));
+    }
+    run.clear();
 }
 
 /// Whether a character belongs to a Chinese, Japanese, or Korean script block.
@@ -447,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn should_score_reordered_japanese_ocr_lines_as_matching_text() {
+    fn should_penalize_only_changed_boundaries_in_reordered_japanese_ocr_lines() {
         let ground_truth = concat!(
             "元来日本語は漢文に倣い、文字を上から下へ、また行を右から左へと進めて表記を行っていた。",
             "漢字と仮名の筆順も縦書きを前提としており、横書き不能な書体も存在する。"
@@ -462,10 +481,10 @@ mod tests {
 
         let result = compute_quality(extracted, ground_truth);
 
-        assert_eq!(result.f1_score_text, 0.9714285714285714);
-        assert_eq!(result.quality_score, 0.9714285714285714);
-        assert_eq!(result.extra_tokens, Vec::new());
-        assert!(result.correct);
+        assert_eq!(result.f1_score_text, 0.9444444444444444);
+        assert_eq!(result.quality_score, 0.9444444444444444);
+        assert_eq!(result.extra_tokens.len(), 4);
+        assert!(!result.correct);
     }
 
     #[test]
@@ -479,6 +498,29 @@ mod tests {
     fn should_use_cjk_bigrams_with_single_character_fallback() {
         assert_eq!(tokenize("日本語"), vec!["日本", "本語"]);
         assert_eq!(tokenize("日"), vec!["日"]);
+    }
+
+    #[test]
+    fn should_ignore_line_wrapping_between_cjk_characters() {
+        let continuous = tokenize("日本語の文書");
+        let wrapped = tokenize("日本\n語の\n文書");
+
+        assert_eq!(wrapped, continuous);
+        assert_eq!(compute_quality("日本\n語の\n文書", "日本語の文書").f1_score_text, 1.0);
+    }
+
+    #[test]
+    fn should_ignore_decorative_punctuation_between_cjk_characters() {
+        assert_eq!(tokenize("日本,語"), tokenize("日本語"));
+        assert_eq!(tokenize("日本。語"), tokenize("日本語"));
+    }
+
+    #[test]
+    fn should_tokenize_cjk_around_embedded_latin_and_numeric_runs() {
+        assert_eq!(
+            tokenize("日本語HS令和5年"),
+            vec!["日本", "本語", "hs", "令和", "5", "年"]
+        );
     }
 
     #[test]

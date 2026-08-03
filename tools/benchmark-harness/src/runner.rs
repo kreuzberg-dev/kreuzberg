@@ -2061,6 +2061,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn repeated_native_batch_preserves_one_sample_per_document_and_iteration() {
+        let first = tempfile::NamedTempFile::new().unwrap();
+        let second = tempfile::NamedTempFile::new().unwrap();
+        let batches = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let config = BenchmarkConfig {
+            warmup_iterations: 0,
+            benchmark_iterations: 3,
+            benchmark_mode: BenchmarkMode::Batch,
+            ..Default::default()
+        };
+        let adapter: Arc<dyn FrameworkAdapter> = Arc::new(RecordingBatchAdapter {
+            batches: Arc::clone(&batches),
+        });
+
+        let results = BenchmarkRunner::run_batch_iterations_static(
+            vec![first.path().to_path_buf(), second.path().to_path_buf()],
+            adapter,
+            &config,
+            None,
+            vec![false, false],
+            vec![None, None],
+            OutputFormat::Markdown,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(batches.lock().unwrap().len(), 3);
+        assert_eq!(results.len(), 2);
+        for result in results {
+            assert_eq!(
+                result
+                    .iterations
+                    .iter()
+                    .map(|iteration| iteration.iteration)
+                    .collect::<Vec<_>>(),
+                vec![1, 2, 3]
+            );
+            assert_eq!(result.statistics.unwrap().sample_count, 3);
+        }
+    }
+
+    #[tokio::test]
     async fn standard_single_and_batch_runners_populate_numeric_tf1_and_sf1() {
         let temp = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("document.pdf"), b"pdf").unwrap();
