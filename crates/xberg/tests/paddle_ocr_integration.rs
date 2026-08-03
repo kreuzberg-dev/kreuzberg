@@ -855,25 +855,35 @@ async fn test_tier_model_differentiation() {
     println!("Mobile det: {:?}", mobile_det);
 }
 
-/// Test default cache directory when no explicit config is set.
+/// Default cache resolution follows the Hugging Face conventions since the
+/// model cache moved to hf-hub: `HF_HUB_CACHE` wins when set, and an explicit
+/// `cache_dir` on the config overrides the environment entirely.
 #[test]
 #[allow(unsafe_code)]
 fn test_cache_dir_default() {
-    let original = std::env::var("XBERG_CACHE_DIR").ok();
+    let original = std::env::var("HF_HUB_CACHE").ok();
+    let hub_cache = std::env::temp_dir().join("xberg-test-hf-hub-cache");
 
     unsafe {
-        std::env::remove_var("XBERG_CACHE_DIR");
+        std::env::set_var("HF_HUB_CACHE", &hub_cache);
     }
 
-    let config = PaddleOcrConfig::new("en");
-    let resolved = config.resolve_cache_dir();
-
-    assert!(resolved.to_string_lossy().contains("xberg"));
-    assert!(resolved.to_string_lossy().contains("paddle-ocr"));
+    let resolved = PaddleOcrConfig::new("en").resolve_cache_dir();
+    let explicit = PaddleOcrConfig::new("en")
+        .with_cache_dir(PathBuf::from("/explicit/override"))
+        .resolve_cache_dir();
 
     unsafe {
-        if let Some(val) = original {
-            std::env::set_var("XBERG_CACHE_DIR", val);
+        match original {
+            Some(val) => std::env::set_var("HF_HUB_CACHE", val),
+            None => std::env::remove_var("HF_HUB_CACHE"),
         }
     }
+
+    assert_eq!(resolved, hub_cache, "default resolution must honor HF_HUB_CACHE");
+    assert_eq!(
+        explicit,
+        PathBuf::from("/explicit/override"),
+        "an explicit cache_dir must win over the environment"
+    );
 }
