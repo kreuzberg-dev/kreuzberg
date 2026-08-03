@@ -1,14 +1,15 @@
 """Generate vendored OCR baselines from PaddleOCR Python and RapidOCR.
 
 Usage:
-    uv run tools/benchmark-harness/scripts/generate_vendored_baselines.py
-    uv run tools/benchmark-harness/scripts/generate_vendored_baselines.py rapidocr
-    uv run tools/benchmark-harness/scripts/generate_vendored_baselines.py --force
+    uv run --locked --isolated --python 3.12 --only-group bench-rapidocr \
+        python tools/benchmark-harness/scripts/generate_vendored_baselines.py rapidocr
+    uv run --locked --isolated --python 3.12 --only-group bench-paddleocr-python \
+        python tools/benchmark-harness/scripts/generate_vendored_baselines.py paddleocr-python
 """
 
+import argparse
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -29,13 +30,96 @@ PDF_OCR_FIXTURES = [
     "pdf_scanned_ocr",
 ]
 
+DEFAULT_FIXTURE_OCR_LANGUAGE = "eng"
+BACKEND_LANGUAGES = {
+    "paddleocr-python": {
+        "eng": "en",
+        "deu": "german",
+        "jpn": "japan",
+        "jpn_vert": "japan",
+    },
+    "rapidocr": {
+        "eng": "en",
+        # RapidOCR provides German recognition through its Latin model. ~keep
+        "deu": "latin",
+        "jpn": "japan",
+        "jpn_vert": "japan",
+    },
+}
 
-def load_ocr_fixture_paths() -> list[Path]:
-    """Load the PDF fixtures and the canonical fast OCR image cohort."""
+
+def deduplicate_fixture_paths(fixture_paths: list[Path]) -> list[Path]:
+    """Remove duplicate paths while preserving their first-seen order."""
+    return list(dict.fromkeys(fixture_paths))
+
+
+def load_ocr_fixture_paths(category: str | None = None) -> list[Path]:
+    """Load the default OCR cohort or fixtures in an exact metadata category."""
+    if category is not None:
+        fixture_paths = []
+        candidates = sorted(
+            FIXTURES_DIR.rglob("*.json"),
+            key=lambda path: path.relative_to(FIXTURES_DIR).as_posix(),
+        )
+        for fixture_path in candidates:
+            fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+            if fixture.get("metadata", {}).get("category") == category:
+                fixture_paths.append(fixture_path)
+        return deduplicate_fixture_paths(fixture_paths)
+
     fixture_paths = [FIXTURES_DIR / f"{name}.json" for name in PDF_OCR_FIXTURES]
     cohort = json.loads(OCR_IMAGES_COHORT.read_text(encoding="utf-8"))
     fixture_paths.extend(FIXTURES_DIR / fixture for fixture in cohort["fixtures"])
-    return fixture_paths
+    return deduplicate_fixture_paths(fixture_paths)
+
+
+def validate_unique_fixture_names(fixture_paths: list[Path]) -> None:
+    """Reject fixture selections that would overwrite stem-keyed vendored outputs."""
+    paths_by_name: dict[str, list[Path]] = {}
+    for fixture_path in fixture_paths:
+        paths_by_name.setdefault(fixture_path.stem, []).append(fixture_path)
+
+    duplicate_names = sorted(name for name, paths in paths_by_name.items() if len(paths) > 1)
+    if duplicate_names:
+        names = ", ".join(duplicate_names)
+        raise ValueError(f"fixture selection contains duplicate output names: {names}")
+
+
+def resolve_document_path(fixture_path: Path, fixture: dict[str, object]) -> Path:
+    """Resolve a fixture document relative to its descriptor."""
+    document = fixture.get("document")
+    if not isinstance(document, str) or not document:
+        raise ValueError(f"fixture has no document path: {fixture_path}")
+    return (fixture_path.parent / document).resolve()
+
+
+def fixture_ocr_language(fixture: dict[str, object]) -> str:
+    """Return the fixture's Tesseract language code, defaulting missing metadata to English."""
+    metadata = fixture.get("metadata")
+    if not isinstance(metadata, dict):
+        return DEFAULT_FIXTURE_OCR_LANGUAGE
+
+    language = metadata.get("ocr_language")
+    # Older OCR fixtures omitted language metadata and were authored in English. ~keep
+    if language is None or language == "":
+        return DEFAULT_FIXTURE_OCR_LANGUAGE
+    if not isinstance(language, str):
+        raise ValueError(f"fixture metadata.ocr_language must be a string, got {type(language).__name__}")
+    return language
+
+
+def backend_ocr_language(pipeline_name: str, fixture: dict[str, object]) -> str:
+    """Translate a fixture's Tesseract language code to a backend model language."""
+    fixture_language = fixture_ocr_language(fixture)
+    language_map = BACKEND_LANGUAGES[pipeline_name]
+    try:
+        return language_map[fixture_language]
+    except KeyError as error:
+        supported = ", ".join(sorted(language_map))
+        raise ValueError(
+            f"unsupported metadata.ocr_language {fixture_language!r} for {pipeline_name}; "
+            f"supported Tesseract codes: {supported}"
+        ) from error
 
 
 def pdf_to_images(pdf_path: str, dpi: int = 300) -> list[np.ndarray]:
@@ -73,12 +157,12 @@ def lines_to_markdown(lines: list[str]) -> str:
     return "\n\n".join(paragraphs) + "\n" if paragraphs else ""
 
 
-def run_paddleocr_python(document_path: str) -> tuple[str, float]:
+def run_paddleocr_python(document_path: str, language: str) -> tuple[str, float]:
     """Run PaddleOCR Python v3.4+ using the predict() API."""
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
     from paddleocr import PaddleOCR
 
-    ocr = PaddleOCR(use_textline_orientation=True, lang="en")
+    ocr = PaddleOCR(use_textline_orientation=True, lang=language)
     images = document_to_images(document_path)
 
     start = time.monotonic()
@@ -108,14 +192,24 @@ def rapidocr_lines(result: object) -> list[str]:
     return [str(line[1]).strip() for line in legacy_result if line and len(line) >= 2 and str(line[1]).strip()]
 
 
-def run_rapidocr(document_path: str) -> tuple[str, float]:
-    """Run RapidOCR."""
+def create_rapidocr(language: str):
+    """Create a language-specific RapidOCR engine with reproducible model selection."""
     try:
         from rapidocr import RapidOCR
-    except ImportError:
-        from rapidocr_onnxruntime import RapidOCR
+    except ModuleNotFoundError as error:
+        if error.name != "rapidocr":
+            raise
+        raise ModuleNotFoundError(
+            "RapidOCR baseline generation requires rapidocr>=3.0; the legacy "
+            "rapidocr_onnxruntime package does not provide reproducible language model selection"
+        ) from error
 
-    ocr = RapidOCR()
+    return RapidOCR(params={"Rec.lang_type": language})
+
+
+def run_rapidocr(document_path: str, language: str) -> tuple[str, float]:
+    """Run RapidOCR."""
+    ocr = create_rapidocr(language)
     images = document_to_images(document_path)
 
     start = time.monotonic()
@@ -136,23 +230,28 @@ def save_vendored(pipeline_name: str, fixture_name: str, md: str, time_ms: float
     (timing_dir / f"{fixture_name}.ms").write_text(f"{time_ms:.1f}\n")
 
 
-def main():
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the baseline generator command line."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("pipeline", choices=("paddleocr-python", "rapidocr"))
+    parser.add_argument("--force", action="store_true", help="replace existing non-empty outputs")
+    parser.add_argument("--category", help="select fixtures with this exact metadata.category")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
     pipelines = {
         "paddleocr-python": run_paddleocr_python,
         "rapidocr": run_rapidocr,
     }
 
-    force = "--force" in sys.argv
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    pipelines = {args.pipeline: pipelines[args.pipeline]}
 
-    if args:
-        selected = args[0]
-        if selected not in pipelines:
-            print(f"Unknown: {selected}. Choose: {list(pipelines.keys())}")
-            sys.exit(1)
-        pipelines = {selected: pipelines[selected]}
-
-    for fixture_path in load_ocr_fixture_paths():
+    fixture_paths = load_ocr_fixture_paths(args.category)
+    validate_unique_fixture_names(fixture_paths)
+    failures: list[str] = []
+    for fixture_path in fixture_paths:
         fixture_name = fixture_path.stem
         if not fixture_path.exists():
             print(f"  SKIP {fixture_name}: fixture not found")
@@ -161,27 +260,32 @@ def main():
         with open(fixture_path) as f:
             fixture = json.load(f)
 
-        doc_path = str((FIXTURES_DIR / fixture["document"]).resolve())
-        if not os.path.exists(doc_path):
+        doc_path = resolve_document_path(fixture_path, fixture)
+        if not doc_path.exists():
             print(f"  SKIP {fixture_name}: document not found")
             continue
 
         for pipeline_name, run_fn in pipelines.items():
             existing = VENDORED_DIR / pipeline_name / "md" / f"{fixture_name}.md"
-            if not force and existing.exists() and existing.stat().st_size > 0:
+            if not args.force and existing.exists() and existing.stat().st_size > 0:
                 print(f"  CACHED {pipeline_name}/{fixture_name}")
                 continue
 
             print(f"  RUN {pipeline_name}/{fixture_name} ...", end="", flush=True)
             try:
-                md, time_ms = run_fn(doc_path)
+                language = backend_ocr_language(pipeline_name, fixture)
+                md, time_ms = run_fn(str(doc_path), language)
                 save_vendored(pipeline_name, fixture_name, md, time_ms)
                 print(f" {time_ms:.0f}ms, {len(md)} chars")
             except Exception as e:
                 print(f" ERROR: {e}")
+                failures.append(f"{pipeline_name}/{fixture_name}: {type(e).__name__}: {e}")
                 import traceback
 
                 traceback.print_exc()
+
+    if failures:
+        raise RuntimeError(f"{len(failures)} vendored baseline generation(s) failed: {'; '.join(failures)}")
 
 
 if __name__ == "__main__":
