@@ -271,12 +271,16 @@ const MODELS: &[ModelDefinition] = &[
     },
 ];
 
-/// All Hub revisions the runtime pins across its model set (deduplicated).
-pub(crate) fn pinned_revisions() -> Vec<&'static str> {
-    let mut revisions: Vec<&'static str> = MODELS.iter().map(|model| model.hf_revision).collect();
-    revisions.sort_unstable();
-    revisions.dedup();
-    revisions
+/// All Hub (repo id, revision) pairs the runtime pins across its model set
+/// (deduplicated). Revisions are only valid within their own repository.
+pub(crate) fn pinned_repo_revisions() -> Vec<(&'static str, &'static str)> {
+    let mut pairs: Vec<(&'static str, &'static str)> = MODELS
+        .iter()
+        .map(|model| (model.hf_repo_id, model.hf_revision))
+        .collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    pairs
 }
 
 fn verify_model_file(path: &Path, expected_size: u64, expected_sha256: &str, label: &str) -> Result<(), String> {

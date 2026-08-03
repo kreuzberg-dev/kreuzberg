@@ -403,7 +403,7 @@ xberg cache stats
 
 ### Environment Diagnostics
 
-`doctor` checks whether the backends in your config will actually run on this machine, before the first document. Each check reports pass, fail, or skip with a one-line reason; the command exits nonzero on any failure.
+`doctor` checks whether the backends in your config will actually run on this machine, before the first document. Each check reports pass, warn, fail, or skip with a one-line reason; warnings are actionable but never fail the command, and it exits nonzero only on failures.
 
 ```bash title="Terminal"
 # Probe the backends from xberg.toml (or the discovered config)
@@ -417,6 +417,8 @@ xberg doctor --clean
 ```
 
 Tesseract checks tessdata per configured language, PaddleOCR verifies model checksums, VLM checks the API key and endpoint reachability (no billable call), and layout detection runs one real RT-DETR inference. Models that aren't downloaded yet report `skip` rather than failing.
+
+When `XBERG_CACHE_DIR` is set, cache inspection and `--clean` are disabled (reported as `skip`): the override is a raw path and xberg cannot verify it owns the directory.
 
 ## Extraction Override Flags
 

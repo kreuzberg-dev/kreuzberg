@@ -38,7 +38,7 @@ pub(super) fn probe_layout(config: &ExtractionConfig) -> Vec<DoctorCheck> {
         ) {
             // Mirrors the layout runner's automatic-provider CPU retry: the
             // run succeeds degraded, with a processing warning, not an error.
-            Ok(_) => vec![DoctorCheck::pass(
+            Ok(_) => vec![DoctorCheck::warn(
                 "layout.rtdetr",
                 format!(
                     "automatic execution provider failed, CPU works; runtime retries on CPU with a processing warning ({e})"

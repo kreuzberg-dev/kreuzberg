@@ -3,7 +3,7 @@
 //!
 //! `doctor` answers "is it my document or my environment?" before the first
 //! document is processed. Each configured backend gets a `probe()` pass /
-//! fail / skip verdict with a one-line reason; config-level misconfigurations
+//! warn / fail / skip verdict with a one-line reason; config-level misconfigurations
 //! and cache hygiene are reported alongside. Nothing is downloaded and no
 //! billable API call is made.
 
@@ -26,6 +26,9 @@ use serde::{Deserialize, Serialize};
 pub enum ProbeStatus {
     /// The backend or setting will work as configured.
     Pass,
+    /// The check ran and found something actionable, but nothing is broken
+    /// (e.g. stray cache files, stale model revisions). Never fails the report.
+    Warn,
     /// The configured setup will not work (or will silently degrade) on this host.
     Fail,
     /// The check cannot run locally (e.g. model not cached, feature not compiled in);
@@ -38,7 +41,7 @@ pub enum ProbeStatus {
 pub struct DoctorCheck {
     /// Check identifier, e.g. `ocr.tesseract` or `layout.rtdetr`.
     pub name: String,
-    /// Pass / fail / skip verdict.
+    /// Pass / warn / fail / skip verdict.
     pub status: ProbeStatus,
     /// One-line reason or detail (e.g. missing language, resolved path, error).
     pub message: String,
@@ -51,6 +54,16 @@ impl DoctorCheck {
         Self {
             name: name.into(),
             status: ProbeStatus::Pass,
+            message: message.into(),
+        }
+    }
+
+    /// A [`ProbeStatus::Warn`] verdict: the check ran and found something
+    /// actionable, but nothing is broken. Never fails the report.
+    pub fn warn(name: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: ProbeStatus::Warn,
             message: message.into(),
         }
     }
@@ -84,7 +97,8 @@ pub struct DoctorReport {
 }
 
 impl DoctorReport {
-    /// Whether every check passed or was skipped (no failures).
+    /// Whether no check failed. Warnings and skips do not count as failures,
+    /// so the report stays usable as a scripting/CI gate.
     pub fn is_ok(&self) -> bool {
         self.checks.iter().all(|c| c.status != ProbeStatus::Fail)
     }
@@ -117,8 +131,9 @@ mod tests {
         assert!(report.is_ok());
         report.checks.push(DoctorCheck::pass("a", "fine"));
         report.checks.push(DoctorCheck::skip("b", "not cached"));
+        report.checks.push(DoctorCheck::warn("c", "stray files"));
         assert!(report.is_ok());
-        report.checks.push(DoctorCheck::fail("c", "broken"));
+        report.checks.push(DoctorCheck::fail("d", "broken"));
         assert!(!report.is_ok());
     }
 
@@ -130,5 +145,8 @@ mod tests {
         let roundtrip: DoctorCheck = serde_json::from_value(json).unwrap();
         assert_eq!(roundtrip.status, ProbeStatus::Fail);
         assert_eq!(roundtrip.message, "no key");
+
+        let warn = serde_json::to_value(DoctorCheck::warn("cache.xberg", "stray")).unwrap();
+        assert_eq!(warn["status"], "warn");
     }
 }

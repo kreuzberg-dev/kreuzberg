@@ -581,7 +581,7 @@ Schema validation. Temperature, top-p, frequency penalty tuning.
 ## CLI Reference
 
 <details>
-<summary><strong>All 12 commands</strong></summary>
+<summary><strong>All 13 commands</strong></summary>
 
 | Command | Subcommands | Purpose |
 |---------|-------------|---------|
@@ -591,6 +591,7 @@ Schema validation. Temperature, top-p, frequency penalty tuning.
 | `formats` | — | List all supported formats and MIME types |
 | `version` | — | Show Xberg version |
 | `cache` | `stats`, `clear`, `manifest`, `warm` | Manage extraction cache and models |
+| `doctor` | — | Probe configured backends and report what will actually execute |
 | `serve` | — | Start REST API server (default: <http://127.0.0.1:8000>) |
 | `mcp` | — | Start MCP server (stdio or HTTP transport) |
 | `api` | `schema` | Output OpenAPI 3.1 specification |

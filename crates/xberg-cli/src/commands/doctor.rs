@@ -26,20 +26,23 @@ pub fn doctor_command(
     // cleanup result is a regular check, keeping one output shape per format.
     let cleaned = clean.then(xberg::doctor::clean_obsolete);
     let mut report = doctor(&config);
-    if let Some(outcome) = cleaned {
-        report.checks.push(if outcome.failed == 0 {
-            DoctorCheck::pass(
+    if let Some(cleaned) = cleaned {
+        report.checks.push(match cleaned {
+            Some(outcome) if outcome.failed == 0 => DoctorCheck::pass(
                 "cache.clean",
                 format!("removed {} stray cache file(s)", outcome.removed),
-            )
-        } else {
-            DoctorCheck::fail(
+            ),
+            Some(outcome) => DoctorCheck::fail(
                 "cache.clean",
                 format!(
                     "removed {} stray cache file(s), failed to remove {}",
                     outcome.removed, outcome.failed
                 ),
-            )
+            ),
+            None => DoctorCheck::skip(
+                "cache.clean",
+                "not attempted: XBERG_CACHE_DIR override in effect and ownership cannot be verified",
+            ),
         });
     }
 
@@ -50,11 +53,29 @@ pub fn doctor_command(
             for check in &report.checks {
                 let marker = match check.status {
                     ProbeStatus::Pass => style::success("pass"),
-                    ProbeStatus::Fail => style::label("FAIL"),
+                    ProbeStatus::Warn => style::warning("warn"),
+                    ProbeStatus::Fail => style::error("FAIL"),
                     ProbeStatus::Skip => style::dim("skip"),
                 };
                 println!("{marker} {} — {}", check.name, check.message);
             }
+
+            let count = |status: ProbeStatus| report.checks.iter().filter(|c| c.status == status).count();
+            let mut parts = vec![format!("{} passed", count(ProbeStatus::Pass))];
+            for (status, noun) in [
+                (ProbeStatus::Warn, "warning(s)"),
+                (ProbeStatus::Skip, "skipped"),
+                (ProbeStatus::Fail, "failed"),
+            ] {
+                let n = count(status);
+                if n > 0 {
+                    parts.push(format!("{n} {noun}"));
+                }
+            }
+            let n = report.checks.len();
+            let noun = if n == 1 { "check" } else { "checks" };
+            println!();
+            println!("{n} {noun}: {}", parts.join(", "));
         }
         WireFormat::Json => {
             println!(
