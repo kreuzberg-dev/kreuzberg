@@ -5,16 +5,16 @@ use core::convert::TryFrom;
 use core::num::NonZeroU16;
 use core::ops::Range;
 
-use crate::parser::{LazyArray16, NumFrom, Stream};
+use crate::parser::{LazyArray32, NumFrom, Stream};
 use crate::{GlyphId, IndexToLocationFormat};
 
 /// An [Index to Location Table](https://docs.microsoft.com/en-us/typography/opentype/spec/loca).
 #[derive(Clone, Copy, Debug)]
 pub enum Table<'a> {
     /// Short offsets.
-    Short(LazyArray16<'a, u16>),
+    Short(LazyArray32<'a, u16>),
     /// Long offsets.
-    Long(LazyArray16<'a, u32>),
+    Long(LazyArray32<'a, u32>),
 }
 
 impl<'a> Table<'a> {
@@ -30,11 +30,7 @@ impl<'a> Table<'a> {
         // The number of ranges is `maxp.numGlyphs + 1`.
         //
         // Check for overflow first.
-        let mut total = if number_of_glyphs.get() == u16::MAX {
-            number_of_glyphs.get()
-        } else {
-            number_of_glyphs.get() + 1
-        };
+        let mut total: u32 = number_of_glyphs.get() as u32 + 1;
 
         // By the spec, the number of `loca` offsets is `maxp.numGlyphs + 1`.
         // But some malformed fonts can have less glyphs than that.
@@ -47,19 +43,19 @@ impl<'a> Table<'a> {
             IndexToLocationFormat::Short => data.len() / 2,
             IndexToLocationFormat::Long => data.len() / 4,
         };
-        let actual_total = u16::try_from(actual_total).ok()?;
+        let actual_total = u32::try_from(actual_total).ok()?;
         total = total.min(actual_total);
 
         let mut s = Stream::new(data);
         match format {
-            IndexToLocationFormat::Short => Some(Table::Short(s.read_array16::<u16>(total)?)),
-            IndexToLocationFormat::Long => Some(Table::Long(s.read_array16::<u32>(total)?)),
+            IndexToLocationFormat::Short => Some(Table::Short(s.read_array32::<u16>(total)?)),
+            IndexToLocationFormat::Long => Some(Table::Long(s.read_array32::<u32>(total)?)),
         }
     }
 
     /// Returns the number of offsets.
     #[inline]
-    pub fn len(&self) -> u16 {
+    pub fn len(&self) -> u32 {
         match self {
             Table::Short(ref array) => array.len(),
             Table::Long(ref array) => array.len(),
@@ -74,10 +70,7 @@ impl<'a> Table<'a> {
     /// Returns glyph's range in the `glyf` table.
     #[inline]
     pub fn glyph_range(&self, glyph_id: GlyphId) -> Option<Range<usize>> {
-        let glyph_id = glyph_id.0;
-        if glyph_id == u16::MAX {
-            return None;
-        }
+        let glyph_id = glyph_id.0 as u32;
 
         // Glyph ID must be smaller than total number of values in a `loca` array.
         if glyph_id + 1 >= self.len() {

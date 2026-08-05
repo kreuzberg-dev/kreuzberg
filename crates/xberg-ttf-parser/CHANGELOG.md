@@ -5,7 +5,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Changed
+- `loca::Table::len` returns `u32` instead of `u16`, and the `Short`/`Long` payloads are
+  `LazyArray32` instead of `LazyArray16`, so the table can address a font carrying the
+  maximum 65535 glyphs.
+
 ### Fixed
+- A font with the maximum 65535 glyphs no longer fails to parse its `loca` table. The
+  offset count is `numGlyphs + 1` = 65536, which did not fit the `u16` counter, so the
+  whole table was dropped and with it every TrueType outline in the face.
 - COLRv1 painting now bounds the total number of paint-graph nodes it visits. A paint graph
   shaped as a DAG could force exponentially many visits without ever cycling on the active
   path, which the existing recursion stack could not detect.
