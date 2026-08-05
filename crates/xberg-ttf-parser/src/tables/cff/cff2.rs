@@ -23,6 +23,11 @@ const MAX_OPERANDS_LEN: usize = 513;
 const STACK_LIMIT: u8 = 10;
 const MAX_ARGUMENTS_STACK_LEN: usize = 513;
 
+// xberg addition: STACK_LIMIT bounds nesting depth on the current path, not the total number
+// of subroutine calls. This caps the total `_parse_char_string` invocations for one glyph, the
+// same defense the CFF1 interpreter carries. See the comment on CFF1's MAX_CHARSTRING_VISITS.
+const MAX_CHARSTRING_VISITS: u32 = 100_000;
+
 const TWO_BYTE_OPERATOR_MARK: u8 = 12;
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cff2charstr#4-charstring-operators
@@ -203,6 +208,8 @@ struct CharStringParserContext<'a> {
     had_vsindex: bool,
     had_blend: bool,
     stems_len: u32,
+    // xberg addition: total remaining `_parse_char_string` invocations. See MAX_CHARSTRING_VISITS.
+    budget: u32,
 }
 
 impl CharStringParserContext<'_> {
@@ -242,6 +249,7 @@ fn parse_char_string(
         had_vsindex: false,
         had_blend: false,
         stems_len: 0,
+        budget: MAX_CHARSTRING_VISITS,
     };
 
     // Load scalars at default index.
@@ -285,6 +293,13 @@ fn _parse_char_string(
     depth: u8,
     p: &mut CharStringParser,
 ) -> Result<(), CFFError> {
+    // xberg addition: charge one unit per invocation so total subroutine calls for a glyph
+    // stay bounded regardless of nesting depth. See MAX_CHARSTRING_VISITS.
+    ctx.budget = ctx
+        .budget
+        .checked_sub(1)
+        .ok_or(CFFError::NestingLimitReached)?;
+
     let mut s = Stream::new(char_string);
     while !s.at_end() {
         let op = s.read::<u8>().ok_or(CFFError::ReadOutOfBounds)?;

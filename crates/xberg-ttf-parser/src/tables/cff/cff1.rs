@@ -29,6 +29,14 @@ const MAX_OPERANDS_LEN: usize = 48;
 const STACK_LIMIT: u8 = 10;
 const MAX_ARGUMENTS_STACK_LEN: usize = 48;
 
+// xberg addition: STACK_LIMIT bounds only how deeply subroutine calls nest on the current
+// path, not how many are made in total. A charstring that calls a subroutine over and over
+// without nesting stays under STACK_LIMIT forever, so a crafted font drives one
+// `_parse_char_string` invocation per call with no ceiling. This budget caps the total
+// number of invocations for one top-level glyph, mirroring `glyf::MAX_COMPONENT_VISITS`
+// from upstream #224. Real glyphs need at most a few hundred.
+const MAX_CHARSTRING_VISITS: u32 = 100_000;
+
 const TWO_BYTE_OPERATOR_MARK: u8 = 12;
 
 /// Enumerates some operators defined in the Adobe Technical Note #5177.
@@ -351,6 +359,8 @@ struct CharStringParserContext<'a> {
     has_seac: bool,
     glyph_id: GlyphId, // Required to parse local subroutine in CID fonts.
     local_subrs: Option<Index<'a>>,
+    // xberg addition: total remaining `_parse_char_string` invocations. See MAX_CHARSTRING_VISITS.
+    budget: u32,
 }
 
 fn parse_char_string(
@@ -373,6 +383,7 @@ fn parse_char_string(
         has_seac: false,
         glyph_id,
         local_subrs,
+        budget: MAX_CHARSTRING_VISITS,
     };
 
     let mut inner_builder = Builder {
@@ -421,6 +432,13 @@ fn _parse_char_string(
     depth: u8,
     p: &mut CharStringParser,
 ) -> Result<(), CFFError> {
+    // xberg addition: charge one unit per invocation so total subroutine calls for a glyph
+    // stay bounded regardless of nesting depth. See MAX_CHARSTRING_VISITS.
+    ctx.budget = ctx
+        .budget
+        .checked_sub(1)
+        .ok_or(CFFError::NestingLimitReached)?;
+
     let mut s = Stream::new(char_string);
     while !s.at_end() {
         let op = s.read::<u8>().ok_or(CFFError::ReadOutOfBounds)?;
