@@ -38,7 +38,7 @@ impl FromData for VariationAxis {
             def_value: def_value.0,
             max_value: def_value.0.max(max_value.0),
             name_id,
-            hidden: (flags >> 3) & 1 == 1,
+            hidden: flags & 1 == 1,
         })
     }
 }

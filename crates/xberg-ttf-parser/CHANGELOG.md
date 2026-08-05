@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   maximum 65535 glyphs.
 
 ### Fixed
+- `VariationAxis::hidden` now reads the `HIDDEN_AXIS` flag from bit 0 of the `fvar` axis
+  record instead of reserved bit 3. Hidden axes were reported as visible, and a font
+  setting the reserved bit was reported as hidden.
 - A font with the maximum 65535 glyphs no longer fails to parse its `loca` table. The
   offset count is `numGlyphs + 1` = 65536, which did not fit the `u16` counter, so the
   whole table was dropped and with it every TrueType outline in the face.
