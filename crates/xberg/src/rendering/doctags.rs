@@ -1,0 +1,765 @@
+//! Render an `InternalDocument` to Docling DocTags.
+//!
+//! DocTags is the tag vocabulary used by Docling and the SmolDocling /
+//! Granite-Docling models. The document is wrapped in `<doctag>`, one element
+//! per line, with tables encoded as OTSL.
+//!
+//! Two deliberate limitations, both inherited from the document model rather
+//! than from this renderer:
+//!
+//! - **No `<loc_*>` geometry tokens.** Location tokens normalise a bounding box
+//!   against page width/height on a 0–500 grid. `PageInfo::dimensions` is only
+//!   populated by the PDF path today, so emitting tokens for some formats and
+//!   not others would make the output silently uneven. Tracked in #1383.
+//! - **OTSL merge tokens are never emitted.** `Table::cells` is a flat
+//!   `Vec<Vec<String>>` with no span information, so a table can only be
+//!   serialised as `<ched>`/`<fcel>`/`<ecel>` plus `<nl>` row separators.
+//!   `<lcel>`/`<ucel>`/`<xcel>`/`<rhed>` require cell spans the model does not
+//!   carry.
+//!
+//! Text is emitted verbatim. DocTags has no escaping mechanism — Docling's own
+//! serialiser writes `&` and `<` literally, and its tokenizer only recognises
+//! known tags — so escaping here would corrupt round-trips.
+
+use crate::types::document_structure::{ContentLayer, RelationshipKind};
+use crate::types::internal::{ElementKind, InternalDocument, RelationshipTarget};
+use ahash::AHashMap;
+
+use super::common::{get_admonition_kind, get_admonition_title, normalize_inline_text, parse_metadata_entries};
+
+/// Language token emitted for a code block with no recorded language.
+const UNKNOWN_LANGUAGE: &str = "<_unknown_>";
+
+/// Render an `InternalDocument` to Docling DocTags.
+pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
+    let mut out = String::with_capacity(doc.elements.len() * 96);
+    let captions = collect_captions(doc);
+
+    out.push_str("<doctag>");
+
+    let mut state = ListState::default();
+
+    for (index, elem) in doc.elements.iter().enumerate() {
+        let index = index as u32;
+
+        // Captions are emitted nested inside the element they describe.
+        if captions.sources.contains_key(&index) {
+            continue;
+        }
+
+        match elem.kind {
+            ElementKind::ListItem { ordered } => {
+                state.open(&mut out, ordered);
+                push_element(&mut out, "list_item", &normalize_inline_text(&elem.text), None);
+                continue;
+            }
+            ElementKind::ListStart { ordered } => {
+                state.open_explicit(&mut out, ordered);
+                continue;
+            }
+            ElementKind::ListEnd => {
+                state.close_explicit(&mut out);
+                continue;
+            }
+            _ => state.close_implicit(&mut out),
+        }
+
+        match elem.kind {
+            ElementKind::QuoteStart | ElementKind::QuoteEnd | ElementKind::GroupStart | ElementKind::GroupEnd => {}
+            ElementKind::FootnoteRef => {}
+            ElementKind::PageBreak => {
+                out.push_str("<page_break>\n");
+            }
+            ElementKind::Table { table_index } => {
+                if let Some(table) = doc.tables.get(table_index as usize) {
+                    let caption = captions.caption_text(doc, index);
+                    push_otsl(&mut out, &table.cells, caption.as_deref());
+                }
+            }
+            ElementKind::Image { image_index } => {
+                let described = doc
+                    .images
+                    .get(image_index as usize)
+                    .and_then(|img| img.description.as_deref())
+                    .filter(|desc| !desc.is_empty());
+                let caption = captions
+                    .caption_text(doc, index)
+                    .or_else(|| described.map(normalize_inline_text));
+                push_element(&mut out, "picture", "", caption.as_deref());
+            }
+            ElementKind::Code => {
+                let body = code_body(super::common::get_language(elem), &elem.text);
+                push_element(&mut out, "code", &body, captions.caption_text(doc, index).as_deref());
+            }
+            ElementKind::Formula => {
+                push_element(&mut out, "formula", &normalize_inline_text(&elem.text), None);
+            }
+            ElementKind::Admonition => {
+                let label = get_admonition_title(elem).unwrap_or_else(|| get_admonition_kind(elem));
+                push_text_element(&mut out, elem.layer, label);
+                push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+            }
+            ElementKind::MetadataBlock => {
+                let entries = parse_metadata_entries(&elem.text);
+                if entries.is_empty() {
+                    push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+                } else {
+                    for (key, value) in entries {
+                        push_text_element(&mut out, elem.layer, &format!("{}: {}", key, value));
+                    }
+                }
+            }
+            ElementKind::RawBlock => {
+                let body = code_body(None, &elem.text);
+                push_element(&mut out, "code", &body, None);
+            }
+            ElementKind::Title => {
+                push_labelled(&mut out, elem.layer, "title", &normalize_inline_text(&elem.text));
+            }
+            ElementKind::Heading { level } => {
+                let tag = format!("section_header_level_{}", level.max(1));
+                push_labelled(&mut out, elem.layer, &tag, &normalize_inline_text(&elem.text));
+            }
+            ElementKind::FootnoteDefinition => {
+                push_element(&mut out, "footnote", &normalize_inline_text(&elem.text), None);
+            }
+            ElementKind::Paragraph
+            | ElementKind::Citation
+            | ElementKind::Slide { .. }
+            | ElementKind::DefinitionTerm
+            | ElementKind::DefinitionDescription
+            | ElementKind::OcrText { .. } => {
+                push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+            }
+            // Handled above.
+            ElementKind::ListItem { .. } | ElementKind::ListStart { .. } | ElementKind::ListEnd => {}
+        }
+    }
+
+    state.close_implicit(&mut out);
+    state.close_all(&mut out);
+
+    out.push_str("</doctag>");
+    out
+}
+
+/// Tracks open `<ordered_list>` / `<unordered_list>` wrappers.
+///
+/// Extractors emit list items either wrapped in explicit `ListStart`/`ListEnd`
+/// markers or bare. Bare items open an implicit wrapper that closes at the next
+/// non-list element.
+#[derive(Default)]
+struct ListState {
+    explicit: Vec<bool>,
+    implicit: Option<bool>,
+}
+
+impl ListState {
+    fn open(&mut self, out: &mut String, ordered: bool) {
+        if self.explicit.is_empty() && self.implicit.is_none() {
+            push_list_open(out, ordered);
+            self.implicit = Some(ordered);
+        }
+    }
+
+    fn open_explicit(&mut self, out: &mut String, ordered: bool) {
+        self.close_implicit(out);
+        push_list_open(out, ordered);
+        self.explicit.push(ordered);
+    }
+
+    fn close_explicit(&mut self, out: &mut String) {
+        if let Some(ordered) = self.explicit.pop() {
+            push_list_close(out, ordered);
+        }
+    }
+
+    fn close_implicit(&mut self, out: &mut String) {
+        if let Some(ordered) = self.implicit.take() {
+            push_list_close(out, ordered);
+        }
+    }
+
+    fn close_all(&mut self, out: &mut String) {
+        while let Some(ordered) = self.explicit.pop() {
+            push_list_close(out, ordered);
+        }
+    }
+}
+
+fn push_list_open(out: &mut String, ordered: bool) {
+    if ordered {
+        out.push_str("<ordered_list>");
+    } else {
+        out.push_str("<unordered_list>");
+    }
+}
+
+fn push_list_close(out: &mut String, ordered: bool) {
+    if ordered {
+        out.push_str("</ordered_list>\n");
+    } else {
+        out.push_str("</unordered_list>\n");
+    }
+}
+
+/// Build a `<code>` body: a language token followed by the flattened source.
+fn code_body(language: Option<&str>, text: &str) -> String {
+    let mut body = match language {
+        Some(language) => format!("<_{}_>", language),
+        None => UNKNOWN_LANGUAGE.to_string(),
+    };
+    body.push_str(&normalize_inline_text(text));
+    body
+}
+
+/// Emit an element, optionally with a nested `<caption>`.
+fn push_element(out: &mut String, tag: &str, body: &str, caption: Option<&str>) {
+    out.push('<');
+    out.push_str(tag);
+    out.push('>');
+    out.push_str(body);
+    if let Some(caption) = caption {
+        out.push_str("<caption>");
+        out.push_str(caption);
+        out.push_str("</caption>");
+    }
+    out.push_str("</");
+    out.push_str(tag);
+    out.push_str(">\n");
+}
+
+/// Emit a prose element, letting the content layer choose the tag.
+fn push_text_element(out: &mut String, layer: ContentLayer, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    push_element(out, layer_tag(layer, "text"), text, None);
+}
+
+/// Emit an element whose tag is overridden by a non-body content layer.
+fn push_labelled(out: &mut String, layer: ContentLayer, tag: &str, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    push_element(out, layer_tag(layer, tag), text, None);
+}
+
+/// Map a content layer onto its DocTags tag, falling back to `body_tag`.
+fn layer_tag(layer: ContentLayer, body_tag: &str) -> &str {
+    match layer {
+        ContentLayer::Body => body_tag,
+        ContentLayer::Header => "page_header",
+        ContentLayer::Footer => "page_footer",
+        ContentLayer::Footnote => "footnote",
+    }
+}
+
+/// Serialise a flat cell grid as OTSL.
+///
+/// The first row is treated as the header (matching `render_table_markdown`).
+/// Ragged rows are padded with `<ecel>` so every row has the same cell count,
+/// which OTSL requires.
+fn push_otsl(out: &mut String, cells: &[Vec<String>], caption: Option<&str>) {
+    if cells.is_empty() {
+        return;
+    }
+    let columns = cells.iter().map(|row| row.len()).max().unwrap_or(0);
+    if columns == 0 {
+        return;
+    }
+
+    out.push_str("<otsl>");
+    for (row_index, row) in cells.iter().enumerate() {
+        for column in 0..columns {
+            let content = row.get(column).map(|s| s.trim()).unwrap_or("");
+            if content.is_empty() {
+                out.push_str("<ecel>");
+            } else {
+                out.push_str(if row_index == 0 { "<ched>" } else { "<fcel>" });
+                out.push_str(&normalize_inline_text(content));
+            }
+        }
+        out.push_str("<nl>");
+    }
+    if let Some(caption) = caption {
+        out.push_str("<caption>");
+        out.push_str(caption);
+        out.push_str("</caption>");
+    }
+    out.push_str("</otsl>\n");
+}
+
+/// Caption relationships, indexed both ways.
+struct Captions {
+    /// Caption element index → the element it describes.
+    sources: AHashMap<u32, u32>,
+    /// Described element index → its caption element index.
+    targets: AHashMap<u32, u32>,
+}
+
+impl Captions {
+    fn caption_text(&self, doc: &InternalDocument, target: u32) -> Option<String> {
+        let source = *self.targets.get(&target)?;
+        let elem = doc.elements.get(source as usize)?;
+        let text = normalize_inline_text(&elem.text);
+        if text.is_empty() { None } else { Some(text) }
+    }
+}
+
+fn collect_captions(doc: &InternalDocument) -> Captions {
+    let mut sources = AHashMap::new();
+    let mut targets = AHashMap::new();
+
+    for rel in &doc.relationships {
+        if rel.kind != RelationshipKind::Caption {
+            continue;
+        }
+        let RelationshipTarget::Index(target) = rel.target else {
+            continue;
+        };
+        // Only tags that nest a `<caption>` may claim one. Captions are also
+        // attached to plain paragraphs standing in for a figure (LaTeX
+        // `figure` with placeholder injection); those must keep rendering as
+        // their own element rather than being silently swallowed.
+        let nests_caption = doc.elements.get(target as usize).is_some_and(|elem| {
+            matches!(
+                elem.kind,
+                ElementKind::Table { .. } | ElementKind::Image { .. } | ElementKind::Code
+            )
+        });
+        if !nests_caption {
+            continue;
+        }
+        // First caption wins, so a described element never gains two captions.
+        if targets.contains_key(&target) {
+            continue;
+        }
+        sources.insert(rel.source, target);
+        targets.insert(target, rel.source);
+    }
+
+    Captions { sources, targets }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::internal_builder::InternalDocumentBuilder;
+
+    fn image(description: Option<&str>) -> crate::types::ExtractedImage {
+        crate::types::ExtractedImage {
+            data: bytes::Bytes::new(),
+            format: std::borrow::Cow::Borrowed("png"),
+            image_index: 0,
+            page_number: None,
+            width: None,
+            height: None,
+            colorspace: None,
+            bits_per_component: None,
+            is_mask: false,
+            description: description.map(str::to_string),
+            ocr_result: None,
+            bounding_box: None,
+            source_path: None,
+            image_kind: None,
+            kind_confidence: None,
+            cluster_id: None,
+            caption: None,
+            qr_codes: None,
+            data_base64: None,
+        }
+    }
+
+    #[test]
+    fn test_render_doctags_empty_document() {
+        let doc = InternalDocumentBuilder::new("test").build();
+        assert_eq!(render_doctags(&doc), "<doctag></doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_wraps_in_doctag() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("Hello world.", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag><text>Hello world.</text>\n</doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_title_and_headings() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_title("My Document", None, None);
+        b.push_heading(1, "Intro", None, None);
+        b.push_heading(3, "Detail", None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<title>My Document</title>"), "got: {}", out);
+        assert!(
+            out.contains("<section_header_level_1>Intro</section_header_level_1>"),
+            "got: {}",
+            out
+        );
+        assert!(
+            out.contains("<section_header_level_3>Detail</section_header_level_3>"),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_unordered_list_wrapped_and_closed() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_list(false);
+        b.push_list_item("Alpha", false, vec![], None, None);
+        b.push_list_item("Beta", false, vec![], None, None);
+        b.end_list();
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains(
+                "<unordered_list><list_item>Alpha</list_item>\n<list_item>Beta</list_item>\n</unordered_list>"
+            ),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_ordered_list_uses_matching_close_tag() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_list(true);
+        b.push_list_item("First", true, vec![], None, None);
+        b.end_list();
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<ordered_list><list_item>First"), "got: {}", out);
+        assert!(out.contains("</ordered_list>"), "got: {}", out);
+        assert!(!out.contains("</unordered_list>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_bare_list_items_open_and_close_implicit_wrapper() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_list_item("Alpha", false, vec![], None, None);
+        b.push_paragraph("After the list.", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains(
+                "<unordered_list><list_item>Alpha</list_item>\n</unordered_list>\n<text>After the list.</text>"
+            ),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_unterminated_list_closes_at_end() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_list(false);
+        b.push_list_item("Alpha", false, vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.ends_with("</unordered_list>\n</doctag>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_table_as_otsl_with_header_row() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let cells = vec![
+            vec!["Name".to_string(), "Age".to_string()],
+            vec!["Alice".to_string(), "30".to_string()],
+        ];
+        b.push_table_from_cells(&cells, None, None);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<otsl><ched>Name<ched>Age<nl><fcel>Alice<fcel>30<nl></otsl>"),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_table_pads_ragged_rows_with_ecel() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let cells = vec![vec!["A".to_string(), "B".to_string()], vec!["only".to_string()]];
+        b.push_table_from_cells(&cells, None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<fcel>only<ecel><nl>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_table_empty_cell_becomes_ecel() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let cells = vec![
+            vec!["A".to_string(), "B".to_string()],
+            vec!["".to_string(), "value".to_string()],
+        ];
+        b.push_table_from_cells(&cells, None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<ecel><fcel>value<nl>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_empty_table_emits_nothing() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_table_from_cells(&[], None, None);
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag></doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_code_carries_language_token() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_code("fn main() {}", Some("rust"), None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<code><_rust_>fn main() {}</code>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_code_without_language_uses_unknown_token() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_code("echo hi", None, None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<code><_unknown_>echo hi</code>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_code_is_flattened_to_one_line() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_code("line one\nline two", None, None, None);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<code><_unknown_>line one line two</code>"),
+            "got: {}",
+            out
+        );
+        assert_eq!(out.lines().count(), 2, "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_formula() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_formula("E = mc^2", None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<formula>E = mc^2</formula>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_page_break() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("Before", vec![], None, None);
+        b.push_page_break();
+        b.push_paragraph("After", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("</text>\n<page_break>\n<text>After"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_image_becomes_picture() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_image(Some("A nice photo"), image(Some("A nice photo")), None, None);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<picture><caption>A nice photo</caption></picture>"),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_image_without_description_has_no_caption() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_image(None, image(None), None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<picture></picture>"), "got: {}", out);
+        assert!(!out.contains("<caption>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_content_layer_selects_tag() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let header = b.push_paragraph("Running header", vec![], None, None);
+        b.set_layer(header, ContentLayer::Header);
+        let footer = b.push_paragraph("Page 3", vec![], None, None);
+        b.set_layer(footer, ContentLayer::Footer);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<page_header>Running header</page_header>"),
+            "got: {}",
+            out
+        );
+        assert!(out.contains("<page_footer>Page 3</page_footer>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_footnote_definition() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("Main text", vec![], None, None);
+        b.push_footnote_ref("1", "fn1", None);
+        let def = b.push_footnote_definition("A note.", "fn1", None);
+        b.set_layer(def, ContentLayer::Footnote);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<footnote>A note.</footnote>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_footnote_ref_is_not_emitted() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_footnote_ref("1", "fn1", None);
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag></doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_text_is_not_escaped() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("results & performance for a < b", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("results & performance for a < b"), "got: {}", out);
+        assert!(!out.contains("&amp;"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_paragraph_newlines_collapse_to_one_line() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("wrapped\nacross\nlines", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<text>wrapped across lines</text>"), "got: {}", out);
+        assert_eq!(out.lines().count(), 2, "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_empty_paragraph_is_skipped() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("", vec![], None, None);
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag></doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_quote_and_group_markers_are_transparent() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_quote_start();
+        b.push_paragraph("Quoted text.", vec![], None, None);
+        b.push_quote_end();
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag><text>Quoted text.</text>\n</doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_metadata_block_emits_one_text_per_entry() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let entries = vec![
+            ("Author".to_string(), "Alice".to_string()),
+            ("Date".to_string(), "2026".to_string()),
+        ];
+        b.push_metadata_block(&entries, None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<text>Author: Alice</text>"), "got: {}", out);
+        assert!(out.contains("<text>Date: 2026</text>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_admonition_emits_label_then_body() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_admonition("warning", Some("Be careful"), None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<text>Be careful</text>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_raw_block_becomes_code() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_raw_block("tex", "\\LaTeX{}", None);
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<code><_unknown_>\\LaTeX{}</code>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_table_caption_nests_and_is_not_emitted_twice() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let cells = vec![vec!["A".to_string()]];
+        let table = b.push_table_from_cells(&cells, None, None);
+        let caption = b.push_paragraph("Table 1. Results.", vec![], None, None);
+        b.push_relationship(caption, RelationshipTarget::Index(table), RelationshipKind::Caption);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<caption>Table 1. Results.</caption></otsl>"),
+            "got: {}",
+            out
+        );
+        assert!(!out.contains("<text>Table 1. Results.</text>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_picture_caption_relationship_wins_over_description() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let picture = b.push_image(Some("alt text"), image(Some("alt text")), None, None);
+        let caption = b.push_paragraph("Figure 1. A diagram.", vec![], None, None);
+        b.push_relationship(caption, RelationshipTarget::Index(picture), RelationshipKind::Caption);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<picture><caption>Figure 1. A diagram.</caption></picture>"),
+            "got: {}",
+            out
+        );
+        assert!(!out.contains("alt text"), "got: {}", out);
+    }
+
+    /// The renderer is reachable without an `OutputFormat` variant: an unknown
+    /// format string parses to `Custom`, which `derive_extraction_result` routes
+    /// through the renderer registry. This is what makes `output_format="doctags"`
+    /// work from every language binding.
+    #[test]
+    fn test_doctags_is_reachable_via_custom_output_format() {
+        use crate::core::config::OutputFormat;
+        use std::str::FromStr;
+
+        // `FromStr` is the API-handler path; serde is the path the language
+        // bindings take (e.g. Python's `OutputFormat("doctags")`).
+        let format = OutputFormat::from_str("doctags").unwrap();
+        assert_eq!(format, OutputFormat::Custom("doctags".to_string()));
+        assert_eq!(
+            serde_json::from_str::<OutputFormat>("\"doctags\"").unwrap(),
+            OutputFormat::Custom("doctags".to_string())
+        );
+
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_title("Doc", None, None);
+        b.push_paragraph("Body text.", vec![], None, None);
+
+        let result = crate::extraction::derive::derive_extraction_result(b.build(), false, format);
+
+        assert_eq!(
+            result.formatted_content.as_deref(),
+            Some("<doctag><title>Doc</title>\n<text>Body text.</text>\n</doctag>")
+        );
+    }
+
+    /// LaTeX `figure` with placeholder injection attaches a caption to a plain
+    /// paragraph. `<text>` cannot nest a `<caption>`, so the caption must still
+    /// render as its own element instead of being dropped.
+    #[test]
+    fn test_render_doctags_caption_on_paragraph_target_is_not_dropped() {
+        let mut b = InternalDocumentBuilder::new("test");
+        let placeholder = b.push_paragraph("[image: diagram.png]", vec![], None, None);
+        let caption = b.push_paragraph("Figure 1. A diagram.", vec![], None, None);
+        b.push_relationship(
+            caption,
+            RelationshipTarget::Index(placeholder),
+            RelationshipKind::Caption,
+        );
+        let out = render_doctags(&b.build());
+        assert!(out.contains("<text>Figure 1. A diagram.</text>"), "got: {}", out);
+        assert!(out.contains("<text>[image: diagram.png]</text>"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_every_element_is_on_its_own_line() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_title("Doc", None, None);
+        b.push_paragraph("One", vec![], None, None);
+        b.push_paragraph("Two", vec![], None, None);
+        let out = render_doctags(&b.build());
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 4, "got: {}", out);
+        assert!(lines[0].starts_with("<doctag><title>"), "got: {}", out);
+        assert_eq!(lines[3], "</doctag>", "got: {}", out);
+    }
+}
