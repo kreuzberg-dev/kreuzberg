@@ -1851,6 +1851,11 @@ fn outline_var_impl(
         gvar_table.parse_variation_data(glyph_id, coordinates, components_count, &mut tuples)?;
 
         for component in components {
+            // xberg delta on top of upstream #224: see the matching charge in `glyf.rs`. Charging
+            // `components_count` up front instead would undercount, because it is computed as
+            // `.count() as u16` and truncates to zero at an exact multiple of 65536.
+            *budget = budget.checked_sub(1)?;
+
             let t = tuples.apply_null()?;
 
             let mut transform = builder.transform;

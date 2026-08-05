@@ -472,6 +472,12 @@ fn outline_impl(
     } else if number_of_contours < 0 {
         // Composite glyph.
         for comp in CompositeGlyphIter::new(s.tail()?) {
+            // xberg delta on top of upstream #224: charge the budget per component record, not
+            // once per call. A component whose glyph range does not resolve is skipped without
+            // recursing, so charging only on entry lets a glyph padded with unresolvable
+            // components be re-walked for free.
+            *budget = budget.checked_sub(1)?;
+
             if let Some(range) = loca_table.glyph_range(comp.glyph_id) {
                 if let Some(glyph_data) = glyf_table.get(range) {
                     let transform = Transform::combine(builder.transform, comp.transform);
