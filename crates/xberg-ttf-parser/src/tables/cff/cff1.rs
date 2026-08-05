@@ -57,6 +57,7 @@ mod operator {
     pub const CALL_GLOBAL_SUBROUTINE: u8 = 29;
     pub const VH_CURVE_TO: u8 = 30;
     pub const HV_CURVE_TO: u8 = 31;
+    pub const DOTSECTION: u8 = 0;
     pub const HFLEX: u8 = 34;
     pub const FLEX: u8 = 35;
     pub const HFLEX1: u8 = 36;
@@ -518,6 +519,12 @@ fn _parse_char_string(
                 // flex
                 let op2 = s.read::<u8>().ok_or(CFFError::ReadOutOfBounds)?;
                 match op2 {
+                    // A deprecated hinting operator that brackets outline
+                    // sections for the dots in letters such as `i`, `j` and `!`.
+                    // Adobe's Type 1 to Type 2 conversion preserves it, so
+                    // real-world fonts still carry it. Takes no arguments and
+                    // is a no-op for outlining, matching read-fonts and FreeType.
+                    operator::DOTSECTION => {}
                     operator::HFLEX => p.parse_hflex()?,
                     operator::FLEX => p.parse_flex()?,
                     operator::HFLEX1 => p.parse_hflex1()?,

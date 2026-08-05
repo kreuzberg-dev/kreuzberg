@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- CFF glyphs containing the deprecated `dotsection` operator are no longer rejected.
+  Previously the whole charstring failed with `UnsupportedOperator`, so glyphs like
+  `i`, `j`, `!` and `.` in fonts converted from Type 1 produced no outline at all.
 
 ## [0.25.1] - 2024-11-29
 ### Changed

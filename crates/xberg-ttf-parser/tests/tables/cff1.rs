@@ -636,6 +636,31 @@ test_cs_with_subrs!(global_subr,
     rect(10, 0, 40, 40)
 );
 
+// `dotsection` (12 0) is a deprecated hinting operator that Adobe's
+// Type 1 to Type 2 conversion preserves on dot-bearing glyphs (i, j, !).
+// It takes no arguments and must be skipped, not rejected, otherwise
+// such glyphs lose their outlines entirely.
+test_cs!(dotsection_is_ignored, &[
+    CFFInt(10), CFFInt(20), UInt8(operator::MOVE_TO),
+    UInt8(12), UInt8(0), // dotsection
+    CFFInt(30), CFFInt(40), UInt8(operator::LINE_TO),
+    UInt8(operator::ENDCHAR),
+], "M 10 20 L 40 60 Z ",
+    rect(10, 20, 40, 60)
+);
+
+// `dotsection` is a pure no-op like in read-fonts and FreeType: operands
+// already on the argument stack must survive it untouched.
+test_cs!(dotsection_preserves_stack, &[
+    CFFInt(10), CFFInt(20), UInt8(operator::MOVE_TO),
+    CFFInt(30), CFFInt(40),
+    UInt8(12), UInt8(0), // dotsection
+    UInt8(operator::LINE_TO),
+    UInt8(operator::ENDCHAR),
+], "M 10 20 L 40 60 Z ",
+    rect(10, 20, 40, 60)
+);
+
 test_cs_err!(reserved_operator, &[
     CFFInt(10), UInt8(2),
     UInt8(operator::ENDCHAR),
