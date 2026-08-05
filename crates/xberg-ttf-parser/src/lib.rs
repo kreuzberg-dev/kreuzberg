@@ -1429,6 +1429,8 @@ impl<'a> Face<'a> {
     }
 
     /// Returns face style.
+    ///
+    /// Returns `Style::Normal` when OS/2 table is not present.
     #[inline]
     pub fn style(&self) -> Style {
         self.tables.os2.map(|os2| os2.style()).unwrap_or_default()
