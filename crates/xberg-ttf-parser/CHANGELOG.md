@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   maximum 65535 glyphs.
 
 ### Fixed
+- `Face::set_variation` returns `None` for an axis tag the face does not define, as its
+  documentation already promised. It previously returned `Some(())` after doing nothing.
 - `VariationAxis::hidden` now reads the `HIDDEN_AXIS` flag from bit 0 of the `fvar` axis
   record instead of reserved bit 3. Hidden axes were reported as visible, and a font
   setting the reserved bit was reported as hidden.
