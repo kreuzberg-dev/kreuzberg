@@ -44,6 +44,18 @@ Font parsing starts with a [`Face`].
 #![allow(clippy::field_reassign_with_default)]
 #![allow(clippy::upper_case_acronyms)]
 #![allow(clippy::bool_assert_comparison)]
+// Xberg vendoring: the workspace lints are stricter than upstream's CI, and
+// upstream holds a 1.63 MSRV. Silencing these keeps the vendored source
+// byte-identical to upstream so future cherry-picks apply without conflict;
+// `div_ceil` and `is_multiple_of` in particular postdate that MSRV, so
+// "fixing" them here would break upstream's own build. ~keep
+#![allow(mismatched_lifetime_syntaxes)]
+#![allow(clippy::manual_div_ceil)]
+#![allow(clippy::manual_is_multiple_of)]
+#![allow(clippy::same_item_push)]
+#![allow(clippy::unnecessary_map_or)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::large_enum_variant)]
 
 #[cfg(feature = "std")]
 #[macro_use]

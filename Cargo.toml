@@ -13,6 +13,8 @@ members = [
     "crates/xberg-php",
     "crates/xberg-py",
     "crates/xberg-tesseract",
+    "crates/xberg-ttf-parser",
+    "crates/xberg-ttf-parser/compat",
     "crates/xberg-wasm",
     "packages/dart/rust",
     "packages/swift/rust",
@@ -156,6 +158,10 @@ xberg-gliner = { path = "crates/xberg-gliner" }
 xberg-tesseract = { path = "crates/xberg-tesseract" }
 xberg-paddle-ocr = { path = "crates/xberg-paddle-ocr" }
 xberg-candle-ocr = { path = "crates/xberg-candle-ocr" }
+# Redirects the transitive ttf-parser used by pdf_oxide and fontdb onto the
+# vendored copy, which carries the CFF dotsection fix and eight other upstream
+# fixes; see crates/xberg-ttf-parser/README.md.
+ttf-parser = { path = "crates/xberg-ttf-parser/compat" }
 
 [profile.release]
 lto = "thin"

@@ -360,6 +360,74 @@ extraction via `nom-exif` is pure Rust and works on every target.
 
 ---
 
+## ttf-parser
+
+A safe, zero-allocation TrueType / OpenType / AAT font parser, vendored as the
+`xberg-ttf-parser` crate:
+
+- **Source**: <https://github.com/harfbuzz/ttf-parser>
+- **License**: MIT OR Apache-2.0
+- **Author(s)**: Yevhenii Reizner, Khaled Hosny, Laurenz Stampfl, Caleb
+  Maclennan and contributors
+- **Vendored Version**: 0.25.1, plus nine upstream pull requests carried on top:
+  `#203` (`b422ac0`), `#207` (`52a9811`), `#216` (`9b9e55f`), `#222` (`3a585f1`),
+  `#223` (`32439d2`), `#224` (`dd2337b`), `#225` (`99aa5e3`), `#226` (`86daf57`)
+  and `#228` (`023f8163`). See `crates/xberg-ttf-parser/README.md` for what each
+  one fixes.
+- **Location**: `crates/xberg-ttf-parser/`
+- **Purpose**: Parse embedded font programs when rendering PDF pages. Reaches
+  xberg transitively through `pdf_oxide` and `fontdb`, the only two consumers in
+  `Cargo.lock`.
+
+### Why Vendored
+
+Upstream is currently unmaintained: at the time of vendoring the most recent
+commit was 2025-11-22, with correctness fixes sitting unreviewed. Upstream
+v0.25.1 rejects any CFF charstring containing the deprecated `dotsection`
+operator, dropping the affected glyphs entirely (`i`, `j`, `!`, `.`), so PDF
+pages using Type 1 derived CFF fonts silently lose those characters. Vendoring
+lets xberg carry the fix without waiting on an upstream release.
+
+### Vendored Files / Scope
+
+- Full upstream `src/` tree and `tests/`, plus `CHANGELOG.md` and both license
+  texts. Not vendored: `benches/`, `examples/`, `c-api/`, `testing-tools/`,
+  `meson.build`.
+- Kept byte-identical to upstream wherever possible so future upstream fixes
+  cherry-pick without conflict.
+- `tests/fonts/` contains upstream's test font binaries. `colr_1.ttf` and
+  `colr_1_variable.ttf` ship their own Apache-2.0 license text at
+  `tests/fonts/colr_1_LICENSE`. Test data is excluded from the published crate.
+
+### Modifications
+
+- Package renamed to `xberg-ttf-parser`, with `[lib] name = "xberg_ttf_parser"`.
+- Crate-level lint allows in `src/lib.rs` and `tests/tables/main.rs`; the
+  workspace lint set is stricter than upstream's CI. Allowed rather than fixed
+  because `div_ceil` and `is_multiple_of` postdate upstream's 1.63 MSRV.
+- A dev-dependency on the `compat/` shim so the vendored tests keep referring to
+  `ttf_parser` unchanged.
+- `compat/` is an xberg addition, not upstream code: a name-compatibility shim
+  named `ttf-parser` that re-exports this crate. Cargo matches
+  `[patch.crates-io]` on package name alone, so it is the only way to redirect
+  the transitive consumers onto the fixed parser. It is never published.
+- The `glyf` / `gvar` component visit budget from upstream `#224` is charged per
+  component record rather than once per call, which is the only behavior-affecting
+  xberg change inside the vendored `src/` tree.
+- Two xberg-authored regression tests at `tests/xberg_fvar.rs` and
+  `tests/xberg_set_variation.rs`, pinning upstream `#216` and `#207`, which ship
+  no tests of their own. Placed at the top level so `tests/tables/main.rs` stays
+  byte-identical to upstream.
+
+### License Compatibility
+
+MIT and Apache-2.0 are both permissive and already on the `deny.toml` allow
+list. Upstream's license texts are preserved verbatim at
+`crates/xberg-ttf-parser/LICENSE-MIT` and
+`crates/xberg-ttf-parser/LICENSE-APACHE`.
+
+---
+
 ## libwpd + librevenge
 
 Native WordPerfect document libraries built from source and statically linked

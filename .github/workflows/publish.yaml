@@ -256,6 +256,7 @@ jobs:
       libheif_exists: ${{ steps.check.outputs.libheif_exists }}
       gliner_exists: ${{ steps.check.outputs.gliner_exists }}
       libwpd_exists: ${{ steps.check.outputs.libwpd_exists }}
+      ttfparser_exists: ${{ steps.check.outputs.ttfparser_exists }}
       cli_exists: ${{ steps.check.outputs.cli_exists }}
       all_exist: ${{ steps.derive.outputs.all_exist }}
     steps:
@@ -272,6 +273,7 @@ jobs:
             libheif_exists=xberg-libheif
             gliner_exists=xberg-gliner
             libwpd_exists=xberg-libwpd
+            ttfparser_exists=xberg-ttf-parser
             cli_exists=xberg-cli
 
       - id: derive
@@ -283,6 +285,7 @@ jobs:
             && "${{ steps.check.outputs.libheif_exists }}" == "true" \
             && "${{ steps.check.outputs.gliner_exists }}" == "true" \
             && "${{ steps.check.outputs.libwpd_exists }}" == "true" \
+            && "${{ steps.check.outputs.ttfparser_exists }}" == "true" \
             && "${{ steps.check.outputs.cli_exists }}" == "true" ]]; then
             echo "all_exist=true" >> "$GITHUB_OUTPUT"
           else
@@ -2517,7 +2520,7 @@ jobs:
 
       - uses: xberg-io/actions/publish-crates@v1
         with:
-          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg xberg-cli
+          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg-ttf-parser xberg xberg-cli
           version: ${{ needs.prepare.outputs.version }}
           dry-run: ${{ needs.prepare.outputs.dry_run }}
 

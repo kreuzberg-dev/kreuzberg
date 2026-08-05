@@ -1,0 +1,58 @@
+[package]
+name = "xberg-ttf-parser"
+version.workspace = true
+edition = "2018"
+rust-version.workspace = true
+authors.workspace = true
+description = "Safe, zero-allocation TrueType/OpenType/AAT font parser for Xberg (vendored from harfbuzz/ttf-parser)"
+license = "MIT OR Apache-2.0"
+repository.workspace = true
+homepage = "https://xberg.io"
+documentation = "https://docs.rs/xberg-ttf-parser"
+readme = "README.md"
+keywords = ["ttf", "truetype", "opentype", "font", "xberg"]
+categories = ["parser-implementations"]
+exclude = ["tests/*", "compat/*"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "xberg_ttf_parser"
+crate-type = ["lib"]
+
+[features]
+default = ["std", "opentype-layout", "apple-layout", "variable-fonts", "glyph-names"]
+# Enables the use of the standard library.
+# When disabled, the `no-std-float` feature must be enabled instead.
+std = []
+no-std-float = ["core_maths"]
+# Enables variable fonts support. Increases binary size almost twice.
+# Includes avar, CFF2, fvar, gvar, HVAR, MVAR and VVAR tables.
+variable-fonts = []
+# Enables GDEF, GPOS, GSUB and MATH tables.
+opentype-layout = []
+# Enables ankr, feat, format1 subtable in kern, kerx, morx and trak tables.
+apple-layout = []
+# Enables glyph name query via `Face::glyph_name`.
+glyph-names = []
+# Enables heap allocations during gvar table parsing used by Apple's variable fonts.
+gvar-alloc = ["std"]
+
+[dependencies]
+core_maths = { version = "0.1.0", optional = true } # only for no_std builds
+
+[dev-dependencies]
+base64 = "0.22"
+pico-args = "0.5"
+tiny-skia-path = "0.12"
+# The vendored tests are kept byte-identical to upstream and so refer to
+# `ttf_parser`. The shim supplies that name, which keeps future upstream
+# cherry-picks conflict-free. Path-only dev-dependencies are stripped when
+# packaging, so this does not affect publishing.
+ttf-parser = { path = "compat" }
+xmlwriter = "0.1"
+
+[lints]
+workspace = true

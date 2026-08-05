@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- PDF pages that embed a CFF font converted from Type 1 no longer lose their dot-bearing glyphs.
+  The font parser rejected the deprecated `dotsection` operator and discarded the entire glyph, so
+  every `i`, `j`, `!` and `.` on the page rendered as blank space, and OCR run over those pages
+  transcribed the gaps. The parser now ignores the operator, matching FreeType and read-fonts.
+- A malformed embedded font can no longer make PDF rendering hang. Composite glyph outlining and
+  COLRv1 colour painting both bounded only how deeply they recursed, not how much total work a
+  crafted font could force, so a glyph whose components all point at one shared child could drive
+  exponential work. Both now carry a total visit budget.
+- Fonts at the maximum 65535 glyphs now parse. The glyph offset table needs 65536 entries at that
+  size, which overflowed a counter and dropped the table, leaving the font with no outlines at all.
+
+### Added
+
+- New `xberg-ttf-parser` crate: a vendored copy of `ttf-parser` 0.25.1 carrying the fix above.
+  Upstream is currently unmaintained, so vendoring lets us ship font parser fixes without waiting
+  on a release. The crate tracks which upstream pull requests it carries in its README.
+
 ## [1.0.14] - 2026-08-04
 
 ### Fixed

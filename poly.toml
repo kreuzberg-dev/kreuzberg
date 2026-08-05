@@ -51,6 +51,13 @@ exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
+  # Vendored verbatim from harfbuzz/ttf-parser. Kept byte-identical to upstream
+  # so future upstream fixes cherry-pick without conflict; reformatting it to the
+  # workspace style would rewrite nearly every file. The hand-written shim under
+  # compat/ is deliberately not excluded.
+  "crates/xberg-ttf-parser/src/**",
+  "crates/xberg-ttf-parser/tests/**",
+  "crates/xberg-ttf-parser/CHANGELOG.md",
 ]
 
 [lint.markdown.rumdl]

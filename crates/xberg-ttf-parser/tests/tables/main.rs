@@ -1,3 +1,8 @@
+// Xberg vendoring: workspace clippy is stricter than upstream's CI. Allowed
+// rather than rewritten so the vendored tests stay byte-identical to upstream
+// and future cherry-picks apply cleanly. ~keep
+#![allow(clippy::manual_repeat_n)]
+
 #[rustfmt::skip] mod aat;
 #[rustfmt::skip] mod ankr;
 #[rustfmt::skip] mod cff1;
