@@ -4,13 +4,15 @@
 //! Granite-Docling models. The document is wrapped in `<doctag>`, one element
 //! per line, with tables encoded as OTSL.
 //!
-//! Two deliberate limitations, both inherited from the document model rather
-//! than from this renderer:
+//! `<loc_*>` tokens are emitted for an element when it carries a bounding box
+//! and its page recorded usable dimensions. In practice that means PDF today:
+//! it is the only path that populates both. Pure-text formats (Markdown, HTML)
+//! have no geometry at all and so carry no location tokens — a documented,
+//! deliberate degradation rather than a silent one.
 //!
-//! - **No `<loc_*>` geometry tokens.** Location tokens normalise a bounding box
-//!   against page width/height on a 0–500 grid. `PageInfo::dimensions` is only
-//!   populated by the PDF path today, so emitting tokens for some formats and
-//!   not others would make the output silently uneven. Tracked in #1383.
+//! One limitation remains, inherited from the document model rather than from
+//! this renderer:
+//!
 //! - **OTSL merge tokens are never emitted.** `Table::cells` is a flat
 //!   `Vec<Vec<String>>` with no span information, so a table can only be
 //!   serialised as `<ched>`/`<fcel>`/`<ecel>` plus `<nl>` row separators.
@@ -22,6 +24,7 @@
 //! known tags — so escaping here would corrupt round-trips.
 
 use crate::types::document_structure::{ContentLayer, RelationshipKind};
+use crate::types::extraction::BoundingBox;
 use crate::types::internal::{ElementKind, InternalDocument, RelationshipTarget};
 use ahash::AHashMap;
 
@@ -30,10 +33,14 @@ use super::common::{get_admonition_kind, get_admonition_title, normalize_inline_
 /// Language token emitted for a code block with no recorded language.
 const UNKNOWN_LANGUAGE: &str = "<_unknown_>";
 
+/// DocTags normalises bounding boxes onto a fixed square grid of this size.
+const LOC_GRID: f64 = 500.0;
+
 /// Render an `InternalDocument` to Docling DocTags.
 pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
     let mut out = String::with_capacity(doc.elements.len() * 96);
     let captions = collect_captions(doc);
+    let dims = page_dimensions(doc);
 
     out.push_str("<doctag>");
 
@@ -47,10 +54,13 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
             continue;
         }
 
+        let loc = element_loc(elem, &dims);
+        let loc = loc.as_deref();
+
         match elem.kind {
             ElementKind::ListItem { ordered } => {
                 state.open(&mut out, ordered);
-                push_element(&mut out, "list_item", &normalize_inline_text(&elem.text), None);
+                push_element(&mut out, "list_item", loc, &normalize_inline_text(&elem.text), None);
                 continue;
             }
             ElementKind::ListStart { ordered } => {
@@ -72,8 +82,8 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
             }
             ElementKind::Table { table_index } => {
                 if let Some(table) = doc.tables.get(table_index as usize) {
-                    let caption = captions.caption_text(doc, index);
-                    push_otsl(&mut out, &table.cells, caption.as_deref());
+                    let caption = captions.caption_payload(doc, index, &dims);
+                    push_otsl(&mut out, &table.cells, loc, caption.as_deref());
                 }
             }
             ElementKind::Image { image_index } => {
@@ -83,45 +93,46 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
                     .and_then(|img| img.description.as_deref())
                     .filter(|desc| !desc.is_empty());
                 let caption = captions
-                    .caption_text(doc, index)
+                    .caption_payload(doc, index, &dims)
                     .or_else(|| described.map(normalize_inline_text));
-                push_element(&mut out, "picture", "", caption.as_deref());
+                push_element(&mut out, "picture", loc, "", caption.as_deref());
             }
             ElementKind::Code => {
                 let body = code_body(super::common::get_language(elem), &elem.text);
-                push_element(&mut out, "code", &body, captions.caption_text(doc, index).as_deref());
+                let caption = captions.caption_payload(doc, index, &dims);
+                push_element(&mut out, "code", loc, &body, caption.as_deref());
             }
             ElementKind::Formula => {
-                push_element(&mut out, "formula", &normalize_inline_text(&elem.text), None);
+                push_element(&mut out, "formula", loc, &normalize_inline_text(&elem.text), None);
             }
             ElementKind::Admonition => {
                 let label = get_admonition_title(elem).unwrap_or_else(|| get_admonition_kind(elem));
-                push_text_element(&mut out, elem.layer, label);
-                push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+                push_text_element(&mut out, elem.layer, loc, label);
+                push_text_element(&mut out, elem.layer, loc, &normalize_inline_text(&elem.text));
             }
             ElementKind::MetadataBlock => {
                 let entries = parse_metadata_entries(&elem.text);
                 if entries.is_empty() {
-                    push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+                    push_text_element(&mut out, elem.layer, loc, &normalize_inline_text(&elem.text));
                 } else {
                     for (key, value) in entries {
-                        push_text_element(&mut out, elem.layer, &format!("{}: {}", key, value));
+                        push_text_element(&mut out, elem.layer, loc, &format!("{}: {}", key, value));
                     }
                 }
             }
             ElementKind::RawBlock => {
                 let body = code_body(None, &elem.text);
-                push_element(&mut out, "code", &body, None);
+                push_element(&mut out, "code", loc, &body, None);
             }
             ElementKind::Title => {
-                push_labelled(&mut out, elem.layer, "title", &normalize_inline_text(&elem.text));
+                push_labelled(&mut out, elem.layer, loc, "title", &normalize_inline_text(&elem.text));
             }
             ElementKind::Heading { level } => {
                 let tag = format!("section_header_level_{}", level.max(1));
-                push_labelled(&mut out, elem.layer, &tag, &normalize_inline_text(&elem.text));
+                push_labelled(&mut out, elem.layer, loc, &tag, &normalize_inline_text(&elem.text));
             }
             ElementKind::FootnoteDefinition => {
-                push_element(&mut out, "footnote", &normalize_inline_text(&elem.text), None);
+                push_element(&mut out, "footnote", loc, &normalize_inline_text(&elem.text), None);
             }
             ElementKind::Paragraph
             | ElementKind::Citation
@@ -129,7 +140,7 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
             | ElementKind::DefinitionTerm
             | ElementKind::DefinitionDescription
             | ElementKind::OcrText { .. } => {
-                push_text_element(&mut out, elem.layer, &normalize_inline_text(&elem.text));
+                push_text_element(&mut out, elem.layer, loc, &normalize_inline_text(&elem.text));
             }
             // Handled above.
             ElementKind::ListItem { .. } | ElementKind::ListStart { .. } | ElementKind::ListEnd => {}
@@ -203,6 +214,71 @@ fn push_list_close(out: &mut String, ordered: bool) {
     }
 }
 
+/// Per-page dimensions in points, keyed by 1-indexed page number.
+///
+/// Only pages that recorded usable dimensions are included; the emptiness of
+/// this map is what suppresses location tokens for formats that have none.
+fn page_dimensions(doc: &InternalDocument) -> AHashMap<u32, (f64, f64)> {
+    let mut dims = AHashMap::new();
+    let Some(pages) = doc.metadata.pages.as_ref().and_then(|pages| pages.pages.as_ref()) else {
+        return dims;
+    };
+    for page in pages {
+        let Some((width, height)) = page.dimensions else {
+            continue;
+        };
+        if width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0 {
+            dims.insert(page.number, (width, height));
+        }
+    }
+    dims
+}
+
+/// Render an element's `<loc_*>` tokens, or `None` when geometry is unusable.
+///
+/// Input boxes follow the `BoundingBox` contract — PDF user space, origin at
+/// the bottom-left, `y0` the bottom edge and `y1` the top. DocTags counts from
+/// the top-left, so the vertical axis is flipped here. Tokens are emitted as
+/// left, top, right, bottom.
+///
+/// Formats whose bounding boxes do not follow that contract must not reach this
+/// function. PPTX is the live example: `extraction::pptx` fills `y0` with the
+/// *top* edge, so its geometry would be flipped. It is excluded structurally
+/// rather than by a format check — PPTX never records page dimensions, so
+/// `page_dimensions` yields nothing for it and no tokens are produced.
+fn loc_tokens(bbox: &BoundingBox, (width, height): (f64, f64)) -> Option<String> {
+    let coords = [bbox.x0, bbox.y0, bbox.x1, bbox.y1];
+    if coords.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+
+    // Tolerate boxes recorded with reversed corners.
+    let left = bbox.x0.min(bbox.x1);
+    let right = bbox.x0.max(bbox.x1);
+    let bottom = bbox.y0.min(bbox.y1);
+    let top = bbox.y0.max(bbox.y1);
+
+    let to_grid = |value: f64, extent: f64| -> u32 {
+        let scaled = (value / extent * LOC_GRID).round();
+        scaled.clamp(0.0, LOC_GRID) as u32
+    };
+
+    Some(format!(
+        "<loc_{}><loc_{}><loc_{}><loc_{}>",
+        to_grid(left, width),
+        to_grid(height - top, height),
+        to_grid(right, width),
+        to_grid(height - bottom, height),
+    ))
+}
+
+/// Resolve an element's location tokens against its page's dimensions.
+fn element_loc(elem: &crate::types::internal::InternalElement, dims: &AHashMap<u32, (f64, f64)>) -> Option<String> {
+    let bbox = elem.bbox.as_ref()?;
+    let page = elem.page?;
+    loc_tokens(bbox, *dims.get(&page)?)
+}
+
 /// Build a `<code>` body: a language token followed by the flattened source.
 fn code_body(language: Option<&str>, text: &str) -> String {
     let mut body = match language {
@@ -213,11 +289,15 @@ fn code_body(language: Option<&str>, text: &str) -> String {
     body
 }
 
-/// Emit an element, optionally with a nested `<caption>`.
-fn push_element(out: &mut String, tag: &str, body: &str, caption: Option<&str>) {
+/// Emit an element: `<tag>` then location tokens, body, and a nested
+/// `<caption>` when present.
+fn push_element(out: &mut String, tag: &str, loc: Option<&str>, body: &str, caption: Option<&str>) {
     out.push('<');
     out.push_str(tag);
     out.push('>');
+    if let Some(loc) = loc {
+        out.push_str(loc);
+    }
     out.push_str(body);
     if let Some(caption) = caption {
         out.push_str("<caption>");
@@ -230,19 +310,19 @@ fn push_element(out: &mut String, tag: &str, body: &str, caption: Option<&str>) 
 }
 
 /// Emit a prose element, letting the content layer choose the tag.
-fn push_text_element(out: &mut String, layer: ContentLayer, text: &str) {
+fn push_text_element(out: &mut String, layer: ContentLayer, loc: Option<&str>, text: &str) {
     if text.is_empty() {
         return;
     }
-    push_element(out, layer_tag(layer, "text"), text, None);
+    push_element(out, layer_tag(layer, "text"), loc, text, None);
 }
 
 /// Emit an element whose tag is overridden by a non-body content layer.
-fn push_labelled(out: &mut String, layer: ContentLayer, tag: &str, text: &str) {
+fn push_labelled(out: &mut String, layer: ContentLayer, loc: Option<&str>, tag: &str, text: &str) {
     if text.is_empty() {
         return;
     }
-    push_element(out, layer_tag(layer, tag), text, None);
+    push_element(out, layer_tag(layer, tag), loc, text, None);
 }
 
 /// Map a content layer onto its DocTags tag, falling back to `body_tag`.
@@ -260,7 +340,7 @@ fn layer_tag(layer: ContentLayer, body_tag: &str) -> &str {
 /// The first row is treated as the header (matching `render_table_markdown`).
 /// Ragged rows are padded with `<ecel>` so every row has the same cell count,
 /// which OTSL requires.
-fn push_otsl(out: &mut String, cells: &[Vec<String>], caption: Option<&str>) {
+fn push_otsl(out: &mut String, cells: &[Vec<String>], loc: Option<&str>, caption: Option<&str>) {
     if cells.is_empty() {
         return;
     }
@@ -270,6 +350,9 @@ fn push_otsl(out: &mut String, cells: &[Vec<String>], caption: Option<&str>) {
     }
 
     out.push_str("<otsl>");
+    if let Some(loc) = loc {
+        out.push_str(loc);
+    }
     for (row_index, row) in cells.iter().enumerate() {
         for column in 0..columns {
             let content = row.get(column).map(|s| s.trim()).unwrap_or("");
@@ -299,11 +382,18 @@ struct Captions {
 }
 
 impl Captions {
-    fn caption_text(&self, doc: &InternalDocument, target: u32) -> Option<String> {
+    /// The inner content of a `<caption>`: its own location tokens, then text.
+    fn caption_payload(&self, doc: &InternalDocument, target: u32, dims: &AHashMap<u32, (f64, f64)>) -> Option<String> {
         let source = *self.targets.get(&target)?;
         let elem = doc.elements.get(source as usize)?;
         let text = normalize_inline_text(&elem.text);
-        if text.is_empty() { None } else { Some(text) }
+        if text.is_empty() {
+            return None;
+        }
+        Some(match element_loc(elem, dims) {
+            Some(loc) => format!("{}{}", loc, text),
+            None => text,
+        })
     }
 }
 
@@ -369,6 +459,128 @@ mod tests {
             qr_codes: None,
             data_base64: None,
         }
+    }
+
+    fn bbox(x0: f64, y0: f64, x1: f64, y1: f64) -> BoundingBox {
+        BoundingBox { x0, y0, x1, y1 }
+    }
+
+    /// US Letter, chosen so the grid arithmetic lands on round numbers.
+    const PAGE_W: f64 = 612.0;
+    const PAGE_H: f64 = 792.0;
+
+    fn with_page_dims(mut doc: InternalDocument, dimensions: Option<(f64, f64)>) -> InternalDocument {
+        doc.metadata.pages = Some(crate::types::PageStructure {
+            total_count: 1,
+            unit_type: crate::types::PageUnitType::Page,
+            boundaries: None,
+            pages: Some(vec![crate::types::PageInfo {
+                number: 1,
+                title: None,
+                dimensions,
+                image_count: None,
+                table_count: None,
+                hidden: None,
+                is_blank: None,
+                has_vector_graphics: false,
+            }]),
+        });
+        doc
+    }
+
+    #[test]
+    fn test_loc_tokens_flip_the_vertical_axis() {
+        // Box spanning the top-left quarter of the page.
+        let top_left = loc_tokens(&bbox(61.2, 396.0, 306.0, 792.0), (PAGE_W, PAGE_H)).unwrap();
+        assert_eq!(top_left, "<loc_50><loc_0><loc_250><loc_250>");
+
+        // The same box moved to the bottom half: PDF y grows upward, DocTags
+        // downward, so the tokens must increase rather than stay put.
+        let bottom_left = loc_tokens(&bbox(61.2, 0.0, 306.0, 396.0), (PAGE_W, PAGE_H)).unwrap();
+        assert_eq!(bottom_left, "<loc_50><loc_250><loc_250><loc_500>");
+    }
+
+    #[test]
+    fn test_loc_tokens_clamp_out_of_page_boxes() {
+        let out = loc_tokens(&bbox(-100.0, -100.0, PAGE_W * 2.0, PAGE_H * 2.0), (PAGE_W, PAGE_H)).unwrap();
+        assert_eq!(out, "<loc_0><loc_0><loc_500><loc_500>");
+    }
+
+    #[test]
+    fn test_loc_tokens_tolerate_reversed_corners() {
+        let forward = loc_tokens(&bbox(61.2, 396.0, 306.0, 792.0), (PAGE_W, PAGE_H)).unwrap();
+        let reversed = loc_tokens(&bbox(306.0, 792.0, 61.2, 396.0), (PAGE_W, PAGE_H)).unwrap();
+        assert_eq!(forward, reversed);
+    }
+
+    #[test]
+    fn test_loc_tokens_reject_non_finite_coordinates() {
+        assert!(loc_tokens(&bbox(f64::NAN, 0.0, 10.0, 10.0), (PAGE_W, PAGE_H)).is_none());
+        assert!(loc_tokens(&bbox(0.0, 0.0, f64::INFINITY, 10.0), (PAGE_W, PAGE_H)).is_none());
+    }
+
+    #[test]
+    fn test_render_doctags_emits_loc_tokens_when_geometry_is_available() {
+        let mut b = InternalDocumentBuilder::new("pdf");
+        b.push_paragraph("Body text.", vec![], Some(1), Some(bbox(61.2, 396.0, 306.0, 792.0)));
+        let doc = with_page_dims(b.build(), Some((PAGE_W, PAGE_H)));
+        let out = render_doctags(&doc);
+        assert_eq!(
+            out,
+            "<doctag><text><loc_50><loc_0><loc_250><loc_250>Body text.</text>\n</doctag>"
+        );
+    }
+
+    /// PPTX fills `y0` with the top edge instead of the bottom, so its geometry
+    /// must not be normalised as if it were PDF space. It is excluded by never
+    /// recording page dimensions — this pins that gate.
+    #[test]
+    fn test_render_doctags_omits_loc_tokens_without_page_dimensions() {
+        let mut b = InternalDocumentBuilder::new("pptx");
+        b.push_paragraph("Slide text.", vec![], Some(1), Some(bbox(61.2, 396.0, 306.0, 792.0)));
+        let doc = with_page_dims(b.build(), None);
+        let out = render_doctags(&doc);
+        assert_eq!(out, "<doctag><text>Slide text.</text>\n</doctag>");
+        assert!(!out.contains("<loc_"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_omits_loc_tokens_without_bbox_or_page() {
+        let mut b = InternalDocumentBuilder::new("pdf");
+        b.push_paragraph("No bbox.", vec![], Some(1), None);
+        b.push_paragraph("No page.", vec![], None, Some(bbox(0.0, 0.0, 10.0, 10.0)));
+        let doc = with_page_dims(b.build(), Some((PAGE_W, PAGE_H)));
+        let out = render_doctags(&doc);
+        assert!(!out.contains("<loc_"), "got: {}", out);
+    }
+
+    #[test]
+    fn test_render_doctags_rejects_degenerate_page_dimensions() {
+        let mut b = InternalDocumentBuilder::new("pdf");
+        b.push_paragraph("Text.", vec![], Some(1), Some(bbox(0.0, 0.0, 10.0, 10.0)));
+        let doc = with_page_dims(b.build(), Some((0.0, PAGE_H)));
+        assert!(!render_doctags(&doc).contains("<loc_"));
+    }
+
+    #[test]
+    fn test_render_doctags_otsl_and_caption_carry_their_own_loc() {
+        let mut b = InternalDocumentBuilder::new("pdf");
+        let cells = vec![vec!["A".to_string()]];
+        let table = b.push_table_from_cells(&cells, Some(1), Some(bbox(61.2, 396.0, 306.0, 792.0)));
+        let caption = b.push_paragraph("Table 1.", vec![], Some(1), Some(bbox(61.2, 0.0, 306.0, 396.0)));
+        b.push_relationship(caption, RelationshipTarget::Index(table), RelationshipKind::Caption);
+        let doc = with_page_dims(b.build(), Some((PAGE_W, PAGE_H)));
+        let out = render_doctags(&doc);
+        assert!(
+            out.contains("<otsl><loc_50><loc_0><loc_250><loc_250><ched>A<nl>"),
+            "got: {}",
+            out
+        );
+        assert!(
+            out.contains("<caption><loc_50><loc_250><loc_250><loc_500>Table 1.</caption>"),
+            "got: {}",
+            out
+        );
     }
 
     #[test]
