@@ -365,8 +365,8 @@ xberg extract <PATH> [OPTIONS]
 | Flag                                   | Description                                                                                                |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `--ocr <true\|false>`                  | Enable/disable OCR                                                                                         |
-| `--ocr-backend <BACKEND>`              | OCR backend: `tesseract`, `paddle-ocr`, `vlm`, or `candle-*`                                               |
-| `--ocr-language <LANG>`                | OCR language code (e.g. `eng`, `fra`, `ch`)                                                                |
+| `--ocr-backend <BACKEND>`              | OCR backend: `tesseract`, `paddle-ocr`, `sceptre`, `vlm`, or `candle-*`                                    |
+| `--ocr-language <LANG>`                | OCR language or Sceptre group code (for example `eng`, `deu`, `tel`, `kan`)                                |
 | `--ocr-auto-rotate <true\|false>`      | Auto-rotate images before OCR                                                                              |
 | `--force-ocr <true\|false>`            | Force OCR even if text extraction succeeds                                                                 |
 | `--no-cache <true\|false>`             | Disable result caching                                                                                     |

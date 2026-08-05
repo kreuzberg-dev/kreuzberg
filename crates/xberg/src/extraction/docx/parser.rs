@@ -1726,6 +1726,11 @@ impl<R: Read + Seek> DocxParser<R> {
                             run.text.push('\n');
                         }
                     }
+                    b"w:tab" => {
+                        if let Some(ref mut run) = current_run {
+                            run.text.push('\t');
+                        }
+                    }
                     b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
                         document.elements.push(DocumentElement::PageBreak);
                     }
@@ -2791,6 +2796,83 @@ mod tests {
         assert!(
             full_text.contains("[^2]"),
             "Should contain footnote reference [^2], got: {}",
+            full_text
+        );
+    }
+
+    #[test]
+    fn test_inline_tab_preserved_between_words() {
+        let xml = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:body>
+                <w:p>
+                    <w:r>
+                        <w:t>Alpha</w:t>
+                        <w:tab/>
+                        <w:t>Beta</w:t>
+                    </w:r>
+                </w:p>
+            </w:body>
+        </w:document>"#;
+
+        let parser_struct = DocxParser {
+            archive: zip::ZipArchive::new(std::io::Cursor::new(create_minimal_zip())).unwrap(),
+            relationships: AHashMap::new(),
+            styles: None,
+            theme: None,
+        };
+        let mut document = Document::new();
+        {
+            let mut budget = crate::extractors::security::SecurityBudget::with_defaults();
+            parser_struct
+                .parse_document_xml(xml, &mut document, &mut budget)
+                .unwrap();
+        }
+
+        assert_eq!(document.paragraphs.len(), 1);
+        let full_text = document.paragraphs[0].to_text();
+        assert_eq!(
+            full_text, "Alpha\tBeta",
+            "Tab character inside a run must separate the words, got: {:?}",
+            full_text
+        );
+    }
+
+    #[test]
+    fn test_tab_stop_definition_does_not_emit_tab_character() {
+        let xml = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:body>
+                <w:p>
+                    <w:pPr>
+                        <w:tabs>
+                            <w:tab w:val="left" w:pos="720"/>
+                        </w:tabs>
+                    </w:pPr>
+                    <w:r>
+                        <w:t>Alpha</w:t>
+                    </w:r>
+                </w:p>
+            </w:body>
+        </w:document>"#;
+
+        let parser_struct = DocxParser {
+            archive: zip::ZipArchive::new(std::io::Cursor::new(create_minimal_zip())).unwrap(),
+            relationships: AHashMap::new(),
+            styles: None,
+            theme: None,
+        };
+        let mut document = Document::new();
+        {
+            let mut budget = crate::extractors::security::SecurityBudget::with_defaults();
+            parser_struct
+                .parse_document_xml(xml, &mut document, &mut budget)
+                .unwrap();
+        }
+
+        assert_eq!(document.paragraphs.len(), 1);
+        let full_text = document.paragraphs[0].to_text();
+        assert_eq!(
+            full_text, "Alpha",
+            "Tab-stop definition in w:pPr/w:tabs must not emit a tab character, got: {:?}",
             full_text
         );
     }

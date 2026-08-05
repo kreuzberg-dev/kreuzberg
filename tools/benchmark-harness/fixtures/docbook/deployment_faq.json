@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/deployment_faq.docbook",
+	"file_type": "docbook",
+	"file_size": 4612,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Deployment FAQ with config precedence list and resource limit table",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/docbook/deployment_faq.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/docbook/deployment_faq.md",
+		"source": "pandoc"
+	}
+}

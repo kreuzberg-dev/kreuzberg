@@ -1,0 +1,20 @@
+{
+	"document": "../../../../test_documents/data_formats/sensor_readings.csv",
+	"file_type": "csv",
+	"file_size": 755,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "Semicolon-delimited environmental sensor readings (temperature, humidity, pressure)",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/csv/sensor_readings.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/csv/sensor_readings.md",
+		"source": "raw_source"
+	}
+}

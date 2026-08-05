@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/rate_limiter_design.typ",
+	"file_type": "typ",
+	"file_size": 2149,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Rate limiter design doc with token bucket algorithm and parameter table",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/typ/rate_limiter_design.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/typ/rate_limiter_design.md",
+		"source": "pandoc"
+	}
+}

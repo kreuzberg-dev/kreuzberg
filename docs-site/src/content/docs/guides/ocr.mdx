@@ -43,27 +43,33 @@ See the [OcrConfig reference](/reference/configuration/#ocrconfig) for all confi
 
 ## Backend Comparison
 
-Seven OCR backends — pick based on platform, accuracy needs, and language coverage.
+Eight OCR backends — pick based on platform, accuracy needs, and language coverage.
 
 :::note[Candle backend availability]
 The Candle backends (GLM-OCR, TrOCR, DeepSeek-OCR, PaddleOCR-VL) ship compiled in by default in the published packages for Python, Node, Go, Java, C#, Ruby, PHP, Elixir, Kotlin (JVM), Zig, and the CLI/Docker image on Linux, macOS, and Windows — no custom build or feature flag required. Model weights download automatically from Hugging Face on first use and are cached at `~/.cache/huggingface/`. They are **not** available on WebAssembly, Android, iOS, Dart, or Swift.
 :::
 
-|                  | **Tesseract**        | **PaddleOCR**                       | **Candle GLM-OCR** | **Candle TrOCR** | **Candle DeepSeek-OCR** | **Candle PaddleOCR-VL** | **VLM**                  |
-| ---------------- | -------------------- | ----------------------------------- | ------------------ | ---------------- | ----------------------- | ----------------------- | ------------------------ |
-| **Speed**        | Fast                 | Very fast                           | Moderate           | Moderate         | Moderate                | Moderate                | Slow (API latency)       |
-| **Accuracy**     | Good                 | Excellent                           | Excellent          | Good             | Excellent               | Excellent               | Highest                  |
-| **Languages**    | 100+                 | 80+ (11 script families)            | All                | 100+             | 20+ (CJK + Latin)       | 20+ (CJK + Latin)       | All (provider-dependent) |
-| **Installation** | System package       | Built-in (native) or Python package | Built-in           | Built-in         | Built-in                | Built-in                | API key only             |
-| **Model size**   | ~10 MB               | Mobile ~8 MB, Server ~120 MB        | ~3 GB              | ~250 MB          | ~4 GB                   | ~2.5 GB                 | None (cloud-hosted)      |
-| **GPU support**  | No                   | Yes                                 | Yes (Metal/CUDA)   | Yes (Metal/CUDA) | Yes (Metal/CUDA)        | Yes (Metal/CUDA)        | N/A (server-side)        |
-| **Platform**     | All (including Wasm) | All except Wasm                     | Native only        | Native only      | Native only             | Native only             | All                      |
-| **Cost**         | Free                 | Free                                | Free               | Free             | Free                    | Free                    | Per-token API cost       |
+|                  | **Tesseract**        | **PaddleOCR**                       | **Sceptre**                 | **Candle GLM-OCR** | **Candle TrOCR** | **Candle DeepSeek-OCR** | **Candle PaddleOCR-VL** | **VLM**                  |
+| ---------------- | -------------------- | ----------------------------------- | --------------------------- | ------------------ | ---------------- | ----------------------- | ----------------------- | ------------------------ |
+| **Speed**        | Fast                 | Model-dependent                     | Fast on CPU                 | Moderate           | Moderate         | Moderate                | Moderate                | Slow (API latency)       |
+| **Accuracy**     | Good                 | Excellent                           | Good                        | Excellent          | Good             | Excellent               | Excellent               | Highest                  |
+| **Languages**    | 100+                 | 80+ (11 script families)            | 6 EasyOCR gen2 groups       | All               | 100+             | 20+ (CJK + Latin)       | 20+ (CJK + Latin)       | All (provider-dependent) |
+| **Installation** | System package       | Built-in (native) or Python package | Built-in or Cargo feature   | Built-in           | Built-in         | Built-in                | Built-in                | API key only             |
+| **Model size**   | ~10 MB               | Mobile ~8 MB, Server ~120 MB        | Downloaded on first use     | ~3 GB              | ~250 MB          | ~4 GB                   | ~2.5 GB                 | None (cloud-hosted)      |
+| **GPU support**  | No                   | Yes                                 | No (CPU-only in Xberg 1.1) | Yes (Metal/CUDA)   | Yes (Metal/CUDA) | Yes (Metal/CUDA)        | Yes (Metal/CUDA)        | N/A (server-side)        |
+| **Platform**     | All (including Wasm) | All except Wasm                     | Native desktop/server only  | Native only        | Native only      | Native only             | Native only             | All                      |
+| **Cost**         | Free                 | Free                                | Free                        | Free               | Free             | Free                    | Free                    | Per-token API cost       |
 
-**When to use which:**
+### Choose a backend
 
-- **Tesseract** — Default choice. Works everywhere, low overhead, broadest platform support.
-- **PaddleOCR** — Best speed-to-accuracy ratio. Preferred for CJK languages. Mobile tier is fast; server tier maximizes accuracy with GPU.
+| Backend | Strengths | Trade-offs | Choose it when |
+| --- | --- | --- | --- |
+| **Tesseract** | Broad language and platform support; low runtime overhead; hierarchical hOCR output | Requires a system package and separately installed language data; less reliable on scene text and difficult scans | You need the default backend, WebAssembly support, or a small deployment footprint |
+| **PaddleOCR** | Strong recognition quality; mobile and server model tiers; GPU support; strong CJK coverage | Larger model downloads; server models can be slow and memory-intensive on CPU | Recognition quality is the priority, especially for CJK documents, and you can budget for the model/runtime cost |
+| **Sceptre** | CRAFT detection and CRNN recognition; eight EasyOCR Gen2 language groups | CPU-only; tract mobile builds and opt-in worker-hosted WASM have larger artifacts | You need EasyOCR Gen2 recognition without a Python runtime |
+
+The remaining backends cover larger-model and hosted use cases:
+
 - **Candle GLM-OCR** — Excellent accuracy with VLM-level reasoning on 0.9B-param GLM model. Pure Rust, GPU-accelerated (Metal on macOS, CUDA on Linux). Region-aware layout dispatch. First download ~3 GB.
 - **Candle TrOCR** — Smaller model footprint (~250 MB) with solid accuracy across languages. Pure Rust, GPU-accelerated. Good balance of speed and quality.
 - **Candle DeepSeek-OCR** — Deep learning-based OCR combining SAM + CLIP + Qwen2 + DeepSeek MoE. Multilingual with strong CJK coverage. Pure Rust, GPU-accelerated. First download ~4 GB.
@@ -136,6 +142,27 @@ PaddleOCR is bundled via the native Rust bindings and works out of the box since
 
 </TabItem>
 </Tabs>
+
+### Sceptre
+
+Sceptre is included in published native desktop/server packages and the CLI. These builds use ONNX Runtime and
+download checksum-pinned models to the Hugging Face cache on first use. For a custom desktop/server Rust build,
+enable `sceptre-ocr`; add `auto-rotate` if you also need automatic orientation correction.
+
+```toml title="Cargo.toml"
+[dependencies]
+xberg = { version = "1", features = ["sceptre-ocr"] }
+```
+
+Android and iOS builds use the pure-Rust tract engine through `sceptre-ocr-tract`; use `auto-rotate-tract` for
+orientation correction. Mobile builds exclude Sceptre's Hugging Face downloader. Resolve packaged application assets
+to accessible filesystem paths and set both `backend_options.model.detector_path` and
+`backend_options.model.recognizer_path`. WebAssembly support is excluded from the published default bundle because of
+model and runtime size. Source builds can enable the separate byte-fed class with
+`wasm-pack build crates/xberg-wasm --target web --features sceptre-wasm`; application code must instantiate and call
+that synchronous class inside its own Web Worker. The JavaScript host fetches the CRAFT and recognizer models and
+supplies their bytes.
+All Sceptre paths are CPU-only.
 
 :::tip[Tesseract marker extra]
 `pip install "xberg[tesseract]"` is available as a metadata-only marker to document a dependency on the Tesseract system package. It installs no Python packages — Tesseract itself must still be installed via your OS package manager (see above).
@@ -363,6 +390,57 @@ let result = &output.results[0];
 
 </TabItem>
 </Tabs>
+
+### Using Sceptre
+
+Select the backend with `backend = "sceptre"`. Put Sceptre's `detection`, `recognition`, `concurrency`, and `model`
+sections directly under `backend_options`; do not add a nested `sceptre` key.
+
+```toml title="xberg.toml"
+[ocr]
+backend = "sceptre"
+language = ["eng", "deu"]
+
+[ocr.backend_options.recognition]
+batch_size = 4
+
+[ocr.backend_options.concurrency]
+max_threads = 2
+```
+
+| Path | Purpose |
+| --- | --- |
+| `backend_options.detection.*` | CRAFT thresholds, canvas size, magnification, box size, and line grouping |
+| `backend_options.recognition.*` | Decoder, beam width, batch size, allow/block lists, contrast retry, and confidence filtering |
+| `backend_options.concurrency.max_threads` | Cap Sceptre's worker and inference thread pools |
+| `backend_options.model.cache_dir` | Override the Hugging Face cache root on desktop/server ORT builds |
+| `backend_options.model.registry_owner` | Use an approved mirror of the checksum-pinned model repositories |
+| `backend_options.model.detector_path` | Required CRAFT model path on Android/iOS tract builds |
+| `backend_options.model.recognizer_path` | Required selected Gen2 recognizer path on Android/iOS tract builds |
+
+Set languages with `ocr.language`; Xberg overrides `backend_options.model.languages`. Xberg also selects ORT or tract
+for the build target, so portable configuration should not set `backend_options.model.backend`.
+
+```toml title="xberg.toml (Android/iOS)"
+[ocr]
+backend = "sceptre"
+language = ["deu"]
+
+[ocr.backend_options.model]
+detector_path = "/app/models/craft_mlt_25k.onnx"
+recognizer_path = "/app/models/latin_g2.onnx"
+```
+
+The paths must be resolved by the application from its bundle or asset system before extraction starts.
+
+Sceptre provides all eight EasyOCR Gen2 recognition groups: `english`, `latin`, `chinese_simplified`, `japanese`,
+`korean`, `cyrillic`, `telugu`, and `kannada`. Xberg accepts group tokens and ISO aliases such as `en`/`eng`,
+`de`/`deu`, `zh`/`zho`, `ja`/`jpn`, `ko`/`kor`, `ru`/`rus`, `te`/`tel`, and `kn`/`kan`. English may be combined
+with one other group; two distinct non-English groups require different recognizers and fail validation before OCR.
+
+Sceptre emits line-level quadrilaterals and recognition confidence. It does not provide Tesseract's word/symbol
+hierarchy or a separate detection-confidence value. Tract inference uses a fixed CRAFT canvas and can require more
+memory than the default browser OCR path; run WebAssembly inference in a worker.
 
 ### Candle GLM-OCR
 
@@ -1370,6 +1448,9 @@ xberg extract french_doc.pdf --ocr true --ocr-language fra
 # Specific backend
 xberg extract chinese_doc.pdf --ocr true --ocr-backend paddle-ocr --ocr-language ch
 
+# Sceptre on a native desktop or server
+xberg extract german_doc.pdf --ocr true --ocr-backend sceptre --ocr-language deu
+
 # Force OCR on all pages
 xberg extract document.pdf --force-ocr true
 
@@ -1384,7 +1465,7 @@ xberg extract scanned.pdf --config xberg.toml --ocr true
 | ------------------------- | ---------------------------------------------------------------------------------- |
 | `--ocr true`              | Enable OCR processing                                                              |
 | `--ocr-language <code>`   | Language code (`eng`, `deu`, `fra`, `ch`, `ja`, `ru`, etc.)                        |
-| `--ocr-backend <backend>` | Engine: `tesseract`, `paddle-ocr`, a `candle-*` backend, or `vlm`                  |
+| `--ocr-backend <backend>` | Engine: `tesseract`, `paddle-ocr`, `sceptre`, a `candle-*` backend, or `vlm`       |
 | `--force-ocr true`        | OCR all pages regardless of text layer                                             |
 | `--vlm-model <model>`     | VLM model for OCR (for example, `openai/gpt-4o-mini`). Implies `--ocr-backend vlm` |
 

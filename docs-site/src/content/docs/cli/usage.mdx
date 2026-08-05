@@ -429,8 +429,8 @@ When `XBERG_CACHE_DIR` is set, cache inspection and `--clean` are disabled (repo
 | Flag                              | Description                                                                                                                  |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `--ocr <true\|false>`             | Enable or disable OCR. Defaults to tesseract backend when enabled.                                                           |
-| `--ocr-backend <BACKEND>`         | OCR backend: `tesseract`, `paddle-ocr`, `candle-trocr`, `candle-paddleocr-vl`, `candle-paddleocr-vl-15`, `candle-glm-ocr`, `candle-deepseek-ocr`, or `vlm`. |
-| `--ocr-language <LANG>` | OCR language code. Tesseract uses ISO 639-3 (`eng`, `fra`, `deu`). PaddleOCR uses short codes (`en`, `ch`, `korean`). |
+| `--ocr-backend <BACKEND>`         | OCR backend: `tesseract`, `paddle-ocr`, `sceptre`, `candle-trocr`, `candle-paddleocr-vl`, `candle-paddleocr-vl-15`, `candle-glm-ocr`, `candle-deepseek-ocr`, or `vlm`. |
+| `--ocr-language <LANG>` | OCR language code. Sceptre accepts its eight group tokens or ISO aliases such as `eng`, `deu`, `tel`, and `kan`. |
 | `--force-ocr <true\|false>`       | Force OCR even if the document has an existing text layer.                                                                   |
 | `--ocr-auto-rotate <true\|false>` | Automatically rotate images before OCR based on detected orientation.                                                        |
 | `--disable-ocr <true\|false>` | Disable OCR entirely, even for images. |

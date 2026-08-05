@@ -22,6 +22,6 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/md/markdown_tables.txt",
-		"source": "vision"
+		"source": "pandoc"
 	}
 }

@@ -41,8 +41,9 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
         final envUri = Uri.directory(envDir);
         for (final name in _alefHostLibNames()) {
           final libPath = envUri.resolve(name).toFilePath();
-          final library = await _alefOpenIfPresent(libPath);
-          if (library != null) return library;
+          if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
+            return ExternalLibrary.open(libPath);
+          }
         }
       }
 
@@ -59,33 +60,24 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
         for (final dir in searchDirs) {
           for (final name in libNames) {
             final libPath = dir.resolve(name).toFilePath();
-            final library = await _alefOpenIfPresent(libPath);
-            if (library != null) return library;
+            if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
+              return ExternalLibrary.open(libPath);
+            }
           }
         }
       }
 
       final cachedPath = nativeCachedLibPath();
-      if (cachedPath != null) {
-        final library = await _alefOpenIfPresent(cachedPath);
-        if (library != null) return library;
+      if (cachedPath != null && File(cachedPath).existsSync()) {
+        return ExternalLibrary.open(cachedPath);
       }
 
       final downloadedPath = await nativeDownloadAndCacheLibrary();
       return ExternalLibrary.open(downloadedPath);
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(error, stackTrace);
+    } catch (_) {
+      // Fall through to the default loader on any resolution failure.
     }
-  }
-
-  /// Open a local native candidate, returning `null` only when the operating
-  /// system confirms the path does not exist. Other filesystem and loader
-  /// failures propagate to the contextual resolver error above.
-  static Future<ExternalLibrary?> _alefOpenIfPresent(String path) async {
-    final type = await FileSystemEntity.type(path);
-    // Only confirmed absence may defer to FRB's default loader. ~keep
-    if (type == FileSystemEntityType.notFound) return null;
-    return ExternalLibrary.open(path);
+    return null;
   }
 
   /// Map the host platform to the pub.dev native staging RID. Returns `null`

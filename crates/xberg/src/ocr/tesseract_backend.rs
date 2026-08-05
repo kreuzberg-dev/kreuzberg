@@ -137,9 +137,9 @@ impl TesseractBackend {
     /// always has a sensible default set of languages.
     fn fallback_languages() -> Vec<String> {
         vec![
-            "eng", "deu", "fra", "spa", "ita", "por", "rus", "chi_sim", "chi_tra", "jpn", "kor", "ara", "hin", "ben",
-            "tha", "vie", "heb", "tur", "pol", "nld", "swe", "dan", "fin", "nor", "ces", "hun", "ron", "ukr", "bul",
-            "hrv", "srp", "slk", "slv", "lit", "lav", "est",
+            "eng", "deu", "fra", "spa", "ita", "por", "rus", "chi_sim", "chi_tra", "jpn", "jpn_vert", "kor", "ara",
+            "hin", "ben", "tha", "vie", "heb", "tur", "pol", "nld", "swe", "dan", "fin", "nor", "ces", "hun", "ron",
+            "ukr", "bul", "hrv", "srp", "slk", "slv", "lit", "lav", "est",
         ]
         .into_iter()
         .map(String::from)
@@ -691,6 +691,15 @@ mod tests {
         let languages = backend.supported_languages();
         assert!(languages.contains(&"eng".to_string()));
         assert!(!languages.is_empty());
+    }
+
+    #[test]
+    fn test_fallback_languages_include_vertical_japanese() {
+        assert!(
+            TesseractBackend::fallback_languages()
+                .iter()
+                .any(|language| language == "jpn_vert")
+        );
     }
 
     #[test]

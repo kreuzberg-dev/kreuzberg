@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/sdk_changelog.rst",
+	"file_type": "rst",
+	"file_size": 1661,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "SDK changelog with semver history and deprecation schedule table",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/rst/sdk_changelog.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/rst/sdk_changelog.md",
+		"source": "pandoc"
+	}
+}

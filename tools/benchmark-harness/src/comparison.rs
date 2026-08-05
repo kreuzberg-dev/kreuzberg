@@ -545,31 +545,92 @@ fn build_tesseract_extraction_config(psm: i32) -> xberg::ExtractionConfig {
 fn disable_timed_extraction_caches(config: &mut xberg::ExtractionConfig) {
     config.use_cache = false;
 
-    disable_timed_ocr_result_caches(config, false);
+    // Only flip `use_cache` on a `tesseract_config` that already exists — an explicit PSM preset
+    // (`build_tesseract_extraction_config`). Never materialize one here: this runs before any
+    // fixture-specific language is known (`build_extraction_config`'s own tail), so a pipeline
+    // that leaves `tesseract_config` implicit must wait for `finalize_timed_ocr_result_cache`,
+    // which runs after `apply_fixture_ocr_language` and can pick the PSM that matches the real
+    // (final) language instead of a placeholder. ~keep
+    flip_existing_tesseract_result_caches(config);
 }
 
-fn disable_timed_ocr_result_caches(config: &mut xberg::ExtractionConfig, materialize_implicit: bool) {
-    // Materializing the default OCR config preserves implicit-Tesseract behavior while making its
-    // independent result cache controllable for image and OCR-fallback benchmarks. ~keep
-    if config.ocr.is_none() && materialize_implicit {
-        config.ocr = Some(xberg::OcrConfig::default());
-    }
+fn flip_existing_tesseract_result_caches(config: &mut xberg::ExtractionConfig) {
     let Some(ocr) = config.ocr.as_mut() else {
         return;
     };
     if let Some(pipeline) = ocr.pipeline.as_mut() {
         for stage in &mut pipeline.stages {
-            if stage.backend == "tesseract" {
-                stage
-                    .tesseract_config
-                    .get_or_insert_with(xberg::TesseractConfig::default)
-                    .use_cache = false;
+            if stage.backend == "tesseract"
+                && let Some(tesseract_config) = stage.tesseract_config.as_mut()
+            {
+                tesseract_config.use_cache = false;
             }
         }
+    } else if ocr.backend == "tesseract"
+        && let Some(tesseract_config) = ocr.tesseract_config.as_mut()
+    {
+        tesseract_config.use_cache = false;
+    }
+}
+
+/// Materializes xberg's own OCR fallback default (`OcrConfig::default()`, backend `"tesseract"`)
+/// when a pipeline left `config.ocr` entirely `None` (e.g. `Pipeline::Baseline`/`PdfOxide`'s
+/// native-with-OCR-fallback pipelines). Gives a fixture's OCR language somewhere to attach via
+/// `apply_fixture_ocr_language`, without forcing `force_ocr`. Must run *before* that call. ~keep
+fn materialize_implicit_ocr_config(config: &mut xberg::ExtractionConfig) {
+    if config.ocr.is_none() {
+        config.ocr = Some(xberg::OcrConfig::default());
+    }
+}
+
+/// Finishes disabling the timed Tesseract OCR result cache once the fixture's language (if any)
+/// has already been applied via `apply_fixture_ocr_language`. Must run *after* that call, or it
+/// would compute PSM from the wrong (pre-fixture-language) language.
+///
+/// Flips `use_cache` on a `tesseract_config` that already exists (an explicit PSM preset) without
+/// touching its `psm`. For a pipeline that leaves `tesseract_config` implicit (auto-PSM),
+/// materializes one with `use_cache = false` and the PSM
+/// `apply_default_whole_image_tesseract_psm` in `crates/xberg/src/extractors/image.rs` would
+/// itself have picked for the config's current (now-final) language — so the result cache is
+/// genuinely disabled without silently regressing to `TesseractConfig::default()`'s PSM 3. ~keep
+fn finalize_timed_ocr_result_cache(config: &mut xberg::ExtractionConfig) {
+    let Some(ocr) = config.ocr.as_mut() else {
+        return;
+    };
+    let parent_language = ocr.language.clone();
+    if let Some(pipeline) = ocr.pipeline.as_mut() {
+        for stage in &mut pipeline.stages {
+            if stage.backend != "tesseract" {
+                continue;
+            }
+            // A present `stage.language` wins over the parent's, matching xberg's own stage
+            // semantics ("None = use parent OcrConfig.language" — `OcrPipelineStage::language` in
+            // `crates/xberg/src/core/config/ocr.rs`). This is only correct because
+            // `apply_fixture_ocr_language` refreshes `stage.language` too, not just the parent's
+            // — otherwise a stale per-stage override would compute PSM from the wrong language
+            // here. ~keep
+            let languages = stage.language.clone().unwrap_or_else(|| parent_language.clone());
+            materialize_or_disable_tesseract_result_cache(&mut stage.tesseract_config, &languages);
+        }
     } else if ocr.backend == "tesseract" {
-        ocr.tesseract_config
-            .get_or_insert_with(xberg::TesseractConfig::default)
-            .use_cache = false;
+        materialize_or_disable_tesseract_result_cache(&mut ocr.tesseract_config, &parent_language);
+    }
+}
+
+fn materialize_or_disable_tesseract_result_cache(
+    tesseract_config: &mut Option<xberg::TesseractConfig>,
+    languages: &[String],
+) {
+    match tesseract_config.as_mut() {
+        Some(existing) => existing.use_cache = false,
+        None => {
+            *tesseract_config = Some(xberg::TesseractConfig {
+                language: languages.to_vec(),
+                psm: crate::adapter::xberg_default_tesseract_psm(languages),
+                use_cache: false,
+                ..Default::default()
+            });
+        }
     }
 }
 
@@ -940,9 +1001,17 @@ fn apply_fixture_ocr_language(config: &mut xberg::ExtractionConfig, doc: &Corpus
         ocr.language = languages.clone();
         if let Some(pipeline) = ocr.pipeline.as_mut() {
             for stage in &mut pipeline.stages {
-                if stage.backend == "tesseract"
-                    && let Some(tesseract) = stage.tesseract_config.as_mut()
-                {
+                if stage.backend != "tesseract" {
+                    continue;
+                }
+                // A stage's own `language` override (`None` = inherit the parent
+                // `OcrConfig.language`) must also be refreshed to the fixture's language, not
+                // just the parent's — otherwise a stage that already pins its own language (e.g.
+                // `Some(["eng"])`) stays stale at real extraction time (xberg prefers a present
+                // stage override over the parent), AND `finalize_timed_ocr_result_cache` would
+                // compute PSM from that stale language instead of the fixture's real one. ~keep
+                stage.language = Some(languages.clone());
+                if let Some(tesseract) = stage.tesseract_config.as_mut() {
                     tesseract.language = languages.clone();
                 }
             }
@@ -981,9 +1050,13 @@ pub async fn extract_pipeline(
             let t = Instant::now();
             let mut config = build_extraction_config(pipeline);
             // Materialize implicit OCR before applying fixture metadata so baseline PDF extraction
-            // keeps force_ocr disabled while its fallback OCR uses the requested language. ~keep
-            disable_timed_ocr_result_caches(&mut config, true);
+            // keeps force_ocr disabled while its fallback OCR uses the requested language. Finalize
+            // the Tesseract result-cache control (materializing an implicit tesseract_config, if
+            // needed) only after the language is final, so the materialized PSM matches the real
+            // fixture language instead of a pre-language placeholder. ~keep
+            materialize_implicit_ocr_config(&mut config);
             apply_fixture_ocr_language(&mut config, doc);
+            finalize_timed_ocr_result_cache(&mut config);
             let doc_path = doc.document_path.clone();
             let doc_name = doc.name.clone();
             let pipeline_name = pipeline.name().to_string();
@@ -2041,26 +2114,27 @@ mod tests {
             let Some(ocr) = config.ocr.as_ref() else {
                 continue;
             };
+            // A `tesseract_config` that already existed (explicit PSM presets, e.g.
+            // that leaves `tesseract_config` implicit (auto-PSM) must keep it absent — xberg only
+            // auto-selects PSM when `ocr.tesseract_config` is absent, so materializing one here
+            // to force `use_cache = false` would silently pin PSM to the default (3).
             if let Some(ocr_pipeline) = ocr.pipeline.as_ref() {
                 for stage in &ocr_pipeline.stages {
-                    if stage.backend == "tesseract" {
+                    if stage.backend == "tesseract"
+                        && let Some(tesseract_config) = stage.tesseract_config.as_ref()
+                    {
                         assert!(
-                            !stage
-                                .tesseract_config
-                                .as_ref()
-                                .expect("timed Tesseract stages must configure cache control")
-                                .use_cache,
+                            !tesseract_config.use_cache,
                             "timed Tesseract stage in {} must disable its result cache",
                             pipeline.name()
                         );
                     }
                 }
-            } else if ocr.backend == "tesseract" {
+            } else if ocr.backend == "tesseract"
+                && let Some(tesseract_config) = ocr.tesseract_config.as_ref()
+            {
                 assert!(
-                    !ocr.tesseract_config
-                        .as_ref()
-                        .expect("timed Tesseract pipelines must configure cache control")
-                        .use_cache,
+                    !tesseract_config.use_cache,
                     "timed pipeline {} must disable the Tesseract result cache",
                     pipeline.name()
                 );
@@ -2069,10 +2143,11 @@ mod tests {
     }
 
     #[test]
-    fn timed_pipeline_disables_each_tesseract_stage_cache() {
+    fn finalize_disables_cache_and_materializes_correct_psm_for_implicit_tesseract_stages() {
         let ocr = serde_json::from_value(serde_json::json!({
             "pipeline": {
                 "stages": [
+                    { "backend": "tesseract", "tesseract_config": { "psm": 6 } },
                     { "backend": "tesseract" },
                     { "backend": "paddleocr" }
                 ]
@@ -2084,25 +2159,86 @@ mod tests {
             ..Default::default()
         };
 
-        disable_timed_ocr_result_caches(&mut config, true);
+        finalize_timed_ocr_result_cache(&mut config);
 
         let stages = &config.ocr.unwrap().pipeline.unwrap().stages;
-        assert!(!stages[0].tesseract_config.as_ref().unwrap().use_cache);
-        assert!(stages[1].tesseract_config.is_none());
+        let explicit = stages[0].tesseract_config.as_ref().unwrap();
+        assert!(
+            !explicit.use_cache,
+            "an already-configured stage must disable its cache"
+        );
+        assert_eq!(explicit.psm, 6, "disabling the cache must not touch an explicit PSM");
+
+        let implicit = stages[1]
+            .tesseract_config
+            .as_ref()
+            .expect("an implicit stage must be materialized so its result cache is genuinely disabled");
+        assert!(!implicit.use_cache);
+        assert_eq!(
+            implicit.psm,
+            crate::adapter::XBERG_WHOLE_IMAGE_TESSERACT_PSM,
+            "an implicit stage's materialized PSM must match xberg's own auto-selection for the \
+             default language, or it would silently regress to PSM 3"
+        );
+        assert_eq!(implicit.language, ["eng"]);
+
+        assert!(stages[2].tesseract_config.is_none());
     }
 
     #[test]
-    fn timed_implicit_ocr_disables_default_tesseract_cache_at_extraction_boundary() {
+    fn finalize_materializes_whole_image_psm_for_implicit_ocr_with_default_language() {
         let mut config = xberg::ExtractionConfig::default();
+        materialize_implicit_ocr_config(&mut config);
 
-        disable_timed_ocr_result_caches(&mut config, true);
+        finalize_timed_ocr_result_cache(&mut config);
 
-        let tesseract = config
-            .ocr
-            .unwrap()
+        let ocr = config.ocr.expect("materialize_implicit_ocr_config must configure OCR");
+        assert_eq!(ocr.backend, "tesseract");
+        assert_eq!(
+            ocr.language,
+            ["eng"],
+            "the parent OcrConfig.language must also read 'eng'"
+        );
+        let tesseract = ocr
             .tesseract_config
-            .expect("implicit timed OCR must materialize Tesseract cache control");
+            .expect("implicit timed OCR must materialize a tesseract_config to genuinely disable its cache");
         assert!(!tesseract.use_cache);
+        assert_eq!(
+            tesseract.psm,
+            crate::adapter::XBERG_WHOLE_IMAGE_TESSERACT_PSM,
+            "materialized PSM must match xberg's own auto-selection, or it would silently \
+             regress to PSM 3"
+        );
+        assert_eq!(
+            tesseract.language,
+            ["eng"],
+            "language must land on both ocr.language and the materialized tesseract_config.language"
+        );
+    }
+
+    #[test]
+    fn finalize_preserves_explicit_bare_tesseract_psm() {
+        let ocr = xberg::OcrConfig {
+            backend: "tesseract".to_string(),
+            language: vec!["eng".to_string()],
+            tesseract_config: Some(xberg::TesseractConfig {
+                psm: 6,
+                use_cache: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut config = xberg::ExtractionConfig {
+            ocr: Some(ocr),
+            ..Default::default()
+        };
+
+        finalize_timed_ocr_result_cache(&mut config);
+
+        let tesseract = config.ocr.unwrap().tesseract_config.unwrap();
+        assert!(!tesseract.use_cache);
+        assert_eq!(tesseract.psm, 6, "disabling the cache must not touch an explicit PSM");
+        assert_eq!(tesseract.language, ["eng"], "language must still be refreshed");
     }
 
     #[test]
@@ -2262,22 +2398,27 @@ mod tests {
 
         for pipeline in [Pipeline::Baseline, Pipeline::PdfOxide] {
             let mut config = build_extraction_config(pipeline);
-            disable_timed_ocr_result_caches(&mut config, true);
+            materialize_implicit_ocr_config(&mut config);
             apply_fixture_ocr_language(&mut config, &doc);
+            finalize_timed_ocr_result_cache(&mut config);
 
             let ocr = config.ocr.expect("timed extraction must materialize fallback OCR");
             assert_eq!(ocr.language, ["deu", "eng"]);
             assert_eq!(ocr.backend, "tesseract");
-            assert_eq!(
-                ocr.tesseract_config.expect("timed fallback config").language,
-                ["deu", "eng"]
-            );
+            // `tesseract_config` must be materialized (only) once the fixture's language is
+            // final, so its PSM matches what xberg's own auto-selection would have picked for
+            let tesseract = ocr
+                .tesseract_config
+                .expect("finalize_timed_ocr_result_cache must materialize a tesseract_config");
+            assert!(!tesseract.use_cache);
+            assert_eq!(tesseract.psm, crate::adapter::XBERG_WHOLE_IMAGE_TESSERACT_PSM);
+            assert_eq!(tesseract.language, ["deu", "eng"]);
             assert!(!config.force_ocr, "{} must retain fallback-only OCR", pipeline.name());
         }
     }
 
     #[test]
-    fn fixture_language_updates_materialized_tesseract_pipeline_config() {
+    fn fixture_language_materializes_vertical_psm_for_implicit_tesseract_pipeline() {
         let mut metadata = HashMap::new();
         metadata.insert("ocr_language".to_string(), serde_json::json!("jpn_vert"));
         let doc = CorpusDocument {
@@ -2292,15 +2433,76 @@ mod tests {
         };
         let mut config = build_extraction_config(Pipeline::TesseractLayout);
 
-        disable_timed_ocr_result_caches(&mut config, true);
+        materialize_implicit_ocr_config(&mut config);
         apply_fixture_ocr_language(&mut config, &doc);
+        finalize_timed_ocr_result_cache(&mut config);
 
         let ocr = config.ocr.expect("Tesseract pipeline must configure OCR");
         assert_eq!(ocr.language, ["jpn_vert"]);
+        // the timed result cache must materialize one with the vertical-language PSM 5 xberg
+        // selects for `*_vert` languages, not the default PSM 3.
+        let tesseract = ocr
+            .tesseract_config
+            .expect("finalize_timed_ocr_result_cache must materialize a tesseract_config");
+        assert!(!tesseract.use_cache);
+        assert_eq!(tesseract.psm, crate::adapter::XBERG_VERTICAL_BLOCK_TESSERACT_PSM);
+        assert_eq!(tesseract.language, ["jpn_vert"]);
+    }
+
+    #[test]
+    fn fixture_language_refreshes_stale_implicit_stage_language_before_finalizing_psm() {
+        // BLOCKER 2 regression: a Tesseract pipeline stage that already pins its own `language`
+        // must NOT stay stale after `apply_fixture_ocr_language` runs. If it did,
+        // `finalize_timed_ocr_result_cache` would prefer that stale per-stage language over the
+        // fixture's real one (matching xberg's own "stage language wins over parent" semantics)
+        // and materialize the wrong PSM.
+        let mut metadata = HashMap::new();
+        metadata.insert("ocr_language".to_string(), serde_json::json!("jpn_vert"));
+        let doc = CorpusDocument {
+            name: "vertical-japanese".to_string(),
+            document_path: std::path::PathBuf::new(),
+            file_type: "jpeg".to_string(),
+            file_size: 0,
+            ground_truth_text: None,
+            ground_truth_markdown: None,
+            metadata,
+            fixture_path: std::path::PathBuf::new(),
+        };
+        let ocr = serde_json::from_value(serde_json::json!({
+            "enabled": true,
+            "pipeline": {
+                "stages": [
+                    { "backend": "tesseract", "language": ["eng"] }
+                ]
+            }
+        }))
+        .unwrap();
+        let mut config = xberg::ExtractionConfig {
+            ocr: Some(ocr),
+            ..Default::default()
+        };
+
+        materialize_implicit_ocr_config(&mut config);
+        apply_fixture_ocr_language(&mut config, &doc);
+        finalize_timed_ocr_result_cache(&mut config);
+
+        let stages = config.ocr.unwrap().pipeline.unwrap().stages;
         assert_eq!(
-            ocr.tesseract_config.expect("timed Tesseract config").language,
-            ["jpn_vert"]
+            stages[0].language,
+            Some(vec!["jpn_vert".to_string()]),
+            "the stale per-stage language override must be refreshed to the fixture's language"
         );
+        let tesseract = stages[0]
+            .tesseract_config
+            .as_ref()
+            .expect("finalize_timed_ocr_result_cache must materialize a tesseract_config");
+        assert!(!tesseract.use_cache);
+        assert_eq!(
+            tesseract.psm,
+            crate::adapter::XBERG_VERTICAL_BLOCK_TESSERACT_PSM,
+            "must materialize PSM 5 for jpn_vert, not PSM 11 from the stale stage language"
+        );
+        assert_eq!(tesseract.language, ["jpn_vert"]);
     }
 
     #[test]
@@ -2319,8 +2521,9 @@ mod tests {
         };
         let mut config = build_extraction_config(Pipeline::PaddleV6SmallLayout);
 
-        disable_timed_ocr_result_caches(&mut config, true);
+        materialize_implicit_ocr_config(&mut config);
         apply_fixture_ocr_language(&mut config, &doc);
+        finalize_timed_ocr_result_cache(&mut config);
 
         let ocr = config.ocr.expect("Paddle preset must configure OCR");
         assert_eq!(ocr.language, ["deu", "eng"]);

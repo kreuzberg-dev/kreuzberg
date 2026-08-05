@@ -1,0 +1,19 @@
+{
+	"document": "../../../../test_documents/json/service_config.json",
+	"file_type": "json",
+	"file_size": 1904,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "Deeply nested service configuration with TLS, rate-limit, cache cluster and observability sections",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/json/service_config.txt",
+		"source": "raw_source"
+	}
+}

@@ -8,7 +8,7 @@
 
   <groupId>io.xberg</groupId>
   <artifactId>xberg</artifactId>
-  <version>1.0.11</version>
+  <version>1.0.14</version>
   <packaging>jar</packaging>
 
   <name>xberg</name>

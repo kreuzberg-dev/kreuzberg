@@ -3,7 +3,7 @@
 // `types` is used by the OCR conversion helpers (`feature = "ocr"`) and by the
 // unused when only `ocr-pipeline` is on without `layout-detection`, as in the
 // WASM `ocr-wasm` feature set.
-#[cfg(any(feature = "ocr", all(feature = "ocr-pipeline", feature = "layout-detection")))]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 use super::types;
 
 /// Convert an OCR-produced [`crate::types::internal::InternalDocument`] into a vec of [`types::PdfParagraph`]s
@@ -11,7 +11,7 @@ use super::types;
 ///
 /// Coordinates are in image-space (y=0 at top) and are flipped to PDF-space
 /// (y=0 at bottom) using `page_height_px`.
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 #[allow(dead_code)]
 pub(crate) fn ocr_doc_to_paragraphs(
     doc: &crate::types::internal::InternalDocument,
@@ -19,16 +19,70 @@ pub(crate) fn ocr_doc_to_paragraphs(
 ) -> Vec<types::PdfParagraph> {
     use crate::types::internal::ElementKind;
     let page_h = page_height_px as f32;
-    let result = doc
-        .elements
-        .iter()
-        .filter(|e| matches!(e.kind, ElementKind::OcrText { .. }))
-        .filter(|e| !e.text.trim().is_empty())
-        .map(|element| make_ocr_block_paragraph(element, page_h))
-        .collect::<Vec<_>>();
+    let mut result = Vec::new();
+    let mut previous_block_id = None;
+
+    for element in &doc.elements {
+        if !matches!(element.kind, ElementKind::OcrText { .. }) || element.text.trim().is_empty() {
+            previous_block_id = None;
+            continue;
+        }
+        let block_id = hocr_block_id(element);
+        let paragraph = make_ocr_block_paragraph(element, page_h);
+        if block_id.is_some() && block_id == previous_block_id {
+            if let Some(current) = result.last_mut() {
+                merge_ocr_block_paragraph(current, paragraph);
+            } else {
+                result.push(paragraph);
+            }
+        } else {
+            result.push(paragraph);
+        }
+        previous_block_id = block_id;
+    }
 
     trace_conversion(doc, &result);
     result
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+fn hocr_block_id(element: &crate::types::internal::InternalElement) -> Option<&str> {
+    const HOCR_BLOCK_ID_ATTRIBUTE: &str = "hocr_block_id";
+    const MAX_HOCR_BLOCK_FRAGMENT_LINES: usize = 6;
+
+    if element.text.lines().count() > MAX_HOCR_BLOCK_FRAGMENT_LINES {
+        return None;
+    }
+
+    element
+        .attributes
+        .as_ref()?
+        .get(HOCR_BLOCK_ID_ATTRIBUTE)
+        .map(String::as_str)
+        .filter(|block_id| !block_id.is_empty())
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+fn merge_ocr_block_paragraph(current: &mut types::PdfParagraph, next: types::PdfParagraph) {
+    current.text.push('\n');
+    current.text.push_str(&next.text);
+    current.lines.extend(next.lines);
+    current.block_bbox = match (current.block_bbox, next.block_bbox) {
+        (Some(a), Some(b)) => Some((a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3))),
+        (bbox @ Some(_), None) | (None, bbox @ Some(_)) => bbox,
+        (None, None) => None,
+    };
+    current.word_count = types::PdfParagraph::compute_word_count(&current.text, &current.lines);
+}
+
+/// Convert unstructured OCR text into page paragraphs without inventing geometry.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+pub(crate) fn ocr_text_to_paragraphs(text: &str) -> Vec<types::PdfParagraph> {
+    text.split("\n\n")
+        .map(str::trim)
+        .filter(|paragraph| !paragraph.is_empty())
+        .map(|paragraph| make_ocr_paragraph(paragraph.to_string(), Vec::new(), None))
+        .collect()
 }
 
 #[cfg(all(feature = "ocr", feature = "layout-detection"))]
@@ -44,6 +98,7 @@ pub(crate) fn ocr_doc_to_layout_paragraphs(
     let mut all_lines = Vec::new();
     let mut all_hint_indices = Vec::new();
     let mut element_indices = Vec::new();
+    let mut block_ids = Vec::new();
     let elements = doc
         .elements
         .iter()
@@ -73,11 +128,15 @@ pub(crate) fn ocr_doc_to_layout_paragraphs(
             promote_second_line_to_title(&mut lines, &mut hint_indices);
         }
         element_indices.extend(std::iter::repeat_n(element_index, lines.len()));
+        block_ids.extend(std::iter::repeat_n(
+            hocr_block_id(element).map(str::to_owned),
+            lines.len(),
+        ));
         all_lines.extend(lines);
         all_hint_indices.extend(hint_indices);
     }
 
-    let result = regroup_layout_lines_by_element(all_lines, all_hint_indices, element_indices);
+    let result = regroup_layout_lines_by_element(all_lines, all_hint_indices, element_indices, block_ids);
     trace_conversion(doc, &result);
     result
 }
@@ -306,7 +365,7 @@ fn promote_second_line_to_title(lines: &mut [types::PdfParagraph], hint_indices:
     }
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn trace_conversion(doc: &crate::types::internal::InternalDocument, result: &[types::PdfParagraph]) {
     tracing::debug!(
         input_elements = doc
@@ -320,7 +379,7 @@ fn trace_conversion(doc: &crate::types::internal::InternalDocument, result: &[ty
     );
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn make_ocr_block_paragraph(
     element: &crate::types::internal::InternalElement,
     page_height: f32,
@@ -334,7 +393,7 @@ fn make_ocr_block_paragraph(
     make_ocr_paragraph(element.text.clone(), lines, block_bbox)
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn make_ocr_line_paragraphs(
     element: &crate::types::internal::InternalElement,
     page_height: f32,
@@ -350,7 +409,7 @@ fn make_ocr_line_paragraphs(
         .collect()
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn pdf_block_bbox(element: &crate::types::internal::InternalElement, page_height: f32) -> Option<(f32, f32, f32, f32)> {
     element.bbox.as_ref().map(|bbox| {
         (
@@ -362,7 +421,7 @@ fn pdf_block_bbox(element: &crate::types::internal::InternalElement, page_height
     })
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn make_ocr_line_paragraph(
     text: &str,
     line_index: usize,
@@ -470,7 +529,8 @@ fn hint_containment(bbox: (f32, f32, f32, f32), hint: &types::LayoutHint) -> f32
 #[cfg(all(test, feature = "ocr", feature = "layout-detection"))]
 fn regroup_layout_lines(lines: Vec<types::PdfParagraph>, hint_indices: Vec<Option<usize>>) -> Vec<types::PdfParagraph> {
     let element_indices = vec![0; lines.len()];
-    regroup_layout_lines_by_element(lines, hint_indices, element_indices)
+    let block_ids = vec![None; lines.len()];
+    regroup_layout_lines_by_element(lines, hint_indices, element_indices, block_ids)
 }
 
 #[cfg(all(feature = "ocr", feature = "layout-detection"))]
@@ -478,11 +538,12 @@ fn regroup_layout_lines_by_element(
     lines: Vec<types::PdfParagraph>,
     hint_indices: Vec<Option<usize>>,
     element_indices: Vec<usize>,
+    block_ids: Vec<Option<String>>,
 ) -> Vec<types::PdfParagraph> {
     let mut result = Vec::new();
     let mut body_lines = Vec::new();
     let mut body_region = None;
-    let mut groups = group_by_hint(lines, hint_indices, element_indices);
+    let mut groups = group_by_hint(lines, hint_indices, element_indices, block_ids);
 
     for group in groups.drain(..) {
         if group.lines.iter().any(has_structural_override) {
@@ -497,15 +558,18 @@ fn regroup_layout_lines_by_element(
                 .zip(group.lines.first())
                 .is_some_and(|(previous, current)| layout_lines_are_near(previous, current));
             let same_region = lines_are_near
-                && body_region.is_some_and(|(hint_index, element_index)| {
-                    (group.hint_index.is_some() && hint_index == group.hint_index)
-                        || element_index == group.element_index
-                });
+                && body_region
+                    .as_ref()
+                    .is_some_and(|(hint_index, element_index, block_id)| {
+                        (group.hint_index.is_some() && *hint_index == group.hint_index)
+                            || *element_index == group.element_index
+                            || (group.block_id.is_some() && *block_id == group.block_id)
+                    });
             if !body_lines.is_empty() && !same_region {
                 push_body_group(&mut result, std::mem::take(&mut body_lines));
             }
             if body_lines.is_empty() {
-                body_region = Some((group.hint_index, group.element_index));
+                body_region = Some((group.hint_index, group.element_index, group.block_id));
             }
             body_lines.extend(group.lines);
         }
@@ -518,6 +582,7 @@ fn regroup_layout_lines_by_element(
 struct LayoutLineGroup {
     hint_index: Option<usize>,
     element_index: usize,
+    block_id: Option<String>,
     lines: Vec<types::PdfParagraph>,
 }
 
@@ -526,9 +591,12 @@ fn group_by_hint(
     lines: Vec<types::PdfParagraph>,
     hint_indices: Vec<Option<usize>>,
     element_indices: Vec<usize>,
+    block_ids: Vec<Option<String>>,
 ) -> Vec<LayoutLineGroup> {
     let mut groups: Vec<LayoutLineGroup> = Vec::new();
-    for ((line, hint_index), element_index) in lines.into_iter().zip(hint_indices).zip(element_indices) {
+    for (((line, hint_index), element_index), block_id) in
+        lines.into_iter().zip(hint_indices).zip(element_indices).zip(block_ids)
+    {
         if let Some(group) = groups.last_mut()
             && hint_index.is_some()
             && group.hint_index == hint_index
@@ -542,6 +610,7 @@ fn group_by_hint(
             groups.push(LayoutLineGroup {
                 hint_index,
                 element_index,
+                block_id,
                 lines: vec![line],
             });
         }
@@ -647,7 +716,7 @@ fn union_bboxes(lines: &[types::PdfParagraph]) -> Option<(f32, f32, f32, f32)> {
         .reduce(|a, b| (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)))
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn make_ocr_paragraph(
     text: String,
     lines: Vec<types::PdfLine>,
@@ -672,7 +741,7 @@ fn make_ocr_paragraph(
     }
 }
 
-#[cfg(feature = "ocr")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn make_ocr_pdf_line(
     text: &str,
     x: f32,
@@ -736,6 +805,41 @@ mod tests {
             "First soft-wrapped body line\ncontinues on the next visual line"
         );
         assert_eq!(paragraphs[0].lines.len(), 2);
+    }
+
+    #[test]
+    fn test_ocr_doc_merges_only_consecutive_paragraphs_in_same_hocr_block() {
+        let mut same_block = layout_line_document(&[
+            ("First", 100.0, 100.0, 500.0, 120.0),
+            ("Second", 100.0, 120.0, 500.0, 140.0),
+        ]);
+        set_hocr_block_ids(&mut same_block, &[Some("block_1_1"), Some("block_1_1")]);
+        let merged = ocr_doc_to_paragraphs(&same_block, 1000);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].text, "First\nSecond");
+
+        let mut different_blocks = same_block.clone();
+        set_hocr_block_ids(&mut different_blocks, &[Some("block_1_1"), Some("block_1_2")]);
+        assert_eq!(ocr_doc_to_paragraphs(&different_blocks, 1000).len(), 2);
+
+        let no_blocks = layout_line_document(&[
+            ("First", 100.0, 100.0, 500.0, 120.0),
+            ("Second", 100.0, 120.0, 500.0, 140.0),
+        ]);
+        assert_eq!(ocr_doc_to_paragraphs(&no_blocks, 1000).len(), 2);
+
+        let mut long_paragraphs = layout_line_document(&[
+            ("One\nTwo\nThree\nFour\nFive\nSix\nSeven", 100.0, 100.0, 500.0, 240.0),
+            (
+                "Eight\nNine\nTen\nEleven\nTwelve\nThirteen\nFourteen",
+                100.0,
+                240.0,
+                500.0,
+                380.0,
+            ),
+        ]);
+        set_hocr_block_ids(&mut long_paragraphs, &[Some("block_1_1"), Some("block_1_1")]);
+        assert_eq!(ocr_doc_to_paragraphs(&long_paragraphs, 1000).len(), 2);
     }
 
     /// Test that OCR elements with mixed content and blank lines preserve all text.
@@ -994,7 +1098,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "layout-detection")]
     fn layout_line_document(lines: &[(&str, f64, f64, f64, f64)]) -> InternalDocument {
         let mut doc = InternalDocument::new("test");
         for &(text, x0, y0, x1, y1) in lines {
@@ -1009,6 +1112,58 @@ mod tests {
             doc.push_element(element);
         }
         doc
+    }
+
+    fn set_hocr_block_ids(doc: &mut InternalDocument, block_ids: &[Option<&str>]) {
+        for (element, block_id) in doc.elements.iter_mut().zip(block_ids) {
+            element.attributes = block_id.map(|block_id| {
+                [("hocr_block_id".to_string(), block_id.to_string())]
+                    .into_iter()
+                    .collect()
+            });
+        }
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_layout_merges_only_adjacent_lines_in_same_hocr_block() {
+        let mut same_block = layout_line_document(&[
+            ("First", 100.0, 100.0, 500.0, 120.0),
+            ("Second", 100.0, 120.0, 500.0, 140.0),
+        ]);
+        set_hocr_block_ids(&mut same_block, &[Some("block_1_1"), Some("block_1_1")]);
+        let merged = ocr_doc_to_layout_paragraphs(&same_block, 1000, &[], 0.5, 0.2);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].text, "First\nSecond");
+
+        let mut different_blocks = same_block.clone();
+        set_hocr_block_ids(&mut different_blocks, &[Some("block_1_1"), Some("block_1_2")]);
+        assert_eq!(
+            ocr_doc_to_layout_paragraphs(&different_blocks, 1000, &[], 0.5, 0.2).len(),
+            2
+        );
+
+        let no_blocks = layout_line_document(&[
+            ("First", 100.0, 100.0, 500.0, 120.0),
+            ("Second", 100.0, 120.0, 500.0, 140.0),
+        ]);
+        assert_eq!(ocr_doc_to_layout_paragraphs(&no_blocks, 1000, &[], 0.5, 0.2).len(), 2);
+
+        let mut long_paragraphs = layout_line_document(&[
+            ("One\nTwo\nThree\nFour\nFive\nSix\nSeven", 100.0, 100.0, 500.0, 240.0),
+            (
+                "Eight\nNine\nTen\nEleven\nTwelve\nThirteen\nFourteen",
+                100.0,
+                240.0,
+                500.0,
+                380.0,
+            ),
+        ]);
+        set_hocr_block_ids(&mut long_paragraphs, &[Some("block_1_1"), Some("block_1_1")]);
+        assert_eq!(
+            ocr_doc_to_layout_paragraphs(&long_paragraphs, 1000, &[], 0.5, 0.2).len(),
+            2
+        );
     }
 
     #[cfg(feature = "layout-detection")]

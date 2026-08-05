@@ -45,6 +45,7 @@ impl From<JupyterCellRenderingArg> for JupyterCellRendering {
 const VALID_OCR_BACKENDS: &[&str] = &[
     "tesseract",
     "paddle-ocr",
+    "sceptre",
     "vlm",
     "candle-trocr",
     "candle-paddleocr-vl",
@@ -124,7 +125,7 @@ pub struct ExtractionOverrides {
     #[arg(long)]
     pub ocr: Option<bool>,
 
-    /// OCR backend to use when --ocr is enabled (tesseract, paddle-ocr, vlm, or candle-*).
+    /// OCR backend to use when --ocr is enabled (tesseract, paddle-ocr, sceptre, vlm, or candle-*).
     #[cfg(feature = "ocr-surface")]
     #[arg(long)]
     pub ocr_backend: Option<String>,
@@ -1088,6 +1089,21 @@ mod tests {
 
     #[cfg(feature = "ocr-surface")]
     #[test]
+    fn test_ocr_default_language_sceptre() {
+        let mut config = ExtractionConfig::default();
+        let overrides = ExtractionOverrides {
+            ocr: Some(true),
+            ocr_backend: Some("sceptre".to_string()),
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let ocr = config.ocr.expect("OCR config should be set");
+        assert_eq!(ocr.backend, "sceptre");
+        assert_eq!(ocr.language, vec!["eng".to_string()]);
+    }
+
+    #[cfg(feature = "ocr-surface")]
+    #[test]
     fn test_validate_unknown_ocr_backend_rejected() {
         let overrides = ExtractionOverrides {
             ocr_backend: Some("unsupported-ocr".to_string()),
@@ -1657,7 +1673,7 @@ mod tests {
     #[cfg(feature = "ocr-surface")]
     #[test]
     fn test_validate_valid_ocr_backends() {
-        for backend in &["tesseract", "paddle-ocr"] {
+        for backend in &["tesseract", "paddle-ocr", "sceptre"] {
             let overrides = ExtractionOverrides {
                 ocr_backend: Some(backend.to_string()),
                 ..default_overrides()

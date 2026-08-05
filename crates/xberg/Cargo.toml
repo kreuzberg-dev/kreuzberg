@@ -211,6 +211,20 @@ paddle-ocr = [
     "ocr",
     "auto-rotate",
 ]
+# Sceptre keeps its historical feature as the zero-config native ORT mode. The
+# explicit engine features also support native parity benchmarks and mobile tract. ~keep
+sceptre-ocr = ["sceptre-ocr-ort"]
+sceptre-ocr-ort = [
+    "dep:sceptre",
+    "sceptre/ort-bundled",
+    "sceptre/download",
+    "ocr-pipeline",
+    "tokio-runtime",
+]
+sceptre-ocr-tract = ["dep:sceptre", "sceptre/tract", "ocr-pipeline", "tokio-runtime"]
+# Opt-in browser engine used by the separate worker-backed WASM build. It
+# intentionally omits the async OCR registry and default `wasm-target`. ~keep
+sceptre-wasm = ["dep:sceptre", "sceptre/tract"]
 # Dev default: downloads the pyke prebuilt ONNX Runtime (needs glibc >= 2.38 to run).
 # Release links Microsoft's runtime instead (system strategy) — see publish.yaml (#1284).
 ort-bundled = ["ort?/download-binaries", "ort?/tls-rustls", "xberg-gliner?/ort-bundled"]
@@ -487,7 +501,9 @@ translation = ["liter-llm"]
 # tokio-runtime is required by chunk-classification's bounded-concurrency batch scheduler
 # (tokio::sync::Semaphore / tokio::task::JoinSet).
 classification = ["liter-llm", "tokio-runtime"]
-captioning = ["liter-llm"]
+# tokio-runtime powers captioning's bounded-concurrency scheduler (JoinSet), which
+# captions embedded images in parallel instead of one-at-a-time (#1378).
+captioning = ["liter-llm", "tokio-runtime"]
 qr-codes = ["dep:rqrr", "dep:image"] # Pure-Rust QR decoding via rqrr.
 
 # SVG support: parse, sanitize (strip external hrefs/JS/foreignObject), re-serialize,
@@ -620,6 +636,7 @@ android-target = [
     "excel",
     "tree-sitter",
     "ocr",
+    "sceptre-ocr-tract",
     "auto-rotate-tract",
     "layout-tract",
     "api",
@@ -684,6 +701,7 @@ windows-target = [
     "auto-rotate",
     "layout-detection",
     "paddle-ocr",
+    "sceptre-ocr",
     # Candle VLM OCR backends. candle-core is default-features=false with GPU strictly opt-in, so
     # CPU candle links cleanly on Windows MSVC (no cudarc/metal-kernels). Parity with other platforms.
     "candle-vlm-ocr",
@@ -820,6 +838,7 @@ full = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
     # Candle pure-Rust VLM OCR backends (TrOCR, PaddleOCR-VL, GLM-OCR, DeepSeek-OCR). CPU inference
     # (candle-core is default-features=false; GPU is opt-in via candle-cuda/metal/mkl/accelerate),
@@ -870,6 +889,7 @@ full-no-heic = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
     "embeddings",
     "static-embeddings",
@@ -907,6 +927,7 @@ server = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
 ]
 # CLI-only features (thin gate for xberg-cli).
@@ -1026,6 +1047,7 @@ rmp-serde = "1.3"
 
 roxmltree = { version = "0.21.1", optional = true }
 rqrr = { version = "0.10", optional = true }
+sceptre = { workspace = true, optional = true }
 scrypt = { version = "0.12", optional = true, default-features = false, features = ["kdf"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -1082,8 +1104,8 @@ uuid = { version = "1", features = ["v4"], optional = true }
 v_htmlescape = { version = "0.17", optional = true }
 whatlang = { version = "0.18.0", optional = true }
 xberg-gliner = { workspace = true, optional = true }
-xberg-libheif = { path = "../xberg-libheif", version = "1.0.11", optional = true }
-xberg-libwpd = { path = "../xberg-libwpd", version = "1.0.11", optional = true }
+xberg-libheif = { path = "../xberg-libheif", version = "1.0.14", optional = true }
+xberg-libwpd = { path = "../xberg-libwpd", version = "1.0.14", optional = true }
 # No `version` on this path-dep: xberg-tesseract carries `links =
 # "xberg_tesseract"`, and a versioned path-dep makes the maturin sdist
 # resolve two copies (path + registry) of a `links` crate, which cargo rejects
@@ -1106,9 +1128,9 @@ tokenizers = { version = "0.23", default-features = false, features = ["fancy-re
 # why `candle-vlm-ocr` is safe in `full`/`windows-target`. GPU acceleration (cudarc / metal) is
 # strictly opt-in via candle-cuda/metal/mkl/accelerate and must be enabled with platform awareness.
 # CI uses `--features full` which keeps GPU accel off.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.11", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.14", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.11", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.14", optional = true }
 
 # Desktop / server hosts (Linux + macOS, NOT Android): xberg's direct `ureq` client uses
 # ring-backed rustls plus `platform-verifier`, which trusts the OS certificate store
@@ -1137,9 +1159,9 @@ ureq = { version = "3.3", default-features = false, features = [
     "json",
 ], optional = true }
 # Candle-based VLM OCR backends - pure-Rust transformer inference, not on WASM yet.
-xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.11", optional = true }
+xberg-candle-ocr = { path = "../xberg-candle-ocr", version = "1.0.14", optional = true }
 # PaddleOCR via ONNX Runtime - not available on WASM (vendored from paddle-ocr-rs)
-xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.11", optional = true }
+xberg-paddle-ocr = { path = "../xberg-paddle-ocr", version = "1.0.14", optional = true }
 
 # tokio OS features (every native target, including Android and Windows): `process`, `fs`, and
 # `rt-multi-thread` all fail to compile on wasm32 — tokio's own wasm32 gate only allows

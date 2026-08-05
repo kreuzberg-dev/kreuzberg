@@ -4,7 +4,7 @@ description = "Local document extraction: text, tables, metadata, images from 10
 
 [plugin]
 name = "xberg"
-version = "1.0.11"
+version = "1.0.14"
 display_name = "Xberg"
 description = "Local document extraction: text, tables, metadata, images from 101 formats with optional OCR."
 homepage = "https://xberg.io"

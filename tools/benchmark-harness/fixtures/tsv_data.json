@@ -14,6 +14,6 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/tsv/tsv_data.txt",
-		"source": "vision"
+		"source": "raw_source"
 	}
 }

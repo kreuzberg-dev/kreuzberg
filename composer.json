@@ -11,7 +11,7 @@
   },
   "autoload": {
     "psr-4": {
-      "Xberg\\": "packages/php/src/"
+      "Xberg\\": "crates/xberg-php/src/"
     }
   },
   "scripts": {

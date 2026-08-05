@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/cache_layer_release_notes.tex",
+	"file_type": "latex",
+	"file_size": 4198,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Cache layer release notes with metrics table and migration steps",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/tex/cache_layer_release_notes.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/tex/cache_layer_release_notes.md",
+		"source": "pandoc"
+	}
+}

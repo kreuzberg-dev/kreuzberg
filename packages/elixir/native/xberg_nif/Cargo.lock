@@ -8018,9 +8018,9 @@ checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
 name = "tree-sitter-language-pack"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe2c9cf0a4296b63dbacc707afe795598f51bdb7a5469d4185e5ad75066ffc1e"
+checksum = "3da225dcb166a011d3445bcdc168df8c30e0937aa7a4b988ba04b4c18224d91f"
 dependencies = [
  "ahash 0.8.12",
  "cc",
@@ -9063,7 +9063,7 @@ dependencies = [
 
 [[package]]
 name = "xberg"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "aes-gcm",
  "ahash 0.8.12",
@@ -9190,7 +9190,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-candle-ocr"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "base64 0.23.0",
  "candle-core",
@@ -9210,7 +9210,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-gliner"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.3.4",
@@ -9224,7 +9224,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libheif"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cfg-if 1.0.4",
  "enumn",
@@ -9235,7 +9235,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libwpd"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cc",
  "flate2",
@@ -9248,7 +9248,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-paddle-ocr"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "geo-clipper",
  "geo-types",
@@ -9263,7 +9263,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-tesseract"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cc",
  "cmake",
@@ -9274,7 +9274,7 @@ dependencies = [
 
 [[package]]
 name = "xberg_nif"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",

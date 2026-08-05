@@ -35,6 +35,12 @@
 
 #![deny(unsafe_code)]
 
+#[cfg(all(
+    feature = "sceptre-ocr-ort",
+    any(target_arch = "wasm32", target_os = "android", target_os = "ios")
+))]
+compile_error!("`sceptre-ocr-ort` supports desktop and server targets only; use `sceptre-ocr-tract` on mobile");
+
 pub mod cache;
 pub(crate) mod cache_dir;
 pub mod cancellation;
@@ -157,6 +163,15 @@ pub(crate) mod inference;
 
 #[cfg(any(feature = "paddle-ocr", feature = "paddle-ocr-types"))]
 pub mod paddle_ocr;
+
+#[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
+pub mod sceptre_ocr;
+
+#[cfg(any(sceptre_ocr, feature = "sceptre-wasm"))]
+mod sceptre_languages;
+
+#[cfg(feature = "sceptre-wasm")]
+pub mod sceptre_wasm;
 
 #[cfg(feature = "candle-ocr")]
 pub mod candle_ocr;

@@ -4,7 +4,7 @@ defmodule Xberg.MixProject do
   def project do
     [
     app: :xberg,
-    version: "1.0.11",
+    version: "1.0.14",
     elixir: "~> 1.14",
     elixirc_paths: ["lib", Path.expand("../../packages/elixir/native/xberg_nif/src", __DIR__)],
     rustler_crates: [

@@ -1,6 +1,7 @@
 //! Concurrency and thread pool configuration.
 
 use std::sync::Once;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +32,7 @@ pub struct ConcurrencyConfig {
 }
 
 static POOL_INIT: Once = Once::new();
+static ACTIVE_THREAD_BUDGET: AtomicUsize = AtomicUsize::new(0);
 
 /// Resolve the effective thread budget from config or auto-detection.
 ///
@@ -190,6 +192,7 @@ pub(crate) fn resolve_batch_concurrency(config: Option<&ConcurrencyConfig>, mode
 /// ```
 pub(crate) fn init_thread_pools(budget: usize) {
     POOL_INIT.call_once(|| {
+        ACTIVE_THREAD_BUDGET.store(budget.max(1), Ordering::Relaxed);
         #[cfg(not(target_arch = "wasm32"))]
         if let Err(_err) = rayon::ThreadPoolBuilder::new().num_threads(budget).build_global() {
             tracing::debug!(
@@ -201,6 +204,18 @@ pub(crate) fn init_thread_pools(budget: usize) {
         #[cfg(target_arch = "wasm32")]
         let _ = budget;
     });
+}
+
+/// Return the process thread budget selected when the shared pools were initialized.
+///
+/// Model backends with private pools use this value to obey the same extraction
+/// budget. Before initialization, this resolves to the standard automatic limit.
+#[cfg(sceptre_ocr)]
+pub(crate) fn active_thread_budget() -> usize {
+    match ACTIVE_THREAD_BUDGET.load(Ordering::Relaxed) {
+        0 => resolve_thread_budget(None),
+        budget => budget,
+    }
 }
 
 /// Initialize process-wide CPU pools from the total batch budget.

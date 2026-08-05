@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/observability_readme.md",
+	"file_type": "md",
+	"file_size": 1871,
+	"expected_frameworks": ["xberg", "docling", "pandoc", "tika", "unstructured"],
+	"metadata": {
+		"description": "Observability toolkit README with signal-type table and guidelines",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/md/observability_readme.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/md/observability_readme.md",
+		"source": "pandoc"
+	}
+}

@@ -247,9 +247,14 @@
               class="w-full p-6 flex flex-col bg-app-red/10 border border-app-red rounded-[12px]"
             >
               <div class="space-y-1">
-                <p id="error-title" class="text-base font-semibold text-white">File too large</p>
+                <p id="error-title" class="text-base font-semibold text-white">
+                  File too large for the in-browser demo
+                </p>
                 <p id="error-desc" class="text-sm font-light text-white">
-                  File exceeds the 1MB sandbox limit. Reduce file size or use the API for larger documents.
+                  This demo runs entirely in your browser via WebAssembly, so it's capped by the browser sandbox's
+                  memory limits — that's a constraint of the demo, not a problem with your file. For large or
+                  multi-page documents, use the CLI (`xberg extract &lt;file&gt;`) or API (`curl -F
+                  "files=@document.pdf" http://localhost:8000/extract`), which run natively without this ceiling.
                 </p>
               </div>
             </div>
@@ -388,6 +393,18 @@
     const WASM_CDN_ORIGIN = "https://cdn.jsdelivr.net/npm/@xberg-io/xberg-wasm";
     let resolvedVersion = null;
     let wasmCdnBase = null;
+
+    // ── Sandbox limits ────────────────────────────────────────────────────
+    // The WASM build has a hard memory ceiling around 2MB of input (single
+    // thread, no native acceleration, browser-limited heap). This is a
+    // limitation of running in a browser sandbox, not a judgment on the
+    // document — the CLI/API/library extract large and multi-page documents
+    // without this ceiling because they run natively.
+    const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // ~2MB — WASM engine hard limit
+    const NATIVE_TOOLS_HINT =
+      'Use the CLI (`xberg extract <file>`) or API ' +
+      '(`curl -F "files=@document.pdf" http://localhost:8000/extract`) for documents like this — ' +
+      "both run natively, without the browser sandbox's size and memory limits.";
 
     const versionText = document.getElementById("wasm-version-text");
     const versionBadge = document.getElementById("wasm-version");
@@ -641,7 +658,8 @@
             cleanup();
             reject(
               new Error(
-                "Extraction timed out after 30s. The file may be too complex for in-browser processing. Try a simpler file or use the API.",
+                `Extraction timed out after 30s. This in-browser WASM demo is single-threaded and sandboxed, ` +
+                  `so it can run out of time on documents that extract fine natively. ${NATIVE_TOOLS_HINT}`,
               ),
             );
           }, TIMEOUT_MS);
@@ -682,14 +700,16 @@
         btnBack.style.display = "flex";
         fileInfo.style.display = "flex";
 
-        if (file.size > 1024 * 1024) {
+        if (file.size > MAX_UPLOAD_BYTES) {
           const errorBox = document.getElementById("error-message");
           if (errorBox) {
             errorBox.style.display = "flex";
             fileInfo.style.borderColor = "#FF456D";
-            document.getElementById("error-title").textContent = "File too large";
+            document.getElementById("error-title").textContent = "File too large for the in-browser demo";
             document.getElementById("error-desc").textContent =
-              "File exceeds the 1MB sandbox limit. Reduce file size or use the API for larger documents.";
+              `This demo runs entirely in your browser via WebAssembly, so it's capped at ` +
+              `${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0)}MB by the browser sandbox's memory limits — ` +
+              `that's a constraint of the demo, not a problem with your file. ${NATIVE_TOOLS_HINT}`;
           }
           return;
         }
@@ -733,9 +753,11 @@
           if (errorBox) {
             errorBox.style.display = "flex";
             fileInfo.style.borderColor = "#FF456D";
-            document.getElementById("error-title").textContent = "Extraction failed";
+            document.getElementById("error-title").textContent = "Extraction failed in the browser demo";
+            const rawMessage = e instanceof Error ? e.message : String(e);
             document.getElementById("error-desc").textContent =
-              e instanceof Error ? e.message : String(e);
+              `${rawMessage} This in-browser demo runs in a limited WASM sandbox (single-threaded, no ` +
+              `native acceleration). ${NATIVE_TOOLS_HINT}`;
           }
         }
       }

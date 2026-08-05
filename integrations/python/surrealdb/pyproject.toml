@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "surrealdb-xberg"
-version = "1.0.11"
+version = "1.0.14"
 description = """\
   Xberg-to-SurrealDB connector for document ingestion pipelines — schema management, content deduplication, \
   chunk storage, and index configuration\
@@ -49,7 +49,7 @@ classifiers = [
   "Topic :: Text Processing :: Indexing",
   "Typing :: Typed",
 ]
-dependencies = ["anyio>=4,<5", "xberg>=1.0.11,<2", "surrealdb>=2.0.0,<3", "typing-extensions>=4; python_version<'3.11'"]
+dependencies = ["anyio>=4,<5", "xberg>=1.0.14,<2", "surrealdb>=2.0.0,<3", "typing-extensions>=4; python_version<'3.11'"]
 urls.Documentation = "https://docs.xberg.io"
 urls.Homepage = "https://github.com/xberg-io/xberg/tree/main/integrations/python/surrealdb"
 urls.Issues = "https://github.com/xberg-io/xberg/issues"

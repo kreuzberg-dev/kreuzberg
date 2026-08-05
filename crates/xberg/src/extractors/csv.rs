@@ -127,13 +127,7 @@ impl InternalDocumentExtractor for CsvExtractor {
         };
 
         let mut builder = InternalDocumentBuilder::new("csv");
-        let content_text = if has_header {
-            render_csv_embedding_text(&table.cells)
-        } else {
-            render_table_plain_csv(&table.cells)
-        };
-        let table_element = builder.push_table(table, None, None);
-        builder.set_text(table_element, &content_text);
+        builder.push_table(table, None, None);
 
         let mut doc = builder.build();
         doc.mime_type = mime_type.to_string();
@@ -413,91 +407,6 @@ fn infer_column_types(rows: &[Vec<String>], has_header: bool) -> Vec<String> {
         .collect()
 }
 
-/// Render CSV rows as embedding-friendly header-value pairs.
-///
-/// Assumes the first row is a header. Each data row becomes a labeled block:
-///
-/// ```text
-/// Row 1:
-/// Name: Alice
-/// Age: 30
-///
-/// Row 2:
-/// Name: Bob
-/// Age: 25
-/// ```
-///
-/// Empty cells are skipped. Rows where all cells are empty are omitted entirely.
-/// Rows shorter than the header silently skip the missing columns.
-fn render_csv_embedding_text(cells: &[Vec<String>]) -> String {
-    if cells.len() < 2 {
-        if let Some(headers) = cells.first() {
-            return headers
-                .iter()
-                .filter(|h| !h.trim().is_empty())
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(" ");
-        }
-        return String::new();
-    }
-
-    let headers = &cells[0];
-    let data_rows = &cells[1..];
-
-    let mut out = String::new();
-    let mut row_number = 0usize;
-
-    for row in data_rows {
-        if row.iter().all(|c| c.trim().is_empty()) {
-            continue;
-        }
-
-        row_number += 1;
-
-        if row_number > 1 {
-            out.push_str("\n\n");
-        }
-
-        out.push_str("Row ");
-        out.push_str(&row_number.to_string());
-        out.push(':');
-
-        for (col_idx, header) in headers.iter().enumerate() {
-            let header = header.trim();
-            if header.is_empty() {
-                continue;
-            }
-            let value = row.get(col_idx).map(|v| v.trim()).unwrap_or("");
-            if value.is_empty() {
-                continue;
-            }
-            out.push('\n');
-            out.push_str(header);
-            out.push_str(": ");
-            out.push_str(value);
-        }
-    }
-
-    out
-}
-
-/// Render CSV rows as space-separated plain text (fallback when no header detected).
-fn render_table_plain_csv(cells: &[Vec<String>]) -> String {
-    cells
-        .iter()
-        .map(|row| {
-            row.iter()
-                .map(|c| c.trim())
-                .filter(|c| !c.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// Build a Markdown table from parsed rows.
 fn build_markdown_table(rows: &[Vec<String>], has_header: bool) -> String {
     if rows.is_empty() {
@@ -648,8 +557,7 @@ mod tests {
         assert!(!markdown.contains("Row 1:"));
 
         let plain = crate::rendering::render_plain(&result);
-        assert!(plain.contains("Row 1:\nName: Alice\nAge: 30\nCity: NYC"));
-        assert!(plain.contains("Row 2:\nName: Bob\nAge: 25\nCity: LA"));
+        assert_eq!(plain, "Name Age City\nAlice 30 NYC\nBob 25 LA");
         assert!(!plain.contains('|'));
 
         if let Some(FormatMetadata::Csv(csv_meta)) = &result.metadata.format {
@@ -790,7 +698,10 @@ mod tests {
         let markdown = build_markdown_table(&rows, has_header);
 
         assert!(has_header);
-        assert!(!markdown.contains("|  |  |"), "must not emit a blank synthetic header row");
+        assert!(
+            !markdown.contains("|  |  |"),
+            "must not emit a blank synthetic header row"
+        );
         assert!(markdown.starts_with("| Name | City |\n| --- | --- |\n"));
         assert!(markdown.contains("| Alice | NYC |"));
     }

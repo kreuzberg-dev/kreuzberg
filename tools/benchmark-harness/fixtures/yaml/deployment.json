@@ -1,0 +1,19 @@
+{
+	"document": "../../../../test_documents/yaml/deployment.yaml",
+	"file_type": "yaml",
+	"file_size": 1673,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "Kubernetes-style Deployment manifest with nested containers, env vars and resource limits",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/yaml/deployment.txt",
+		"source": "raw_source"
+	}
+}

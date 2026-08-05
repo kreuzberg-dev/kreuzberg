@@ -4,7 +4,7 @@
   "type": "project",
   "require-dev": {
     "phpunit/phpunit": "^13.1",
-    "guzzlehttp/guzzle": "^7.0"
+    "guzzlehttp/guzzle": "^7.0 || ^8.0"
   },
   "autoload": {
     "psr-4": {

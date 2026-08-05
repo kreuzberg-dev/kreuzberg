@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::adapter::FrameworkAdapter;
+use crate::adapter::{FrameworkAdapter, OcrLanguagePolicy};
 use crate::config::{BenchmarkConfig, BenchmarkMode};
 use crate::fixture::FixtureManager;
 use crate::types::{BatchCapability, BatchEntryPoint, OutputFormat};
@@ -111,6 +111,8 @@ pub struct FrameworkProvenance {
     pub effective_warmup_iterations: usize,
     pub eligible_documents: usize,
     pub batch_partitions: Option<usize>,
+    #[serde(default)]
+    pub ocr_language_policy: OcrLanguagePolicy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,32 +181,31 @@ impl RunProvenance {
             let capability = matches!(inputs.config.benchmark_mode, BenchmarkMode::Batch)
                 .then(|| adapter.batch_capability())
                 .flatten();
-            let eligible_documents = inputs
+            let eligible_languages: Vec<Option<String>> = inputs
                 .fixtures
                 .fixtures()
                 .iter()
                 .filter(|(_, fixture)| {
-                    adapter.supports_format(&fixture.file_type)
-                        && fixture
-                            .document
-                            .file_name()
-                            .and_then(|name| name.to_str())
-                            .is_none_or(|name| !adapter.should_skip_file(name))
+                    adapter.supports_fixture(
+                        &fixture.file_type,
+                        fixture.document.file_name().and_then(|name| name.to_str()),
+                        fixture.ocr_language(),
+                    )
                 })
-                .count();
+                .map(|(_, fixture)| fixture.ocr_language().map(str::to_string))
+                .collect();
+            let eligible_documents = eligible_languages.len();
             // A framework only benchmarks the formats it declares support for, so its eligible-doc
             // count need not be a multiple of the cohort's fixed batch size. Partition into batches
             // of at most `size` with a smaller final batch when the count isn't an exact multiple
             // (0 eligible -> 0 partitions), mirroring `fixed_batch_ranges` in the runner. This
             // previously aborted the whole invocation, silently dropping e.g. docling batch on the
             // family cohorts where it supports only a subset of the member formats. ~keep
-            let batch_partitions = inputs.fixed_batch_size.filter(|_| capability.is_some()).map(|size| {
-                if size == 0 {
-                    0
-                } else {
-                    eligible_documents.div_ceil(size)
-                }
-            });
+            let language_policy = adapter.ocr_language_policy();
+            let batch_partitions = inputs
+                .fixed_batch_size
+                .filter(|_| capability.is_some())
+                .map(|size| language_policy.batch_partition_count(&eligible_languages, size));
             let batch_workers = capability.map(|_| adapter.worker_provenance(inputs.config.max_concurrent));
             let (requested_workers, effective_workers) = worker_counts(
                 inputs.config.benchmark_mode,
@@ -232,6 +233,7 @@ impl RunProvenance {
                 }),
                 eligible_documents,
                 batch_partitions,
+                ocr_language_policy: language_policy,
             });
         }
 
@@ -411,6 +413,62 @@ fn configured_thread_budget(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_two_provenance_defaults_missing_language_policy() {
+        let json = serde_json::json!({
+            "name": "legacy",
+            "version": "1",
+            "executable": null,
+            "models": [],
+            "batch_capability": null,
+            "requested_workers": null,
+            "effective_workers": null,
+            "worker_semantics": "legacy",
+            "effective_warmup_iterations": 0,
+            "eligible_documents": 1,
+            "batch_partitions": null
+        });
+        let framework: FrameworkProvenance = serde_json::from_value(json).unwrap();
+        assert_eq!(framework.ocr_language_policy, OcrLanguagePolicy::DefaultOnly);
+    }
+
+    #[test]
+    fn provenance_batch_partition_count_tracks_global_language_boundaries() {
+        let languages = [
+            Some("eng".to_string()),
+            Some("deu".to_string()),
+            Some("eng".to_string()),
+            Some("eng".to_string()),
+        ];
+        assert_eq!(
+            OcrLanguagePolicy::AnyBatchGlobal.batch_partition_count(&languages, 2),
+            3
+        );
+        assert_eq!(
+            OcrLanguagePolicy::SceptrePerDocument.batch_partition_count(&languages, 2),
+            2
+        );
+    }
+
+    #[test]
+    fn sceptre_engine_option_changes_invocation_provenance() {
+        let command = Path::new("xberg");
+        let base = [
+            "--ocr-backend".to_string(),
+            "sceptre".to_string(),
+            "--ocr-backend-options".to_string(),
+        ];
+        let ort = ExecutableProvenance::from_invocation(
+            command,
+            &[base.as_slice(), &[r#"{"model":{"backend":"ort"}}"#.to_string()]].concat(),
+        );
+        let tract = ExecutableProvenance::from_invocation(
+            command,
+            &[base.as_slice(), &[r#"{"model":{"backend":"tract"}}"#.to_string()]].concat(),
+        );
+        assert_ne!(ort.invocation_blake3, tract.invocation_blake3);
+    }
 
     #[test]
     fn executable_identity_never_contains_its_parent_path() {

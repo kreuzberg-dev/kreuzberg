@@ -30,6 +30,7 @@ const EMAIL_STRUCT_KEYS: &[&str] = &[
     "email_cc",
     "email_bcc",
 ];
+const INLINED_ATTACHMENT_ELEMENT_COUNT: usize = 2;
 #[cfg_attr(alef, alef(skip))]
 /// Email message extractor.
 ///
@@ -51,8 +52,12 @@ impl EmailExtractor {
 impl EmailExtractor {
     /// Build an `InternalDocument` from extracted email content.
     ///
-    /// Pushes email headers as a metadata block, then body content as paragraphs.
-    fn build_internal_document(email_result: &crate::types::EmailExtractionResult) -> InternalDocument {
+    /// Pushes email headers as a metadata block, body content as paragraphs, and
+    /// successful nonblank attachment content under level-two headings.
+    fn build_internal_document(
+        email_result: &crate::types::EmailExtractionResult,
+        extracted_attachments: &[ArchiveEntry],
+    ) -> InternalDocument {
         let mut builder = InternalDocumentBuilder::new("email");
 
         let mut header_entries = Vec::new();
@@ -101,6 +106,15 @@ impl EmailExtractor {
             }
         }
 
+        for attachment in extracted_attachments {
+            let content = attachment.result.content.trim();
+            if content.is_empty() {
+                continue;
+            }
+            builder.push_heading(2, &attachment.path, None, None);
+            builder.push_paragraph(content, vec![], None, None);
+        }
+
         builder.build()
     }
 
@@ -123,15 +137,14 @@ impl EmailExtractor {
         email_result: &crate::types::EmailExtractionResult,
         mime_type: &str,
         config: &ExtractionConfig,
+        extracted_attachments: &[ArchiveEntry],
     ) -> Result<InternalDocument> {
-        let mut doc = Self::build_internal_document(email_result);
+        let mut doc = Self::build_internal_document(email_result, extracted_attachments);
         doc.mime_type = mime_type.to_string();
         doc.metadata = Self::build_document_metadata(email_result);
 
         let mut budget = SecurityBudget::from_config(config);
-        for elem in &doc.elements {
-            budget.account_text(elem.text.len())?;
-        }
+        retain_budgeted_attachment_content(&mut doc, extracted_attachments, &mut budget)?;
 
         Ok(doc)
     }
@@ -170,6 +183,50 @@ impl EmailExtractor {
             ..Default::default()
         }
     }
+}
+
+fn retain_budgeted_attachment_content(
+    doc: &mut InternalDocument,
+    extracted_attachments: &[ArchiveEntry],
+    budget: &mut SecurityBudget,
+) -> Result<()> {
+    let inlined_attachment_count = extracted_attachments
+        .iter()
+        .filter(|attachment| !attachment.result.content.trim().is_empty())
+        .count();
+    let attachment_element_count = inlined_attachment_count.saturating_mul(INLINED_ATTACHMENT_ELEMENT_COUNT);
+    let attachment_elements = doc
+        .elements
+        .split_off(doc.elements.len().saturating_sub(attachment_element_count));
+
+    for element in &doc.elements {
+        budget.account_text(element.text.len())?;
+    }
+
+    for (attachment, elements) in extracted_attachments
+        .iter()
+        .filter(|attachment| !attachment.result.content.trim().is_empty())
+        .zip(attachment_elements.chunks_exact(INLINED_ATTACHMENT_ELEMENT_COUNT))
+    {
+        let mut candidate_budget = budget.clone();
+        let fits_budget = elements
+            .iter()
+            .all(|element| candidate_budget.account_text(element.text.len()).is_ok());
+        if fits_budget {
+            *budget = candidate_budget;
+            doc.elements.extend_from_slice(elements);
+        } else {
+            doc.processing_warnings.push(ProcessingWarning {
+                source: Cow::Borrowed("email_attachment_inlining"),
+                message: Cow::Owned(format!(
+                    "Skipped inlining attachment '{}': extracted text exceeds the remaining content security limit",
+                    attachment.path
+                )),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 /// Recursively process a `DocumentNode` and its children into the `InternalDocumentBuilder`.
@@ -290,7 +347,7 @@ impl SyncExtractor for EmailExtractor {
     fn extract_sync(&self, content: &[u8], mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let fallback_codepage = config.email.as_ref().and_then(|e| e.msg_fallback_codepage);
         let email_result = crate::extraction::email::extract_email_content(content, mime_type, fallback_codepage)?;
-        Self::build_extracted_document(&email_result, mime_type, config)
+        Self::build_extracted_document(&email_result, mime_type, config, &[])
     }
 }
 
@@ -318,19 +375,20 @@ impl InternalDocumentExtractor for EmailExtractor {
                 nested_messages: Vec::new(),
             }
         };
-        let mut doc = Self::build_extracted_document(&parsed.result, mime_type, config)?;
         let mut children = Vec::new();
         let mut warnings = Vec::new();
 
         if config.max_archive_depth > 0 {
             (children, warnings) = extract_attachment_children(&parsed.result.attachments, config).await;
+        }
 
-            if mime_type == "message/rfc822" {
-                let (nested_children, nested_warnings) =
-                    extract_nested_message_children(&parsed.nested_messages, config).await;
-                children.extend(nested_children);
-                warnings.extend(nested_warnings);
-            }
+        let mut doc = Self::build_extracted_document(&parsed.result, mime_type, config, &children)?;
+
+        if config.max_archive_depth > 0 && mime_type == "message/rfc822" {
+            let (nested_children, nested_warnings) =
+                extract_nested_message_children(&parsed.nested_messages, config).await;
+            children.extend(nested_children);
+            warnings.extend(nested_warnings);
         }
 
         if !children.is_empty() {
@@ -540,6 +598,22 @@ Subject: Implicit Nested\r\n\
 Implicit nested body\r\n\
 --digest--\r\n";
 
+    const TEXT_ATTACHMENT_EML: &[u8] = b"From: Alice <alice@example.com>\r\n\
+Subject: Attachment\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=part\r\n\
+\r\n\
+--part\r\n\
+Content-Type: text/plain\r\n\
+\r\n\
+Parent body\r\n\
+--part\r\n\
+Content-Type: text/plain\r\n\
+Content-Disposition: attachment; filename=note.txt\r\n\
+\r\n\
+Attachment body\r\n\
+--part--\r\n";
+
     #[test]
     fn test_email_extractor_plugin_interface() {
         let extractor = EmailExtractor::new();
@@ -598,7 +672,7 @@ Implicit nested body\r\n\
 
     #[cfg(feature = "tokio-runtime")]
     #[tokio::test]
-    async fn test_async_msg_keeps_sync_output_when_extracting_attachments() {
+    async fn test_async_msg_preserves_sync_output_prefix_when_extracting_attachments() {
         let data = include_bytes!("../../../../test_documents/email/attachment.msg");
         let config = ExtractionConfig {
             max_archive_depth: 1,
@@ -614,7 +688,7 @@ Implicit nested body\r\n\
             .await
             .unwrap();
 
-        assert_eq!(async_doc.elements, sync_doc.elements);
+        assert_eq!(&async_doc.elements[..sync_doc.elements.len()], sync_doc.elements);
         assert_eq!(
             serde_json::to_value(&async_doc.metadata).unwrap(),
             serde_json::to_value(&sync_doc.metadata).unwrap()
@@ -624,35 +698,53 @@ Implicit nested body\r\n\
     #[cfg(feature = "tokio-runtime")]
     #[tokio::test]
     async fn test_async_email_preserves_extractable_attachment_children() {
-        let eml = b"From: Alice <alice@example.com>\r\n\
-Subject: Attachment\r\n\
-MIME-Version: 1.0\r\n\
-Content-Type: multipart/mixed; boundary=part\r\n\
-\r\n\
---part\r\n\
-Content-Type: text/plain\r\n\
-\r\n\
-Parent body\r\n\
---part\r\n\
-Content-Type: text/plain\r\n\
-Content-Disposition: attachment; filename=note.txt\r\n\
-\r\n\
-Attachment body\r\n\
---part--\r\n";
         let config = ExtractionConfig {
             max_archive_depth: 1,
             ..Default::default()
         };
 
         let doc = EmailExtractor::new()
-            .extract_content(eml, "message/rfc822", &config)
+            .extract_content(TEXT_ATTACHMENT_EML, "message/rfc822", &config)
             .await
             .unwrap();
-        let children = doc.children.expect("text attachment should be extracted");
+        let plain = crate::rendering::render_plain(&doc);
+        let markdown = crate::rendering::render_markdown(&doc);
+        let children = doc.children.as_ref().expect("text attachment should be extracted");
 
         assert_eq!(children.len(), 1);
         assert_eq!(children[0].path, "note.txt");
         assert!(children[0].result.content.contains("Attachment body"));
+        assert!(markdown.contains("## note.txt"));
+        assert!(plain.contains(children[0].result.content.trim()));
+    }
+
+    #[cfg(feature = "tokio-runtime")]
+    #[tokio::test]
+    async fn test_async_email_skips_attachment_inline_when_combined_content_exceeds_limit() {
+        let config = ExtractionConfig {
+            max_archive_depth: 1,
+            security_limits: Some(crate::extractors::security::SecurityLimits {
+                max_content_size: 100,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let doc = EmailExtractor::new()
+            .extract_content(TEXT_ATTACHMENT_EML, "message/rfc822", &config)
+            .await
+            .expect("parent email should survive an over-budget inline attachment");
+        let plain = crate::rendering::render_plain(&doc);
+        let children = doc.children.as_ref().expect("attachment child must be retained");
+
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].path, "note.txt");
+        assert_eq!(children[0].result.content.trim(), "Attachment body");
+        assert!(plain.contains("Parent body"));
+        assert!(!plain.contains("Attachment body"));
+        assert_eq!(doc.processing_warnings.len(), 1);
+        assert_eq!(doc.processing_warnings[0].source, "email_attachment_inlining");
+        assert!(doc.processing_warnings[0].message.contains("note.txt"));
     }
 
     #[cfg(feature = "tokio-runtime")]
@@ -674,6 +766,10 @@ Attachment body\r\n\
         assert_eq!(nested.path, "nested_message_0.eml");
         assert_eq!(nested.mime_type, "message/rfc822");
         assert!(nested.result.content.contains("Nested body"));
+        assert!(!doc.elements.iter().any(|element| {
+            matches!(element.kind, crate::types::internal::ElementKind::Heading { level: 2 })
+                && element.text == nested.path
+        }));
     }
 
     #[cfg(feature = "tokio-runtime")]

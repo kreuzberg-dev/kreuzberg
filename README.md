@@ -108,7 +108,7 @@ Point Xberg at anything — a PDF, a spreadsheet, a scanned image, an audio file
 | **URLs & the web** | Point Xberg at an `http(s)` URL — it fetches and extracts a single document, or crawls and follows links (Auto / Document / Crawl modes via the [crawlberg](https://github.com/xberg-io/crawlberg) engine). *Requires the `url-ingestion` feature.* |
 | **Audio & video transcription** | Speech-to-text from MP3, M4A, WAV, WebM, and MP4 tracks via Whisper ONNX (tiny → large-v3). *Requires the `transcription` feature.* |
 | **Archives, traversed** | List and **recursively** extract nested `.zip`, `.tar`, `.gz`, `.7z` — documents inside documents — guarded by zip-bomb, compression-ratio, and nesting-depth limits. |
-| **OCR on demand** | Tesseract, PaddleOCR, Candle, or VLM backends — fallback chains, confidence scores, language auto-detection, extensible via plugins. |
+| **OCR on demand** | Tesseract, PaddleOCR, Sceptre, Candle, or VLM backends — fallback chains, confidence scores, language auto-detection, extensible via plugins. |
 | **Layout & tables** | ML layout models (PP-DocLayout-V3, RT-DETR) and table structure (TATR, SLANet) reconstruct reading order and cell grids for clean Markdown. |
 | **Code intelligence** | Functions, classes, imports, symbols, docstrings from 371 programming languages. Syntax-aware chunking for RAG pipelines. |
 | **Embeddings & search** | Local (ONNX) or provider-hosted embeddings (165 providers via liter-llm), sparse and late-interaction, cross-encoder reranking. |
@@ -530,6 +530,7 @@ Powered by [tree-sitter-language-pack](https://github.com/xberg-io/tree-sitter-l
 
 - **Tesseract** — Native C FFI (Linux/macOS/Windows) and WASM (browser)
 - **PaddleOCR** — ONNX Runtime, mobile-optimized models
+- **Sceptre** — EasyOCR Gen2 CRAFT + CRNN: ONNX Runtime on desktop/server, tract on Android/iOS, and an opt-in WebAssembly worker API
 - **Candle** — Pure Rust, CPU-only, lightweight
 - **VLM** — GPT-4 Vision, Claude Vision, Gemini Vision, or 165 providers via liter-llm
 

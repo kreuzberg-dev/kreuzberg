@@ -9,7 +9,7 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/ppt/ppt_presentation.txt",
-		"source": "vision",
+		"source": "manual",
 		"markdown_file": "../../../test_documents/ground_truth/ppt/simple.md"
 	}
 }

@@ -1,5 +1,5 @@
 name: "xberg"
-version: "1.0.11"
+version: "1.0.14"
 description: "Local document extraction: text, tables, metadata, images from 101 formats with optional OCR."
 author: "Kreuzberg, Inc."
 kind: "standalone"

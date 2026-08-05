@@ -1,0 +1,19 @@
+{
+	"document": "../../../../test_documents/json/api_users.json",
+	"file_type": "json",
+	"file_size": 1515,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "JSON array of user records with roles, active flags and creation timestamps",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/json/api_users.txt",
+		"source": "raw_source"
+	}
+}

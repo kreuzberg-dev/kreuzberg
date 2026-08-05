@@ -9,6 +9,56 @@ use crate::types::internal_builder::InternalDocumentBuilder;
 use crate::types::metadata::Metadata;
 use async_trait::async_trait;
 
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const WHOLE_IMAGE_TESSERACT_PSM: i32 = 11;
+
+// Tesseract's automatic layout modes can hang under the single-threaded WASM
+// runtime, so retain the existing single-block default there. ~keep
+#[cfg(all(
+    target_arch = "wasm32",
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const WHOLE_IMAGE_TESSERACT_PSM: i32 = 6;
+
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+const VERTICAL_BLOCK_TESSERACT_PSM: i32 = 5;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const SPARSE_IMAGE_OCR_WORD_LIMIT: usize = 20;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const SPARSE_IMAGE_OCR_FALLBACK_PSM: i32 = 3;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const SPARSE_IMAGE_OCR_MIN_WORD_CONFIDENCE: f64 = 0.30;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const SPARSE_IMAGE_OCR_MAX_LOW_CONFIDENCE_RATIO: f64 = 0.30;
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+const SPARSE_IMAGE_OCR_CONFIDENCE_PERCENTILE: f64 = 0.10;
+
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
+const LAYOUT_REGION_TESSERACT_PSM: i32 = 6;
+
 #[cfg(any(test, all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))))]
 const MIN_LAYOUT_OCR_ALPHANUMERIC_TOKEN_RETENTION: f64 = 0.80;
 
@@ -1016,6 +1066,7 @@ fn configured_region_ocr(
     let mut region_config = ocr_config.clone();
     region_config.output_format = Some(crate::core::config::OutputFormat::Plain);
     if region_config.backend == "tesseract" {
+        apply_default_tesseract_psm(&mut region_config, LAYOUT_REGION_TESSERACT_PSM);
         // Layout assembly consumes region text only; skip redundant Tesseract hOCR and
         // document-level table reconstruction when region OCR is unavoidable. ~keep
         let tesseract_config = region_config.tesseract_config.get_or_insert_default();
@@ -1026,6 +1077,113 @@ fn configured_region_ocr(
         region_config.acceleration = config.acceleration.clone();
     }
     Ok((backend, region_config))
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+fn apply_default_tesseract_psm(config: &mut crate::core::config::OcrConfig, psm: i32) {
+    if config.backend != "tesseract" || config.tesseract_config.is_some() {
+        return;
+    }
+
+    let tesseract_config = crate::types::TesseractConfig {
+        language: config.language.clone(),
+        psm,
+        ..Default::default()
+    };
+    config.tesseract_config = Some(tesseract_config);
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+fn apply_default_whole_image_tesseract_psm(config: &mut crate::core::config::OcrConfig) {
+    let psm = if has_vertical_tesseract_language(config) {
+        VERTICAL_BLOCK_TESSERACT_PSM
+    } else {
+        WHOLE_IMAGE_TESSERACT_PSM
+    };
+    apply_default_tesseract_psm(config, psm);
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+fn has_vertical_tesseract_language(config: &crate::core::config::OcrConfig) -> bool {
+    config
+        .language
+        .iter()
+        .flat_map(|language| language.split('+'))
+        .any(|language| language.trim().to_ascii_lowercase().ends_with("_vert"))
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+fn usable_word_confidences(result: &crate::types::ExtractedDocument) -> Vec<f64> {
+    result
+        .ocr_elements
+        .iter()
+        .flatten()
+        .filter(|element| {
+            element.level == crate::types::OcrElementLevel::Word
+                && !element.text.trim().is_empty()
+                && element.confidence.recognition.is_finite()
+        })
+        .map(|element| element.confidence.recognition)
+        .collect()
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+fn should_retry_sparse_image_ocr(
+    config: &crate::core::config::OcrConfig,
+    result: &crate::types::ExtractedDocument,
+) -> bool {
+    is_implicit_horizontal_tesseract(config)
+        && usable_word_confidences(result).len() <= SPARSE_IMAGE_OCR_WORD_LIMIT
+        && !has_robust_word_confidence_distribution(result)
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+fn is_implicit_horizontal_tesseract(config: &crate::core::config::OcrConfig) -> bool {
+    config.backend == "tesseract" && config.tesseract_config.is_none() && !has_vertical_tesseract_language(config)
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+fn has_robust_word_confidence_distribution(result: &crate::types::ExtractedDocument) -> bool {
+    let mut confidences = usable_word_confidences(result);
+    if confidences.is_empty() {
+        return false;
+    }
+    confidences.sort_by(f64::total_cmp);
+    let percentile_index = ((confidences.len() as f64 - 1.0) * SPARSE_IMAGE_OCR_CONFIDENCE_PERCENTILE).floor() as usize;
+    let low_confidence_count = confidences
+        .iter()
+        .filter(|confidence| **confidence < SPARSE_IMAGE_OCR_MIN_WORD_CONFIDENCE)
+        .count();
+    let low_confidence_ratio = low_confidence_count as f64 / confidences.len() as f64;
+
+    confidences[percentile_index] >= SPARSE_IMAGE_OCR_MIN_WORD_CONFIDENCE
+        && low_confidence_ratio <= SPARSE_IMAGE_OCR_MAX_LOW_CONFIDENCE_RATIO
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+))]
+fn sparse_image_ocr_fallback_config(
+    whole_image_config: &crate::core::config::OcrConfig,
+) -> crate::core::config::OcrConfig {
+    let mut fallback_config = whole_image_config.clone();
+    let tesseract_config = fallback_config.tesseract_config.get_or_insert_default();
+    tesseract_config.psm = SPARSE_IMAGE_OCR_FALLBACK_PSM;
+    tesseract_config.preprocessing = Some(crate::types::ImagePreprocessingConfig::default());
+    fallback_config
 }
 
 #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
@@ -1145,6 +1303,7 @@ impl ImageExtractor {
     }
 
     fn mark_ocr_extraction(doc: &mut InternalDocument) {
+        doc.metadata.ocr_used = true;
         doc.metadata.additional.insert(
             std::borrow::Cow::Borrowed("extraction_method"),
             serde_json::Value::String(crate::types::ExtractionMethod::Ocr.as_str().to_string()),
@@ -1194,6 +1353,7 @@ impl ImageExtractor {
         };
 
         let mut ocr_config_with_format = ocr_config.clone();
+        apply_default_whole_image_tesseract_psm(&mut ocr_config_with_format);
         ocr_config_with_format.output_format = Some(config.output_format.clone());
         ocr_config_with_format.acceleration = config.acceleration.clone();
         #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
@@ -1201,8 +1361,30 @@ impl ImageExtractor {
         #[cfg(not(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))))]
         let include_words = false;
         enable_image_ocr_elements(&mut ocr_config_with_format, include_words);
+        #[cfg(not(target_arch = "wasm32"))]
+        if is_implicit_horizontal_tesseract(ocr_config) {
+            enable_image_ocr_elements(&mut ocr_config_with_format, true);
+        }
 
         let ocr_result = backend.process_image(content, &ocr_config_with_format).await?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let ocr_result = {
+            let mut ocr_result = ocr_result;
+            if should_retry_sparse_image_ocr(ocr_config, &ocr_result) {
+                let fallback_config = sparse_image_ocr_fallback_config(&ocr_config_with_format);
+                match backend.process_image(content, &fallback_config).await {
+                    Ok(mut fallback_result) if has_robust_word_confidence_distribution(&fallback_result) => {
+                        let mut processing_warnings = ocr_result.processing_warnings.clone();
+                        processing_warnings.append(&mut fallback_result.processing_warnings);
+                        fallback_result.processing_warnings = processing_warnings;
+                        ocr_result = fallback_result;
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::warn!(%error, "sparse standalone image OCR fallback failed"),
+                }
+            }
+            ocr_result
+        };
 
         let ocr_content = ocr_result.content;
         let ocr_metadata = ocr_result.metadata;
@@ -1618,6 +1800,7 @@ impl InternalDocumentExtractor for ImageExtractor {
                     || self.extract_with_ocr(content, mime_type, config),
                 )
                 .await?;
+                Self::mark_ocr_extraction(&mut doc);
                 doc.metadata.format = Some(crate::types::FormatMetadata::Image(image_metadata));
                 doc.mime_type = mime_type.to_string();
                 if config.needs_image_data() {
@@ -1632,6 +1815,7 @@ impl InternalDocumentExtractor for ImageExtractor {
             ))]
             {
                 let mut doc = self.extract_with_ocr(content, mime_type, config).await?;
+                Self::mark_ocr_extraction(&mut doc);
                 doc.metadata.format = Some(crate::types::FormatMetadata::Image(image_metadata));
                 doc.mime_type = mime_type.to_string();
                 if config.needs_image_data() {
@@ -1699,8 +1883,205 @@ impl InternalDocumentExtractor for ImageExtractor {
 mod tests {
     use super::*;
 
+    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[test]
+    fn should_apply_vertical_block_psm_to_default_vertical_tesseract_config() {
+        let mut ocr_config = crate::core::config::OcrConfig {
+            language: vec!["jpn_vert".to_string()],
+            ..Default::default()
+        };
+
+        apply_default_whole_image_tesseract_psm(&mut ocr_config);
+
+        let tesseract_config = ocr_config
+            .tesseract_config
+            .expect("whole-image OCR must materialize Tesseract configuration");
+        assert_eq!(tesseract_config.psm, VERTICAL_BLOCK_TESSERACT_PSM);
+        assert_eq!(tesseract_config.language, vec!["jpn_vert"]);
+    }
+
+    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[test]
+    fn should_apply_default_whole_image_psm_to_horizontal_tesseract_config() {
+        let mut ocr_config = crate::core::config::OcrConfig {
+            language: vec!["eng".to_string()],
+            ..Default::default()
+        };
+
+        apply_default_whole_image_tesseract_psm(&mut ocr_config);
+
+        let tesseract_config = ocr_config
+            .tesseract_config
+            .expect("whole-image OCR must materialize Tesseract configuration");
+        assert_eq!(tesseract_config.psm, WHOLE_IMAGE_TESSERACT_PSM);
+        assert_eq!(tesseract_config.language, vec!["eng"]);
+    }
+
+    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[test]
+    fn should_preserve_explicit_whole_image_tesseract_psm() {
+        let mut ocr_config = crate::core::config::OcrConfig {
+            language: vec!["jpn_vert".to_string()],
+            tesseract_config: Some(crate::types::TesseractConfig {
+                language: vec!["jpn_vert".to_string()],
+                psm: 4,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        apply_default_whole_image_tesseract_psm(&mut ocr_config);
+
+        let tesseract_config = ocr_config.tesseract_config.expect("explicit config must remain");
+        assert_eq!(tesseract_config.psm, 4);
+        assert_eq!(tesseract_config.language, vec!["jpn_vert"]);
+    }
+
+    #[cfg(all(
+        not(target_arch = "wasm32"),
+        any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
+    ))]
+    mod sparse_image_ocr_fallback_tests {
+        use super::*;
+
+        fn result_with_word_confidences(confidences: &[f64]) -> crate::types::ExtractedDocument {
+            let ocr_elements = confidences
+                .iter()
+                .enumerate()
+                .map(|(index, confidence)| crate::types::OcrElement {
+                    text: format!("word-{index}"),
+                    confidence: crate::types::OcrConfidence {
+                        recognition: *confidence,
+                        ..Default::default()
+                    },
+                    level: crate::types::OcrElementLevel::Word,
+                    ..Default::default()
+                })
+                .collect();
+            crate::types::ExtractedDocument {
+                ocr_elements: Some(ocr_elements),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn should_retry_implicit_horizontal_tesseract_when_words_are_sparse() {
+            let config = crate::core::config::OcrConfig::default();
+            let confidences = vec![0.10; SPARSE_IMAGE_OCR_WORD_LIMIT];
+            let result = result_with_word_confidences(&confidences);
+
+            assert!(should_retry_sparse_image_ocr(&config, &result));
+        }
+
+        #[test]
+        fn should_not_retry_implicit_horizontal_tesseract_when_words_are_dense() {
+            let config = crate::core::config::OcrConfig::default();
+            let confidences = vec![0.10; SPARSE_IMAGE_OCR_WORD_LIMIT + 1];
+            let result = result_with_word_confidences(&confidences);
+
+            assert!(!should_retry_sparse_image_ocr(&config, &result));
+        }
+
+        #[test]
+        fn should_not_retry_sparse_primary_with_robust_word_confidences() {
+            let config = crate::core::config::OcrConfig::default();
+            let result = result_with_word_confidences(&[0.90, 0.95]);
+
+            assert!(!should_retry_sparse_image_ocr(&config, &result));
+        }
+
+        #[test]
+        fn should_exclude_explicit_and_vertical_tesseract_from_sparse_retry() {
+            let result = result_with_word_confidences(&[0.10]);
+            let explicit_config = crate::core::config::OcrConfig {
+                tesseract_config: Some(crate::types::TesseractConfig::default()),
+                ..Default::default()
+            };
+            let vertical_config = crate::core::config::OcrConfig {
+                language: vec!["jpn_vert".to_string()],
+                ..Default::default()
+            };
+            let other_backend_config = crate::core::config::OcrConfig {
+                backend: "paddle-ocr".to_string(),
+                ..Default::default()
+            };
+
+            assert!(!should_retry_sparse_image_ocr(&explicit_config, &result));
+            assert!(!should_retry_sparse_image_ocr(&vertical_config, &result));
+            assert!(!should_retry_sparse_image_ocr(&other_backend_config, &result));
+        }
+
+        #[test]
+        fn should_reject_high_mean_fallback_with_bad_tenth_percentile() {
+            let mut confidences = vec![0.95; 16];
+            confidences.extend([0.14, 0.14]);
+            let mean = confidences.iter().sum::<f64>() / confidences.len() as f64;
+            let result = result_with_word_confidences(&confidences);
+
+            assert!(mean > 0.80, "fixture must model misleadingly high mean confidence");
+            assert!(!has_robust_word_confidence_distribution(&result));
+        }
+
+        #[test]
+        fn should_select_fallback_with_robust_word_confidences() {
+            let mut confidences = vec![0.95; 9];
+            confidences.push(SPARSE_IMAGE_OCR_MIN_WORD_CONFIDENCE);
+            let result = result_with_word_confidences(&confidences);
+
+            assert!(has_robust_word_confidence_distribution(&result));
+        }
+
+        #[test]
+        fn should_build_psm3_fallback_with_explicit_default_preprocessing() {
+            let mut whole_image_config = crate::core::config::OcrConfig::default();
+            apply_default_whole_image_tesseract_psm(&mut whole_image_config);
+
+            let fallback_config = sparse_image_ocr_fallback_config(&whole_image_config);
+            let tesseract_config = fallback_config
+                .tesseract_config
+                .expect("fallback must materialize Tesseract configuration");
+
+            assert_eq!(tesseract_config.psm, SPARSE_IMAGE_OCR_FALLBACK_PSM);
+            assert!(tesseract_config.preprocessing.is_some());
+        }
+    }
+
     fn image_ocr_document(text: &str) -> InternalDocument {
         build_image_internal_document(Some(text), None)
+    }
+
+    #[test]
+    fn should_mark_metadata_when_standalone_image_ocr_succeeds() {
+        let mut doc = image_ocr_document("recognized text");
+
+        ImageExtractor::mark_ocr_extraction(&mut doc);
+        let result =
+            crate::extraction::derive::derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+
+        assert!(result.metadata.ocr_used);
+        assert_eq!(result.extraction_method, Some(crate::types::ExtractionMethod::Ocr));
+    }
+
+    #[tokio::test]
+    async fn should_not_mark_metadata_when_standalone_image_ocr_is_disabled() {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::ImageBuffer::<image::Rgb<u8>, _>::from_pixel(1, 1, image::Rgb([255u8, 255, 255]))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .expect("failed to encode test PNG");
+        let config = ExtractionConfig {
+            disable_ocr: true,
+            ..Default::default()
+        };
+
+        let doc = ImageExtractor::new()
+            .extract_content(&png.into_inner(), "image/png", &config)
+            .await
+            .expect("metadata-only image extraction must succeed");
+        let result =
+            crate::extraction::derive::derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+
+        assert!(!result.metadata.ocr_used);
+        assert_eq!(result.extraction_method, None);
     }
 
     #[test]
@@ -1983,8 +2364,29 @@ mod tests {
             Some(crate::core::config::OutputFormat::Plain)
         );
         assert_eq!(tesseract_config.output_format, "text");
+        assert_eq!(tesseract_config.psm, 6);
         assert!(!tesseract_config.enable_table_detection);
         assert!(ocr_config.tesseract_config.is_none());
+    }
+
+    #[cfg(all(feature = "layout-detection", feature = "ocr"))]
+    #[test]
+    fn should_preserve_explicit_tesseract_psm_for_region_ocr() {
+        let extraction_config = ExtractionConfig::default();
+        let ocr_config = crate::core::config::OcrConfig {
+            tesseract_config: Some(crate::types::TesseractConfig {
+                psm: 4,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let (_, region_config) = configured_region_ocr(&extraction_config, &ocr_config).unwrap();
+
+        assert_eq!(
+            region_config.tesseract_config.expect("explicit config must remain").psm,
+            4
+        );
     }
 
     #[cfg(all(feature = "layout-detection", feature = "ocr"))]
@@ -2705,6 +3107,11 @@ mod tests {
             crate::core::config::OutputFormat::Plain,
         );
 
+        assert!(
+            result.metadata.ocr_used,
+            "successful image OCR must be reflected in metadata"
+        );
+        assert_eq!(result.extraction_method, Some(crate::types::ExtractionMethod::Ocr));
         let pages = result
             .pages
             .as_ref()

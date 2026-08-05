@@ -14,7 +14,7 @@ const VALID_BINARIZATION_METHODS: &[&str] = &["otsu", "adaptive", "sauvola"];
 const VALID_TOKEN_REDUCTION_LEVELS: &[&str] = &["off", "light", "moderate", "aggressive", "maximum"];
 
 /// Valid OCR backends.
-const VALID_OCR_BACKENDS: &[&str] = &["tesseract", "paddleocr", "paddle-ocr", "vlm"];
+const VALID_OCR_BACKENDS: &[&str] = &["tesseract", "paddleocr", "paddle-ocr", "sceptre", "vlm"];
 
 /// Common ISO 639-1 language codes (extended list).
 /// Covers most major languages and variants used in document processing.
@@ -61,6 +61,7 @@ const VALID_LANGUAGE_CODES: &[&str] = &[
     "rus",
     "zho",
     "jpn",
+    "jpn_vert",
     "kor",
     "ces",
     "dan",
@@ -79,8 +80,118 @@ const VALID_LANGUAGE_CODES: &[&str] = &[
     "chinese_cht",
     "latin",
     "cyrillic",
+    "english",
+    "japanese",
+    "korean",
+    "telugu",
+    "kannada",
+    "chinese-simplified",
+    "simplified-chinese",
     "devanagari",
     "arabic",
+    // ISO codes and established aliases accepted by the Sceptre backend that are
+    // not already covered above. Keep this feature-independent for config parsing. ~keep
+    "af",
+    "afr",
+    "az",
+    "aze",
+    "bel",
+    "be",
+    "bul",
+    "bs",
+    "bos",
+    "ca",
+    "cat",
+    "cy",
+    "cym",
+    "cze",
+    "wel",
+    "ger",
+    "fre",
+    "ga",
+    "fil",
+    "gle",
+    "hr",
+    "hrv",
+    "id",
+    "ind",
+    "is",
+    "isl",
+    "ice",
+    "kk",
+    "kaz",
+    "ky",
+    "kir",
+    "mk",
+    "mkd",
+    "mac",
+    "mn",
+    "mon",
+    "mi",
+    "mri",
+    "mao",
+    "ms",
+    "msa",
+    "may",
+    "mt",
+    "mlt",
+    "dut",
+    "no",
+    "nor",
+    "rum",
+    "slo",
+    "sq",
+    "sqi",
+    "alb",
+    "sr",
+    "srp",
+    "sw",
+    "swa",
+    "tl",
+    "tg",
+    "tgk",
+    "ukr",
+    "uz",
+    "uzb",
+    "vie",
+    "ku",
+    "kur",
+    "la",
+    "lat",
+    "oc",
+    "oci",
+    "pi",
+    "pli",
+    "te",
+    "tel",
+    "kn",
+    "kan",
+    "abq",
+    "ady",
+    "kbd",
+    "ava",
+    "dar",
+    "inh",
+    "che",
+    "lbe",
+    "lez",
+    "tab",
+    "tjk",
+    "ch_sim",
+    "ch-sim",
+    "rs_latin",
+    "rs-latin",
+    "rs_cyrillic",
+    "rs-cyrillic",
+    "jpn-vert",
+    "sr-latn",
+    "srp-latn",
+    "sr-cyrl",
+    "srp-cyrl",
+    "zh-cn",
+    "zh-hans",
+    "chi",
+    "chs",
 ];
 
 /// Valid tesseract PSM (Page Segmentation Mode) values.
@@ -230,12 +341,13 @@ pub(crate) fn validate_ocr_backend(backend: &str) -> Result<()> {
 #[cfg_attr(alef, alef(skip))]
 pub(crate) fn validate_language_code(code: &str) -> Result<()> {
     let code_lower = code.to_lowercase();
+    let code_normalized = code_lower.replace('_', "-");
 
     if code_lower == "all" || code_lower == "*" {
         return Ok(());
     }
 
-    if VALID_LANGUAGE_CODES.contains(&code_lower.as_str()) {
+    if VALID_LANGUAGE_CODES.contains(&code_lower.as_str()) || VALID_LANGUAGE_CODES.contains(&code_normalized.as_str()) {
         return Ok(());
     }
 

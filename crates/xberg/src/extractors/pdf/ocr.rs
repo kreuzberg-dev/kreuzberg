@@ -616,6 +616,39 @@ fn share_rendered_page_images(
         .collect()
 }
 
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn normalize_mixed_ocr_document_page(doc: &mut crate::types::internal::InternalDocument, page_number: u32) {
+    for element in &mut doc.elements {
+        if !matches!(element.kind, crate::types::internal::ElementKind::PageBreak) {
+            element.page = Some(page_number);
+        }
+    }
+    for table in &mut doc.tables {
+        table.page_number = page_number;
+    }
+    for image in &mut doc.images {
+        image.page_number = Some(page_number);
+    }
+}
+
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn assemble_mixed_ocr_page_document(
+    mut doc: crate::types::internal::InternalDocument,
+    page_number: u32,
+    page_height: u32,
+) -> crate::types::internal::InternalDocument {
+    let paragraphs = crate::pdf::structure::adapters::ocr_doc_to_paragraphs(&doc, page_height);
+    if !paragraphs.is_empty() {
+        let mut assembled =
+            crate::pdf::structure::assemble_internal_document(vec![paragraphs], &doc.tables, Some(&doc.images), &[]);
+        assembled.processing_warnings = std::mem::take(&mut doc.processing_warnings);
+        doc = assembled;
+    }
+
+    normalize_mixed_ocr_document_page(&mut doc, page_number);
+    doc
+}
+
 /// Build mixed text from native extraction and per-page OCR results.
 ///
 /// For each page boundary, if the page is in `ocr_page_numbers` (1-indexed),
@@ -634,6 +667,7 @@ pub(crate) async fn extract_mixed_ocr_native(
 ) -> crate::Result<(
     String,
     ahash::AHashMap<u32, String>,
+    ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
     Vec<crate::types::LlmUsage>,
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
@@ -656,6 +690,7 @@ pub(crate) async fn extract_mixed_ocr_native(
         return Ok((
             native_text.to_string(),
             ahash::AHashMap::new(),
+            ahash::AHashMap::new(),
             Vec::new(),
             None,
             Vec::new(),
@@ -670,6 +705,7 @@ pub(crate) async fn extract_mixed_ocr_native(
     if page_indices.is_empty() {
         return Ok((
             native_text.to_string(),
+            ahash::AHashMap::new(),
             ahash::AHashMap::new(),
             Vec::new(),
             None,
@@ -696,7 +732,7 @@ pub(crate) async fn extract_mixed_ocr_native(
     let batch_size = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
 
     let capture_rasters = config.images.as_ref().is_some_and(|c| c.include_page_rasters);
-    let ocr_config_owned = ocr_config_resolved;
+    let ocr_config_owned = ensure_elements_enabled(&ocr_config_resolved);
     // When a `vlm_fallback` policy or an explicit multi-stage `pipeline` is configured,
     // each page must run through the shared pipeline runner so fallback backends (e.g.
     // the VLM) apply on this mixed/per-page OCR route too. Previously only the single
@@ -727,6 +763,8 @@ pub(crate) async fn extract_mixed_ocr_native(
 
     let total = page_indices.len();
     let mut ocr_results: ahash::AHashMap<u32, String> = ahash::AHashMap::with_capacity(total);
+    let mut structured_ocr_pages: ahash::AHashMap<u32, crate::types::internal::InternalDocument> =
+        ahash::AHashMap::with_capacity(total);
     let mut accumulated_llm_usage: Vec<crate::types::LlmUsage> = Vec::new();
     let mut accumulated_formulas: Vec<crate::types::Formula> = Vec::new();
     let mut accumulated_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
@@ -776,11 +814,13 @@ pub(crate) async fn extract_mixed_ocr_native(
                     })?;
                     let (text, _tables, _elements, doc, usage, page_texts, _rasters, formulas) = result?;
                     accumulated_llm_usage.extend(usage);
-                    if let Some(d) = doc {
+                    if let Some(mut d) = doc {
                         crate::core::diagnostics::dedup_extend_warnings(
                             &mut accumulated_warnings,
-                            d.processing_warnings,
+                            std::mem::take(&mut d.processing_warnings),
                         );
+                        normalize_mixed_ocr_document_page(&mut d, (page_idx + 1) as u32);
+                        structured_ocr_pages.insert((page_idx + 1) as u32, d);
                     }
                     for mut formula in formulas {
                         formula.page = (page_idx + 1) as u32;
@@ -810,11 +850,13 @@ pub(crate) async fn extract_mixed_ocr_native(
                         ))
                         .await?;
                     accumulated_llm_usage.extend(usage);
-                    if let Some(d) = doc {
+                    if let Some(mut d) = doc {
                         crate::core::diagnostics::dedup_extend_warnings(
                             &mut accumulated_warnings,
-                            d.processing_warnings,
+                            std::mem::take(&mut d.processing_warnings),
                         );
+                        normalize_mixed_ocr_document_page(&mut d, (*page_idx + 1) as u32);
+                        structured_ocr_pages.insert((*page_idx + 1) as u32, d);
                     }
                     for mut formula in formulas {
                         formula.page = (*page_idx + 1) as u32;
@@ -895,7 +937,7 @@ pub(crate) async fn extract_mixed_ocr_native(
         #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
         {
             let mut join_set = tokio::task::JoinSet::new();
-            for (page_idx, data, _w, _h) in &encoded {
+            for (page_idx, data, _width, _height) in &encoded {
                 let backend_clone = Arc::clone(backend);
                 let config_clone = ocr_config_owned.clone();
                 let data_clone = Arc::clone(data);
@@ -918,12 +960,22 @@ pub(crate) async fn extract_mixed_ocr_native(
                     formula.page = (page_idx + 1) as u32;
                     accumulated_formulas.push(formula);
                 }
+                if let Some(doc) = extraction_result.ocr_internal_document.take() {
+                    let height = encoded
+                        .iter()
+                        .find(|(encoded_page, ..)| *encoded_page == page_idx)
+                        .map_or(0, |(_, _, _, height)| *height);
+                    structured_ocr_pages.insert(
+                        (page_idx + 1) as u32,
+                        assemble_mixed_ocr_page_document(doc, (page_idx + 1) as u32, height),
+                    );
+                }
                 ocr_results.insert((page_idx + 1) as u32, extraction_result.content);
             }
         }
         #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
         {
-            for (page_idx, data, _w, _h) in &encoded {
+            for (page_idx, data, _width, height) in &encoded {
                 let mut extraction_result = backend.process_image(data.as_slice(), &ocr_config_owned).await?;
                 if let Some(usage) = extraction_result.llm_usage.take() {
                     accumulated_llm_usage.extend(usage);
@@ -931,6 +983,12 @@ pub(crate) async fn extract_mixed_ocr_native(
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
                     formula.page = (*page_idx + 1) as u32;
                     accumulated_formulas.push(formula);
+                }
+                if let Some(doc) = extraction_result.ocr_internal_document.take() {
+                    structured_ocr_pages.insert(
+                        (*page_idx + 1) as u32,
+                        assemble_mixed_ocr_page_document(doc, (*page_idx + 1) as u32, *height),
+                    );
                 }
                 ocr_results.insert((*page_idx + 1) as u32, extraction_result.content);
             }
@@ -945,11 +1003,13 @@ pub(crate) async fn extract_mixed_ocr_native(
     }
 
     let accepted_replacements = accepted_ocr_page_replacements(native_text, boundaries, &ocr_results);
+    structured_ocr_pages.retain(|page, _| accepted_replacements.contains_key(page));
     let result = apply_ocr_page_replacements(native_text, boundaries, &accepted_replacements);
 
     Ok((
         result,
         accepted_replacements,
+        structured_ocr_pages,
         accumulated_llm_usage,
         if capture_rasters { Some(captured_rasters) } else { None },
         accumulated_formulas,
@@ -1072,6 +1132,15 @@ pub(crate) fn merge_ocr_pages_into_internal_document(
     doc: &mut crate::types::internal::InternalDocument,
     ocr_results: &ahash::AHashMap<u32, String>,
 ) {
+    merge_structured_ocr_pages_into_internal_document(doc, ocr_results, &ahash::AHashMap::new());
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+pub(crate) fn merge_structured_ocr_pages_into_internal_document(
+    doc: &mut crate::types::internal::InternalDocument,
+    ocr_results: &ahash::AHashMap<u32, String>,
+    structured_pages: &ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
+) {
     let replacements: std::collections::BTreeMap<u32, &str> = ocr_results
         .iter()
         .filter_map(|(&page, text)| (!text.trim().is_empty()).then_some((page, text.as_str())))
@@ -1082,7 +1151,7 @@ pub(crate) fn merge_ocr_pages_into_internal_document(
 
     let containers = analyze_container_markers(&doc.elements);
     let anchors = replacement_anchors(&doc.elements, &containers.inferred_pages, &replacements);
-    let planned = plan_merged_elements(&doc.elements, &containers, &replacements, &anchors);
+    let planned = plan_merged_elements(&doc.elements, &containers, &replacements, structured_pages, &anchors);
     let (rebuilt, old_to_new) = rebuild_planned_elements(planned, doc.elements.len());
     remap_relationships(&mut doc.relationships, &old_to_new, &rebuilt);
     doc.elements = rebuilt;
@@ -1122,13 +1191,14 @@ fn plan_merged_elements(
     elements: &[crate::types::internal::InternalElement],
     containers: &ContainerMarkerAnalysis,
     replacements: &std::collections::BTreeMap<u32, &str>,
+    structured_pages: &ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
     anchors: &std::collections::BTreeMap<usize, Vec<(u32, &str)>>,
 ) -> Vec<PlannedOcrElement> {
     use crate::types::internal::ElementKind;
 
     let mut planned = Vec::with_capacity(elements.len() + replacements.len());
     for (old_index, element) in elements.iter().enumerate() {
-        append_ocr_replacements(&mut planned, anchors.get(&old_index));
+        append_ocr_replacements(&mut planned, anchors.get(&old_index), structured_pages);
         if containers.drop_marker[old_index] {
             continue;
         }
@@ -1152,16 +1222,54 @@ fn plan_merged_elements(
             page,
         });
     }
-    append_ocr_replacements(&mut planned, anchors.get(&elements.len()));
+    append_ocr_replacements(&mut planned, anchors.get(&elements.len()), structured_pages);
     planned
 }
 
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-fn append_ocr_replacements(planned: &mut Vec<PlannedOcrElement>, replacements: Option<&Vec<(u32, &str)>>) {
+fn append_ocr_replacements(
+    planned: &mut Vec<PlannedOcrElement>,
+    replacements: Option<&Vec<(u32, &str)>>,
+    structured_pages: &ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
+) {
     use crate::types::internal::{ElementKind, InternalElement};
     use crate::types::ocr_elements::OcrElementLevel;
 
     for &(page, text) in replacements.into_iter().flatten() {
+        let structured_elements = structured_pages.get(&page).and_then(|doc| {
+            // TODO: Reindex structured page table/image collections into the parent before using
+            // their elements; until then, flat replacement preserves their rendered content. ~keep
+            let has_unmerged_assets = !doc.tables.is_empty()
+                || !doc.images.is_empty()
+                || doc
+                    .elements
+                    .iter()
+                    .any(|element| matches!(element.kind, ElementKind::Table { .. } | ElementKind::Image { .. }));
+            if has_unmerged_assets {
+                return None;
+            }
+
+            Some(
+                doc.elements
+                    .iter()
+                    .filter(|element| !matches!(element.kind, ElementKind::PageBreak))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        });
+        if let Some(elements) =
+            structured_elements.filter(|elements| elements.iter().any(|element| !element.text.trim().is_empty()))
+        {
+            planned.extend(elements.into_iter().map(|mut element| {
+                element.page = Some(page);
+                PlannedOcrElement {
+                    element,
+                    old_index: None,
+                    page: Some(page),
+                }
+            }));
+            continue;
+        }
         for paragraph in text.split("\n\n").map(str::trim).filter(|text| !text.is_empty()) {
             let element = InternalElement::text(
                 ElementKind::OcrText {
@@ -1299,7 +1407,15 @@ fn analyze_container_markers(elements: &[crate::types::internal::InternalElement
     analysis
 }
 
-#[cfg(feature = "layout-detection")]
+// Mirror of `crate::ocr::OCR_PROCESSED_IMAGE_{WIDTH,HEIGHT}_METADATA_KEY`, defined
+// locally because this PDF OCR path also compiles under `ocr-pipeline` (VLM OCR, e.g.
+// the `binstall` CLI) where the `ocr` module — gated on `ocr`/`ocr-wasm` — is absent.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+const OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY: &str = "ocr_processed_image_width";
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+const OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY: &str = "ocr_processed_image_height";
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     let value = value.as_f64()?;
     if !value.is_finite() || value <= 0.0 || value > u32::MAX as f64 || value.fract() != 0.0 {
@@ -1308,15 +1424,15 @@ fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     Some(value as u32)
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<(u32, u32)> {
     let width = metadata
         .additional
-        .get(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY)
+        .get(OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY)
         .and_then(valid_ocr_layout_dimension);
     let height = metadata
         .additional
-        .get(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY)
+        .get(OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY)
         .and_then(valid_ocr_layout_dimension);
 
     match (width, height) {
@@ -1325,7 +1441,7 @@ fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<
     }
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn resolved_ocr_layout_dimensions(
     metadata: &crate::types::Metadata,
     render_width: u32,
@@ -1562,6 +1678,38 @@ fn transform_ocr_elements_to_render_space(
         .collect()
 }
 
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "layout-detection"))]
+fn assemble_ocr_page_paragraphs(
+    doc: &crate::types::internal::InternalDocument,
+    page_height: u32,
+    detection: Option<&crate::layout::DetectionResult>,
+) -> Vec<crate::pdf::structure::types::PdfParagraph> {
+    #[cfg(feature = "ocr")]
+    if let Some(detection) = detection {
+        let hints = super::layout_hints::detection_to_layout_hints_pixel_space(detection, page_height as f32);
+        return crate::pdf::structure::adapters::ocr_doc_to_layout_paragraphs(doc, page_height, &hints, 0.5, 0.2);
+    }
+    #[cfg(not(feature = "ocr"))]
+    let _ = detection;
+
+    crate::pdf::structure::adapters::ocr_doc_to_paragraphs(doc, page_height)
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+fn fill_unstructured_ocr_pages(
+    page_paragraphs: &mut [Option<Vec<crate::pdf::structure::types::PdfParagraph>>],
+    page_texts: &[String],
+) {
+    for (page_index, paragraphs) in page_paragraphs.iter_mut().enumerate() {
+        if paragraphs.as_ref().is_none_or(Vec::is_empty) {
+            let fallback = crate::pdf::structure::adapters::ocr_text_to_paragraphs(&page_texts[page_index]);
+            if !fallback.is_empty() {
+                *paragraphs = Some(fallback);
+            }
+        }
+    }
+}
+
 /// Extract text from PDF using OCR on pre-rendered page images.
 ///
 /// When `layout_detections` are provided (pixel-space, from the same images),
@@ -1621,27 +1769,17 @@ pub(crate) async fn extract_with_ocr(
         registry.get(&base_ocr_config.backend)?
     };
 
-    #[cfg(feature = "layout-detection")]
-    let layout_ocr_config;
+    let structured_ocr_config;
     let ocr_config = {
+        let cfg = ensure_elements_enabled(base_ocr_config);
         #[cfg(feature = "layout-detection")]
-        {
-            let should_inject = layout_detections.is_some() || backend.emits_structured_markdown();
-            if should_inject {
-                layout_ocr_config = {
-                    let mut cfg = ensure_elements_enabled(base_ocr_config);
-                    cfg = inject_layout_config_to_backend(&cfg, config);
-                    cfg
-                };
-                &layout_ocr_config
-            } else {
-                base_ocr_config
-            }
-        }
-        #[cfg(not(feature = "layout-detection"))]
-        {
-            base_ocr_config
-        }
+        let cfg = if layout_detections.is_some() || backend.emits_structured_markdown() {
+            inject_layout_config_to_backend(&cfg, config)
+        } else {
+            cfg
+        };
+        structured_ocr_config = cfg;
+        &structured_ocr_config
     };
 
     #[cfg(not(feature = "layout-detection"))]
@@ -1732,7 +1870,6 @@ pub(crate) async fn extract_with_ocr(
     };
 
     let mut page_texts = vec![String::new(); total_pages];
-    #[cfg(feature = "layout-detection")]
     let mut all_page_paragraphs: Vec<Option<Vec<crate::pdf::structure::types::PdfParagraph>>> = vec![None; total_pages];
     #[allow(unused_mut)]
     let mut collected_tables: Vec<crate::types::Table> = Vec::new();
@@ -1933,11 +2070,14 @@ pub(crate) async fn extract_with_ocr(
             }
 
             #[cfg(feature = "layout-detection")]
-            if let Some(detections) = layout_detections
-                && let Some(ref elements) = ocr_result.ocr_elements
-                && !elements.is_empty()
+            if ocr_result.ocr_internal_document.is_some()
+                || ocr_result
+                    .ocr_elements
+                    .as_ref()
+                    .is_some_and(|elements| !elements.is_empty())
             {
-                let detection = detections.get(page_idx);
+                let elements = ocr_result.ocr_elements.as_deref().unwrap_or_default();
+                let detection = layout_detections.and_then(|detections| detections.get(page_idx));
 
                 let ocr_render_width = encoded_batch[offset].2;
                 let ocr_render_height = encoded_batch[offset].3;
@@ -1991,21 +2131,8 @@ pub(crate) async fn extract_with_ocr(
                 }
 
                 if let Some(ref ocr_doc) = ocr_result.ocr_internal_document {
-                    let paragraphs = if let Some(ref scaled_det) = ocr_scaled_detection {
-                        let hints = super::layout_hints::detection_to_layout_hints_pixel_space(
-                            scaled_det,
-                            ocr_layout_height as f32,
-                        );
-                        crate::pdf::structure::adapters::ocr_doc_to_layout_paragraphs(
-                            ocr_doc,
-                            ocr_layout_height,
-                            &hints,
-                            0.5,
-                            0.2,
-                        )
-                    } else {
-                        crate::pdf::structure::adapters::ocr_doc_to_paragraphs(ocr_doc, ocr_layout_height)
-                    };
+                    let paragraphs =
+                        assemble_ocr_page_paragraphs(ocr_doc, ocr_layout_height, ocr_scaled_detection.as_ref());
 
                     tracing::debug!(
                         page = page_idx + 1,
@@ -2024,6 +2151,16 @@ pub(crate) async fn extract_with_ocr(
                 }
                 page_texts[page_idx] = ocr_result.content;
                 continue;
+            }
+
+            #[cfg(not(feature = "layout-detection"))]
+            if let Some(ref ocr_doc) = ocr_result.ocr_internal_document {
+                let ocr_render_width = encoded_batch[offset].2;
+                let ocr_render_height = encoded_batch[offset].3;
+                let (_, ocr_layout_height) =
+                    resolved_ocr_layout_dimensions(&ocr_result.metadata, ocr_render_width, ocr_render_height);
+                let paragraphs = crate::pdf::structure::adapters::ocr_doc_to_paragraphs(ocr_doc, ocr_layout_height);
+                all_page_paragraphs[page_idx] = Some(paragraphs);
             }
 
             let _ = page_idx;
@@ -2059,15 +2196,23 @@ pub(crate) async fn extract_with_ocr(
         result.push_str(text);
     }
 
-    #[cfg(feature = "layout-detection")]
+    fill_unstructured_ocr_pages(&mut all_page_paragraphs, &page_texts);
+
     let ocr_doc = {
-        let has_structured = all_page_paragraphs.iter().any(|p| p.is_some());
+        let has_structured = all_page_paragraphs
+            .iter()
+            .any(|paragraphs| paragraphs.as_ref().is_some_and(|paragraphs| !paragraphs.is_empty()));
         if has_structured {
-            let mut pages: Vec<Vec<crate::pdf::structure::types::PdfParagraph>> = all_page_paragraphs
+            let pages: Vec<Vec<crate::pdf::structure::types::PdfParagraph>> = all_page_paragraphs
                 .into_iter()
                 .map(|opt| opt.unwrap_or_default())
                 .collect();
-            crate::pdf::structure::adapters::promote_anchored_ordered_list_sequences(&mut pages);
+            #[cfg(feature = "layout-detection")]
+            let pages = {
+                let mut pages = pages;
+                crate::pdf::structure::adapters::promote_anchored_ordered_list_sequences(&mut pages);
+                pages
+            };
             Some(crate::pdf::structure::assemble_internal_document(
                 pages,
                 &collected_tables,
@@ -2077,22 +2222,6 @@ pub(crate) async fn extract_with_ocr(
         } else {
             None
         }
-    };
-    #[cfg(not(feature = "layout-detection"))]
-    let ocr_doc: Option<crate::types::internal::InternalDocument> = {
-        let mut doc = crate::types::internal::InternalDocument::new("pdf");
-        for paragraph in result.split("\n\n") {
-            let trimmed = paragraph.trim();
-            if !trimmed.is_empty() {
-                doc.push_element(crate::types::internal::InternalElement::text(
-                    crate::types::internal::ElementKind::Paragraph,
-                    trimmed,
-                    0,
-                ));
-            }
-        }
-        doc.tables = collected_tables.clone();
-        Some(doc)
     };
 
     #[cfg(feature = "pdf")]
@@ -2645,11 +2774,11 @@ pub(crate) async fn run_ocr_pipeline(
     }
 }
 
-/// Clone an OCR config with word-level elements forced on for layout consumers.
+/// Clone an OCR config with word-level elements forced on for structure consumers.
 ///
-/// Layout assembly requires word geometry for table cells while semantic paragraph
-/// assembly continues to consume the backend's line-only internal document.
-#[cfg(all(feature = "ocr", feature = "layout-detection"))]
+/// Table recognition requires word geometry while semantic paragraph assembly
+/// consumes the backend's line-only internal document even without ML layout.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn ensure_elements_enabled(config: &crate::core::config::ocr::OcrConfig) -> crate::core::config::ocr::OcrConfig {
     let mut config = config.clone();
     match config.element_config.as_mut() {
@@ -3244,6 +3373,88 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn test_structured_mixed_merge_prefers_page_document_and_keeps_text_fallback() {
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+
+        let mut native = InternalDocument::new("pdf");
+        native.push_element(InternalElement::text(ElementKind::Paragraph, "native one", 0).with_page(1));
+        native.push_element(InternalElement::text(ElementKind::Paragraph, "stale two", 0).with_page(2));
+        native.push_element(InternalElement::text(ElementKind::Paragraph, "stale three", 0).with_page(3));
+
+        let mut structured_page = InternalDocument::new("pdf");
+        structured_page.push_element(
+            InternalElement::text(ElementKind::Heading { level: 2 }, "Structured OCR heading", 0).with_page(1),
+        );
+        let empty_structured_page = InternalDocument::new("pdf");
+        let structured_pages = ahash::AHashMap::from_iter([(2, structured_page), (3, empty_structured_page)]);
+        let replacements =
+            ahash::AHashMap::from_iter([(2, "flat OCR two".to_string()), (3, "fallback OCR three".to_string())]);
+
+        merge_structured_ocr_pages_into_internal_document(&mut native, &replacements, &structured_pages);
+
+        assert!(native.elements.iter().any(|element| {
+            element.text == "Structured OCR heading"
+                && element.page == Some(2)
+                && matches!(element.kind, ElementKind::Heading { level: 2 })
+        }));
+        assert!(!native.elements.iter().any(|element| element.text == "flat OCR two"));
+        assert!(native.elements.iter().any(|element| {
+            element.text == "fallback OCR three"
+                && element.page == Some(3)
+                && matches!(element.kind, ElementKind::OcrText { .. })
+        }));
+    }
+
+    #[test]
+    fn test_structured_mixed_merge_uses_flat_fallback_for_pages_with_assets() {
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+
+        let mut native = InternalDocument::new("pdf");
+        native.push_element(InternalElement::text(ElementKind::Paragraph, "stale page", 0).with_page(2));
+
+        let mut structured_page = InternalDocument::new("pdf");
+        structured_page.push_element(
+            InternalElement::text(ElementKind::Heading { level: 2 }, "heading before table", 0).with_page(2),
+        );
+        structured_page.push_element(InternalElement::text(ElementKind::Table { table_index: 0 }, "", 0).with_page(2));
+        structured_page.tables.push(crate::types::Table {
+            markdown: "| value |\n| --- |\n| retained |".to_string(),
+            page_number: 2,
+            ..Default::default()
+        });
+
+        let structured_pages = ahash::AHashMap::from_iter([(2, structured_page)]);
+        let replacements = ahash::AHashMap::from_iter([(
+            2,
+            "heading before table\n\n| value |\n| --- |\n| retained |".to_string(),
+        )]);
+
+        merge_structured_ocr_pages_into_internal_document(&mut native, &replacements, &structured_pages);
+
+        assert!(native.elements.iter().any(|element| {
+            element.text.contains("| retained |") && matches!(element.kind, ElementKind::OcrText { .. })
+        }));
+        assert!(
+            !native
+                .elements
+                .iter()
+                .any(|element| matches!(element.kind, ElementKind::Heading { .. }))
+        );
+    }
+
+    #[test]
+    fn test_empty_structured_page_keeps_recovered_flat_ocr_text() {
+        let mut pages = vec![Some(Vec::new())];
+        let page_texts = vec!["Recovered embedded image text".to_string()];
+
+        fill_unstructured_ocr_pages(&mut pages, &page_texts);
+
+        let paragraphs = pages[0].as_ref().expect("recovered page must be represented");
+        assert_eq!(paragraphs.len(), 1);
+        assert_eq!(paragraphs[0].text, "Recovered embedded image text");
     }
 
     #[test]
@@ -4627,9 +4838,10 @@ Buffers:           50000 kB
         assert_eq!(result.0, "native");
         assert!(result.1.is_empty());
         assert!(result.2.is_empty());
-        assert!(result.3.is_none());
-        assert!(result.4.is_empty());
+        assert!(result.3.is_empty());
+        assert!(result.4.is_none());
         assert!(result.5.is_empty());
+        assert!(result.6.is_empty());
     }
 
     /// Minimal 2-page PDF (no content streams, just two bare `/Page` objects) for
@@ -4869,7 +5081,7 @@ Buffers:           50000 kB
         let result = extract_mixed_ocr_native(native_text, &boundaries, &[1], &pdf, &config, None)
             .await
             .unwrap();
-        let warnings = result.5;
+        let warnings = result.6;
 
         assert!(
             !warnings.is_empty(),

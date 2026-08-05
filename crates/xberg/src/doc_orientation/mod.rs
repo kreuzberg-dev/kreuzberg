@@ -10,7 +10,7 @@ pub use types::OrientationResult;
 
 #[cfg(auto_rotate)]
 pub(crate) mod detector;
-#[cfg(all(auto_rotate, not(target_arch = "wasm32"), feature = "ocr"))]
+#[cfg(all(auto_rotate, not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 pub(crate) use detector::resolve_cache_dir;
 #[cfg(auto_rotate)]
 pub use detector::{DocOrientationDetector, MIN_CONFIDENCE};

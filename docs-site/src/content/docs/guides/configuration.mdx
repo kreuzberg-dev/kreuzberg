@@ -182,7 +182,7 @@ When no `--config` path is supplied, Xberg walks up from the current working dir
 | Variable | Overrides |
 | --- | --- |
 | `XBERG_OCR_LANGUAGE` | OCR language (ISO 639 code, e.g. `eng`, `deu`) |
-| `XBERG_OCR_BACKEND` | OCR backend (`tesseract`, `paddle-ocr`, `vlm`) |
+| `XBERG_OCR_BACKEND` | OCR backend (`tesseract`, `paddle-ocr`, `sceptre`, `vlm`) |
 | `XBERG_DISABLE_OCR` | Disable OCR entirely (`true`/`false`) |
 | `XBERG_CHUNKING_MAX_CHARS` | Maximum characters per chunk |
 | `XBERG_CHUNKING_MAX_OVERLAP` | Overlap between chunks |
@@ -254,6 +254,31 @@ The `serve` and `mcp` commands add environment variables on top of the loaded co
 </Tabs>
 
 For backend selection and language packs, see [OCR Guide](/guides/ocr/). For fine-grained Tesseract tuning, see [TesseractConfig Reference](/reference/configuration/#tesseractconfig).
+
+For Sceptre, use the backend name `sceptre` and place its sections directly in `backend_options`:
+
+```toml title="xberg.toml"
+[ocr]
+backend = "sceptre"
+language = ["eng", "deu"]
+
+[ocr.backend_options.recognition]
+batch_size = 4
+
+[ocr.backend_options.concurrency]
+max_threads = 2
+```
+
+Do not nest these options under `backend_options.sceptre`. Custom Rust builds use `sceptre-ocr` for the ONNX Runtime
+desktop/server backend or `sceptre-ocr-tract` for Android and iOS. WebAssembly support uses the opt-in Sceptre worker
+build/API because the model and tract runtime size are not part of the default `wasm-target` bundle.
+Use `ocr.language` for language selection; it overrides `backend_options.model.languages`. Leave
+`backend_options.model.backend` unset so Xberg can select ORT or tract for the target. The supported option paths are
+`backend_options.detection.*`, `backend_options.recognition.*`, `backend_options.concurrency.max_threads`,
+`backend_options.model.cache_dir`, `backend_options.model.registry_owner`, `backend_options.model.detector_path`, and
+`backend_options.model.recognizer_path`. `cache_dir` and automatic model download apply only to desktop/server ORT
+builds. Android and iOS exclude the downloader; both model paths are required and must reference application-resolved
+bundle or asset files.
 
 ### Chunking for RAG
 

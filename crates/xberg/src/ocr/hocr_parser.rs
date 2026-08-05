@@ -20,6 +20,15 @@ use crate::types::extraction::BoundingBox;
 use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
 use crate::types::ocr_elements::{OcrBoundingGeometry, OcrConfidence, OcrElementLevel};
 
+/// Attribute used to retain the logical hOCR block enclosing an `ocr_par`.
+pub(crate) const HOCR_BLOCK_ID_ATTRIBUTE: &str = "hocr_block_id";
+
+#[derive(Debug)]
+struct HocrBlockExtent {
+    end: usize,
+    id: String,
+}
+
 /// Parse hOCR HTML into an `InternalDocument` with full spatial and confidence metadata.
 ///
 /// This is the primary entry point. It replaces the older `convert_hocr_to_markdown` path
@@ -49,6 +58,7 @@ pub(crate) fn parse_hocr_to_internal_document(hocr_html: &str) -> InternalDocume
 
     let bytes = hocr_html.as_bytes();
     let mut pos = 0;
+    let mut block_extents = Vec::<HocrBlockExtent>::new();
 
     while pos < bytes.len() {
         let Some(tag_start) = memchr(b'<', &bytes[pos..]).map(|i| pos + i) else {
@@ -59,6 +69,7 @@ pub(crate) fn parse_hocr_to_internal_document(hocr_html: &str) -> InternalDocume
         };
         let tag_content = &hocr_html[tag_start + 1..tag_end];
         pos = tag_end + 1;
+        block_extents.retain(|extent| tag_start < extent.end);
 
         if tag_content.starts_with('/') || tag_content.ends_with('/') {
             continue;
@@ -80,6 +91,20 @@ pub(crate) fn parse_hocr_to_internal_document(hocr_html: &str) -> InternalDocume
             continue;
         }
 
+        if has_class(tag_content, "ocr_carea") || has_class(tag_content, "ocrx_block") {
+            let tag_name = tag_content
+                .split_whitespace()
+                .next()
+                .unwrap_or("div")
+                .to_ascii_lowercase();
+            let end = skip_to_matching_close(hocr_html, pos, &tag_name);
+            let id = extract_attribute(tag_content, "id")
+                .filter(|id| !id.is_empty())
+                .unwrap_or_else(|| format!("hocr-block-{tag_start}-{end}"));
+            block_extents.push(HocrBlockExtent { end, id });
+            continue;
+        }
+
         if is_paragraph_tag(tag_content) {
             let par_tag_name = tag_content
                 .split_whitespace()
@@ -90,7 +115,12 @@ pub(crate) fn parse_hocr_to_internal_document(hocr_html: &str) -> InternalDocume
                 parse_paragraph(hocr_html, pos, last_page.unwrap_or(1), element_index, &par_tag_name);
             pos = end_pos;
 
-            if let Some(elem) = paragraph {
+            if let Some(mut elem) = paragraph {
+                if let Some(block) = block_extents.last() {
+                    elem.attributes
+                        .get_or_insert_with(Default::default)
+                        .insert(HOCR_BLOCK_ID_ATTRIBUTE.to_string(), block.id.clone());
+                }
                 element_index += 1;
                 doc.push_element(elem);
             }
@@ -420,17 +450,23 @@ fn is_paragraph_tag(tag_content: &str) -> bool {
 
 /// Extract the `title="..."` attribute value from raw tag content.
 fn extract_title_attr(tag_content: &str) -> String {
-    if let Some(title_start) = tag_content.find("title=") {
-        let rest = &tag_content[title_start + 6..];
+    extract_attribute(tag_content, "title").unwrap_or_default()
+}
+
+/// Extract a quoted attribute value from raw tag content.
+fn extract_attribute(tag_content: &str, attribute: &str) -> Option<String> {
+    let marker = format!("{attribute}=");
+    if let Some(attribute_start) = tag_content.find(&marker) {
+        let rest = &tag_content[attribute_start + marker.len()..];
         let quote = rest.as_bytes().first().copied().unwrap_or(b'"');
         if quote == b'"' || quote == b'\'' {
             let inner = &rest[1..];
             if let Some(end) = inner.find(quote as char) {
-                return inner[..end].to_string();
+                return Some(inner[..end].to_string());
             }
         }
     }
-    String::new()
+    None
 }
 
 /// Extract all text content inside an element, stripping nested tags.
@@ -1157,6 +1193,35 @@ mod tests {
         );
         assert_eq!(text_elements[0].text, "Styled");
         assert_eq!(text_elements[1].text, "Should be separate");
+    }
+
+    #[test]
+    fn test_paragraphs_retain_enclosing_hocr_block_id() {
+        let hocr = r#"<div class="ocr_page" title="ppageno 0">
+  <div class="ocr_carea" id="block_1_1">
+    <div class="nested"><p class="ocr_par"><span class="ocrx_word">First</span></p></div>
+    <p class="ocr_par"><span class="ocrx_word">Second</span></p>
+  </div>
+  <div class="ocr_carea" id="block_1_2">
+    <p class="ocr_par"><span class="ocrx_word">Third</span></p>
+  </div>
+</div>"#;
+
+        let doc = parse_hocr_to_internal_document(hocr);
+        let block_ids = doc
+            .elements
+            .iter()
+            .filter(|element| matches!(element.kind, ElementKind::OcrText { .. }))
+            .map(|element| {
+                element
+                    .attributes
+                    .as_ref()
+                    .and_then(|attributes| attributes.get(HOCR_BLOCK_ID_ATTRIBUTE))
+                    .map(String::as_str)
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(block_ids, vec![Some("block_1_1"), Some("block_1_1"), Some("block_1_2")]);
     }
 
     #[test]

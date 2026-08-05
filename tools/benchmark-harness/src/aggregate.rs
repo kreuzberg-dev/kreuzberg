@@ -2862,6 +2862,52 @@ mod tests {
         );
     }
 
+    /// Mirrors runner.rs's quality-scoring-loop silent-zero reclassification: a result that
+    /// started `success=true` / `ErrorKind::None` but scored `f1_score_text == 0.0` against a
+    /// non-empty ground truth is flipped to `success=false` / `ErrorKind::EmptyContent` before
+    /// it reaches aggregation. Aggregation must treat that flipped result exactly like any other
+    /// framework-fault failure: excluded from quality percentiles/rankings but counted against
+    /// coverage/success-rate stats — never pooled as a legitimate 0.0 quality sample.
+    #[test]
+    fn reclassified_zero_overlap_result_is_excluded_from_quality_and_counted_as_failure() {
+        let success = result_with_quality("fw", "pdf", 0.9, true);
+        let mut reclassified = create_test_result("fw", "pdf", OcrStatus::NotUsed, 100, 1_000_000.0, 10_000_000);
+        reclassified.success = false;
+        reclassified.error_kind = ErrorKind::EmptyContent;
+        reclassified.quality = Some(crate::types::QualityMetrics {
+            f1_score_text: 0.0,
+            f1_score_numeric: 0.0,
+            f1_score_layout: Some(0.0),
+            quality_score: 0.0,
+            missing_tokens: vec![],
+            extra_tokens: vec![],
+            correct: false,
+        });
+
+        // FailureCounts::record treats the flipped result as a framework-fault failure.
+        let mut counts = FailureCounts::default();
+        counts.record(&reclassified);
+        assert_eq!(counts.empty_content, 1);
+        assert_eq!(counts.framework_fault_total, 1);
+        assert_eq!(counts.infra_total, 0);
+
+        let refs = vec![&success, &reclassified];
+        let percentiles = calculate_percentiles(&refs);
+
+        // Coverage/failure stats: the flipped result counts against the success rate.
+        assert_eq!(percentiles.empty_content, 1);
+        assert_eq!(percentiles.success_rate_percent, 50.0);
+
+        // Quality percentiles: only the genuine success contributes; the flipped 0.0 sample is
+        // excluded rather than pooled as a legitimate quality score.
+        let quality = percentiles.quality.expect("successful quality must be reported");
+        assert_eq!(quality.quality_score_p50, 0.9);
+
+        // Quality ranking is coverage-adjusted: 0.9 * (1 accountable success / 2 accountable samples).
+        let aggregated = aggregate_new_format(&[success, reclassified]);
+        assert!((ranking_value(&aggregated.comparison.quality_ranking_markdown, "fw") - 0.45).abs() < 1e-9);
+    }
+
     /// The cohort failure roll-up must sum errors to the cohort total and break them out per
     /// framework-mode and per file type, keeping the framework-fault vs infrastructure split.
     #[test]

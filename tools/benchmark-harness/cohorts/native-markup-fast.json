@@ -11,6 +11,14 @@
     "typst_simple.json",
     "rst/restructured_text.json",
     "org/tables.json",
-    "docbook_chapter.json"
+    "docbook_chapter.json",
+    "html/payments_api_guide.json",
+    "latex/cache_layer_release_notes.json",
+    "rst/cli_quickstart_tutorial.json",
+    "org/wire_protocol_spec.json",
+    "docbook/deployment_faq.json",
+    "typst/rate_limiter_design.json",
+    "md/observability_readme.json",
+    "rst/sdk_changelog.json"
   ]
 }

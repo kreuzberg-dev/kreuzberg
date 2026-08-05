@@ -11,6 +11,7 @@ use crate::{
     types::{BatchCapability, BenchmarkResult, OutputFormat},
 };
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Duration;
 
@@ -40,6 +41,207 @@ pub(crate) fn is_valid_ocr_language_code(code: &str) -> bool {
 pub(crate) fn canonical_ocr_language_arg(language: &str) -> Option<String> {
     let languages = canonicalize_ocr_languages(language);
     (!languages.is_empty()).then(|| languages.join("+"))
+}
+
+/// How an adapter accepts fixture-specific OCR language requests.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OcrLanguagePolicy {
+    /// The adapter exposes no language selector; only the backend default is eligible.
+    #[default]
+    DefaultOnly,
+    /// Each document carries any valid explicit language configuration.
+    AnyPerDocument,
+    /// One language configuration applies to an entire native batch invocation.
+    AnyBatchGlobal,
+    /// Sceptre's supported script groups, configured independently per document.
+    SceptrePerDocument,
+}
+
+impl OcrLanguagePolicy {
+    pub fn supports(self, language: Option<&str>) -> bool {
+        let Some(language) = language else {
+            return true;
+        };
+        if self == Self::DefaultOnly {
+            return false;
+        }
+        if self != Self::SceptrePerDocument {
+            return canonical_ocr_language_arg(language).is_some();
+        }
+
+        let groups: Option<Vec<usize>> = canonicalize_ocr_languages(language)
+            .iter()
+            .map(|code| sceptre_language_group(code))
+            .collect();
+        let Some(groups) = groups.filter(|groups| !groups.is_empty()) else {
+            return false;
+        };
+        let mut non_english = groups.into_iter().filter(|group| *group != 0);
+        let Some(first) = non_english.next() else {
+            return true;
+        };
+        non_english.all(|group| group == first)
+    }
+
+    pub fn requires_homogeneous_batch_language(self) -> bool {
+        self == Self::AnyBatchGlobal
+    }
+
+    pub fn partition_key(self, language: Option<&str>) -> Option<String> {
+        language.and_then(canonical_ocr_language_arg)
+    }
+
+    pub fn batch_partition_count(self, languages: &[Option<String>], batch_size: usize) -> usize {
+        if batch_size == 0 {
+            return 0;
+        }
+        if !self.requires_homogeneous_batch_language() {
+            return languages.len().div_ceil(batch_size);
+        }
+
+        let mut group_counts: Vec<(Option<String>, usize)> = Vec::new();
+        for language in languages {
+            let key = self.partition_key(language.as_deref());
+            if let Some((_, count)) = group_counts.iter_mut().find(|(candidate, _)| *candidate == key) {
+                *count += 1;
+            } else {
+                group_counts.push((key, 1));
+            }
+        }
+        group_counts
+            .into_iter()
+            .map(|(_, count)| count.div_ceil(batch_size))
+            .sum()
+    }
+}
+
+/// Declares the OCR-language contract for a benchmark framework identity.
+///
+/// Keep artifact validation and runtime adapter construction on this shared policy so release
+/// eligibility cannot drift from the rows the runner actually emits. ~keep
+pub fn declared_ocr_language_policy(framework: &str) -> OcrLanguagePolicy {
+    if framework.contains("-sceptre-") {
+        return OcrLanguagePolicy::SceptrePerDocument;
+    }
+    if framework.starts_with("xberg-") {
+        return OcrLanguagePolicy::AnyPerDocument;
+    }
+
+    match framework.strip_suffix("-batch").unwrap_or(framework) {
+        "docling" | "mineru" => OcrLanguagePolicy::AnyBatchGlobal,
+        "tika" | "unstructured" => OcrLanguagePolicy::AnyPerDocument,
+        _ => OcrLanguagePolicy::DefaultOnly,
+    }
+}
+
+fn sceptre_language_group(language: &str) -> Option<usize> {
+    let normalized = language.trim().to_ascii_lowercase().replace('_', "-");
+    SCEPTRE_LANGUAGE_GROUPS
+        .iter()
+        .position(|group| group.contains(&normalized.as_str()))
+}
+
+// Mirrors Xberg's private Sceptre language routing so benchmark eligibility matches execution.
+const SCEPTRE_ENGLISH_LANGUAGES: &[&str] = &["english", "en", "eng"];
+const SCEPTRE_LATIN_LANGUAGES: &[&str] = &[
+    "latin", "af", "afr", "az", "aze", "bs", "bos", "cs", "ces", "cze", "cy", "cym", "wel", "da", "dan", "de", "deu",
+    "ger", "es", "spa", "et", "est", "fr", "fra", "fre", "ga", "gle", "hr", "hrv", "hu", "hun", "id", "ind", "is",
+    "isl", "ice", "it", "ita", "ku", "kur", "la", "lat", "lt", "lit", "lv", "lav", "mi", "mri", "mao", "ms", "msa",
+    "may", "mt", "mlt", "nl", "nld", "dut", "no", "nor", "oc", "oci", "pi", "pli", "pl", "pol", "pt", "por", "ro",
+    "ron", "rum", "rs-latin", "sr-latn", "srp-latn", "sk", "slk", "slo", "sl", "slv", "sq", "sqi", "alb", "sv", "swe",
+    "sw", "swa", "tl", "fil", "tr", "tur", "uz", "uzb", "vi", "vie",
+];
+const SCEPTRE_CHINESE_LANGUAGES: &[&str] = &[
+    "chinese-simplified",
+    "simplified-chinese",
+    "ch-sim",
+    "zh",
+    "zh-cn",
+    "zh-hans",
+    "zho",
+    "chi",
+    "chs",
+];
+const SCEPTRE_JAPANESE_LANGUAGES: &[&str] = &["japanese", "ja", "jpn", "jpn-vert"];
+const SCEPTRE_KOREAN_LANGUAGES: &[&str] = &["korean", "ko", "kor"];
+const SCEPTRE_TELUGU_LANGUAGES: &[&str] = &["telugu", "te", "tel"];
+const SCEPTRE_KANNADA_LANGUAGES: &[&str] = &["kannada", "kn", "kan"];
+const SCEPTRE_CYRILLIC_LANGUAGES: &[&str] = &[
+    "cyrillic",
+    "ru",
+    "rus",
+    "rs-cyrillic",
+    "sr-cyrl",
+    "srp-cyrl",
+    "be",
+    "bel",
+    "bg",
+    "bul",
+    "uk",
+    "ukr",
+    "mn",
+    "mon",
+    "abq",
+    "ady",
+    "kbd",
+    "ava",
+    "dar",
+    "inh",
+    "che",
+    "lbe",
+    "lez",
+    "tab",
+    "tjk",
+    "tg",
+    "tgk",
+];
+const SCEPTRE_LANGUAGE_GROUPS: &[&[&str]] = &[
+    SCEPTRE_ENGLISH_LANGUAGES,
+    SCEPTRE_LATIN_LANGUAGES,
+    SCEPTRE_CHINESE_LANGUAGES,
+    SCEPTRE_JAPANESE_LANGUAGES,
+    SCEPTRE_KOREAN_LANGUAGES,
+    SCEPTRE_TELUGU_LANGUAGES,
+    SCEPTRE_KANNADA_LANGUAGES,
+    SCEPTRE_CYRILLIC_LANGUAGES,
+];
+
+/// PSM xberg auto-selects for standalone (whole-image) Tesseract OCR when no explicit `psm` is
+/// configured — the documented production value of the private `WHOLE_IMAGE_TESSERACT_PSM` in
+/// `crates/xberg/src/extractors/image.rs`.
+///
+/// ~keep: `crates/xberg`'s constant is a private `const`, not `pub`, so it cannot be imported
+/// here — this is a hand-maintained mirror, NOT verified against xberg's source at build or test
+/// time. It MUST be kept in sync by hand whenever `crates/xberg/src/extractors/image.rs` changes
+/// `WHOLE_IMAGE_TESSERACT_PSM`. A benchmark that materializes `tesseract_config` to disable the
+/// OCR result cache (see `comparison.rs::finalize_timed_ocr_result_cache`,
+/// `batch_diagnostic.rs::disable_ocr_result_caches`, and
+/// `adapters/subprocess.rs::materialize_tesseract_ocr`) must pin PSM to this same value, or it
+/// silently regresses to `TesseractConfig::default()`'s PSM 3 and stops measuring xberg's real
+/// production default.
+pub(crate) const XBERG_WHOLE_IMAGE_TESSERACT_PSM: i32 = 11;
+
+/// PSM xberg auto-selects for a vertical-script Tesseract language (any `*_vert` code, e.g.
+/// `jpn_vert`) — the documented production value of the private `VERTICAL_BLOCK_TESSERACT_PSM` in
+/// `crates/xberg/src/extractors/image.rs`. ~keep, same hand-maintained-mirror rationale as
+/// [`XBERG_WHOLE_IMAGE_TESSERACT_PSM`].
+pub(crate) const XBERG_VERTICAL_BLOCK_TESSERACT_PSM: i32 = 5;
+
+/// Mirrors `apply_default_whole_image_tesseract_psm`'s vertical-language detection in
+/// `crates/xberg/src/extractors/image.rs`: PSM 5 if any `+`-joined language code ends in
+/// `_vert` (case-insensitive), else PSM 11. ~keep: MUST track that function by hand — it is not
+/// `pub`, so this is not shared-source-backed either.
+pub(crate) fn xberg_default_tesseract_psm(languages: &[String]) -> i32 {
+    let has_vertical_language = languages
+        .iter()
+        .flat_map(|language| language.split('+'))
+        .any(|language| language.trim().to_ascii_lowercase().ends_with("_vert"));
+    if has_vertical_language {
+        XBERG_VERTICAL_BLOCK_TESSERACT_PSM
+    } else {
+        XBERG_WHOLE_IMAGE_TESSERACT_PSM
+    }
 }
 
 /// Unified interface for document extraction frameworks
@@ -74,6 +276,16 @@ pub trait FrameworkAdapter: Send + Sync {
     /// * `Vec<OutputFormat>` - List of supported output formats
     fn supported_output_formats(&self) -> Vec<OutputFormat> {
         vec![OutputFormat::Plaintext]
+    }
+
+    fn ocr_language_policy(&self) -> OcrLanguagePolicy {
+        OcrLanguagePolicy::DefaultOnly
+    }
+
+    fn supports_fixture(&self, file_type: &str, file_name: Option<&str>, ocr_language: Option<&str>) -> bool {
+        self.supports_format(file_type)
+            && file_name.is_none_or(|name| !self.should_skip_file(name))
+            && self.ocr_language_policy().supports(ocr_language)
     }
 
     /// Extract content from a document
@@ -206,7 +418,57 @@ pub trait FrameworkAdapter: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_ocr_language_arg, canonicalize_ocr_languages, is_valid_ocr_language_code};
+    use super::{
+        OcrLanguagePolicy, XBERG_VERTICAL_BLOCK_TESSERACT_PSM, XBERG_WHOLE_IMAGE_TESSERACT_PSM,
+        canonical_ocr_language_arg, canonicalize_ocr_languages, declared_ocr_language_policy,
+        is_valid_ocr_language_code, xberg_default_tesseract_psm,
+    };
+
+    #[test]
+    fn framework_language_policies_match_runtime_capabilities() {
+        assert_eq!(
+            declared_ocr_language_policy("liteparse"),
+            OcrLanguagePolicy::DefaultOnly
+        );
+        assert_eq!(
+            declared_ocr_language_policy("docling"),
+            OcrLanguagePolicy::AnyBatchGlobal
+        );
+        assert_eq!(
+            declared_ocr_language_policy("mineru-batch"),
+            OcrLanguagePolicy::AnyBatchGlobal
+        );
+        assert_eq!(declared_ocr_language_policy("tika"), OcrLanguagePolicy::AnyPerDocument);
+        assert_eq!(
+            declared_ocr_language_policy("xberg-markdown-sceptre-ort"),
+            OcrLanguagePolicy::SceptrePerDocument
+        );
+        assert_eq!(
+            declared_ocr_language_policy("xberg-markdown-baseline"),
+            OcrLanguagePolicy::AnyPerDocument
+        );
+    }
+
+    #[test]
+    fn sceptre_policy_matches_core_language_groups() {
+        let policy = OcrLanguagePolicy::SceptrePerDocument;
+        for language in [
+            None,
+            Some("eng"),
+            Some("deu+eng"),
+            Some("jpn"),
+            Some("jpn_vert"),
+            Some("kor"),
+            Some("tel"),
+            Some("kan"),
+            Some("rus"),
+        ] {
+            assert!(policy.supports(language), "expected {language:?} to be supported");
+        }
+        for language in [Some("ara"), Some("cat"), Some("kaz"), Some("deu+jpn")] {
+            assert!(!policy.supports(language), "expected {language:?} to be rejected");
+        }
+    }
 
     #[test]
     fn canonicalizes_combined_ocr_languages() {
@@ -220,5 +482,42 @@ mod tests {
         assert!(is_valid_ocr_language_code("chi_sim"));
         assert!(!is_valid_ocr_language_code("../deu"));
         assert!(!is_valid_ocr_language_code(""));
+    }
+
+    #[test]
+    fn xberg_psm_constants_are_the_documented_production_values() {
+        // ~keep: this asserts the documented literals, NOT that they still match
+        // `crates/xberg/src/extractors/image.rs`'s private `WHOLE_IMAGE_TESSERACT_PSM` /
+        // `VERTICAL_BLOCK_TESSERACT_PSM` — those constants are not `pub`, so nothing in this repo
+        // can import and compare against xberg's real source. This test only guards against an
+        // accidental typo/edit of the values below; it CANNOT catch upstream drift. If xberg ever
+        // changes those constants, `XBERG_WHOLE_IMAGE_TESSERACT_PSM` /
+        // `XBERG_VERTICAL_BLOCK_TESSERACT_PSM` above (and this test) must be updated by hand.
+        assert_eq!(XBERG_WHOLE_IMAGE_TESSERACT_PSM, 11);
+        assert_eq!(XBERG_VERTICAL_BLOCK_TESSERACT_PSM, 5);
+    }
+
+    #[test]
+    fn selects_vertical_psm_only_for_vert_suffixed_languages() {
+        assert_eq!(
+            xberg_default_tesseract_psm(&["eng".to_string()]),
+            XBERG_WHOLE_IMAGE_TESSERACT_PSM
+        );
+        assert_eq!(
+            xberg_default_tesseract_psm(&["deu".to_string(), "eng".to_string()]),
+            XBERG_WHOLE_IMAGE_TESSERACT_PSM
+        );
+        assert_eq!(
+            xberg_default_tesseract_psm(&["jpn_vert".to_string()]),
+            XBERG_VERTICAL_BLOCK_TESSERACT_PSM
+        );
+        assert_eq!(
+            xberg_default_tesseract_psm(&["JPN_VERT".to_string()]),
+            XBERG_VERTICAL_BLOCK_TESSERACT_PSM
+        );
+        assert_eq!(
+            xberg_default_tesseract_psm(&["deu+jpn_vert".to_string()]),
+            XBERG_VERTICAL_BLOCK_TESSERACT_PSM
+        );
     }
 }

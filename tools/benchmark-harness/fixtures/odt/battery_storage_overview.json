@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/odt/battery_storage_overview.odt",
+	"file_type": "odt",
+	"file_size": 8018,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Article on grid-scale battery storage with a chemistry comparison table",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/odt/battery_storage_overview.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/odt/battery_storage_overview.md",
+		"source": "pandoc"
+	}
+}

@@ -1,6 +1,6 @@
 [package]
 name = "xberg-ffi"
-version = "1.0.11"
+version = "1.0.14"
 edition = "2021"
 license = "MIT"
 description = "High-performance document intelligence library"
@@ -25,7 +25,6 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 
 [features]
 default = [
-    "full",
     "pdf",
     "ocr",
     "paddle-ocr",
@@ -74,7 +73,6 @@ default = [
     "structured",
     "url-ingestion",
 ]
-full = ["xberg/full"]
 pdf = ["xberg/pdf"]
 ocr = ["xberg/ocr"]
 paddle-ocr = ["xberg/paddle-ocr"]
@@ -175,26 +173,19 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 
 [target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
-xberg = { path = "../xberg", version = "1.0.11", features = ["macos-intel-target"] }
+xberg = { path = "../xberg", version = "1.0.14", features = ["macos-intel-target"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
-# `full` is intentionally NOT baked into this dependency: it would pull `heic`
-# (libheif-sys, no pkg-config cross-compile support) and `candle-*` into every
-# consumer, defeating a consumer's `default-features = false` + `full-no-heic`
-# selection (the swift-bundle's cross-compiled Linux targets). `full` still
-# reaches standalone `xberg-ffi` builds via this crate's own `default` feature
-# (`default = ["full", ...]` -> `xberg/full`); the explicit granular list below
-# is the no-heic/no-candle floor that every target carries. ~keep
-xberg = { path = "../xberg", version = "1.0.11", features = ["pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
+xberg = { path = "../xberg", version = "1.0.14", features = ["pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-xberg = { path = "../xberg", version = "1.0.11", features = ["android-target"] }
+xberg = { path = "../xberg", version = "1.0.14", features = ["android-target"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-xberg = { path = "../xberg", version = "1.0.11", features = ["android-target"] }
+xberg = { path = "../xberg", version = "1.0.14", features = ["android-target"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-xberg = { path = "../xberg", version = "1.0.11", features = ["windows-target"] }
+xberg = { path = "../xberg", version = "1.0.14", features = ["windows-target"] }
 
 [build-dependencies]
 cbindgen = "0.29"

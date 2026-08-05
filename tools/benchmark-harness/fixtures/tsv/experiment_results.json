@@ -1,0 +1,20 @@
+{
+	"document": "../../../../test_documents/data_formats/experiment_results.tsv",
+	"file_type": "tsv",
+	"file_size": 432,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "Tab-separated dose-response experiment results with means, stddev and p-values",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/tsv/experiment_results.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/tsv/experiment_results.md",
+		"source": "raw_source"
+	}
+}

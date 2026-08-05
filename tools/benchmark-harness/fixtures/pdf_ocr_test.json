@@ -8,7 +8,7 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/pdf/pdf_ocr_test.md",
-		"source": "vision",
+		"source": "manual",
 		"markdown_file": "../../../test_documents/ground_truth/pdf/pdf_ocr_test.md"
 	}
 }

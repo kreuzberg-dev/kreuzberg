@@ -9,6 +9,6 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/yaml/yaml_config.txt",
-		"source": "vision"
+		"source": "raw_source"
 	}
 }

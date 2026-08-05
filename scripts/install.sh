@@ -41,14 +41,24 @@ detect_arch() {
   esac
 }
 
+detect_libc() {
+  if [ -e /lib/ld-musl-x86_64.so.1 ] || [ -e /lib/ld-musl-aarch64.so.1 ]; then
+    echo "musl"
+  elif ldd --version 2>&1 | grep -qi musl; then
+    echo "musl"
+  else
+    echo "gnu"
+  fi
+}
+
 detect_target() {
   local os arch
   os="$(detect_os)"
   arch="$(detect_arch)"
 
   case "${os}-${arch}" in
-  linux-x86_64) echo "x86_64-unknown-linux-musl" ;;
-  linux-aarch64) echo "aarch64-unknown-linux-musl" ;;
+  linux-x86_64) echo "x86_64-unknown-linux-$(detect_libc)" ;;
+  linux-aarch64) echo "aarch64-unknown-linux-$(detect_libc)" ;;
   darwin-x86_64) echo "x86_64-apple-darwin" ;;
   darwin-aarch64) echo "aarch64-apple-darwin" ;;
   *) error "unsupported platform: ${os}-${arch}" ;;
@@ -123,12 +133,6 @@ install() {
 
   cp "$binary_path" "${install_dir}/${BINARY_NAME}"
   chmod +x "${install_dir}/${BINARY_NAME}"
-
-  if [ -f "${install_dir}/${BINARY_NAME}.exe" ]; then
-    ln -sf "${BINARY_NAME}.exe" "${install_dir}/xberg.exe" 2>/dev/null || cp "${install_dir}/${BINARY_NAME}.exe" "${install_dir}/xberg.exe"
-  else
-    ln -sf "${BINARY_NAME}" "${install_dir}/xberg" 2>/dev/null || cp "${install_dir}/${BINARY_NAME}" "${install_dir}/xberg"
-  fi
 
   if [ -f "${stage_dir}/${BINARY_NAME}.bin" ]; then
     cp "${stage_dir}/${BINARY_NAME}.bin" "${install_dir}/${BINARY_NAME}.bin"

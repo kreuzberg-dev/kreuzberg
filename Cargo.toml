@@ -23,7 +23,7 @@ default-members = ["crates/xberg", "crates/xberg-cli"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.11"
+version = "1.0.14"
 edition = "2024"
 rust-version = "1.91"
 authors = ["Na'aman Hirschfeld <naaman@xberg.io>"]
@@ -98,6 +98,7 @@ reqwest = { version = "0.13.4", default-features = false }
 # drops text, system-fonts, memmap-fonts, raster-images — all pure-Rust, WASM-safe).
 resvg = { version = "0.48", default-features = false }
 rusqlite = { version = "0.40", features = ["bundled"] }
+sceptre = { version = "0.3.0", default-features = false }
 
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }
@@ -128,7 +129,7 @@ tracing = "0.1"
 # and WASM-safe; the top-level `tract` facade instead defaults to CUDA and bundles
 # GPU backends, so it is unusable here. See issue #1275.
 tract-onnx = { version = "0.23.4", default-features = false }
-tree-sitter-language-pack = { version = "1.14.0", default-features = false, features = ["serde"] }
+tree-sitter-language-pack = { version = "1.14.1", default-features = false, features = ["serde"] }
 url = "2.5.8"
 # usvg (re-exported by resvg) with only the `writer` feature so `Tree::to_string`
 # / `WriteOptions` are available for SVG sanitize re-serialization. `writer` pulls
@@ -147,8 +148,8 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Response",
 ] }
-xberg = { path = "./crates/xberg", version = "1.0.11", default-features = false }
-xberg-gliner = { path = "./crates/xberg-gliner", version = "1.0.11", default-features = false }
+xberg = { path = "./crates/xberg", version = "1.0.14", default-features = false }
+xberg-gliner = { path = "./crates/xberg-gliner", version = "1.0.14", default-features = false }
 
 [patch.crates-io]
 xberg = { path = "crates/xberg" }

@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/doc/vendor_renewal_letter.doc",
+	"file_type": "doc",
+	"file_size": 17408,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Legacy Word binary business letter renewing a vendor supply agreement",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/doc/vendor_renewal_letter.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/doc/vendor_renewal_letter.md",
+		"source": "pandoc"
+	}
+}

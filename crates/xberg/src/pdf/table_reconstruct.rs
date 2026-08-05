@@ -21,6 +21,11 @@ const SHORT_NUMERIC_MIN_DATA_CELLS: usize = 4;
 /// without reopening the #36 fabrication hole.
 const SHORT_NUMERIC_MIN_CELL_PERCENT: usize = 60;
 const SHORT_NUMERIC_MIN_ROW_OCCUPANCY_PERCENT: usize = 85;
+/// Short, wide grids have too few rows to establish stable column structure,
+/// so require slightly denser evidence than the general table validator.
+const SHORT_WIDE_MAX_DATA_ROWS: usize = 2;
+const SHORT_WIDE_MIN_COLUMNS: usize = 6;
+const SHORT_WIDE_MAX_EMPTY_CELL_PERCENT: usize = 35;
 const LARGE_TABLE_MIN_COLUMNS: usize = 6;
 const DEFAULT_MIN_DATA_ROW_DIGIT_CELLS: usize = 3;
 const REPEATED_DATA_ROW_COUNT: usize = 3;
@@ -917,7 +922,14 @@ pub(crate) fn is_well_formed_table_core(grid: &[Vec<String>], skip_columnar_pros
     }
     let dense_numeric_grid = is_dense_numeric_grid(grid);
 
-    const MAX_EMPTY_CELL_FRACTION_PERCENT: usize = 40;
+    const DEFAULT_MAX_EMPTY_CELL_PERCENT: usize = 40;
+    let data_row_count = grid.len().saturating_sub(1);
+    let max_empty_cell_percent =
+        if data_row_count <= SHORT_WIDE_MAX_DATA_ROWS && num_cols >= SHORT_WIDE_MIN_COLUMNS && !dense_numeric_grid {
+            SHORT_WIDE_MAX_EMPTY_CELL_PERCENT
+        } else {
+            DEFAULT_MAX_EMPTY_CELL_PERCENT
+        };
     let max_cols = grid.iter().map(|r| r.len()).max().unwrap_or(0);
     let total_cells = grid.len() * max_cols;
     if total_cells > 0 {
@@ -927,7 +939,7 @@ pub(crate) fn is_well_formed_table_core(grid: &[Vec<String>], skip_columnar_pros
                 .flat_map(|row| row.iter())
                 .filter(|cell| !cell.trim().is_empty())
                 .count();
-        if empty_cells * 100 > total_cells * MAX_EMPTY_CELL_FRACTION_PERCENT {
+        if empty_cells * 100 > total_cells * max_empty_cell_percent {
             return false;
         }
     }
@@ -2604,6 +2616,47 @@ mod tests {
         assert!(
             post_process_table(table, false, false).is_none(),
             "the issue #36 guard must remain active without layout guidance"
+        );
+    }
+
+    #[test]
+    fn test_well_formed_rejects_short_wide_sparse_contact_block() {
+        let grid = vec![
+            vec![
+                String::new(),
+                "30B5".into(),
+                "Stevenson".into(),
+                "Drive·".into(),
+                "Suite".into(),
+                "301. Springfield,".into(),
+                String::new(),
+                "IL 62703".into(),
+            ],
+            vec![
+                "Telephone".into(),
+                String::new(),
+                "(217)".into(),
+                "585-2370'".into(),
+                "(888)".into(),
+                "547-8473·".into(),
+                "Fax (217)".into(),
+                "585-2372".into(),
+            ],
+            vec![
+                String::new(),
+                "a-mail:".into(),
+                String::new(),
+                "suaa@suaa.org·website:WWN.su88.oro".into(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+            ],
+        ];
+
+        assert!(
+            !is_well_formed_table(&grid),
+            "a sparse three-line contact block must not be promoted to a table"
         );
     }
 

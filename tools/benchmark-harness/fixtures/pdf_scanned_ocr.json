@@ -23,7 +23,7 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/pdf/pdf_scanned_ocr.md",
-		"source": "vision",
+		"source": "manual",
 		"markdown_file": "../../../test_documents/ground_truth/pdf/pdf_scanned_ocr.md"
 	}
 }

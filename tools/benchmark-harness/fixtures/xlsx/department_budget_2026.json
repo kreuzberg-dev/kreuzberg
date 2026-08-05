@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/xlsx/department_budget_2026.xlsx",
+	"file_type": "xlsx",
+	"file_size": 6190,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Department budget spreadsheet with budgeted, actual, and variance figures",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/xlsx/department_budget_2026.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/xlsx/department_budget_2026.md",
+		"source": "raw_source"
+	}
+}

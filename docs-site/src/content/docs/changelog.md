@@ -9,6 +9,366 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.14] - 2026-08-04
+
+### Fixed
+
+- OpenWebUI-compatible endpoints (`PUT /process` and `POST /v1/convert/file`) now honor extraction
+  configuration. They previously cloned the server default, forced Markdown output, and ignored all
+  inbound parameters, so configuration passed through OpenWebUI had no effect. They now use the
+  server's configured defaults as the base and merge a per-request config — a multipart
+  `config`/`parameters` field, or the `X-Config` header — matching the `/extract` endpoint, keeping
+  Markdown as the default only when neither the server config nor the request selects a format.
+- Image captioning is now included in the official Docker images (`--features all`), and the server
+  emits a `ProcessingWarning` when a `captioning` config is supplied but the feature is compiled out,
+  instead of silently doing nothing (#1382).
+- Release builds no longer check out the `test_documents` benchmark submodule, so a benchmark-only
+  submodule update can no longer fail every publish build and ship a release with no assets (#1380).
+
+### Changed
+
+- Embedded-image captioning now runs with bounded concurrency (mirroring the image-OCR path) instead
+  of one VLM request at a time, reducing wall-clock time on image-heavy documents (#1378).
+
+## [1.0.13] - 2026-08-04
+
+### Fixed
+
+- OCR-backed PDF extraction now preserves geometry-derived document structure without requiring
+  optional ML layout detection, including pages replaced by mixed native/OCR extraction, and keeps
+  consecutive Tesseract paragraphs in their shared hOCR text area.
+- PDF table reconstruction now rejects sparse, short-wide contact blocks that were previously
+  misclassified as tables.
+- Standalone-image Tesseract OCR now defaults to sparse-text segmentation, while cropped layout
+  regions use single-block segmentation and explicit user settings remain unchanged. Vertical
+  language packs such as Japanese (`jpn_vert`) use vertical-block segmentation.
+- Standalone image extraction now reports successful OCR through `metadata.ocr_used` and the OCR
+  extraction method, including layout-aware OCR results.
+- Tesseract now applies its default image preprocessing only to clean, near-white document pages;
+  shadowed receipts and photographic images keep their source pixels, avoiding quality loss from
+  destructive DPI upscaling, background normalization, sharpening, and grayscale conversion.
+- Sparse, low-confidence standalone Tesseract results now retry the previous automatic page
+  segmentation with explicit preprocessing and use it only when word confidence is consistently
+  strong, recovering difficult receipts and scene text without replacing reliable sparse output.
+- CSV and TSV plaintext now use the canonical table renderer instead of lossy `Row N` and
+  header-value prose.
+- Extracted EML and MSG attachment text is now included in the parent document while the structured
+  attachment children remain available.
+- DOCX extraction now emits a tab character for an in-run `<w:tab/>` instead of dropping it, so
+  tab-separated fields — most visibly Word table-of-contents rows — no longer weld adjacent words
+  together (`Alpha<tab>Beta` was extracted as `AlphaBeta`). Tab-stop definitions remain invisible.
+  (#1377)
+- The Swift package builds and publishes again. The cross-compiled desktop `xberg-ffi` dependency no
+  longer pulls in HEIC (`libheif-sys`, which has no cross-compile support) or the Candle OCR
+  backends, which had broken Swift package publishing in 1.0.12.
+- The NuGet runtime packages for macOS and Linux (`osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`)
+  now publish at the current version instead of being stuck at an older one; previously only the
+  Windows runtime package was updated. (#1375)
+- The public in-browser (WASM) demo now attributes its file-size limit to the browser sandbox and
+  points to the CLI and API for large or multi-page documents, instead of implying the document
+  itself is at fault. (#1376)
+
+## [1.0.12] - 2026-08-03
+
+### Fixed
+
+- The `xberg mcp` `extract` and `extract_batch` tools no longer emit structured output that fails
+  their own declared output schema. The schema required `errors` and the `crawl_*` fields, but a
+  normal extraction omits them when empty, so MCP clients (e.g. Claude Code) rejected the result.
+  Those fields are now optional in the schema, matching the serialized output. (#1372)
+- The `install.sh` script no longer creates a self-referential `xberg` symlink that shadowed the
+  installed binary, and it now selects the glibc (`-gnu`) build on standard Linux distributions
+  instead of always downloading the musl build — which failed to run on glibc systems such as
+  Ubuntu. musl systems (e.g. Alpine) still get the musl build. (#1371)
+- CSV header inference no longer misclassifies all-text tables as headerless. A first row such as
+  `Name,City` is now treated as the header (the dominant CSV convention) instead of rendering a
+  broken blank header row with the real header pushed down into the data. A numeric-looking first
+  row is still treated as data. (#1369)
+
+## [1.0.11] - 2026-08-03
+
+### Fixed
+
+- The extraction HTTP server now bounds in-flight request concurrency so a burst of large uploads
+  can no longer exhaust memory and OOM-kill the process in memory-limited containers. The limit
+  defaults to `2 × CPU count` clamped to `[4, 32]`; override it with `XBERG_MAX_CONCURRENT_REQUESTS`
+  (set `0` to disable). (#1368)
+- PaddleOCR output now keeps consecutive visual text lines in the same Markdown paragraph instead
+  of turning every detected line into a separate paragraph.
+- PaddleOCR and Tesseract automatic image rotation now use the document-orientation model's RGB
+  input and existing probability output correctly, and recover sparse edge-aligned text that the
+  model's standard center crop omitted.
+
+## [1.0.10] - 2026-08-02
+
+### Fixed
+
+- `cargo install xberg-cli` now succeeds on a stock Windows toolchain. HEIC/HEIF decoding links
+  native `libheif`, which has no default build path on Windows, so it is no longer part of the
+  CLI's default features and the install no longer fails building `libheif-sys`. Enable HEIC with
+  `--features heic`; the prebuilt release binaries, Docker `all` image, and Homebrew bottle
+  continue to ship it. (#1361)
+- The `cargo binstall xberg-cli` static musl builds now compile. The #1355 image-fallback OCR
+  helpers were gated on the `ocr` feature but are reachable under the `ocr-pipeline`-only
+  `binstall` profile, which failed to build both musl targets in the 1.0.9 release.
+- `brew install xberg-io/tap/xberg` installs a working binary again instead of an empty bottle;
+  the 1.0.9 bottle rebuild had been skipped when the CLI asset upload cascaded from the failed
+  binstall build. (#1356)
+- The hosted demo page (docs.xberg.io/demo.html) no longer 404s its toolbar and file-picker
+  icons. (#1360)
+- Dart native-library loading now propagates download, filesystem, and checksum failures instead
+  of silently falling back to an unverified default library resolution path.
+- PaddleOCR concurrent cold starts now run off async worker threads and share one engine
+  initialization per model and accelerator, with distinct cache entries for different GPU device IDs.
+- Benchmark text F1 now segments CJK around embedded Latin and numeric text while ignoring OCR line
+  wrapping, preventing mixed-script output formatting from distorting quality comparisons.
+
+## [1.0.9] - 2026-08-02
+
+### Added
+
+- `cargo binstall xberg-cli` now installs a self-contained, fully static musl CLI binary with no
+  ONNX/Tesseract/libheif runtime dependencies. The `x86_64-unknown-linux-musl` build additionally
+  bundles the pure-Rust Candle VLM OCR backends (TrOCR and PaddleOCR-VL); `aarch64-unknown-linux-musl`
+  ships extraction-only. ONNX/Tesseract/HEIC OCR remain available via Homebrew and the bundled
+  per-target release tarballs.
+
+### Changed
+
+- PaddleOCR now exposes the `PaddleOcrEngine` name and detailed word-level quadrilaterals;
+  the former `OcrLite` name remains available as a deprecated compatibility alias.
+- Dense XLSX extraction now scans worksheet bounds without cloning every cell before normal range
+  parsing, while oversized sparse sheets materialize their cells only once.
+- Layout-enabled image table recognition now shares its decoded RGB raster with the TATR worker,
+  avoiding one full image allocation and pixel-buffer copy per qualifying image.
+- Multi-stage PDF OCR now shares rendered page rasters across pipeline tasks instead of copying
+  each pixel buffer, reducing peak memory by roughly one RGB raster per concurrent page.
+- Batch DOCX extraction reuses one owned input buffer and avoids rebuilding discarded document
+  structure, reducing memory copies and structure-processing overhead for large files.
+
+### Fixed
+
+- Canonical PaddleOCR benchmark presets no longer force optional whole-image auto-rotation, avoiding
+  confident but incorrect 180-degree rotations that suppressed scene-text quality.
+- PaddleOCR now preserves native resolution for 1024-pixel images by default, improving scene-text
+  accuracy while retaining explicit detector-size overrides.
+- Layout-enabled image OCR now reuses successful single-frame whole-image text when structured
+  assembly is unavailable, avoiding repeated region OCR and redundant Tesseract table analysis.
+- PaddleOCR-only CLI builds no longer compile PDF Markdown layout reuse code when layout detection
+  is disabled.
+- The prebuilt macOS CLI tarballs (`aarch64-apple-darwin`, `x86_64-apple-darwin`) now bundle the full
+  libheif dynamic-library closure beside the `xberg` binary and rewrite its load commands to
+  `@loader_path`, so the binary no longer fails with a `libheif.1.dylib` not-loaded error on machines
+  that lack Homebrew's libheif at the baked-in path (#1357).
+- PaddleOCR layout and table consumers now use projected CTC word boxes while preserving line-level
+  semantic text and caller-requested element granularity, avoiding mixed-level duplicate table text.
+- PaddleOCR detection now honors its configured DB threshold and matches upstream dilation,
+  perspective-crop, and visual-line ordering behavior, improving small, skewed, and jittered text.
+- Apple Keynote packages containing only slide archives now route to the Keynote extractor, and
+  Numbers extraction reconstructs tables instead of emitting raw protobuf fragments.
+- AsciiDoc, NXML/JATS, and WebVTT files now route through their registered text or JATS extractors
+  instead of being reported as unsupported.
+- Standalone `excel` and `excel-wasm` feature builds now include the XML parsing and table-capacity
+  support required by XLSX extraction.
+- Org-mode extraction now distinguishes separator-defined table headers from headerless tables,
+  preserving every data row in rendered Markdown.
+- EPUB extraction now resolves `epub:switch` branches per output renderer, preserving supported
+  XHTML and MathML cases while retaining readable plain-text fallbacks.
+- Typst extraction now emits marker-free headings and distinguishes explicit table headers from
+  bare table rows, preserving correct Markdown structure.
+- MSG extraction now reads the canonical binary `PidTagHtml` stream with the Internet codepage,
+  preserving HTML-only message bodies alongside attachments.
+- TATR table reconstruction now assigns each selected OCR word exactly once, using the nearest
+  cell when predicted cells do not overlap, preventing both duplicated and silently dropped text.
+- Layout-enabled image extraction now recognizes TATR table structure from cached OCR elements
+  while preserving non-table line structure and requiring complete OCR token retention before
+  accepting the reconstructed layout.
+- Layout-enabled OCR now preserves detected image headings without losing or reordering fallback text,
+  and regroups adjacent PDF OCR lines without collapsing distant paragraphs or separate layout regions.
+- Rotated PDF OCR now avoids reusing display-coordinate Markdown layout rasters and reruns layout
+  on inverse-`/Rotate`-normalized images, keeping OCR upright without desynchronizing detections.
+- Benchmark text F1 treats OCR-inserted line breaks within CJK text as layout whitespace,
+  preventing semantically identical Chinese, Japanese, and Korean output from scoring zero.
+- Pipeline quality benchmarks allow forced OCR inference enough time to finish instead of
+  recording slow but valid OCR documents as zero-quality timeout failures.
+- Benchmark fixture validation now accepts descriptor filenames without an explicit parent path.
+- Pipeline benchmarks now preserve exact ordered cohort fixture paths, use explicit PP-OCR model
+  identities and fixture OCR languages, and score structural image ground truth.
+- PaddleOCR now reports processed image dimensions and applied orientation corrections, keeping
+  OCR geometry aligned with optional layout detection on rotated documents.
+- PaddleOCR now selects the Japanese model for vertical Japanese and prefers Korean or Japanese
+  recognition for mixed Latin-script requests those models can cover.
+- PP-OCRv6 requests containing Korean now use PaddleOCR's script-specific Korean recognizer,
+  recovering Hangul text that the unified recognition model omitted.
+- PaddleOCR now preserves the right-to-left column order and contiguous text of traditional
+  vertical Chinese and Japanese documents.
+- Image OCR now preserves blank-line paragraph boundaries instead of flattening every recognized
+  text block into one paragraph.
+- Tesseract vertical CJK OCR now removes artificial spaces between adjacent script characters
+  while preserving Latin-word and paragraph whitespace.
+- Jupyter notebook paths retain `application/x-ipynb+json` routing when generic JSON content
+  detection runs, and extracted notebook content no longer exposes diagnostic cell/output markers;
+  cell identity, execution, tag, output-type, and MIME details remain available as structured metadata.
+
+## [1.0.7] - 2026-07-31
+
+### Added
+
+- **Candle VLM OCR backends now ship in the published packages.** The pure-Rust Candle OCR
+  backends — TrOCR, PaddleOCR-VL, GLM-OCR, and DeepSeek-OCR — are compiled into the published
+  packages by default (Python, Node, Go, Java, C#, Ruby, PHP, Elixir, Kotlin/JVM, Zig, and the
+  CLI / Docker image) on Linux, macOS, and Windows. Select one with `ocr.backend =
+  "candle-glm-ocr"` (or `candle-trocr` / `candle-paddleocr-vl` / `candle-deepseek-ocr`); model
+  weights download from Hugging Face on first use. Previously these backends were excluded from
+  the `full` feature and reachable only via a custom source build. Not available on WebAssembly,
+  Android, iOS, Dart, or Swift.
+
+### Fixed
+
+- **#1355 — `force_ocr` no longer emits a silently blank page** when the PDF rasterizer cannot
+  draw an image XObject. When a `force_ocr` page renders blank but carries image XObjects, OCR is
+  retried directly on the embedded image bytes (decoded pixels, or the raw JPEG/JP2 stream) and a
+  processing warning is recorded, so the page content is recovered instead of dropped without
+  notice.
+- **Swift artifact-bundle cross-compile**: the cross-compiled Swift binary bundle builds again —
+  the HEIC path (which shells out to `pkg-config` and cannot cross-compile) is dropped from the
+  Swift / Intel-macOS cross-build feature set (`full-no-heic`), restoring the `x86_64-apple-darwin`
+  and Linux Swift builds. The native C FFI distribution keeps HEIC.
+- **XLSX extraction on Windows**: the `excel` feature is enabled in the Windows feature set, so
+  `.xlsx` files extract on Windows instead of returning `UnsupportedFormat` for a format the
+  registry advertises as supported.
+- Benchmark CI validates ground truth for every format family plus the exact 101-cell workflow
+  matrix and harness contracts before expensive jobs, and the local benchmark task now delegates
+  to the same run wrapper.
+- Benchmark quality rankings and Pareto SF1 multiply successful-extraction medians by accountable
+  coverage exactly once, so partial framework failures cannot retain a perfect rank while harness
+  and setup failures remain excluded.
+- Benchmark runs abort instead of dropping task errors, verify exact eligible-document
+  cardinality before writing artifacts, reject contradictory failure states and unknown pipeline
+  names, and report extension success rates with the same accountable-failure semantics as the
+  aggregate.
+- Benchmark CI invalidates its prebuilt harness cache for harness build scripts, workspace and
+  toolchain configuration, compiler/codegen environment, and every transitive workspace crate,
+  preventing stale binaries. Release tokens now default to the current repository installation.
+- Present best-effort benchmark artifacts receive the same provenance, supported-format
+  cardinality, failure-accounting, and aggregate integrity validation as required artifacts;
+  only absence and framework-accountable extraction failures remain optional. Consolidated
+  provenance, metadata, failure summaries, and rankings are cross-checked against validated
+  groups and rows, with ranking optionality derived from the active cohort rather than a global
+  framework union.
+- Subprocess benchmark results record the framework's declared supported extensions, preserving
+  the capability context needed to interpret historical multi-format aggregates.
+- Benchmark quality guardrails fail on missing contracted documents or pipeline results instead
+  of reporting a vacuous pass, and reject unknown pipelines, empty predicates, and invalid
+  thresholds before execution.
+- Unstructured benchmark cells advertise only their supported plaintext output, and pipeline
+  benchmarks reject unknown sort metrics instead of silently falling back to SF1.
+- Benchmark fixtures reject document and ground-truth paths that escape the repository or
+  standalone fixture trust boundary, including symlink escapes, and derive repository boundaries
+  from runtime fixture locations so cached binaries remain portable across CI runners. Artifact
+  provenance hashing uses the same validated path resolution.
+- Benchmark CI records declared per-framework format support, validates partial-run thresholds
+  before execution, evaluates them independently per framework, and excludes harness/setup errors
+  from framework success rates while retaining strict extraction coverage for every xberg pipeline.
+- Benchmark comparisons include formats with text-only ground truth, report structural scores as
+  unavailable instead of zero when Markdown ground truth is absent, and identify guardrails by file
+  type so same-named fixtures cannot be matched across formats. Guardrails are rebased against the
+  active corpus, removing retired PDF contracts and covering every actionable current result.
+- Image layout extraction reuses safely positioned whole-image OCR elements, falls back when
+  region-based OCR drops substantial text or quality, and preserves warnings without redundant OCR
+  retries.
+- EPUB extraction removes duplicated serialized MathML and embedded-media fallback content, and
+  avoids emitting a cover image twice when the spine already references it.
+- Email extraction preserves sender display names alongside addresses, and asynchronous attachment
+  and nested-message extraction reuses the initial parse instead of parsing messages twice.
+- FB2 and DocBook files with generic XML signatures retain their extension-specific MIME types, so
+  they route through the semantic FictionBook and DocBook extractors instead of the generic XML
+  fallback.
+- Nested objects and arrays in JSON documents render as structured Markdown headings and lists
+  instead of opaque compact-JSON strings, preserving readable nested keys and values.
+
+## [1.0.6] - 2026-07-31
+
+### Fixed
+
+- **libwpd (Windows/MSVC)**: link the vcpkg-provided static zlib so librevenge's `inflate*` symbols
+  resolve at the final link. Windows binding builds previously failed with `undefined symbol:
+  inflate` because the MSVC path emitted no usable zlib link directive.
+- **#1344 follow-up**: Automatic PDF layout inference retries once on CPU only for runtime inference
+  failures, keeps explicitly selected non-Auto providers and recognized `XBERG_ORT_EP` values
+  authoritative, ignores blank or unrecognized environment values, and propagates the effective or
+  recovered CPU provider to downstream TATR and OCR table reconstruction.
+- Side-by-side PDF TATR tables match source words that narrowly cross a detected outer edge to the
+  outermost cell without changing the inference crop or center seam, preserving financial-table row
+  prefixes that previously fell just outside the recognized cell bounds.
+
+### Changed
+
+- Upgrade sibling dependencies: `crawlberg` 1.0.11 → 1.1.0, `html-to-markdown-rs` 3.9 → 3.10,
+  `liter-llm` 1.11 → 1.12. `liter-llm` 1.12 makes `tracing` an always-on dependency and removed its
+  `tracing` Cargo feature, so it is dropped from the dependency declaration (no behavior change —
+  liter-llm spans are always emitted now).
+- The `otel` feature now forwards to `crawlberg` and `liter-llm` (weak, `crawlberg?/otel` /
+  `liter-llm?/otel`), so enabling `xberg/otel` compiles those siblings' direct OpenTelemetry
+  integration (crawlberg's semconv/propagation, liter-llm's `gen_ai.*` metrics); their spans and
+  metrics are exported by the host's provider (e.g. xberg-enterprise). `html-to-markdown-rs` and
+  `tree-sitter-language-pack` are pure `tracing` emitters with no `otel` feature — their spans reach
+  the collector through the consumer's `tracing-opentelemetry` layer, so nothing is forwarded to them.
+
+## [1.0.5] - 2026-07-30
+
+### Fixed
+
+- **`xberg-libwpd` Windows build**: the WordPerfect extractor now compiles and links on
+  `x86_64-pc-windows-msvc`, unblocking the full-feature Windows binary of downstream consumers. Two
+  first-ship gaps in the vendored C++ build are fixed: (1) zlib (needed by librevenge's
+  `RVNGZipStream`) is now built from source via `libz-sys` on Windows too — as it already was on
+  Linux/macOS — instead of relying on a vcpkg-installed zlib that CI did not reliably provide
+  (`fatal error C1083: Cannot open include file: 'zlib.h'`); and (2) a narrowing
+  `std::make_shared<WP6SubDocument>(…, m_streamData.size())` call in `WP6GeneralTextPacket.cpp` — a
+  64-bit `size()` into a 32-bit `const unsigned` param — is patched to cast `(unsigned)` (matching
+  every sibling subdocument site), which the newest MSVC toolchain (14.5x) otherwise rejects as a
+  hard error. The vcpkg zlib probing in `build.rs` is removed.
+- **#1345**: Sparse native two-column PDFs preserve column-block reading order instead of
+  interleaving their four text lines row-by-row across the gutter.
+- **#1346**: PaddleOCR emits a `ProcessingWarning` when requested languages are not covered by
+  the single selected recognition model (previously their text was silently dropped), and OCR
+  metadata now reports the recognition model actually used instead of joining every requested
+  language.
+- **#1344**: Layout inference no longer silently degrades to no-layout output when a hardware
+  execution provider fails. macOS `auto` acceleration resolves RT-DETR to CPU up front (its current
+  export cannot execute under CoreML), so the common path never attempts a failing provider. When an
+  *explicit* accelerated provider does fail at inference (for example a CoreML `ExecuteKernel`
+  error), both the markdown and OCR layout paths retry once on the always-available CPU provider and
+  recover the layout, and either way surface a `ProcessingWarning` (recovered-on-CPU, or lost
+  entirely if CPU also fails) instead of returning byte-identical no-layout output with empty
+  `processing_warnings`.
+- **#1349**: Successful TATR table reconstruction no longer writes source cell content and
+  coordinates to stderr; the debug output is removed.
+- **#1350**: The Markdown hierarchy no longer merges a distant header and footer into one block —
+  paragraph continuation now rejects merges across a large vertical baseline gap and recomputes the
+  merged block's bounding box.
+- **#1351**: The published Node package ships the alef-generated `index.d.ts` (clean, consistent
+  types) rather than the raw `napi build` output, which emitted references to undefined `Js*` types.
+- **#1353**: The install script copies nested runtime library directories (for example
+  `lib/libheif`) with `cp -R`, instead of failing with `cp: -r not specified; omitting directory` on
+  Linux musl installs.
+
+### Changed
+
+- Raw `println!`/`eprintln!`/`print!`/`eprint!`/`dbg!` are now denied in production code across the
+  whole workspace (clippy `print_stdout`/`print_stderr`/`dbg_macro`); `tracing` is the sole
+  diagnostic surface. The CLI's machine-readable result output to stdout opts back in per call site
+  (`#[expect(clippy::print_stdout)]`), and the regenerated language bindings route their FFI-bridge
+  diagnostics through `tracing` instead of `eprintln!`.
+- Internal diagnostics that previously wrote to stderr via `eprintln!` (per-page OCR gate decisions,
+  GLM-OCR debug tensor stats, the CLI `--output-format` deprecation notice) now emit through
+  `tracing` at the appropriate level, so verbosity is controlled with `RUST_LOG` / `--log-level`
+  instead of ad-hoc `XBERG_DEBUG_OCR` / `XBERG_GLM_DEBUG` environment variables.
+- Repeated per-page and per-backend warnings from external dependencies (OCR engines, layout models)
+  are now de-duplicated by `(source, message)`, so an N-page document surfaces one warning per
+  distinct problem rather than N copies. The paddle-ocr uncovered-language warning is also logged.
+
 ## [1.0.4] - 2026-07-30
 
 ### Added
@@ -64,8 +424,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   columns make the principal data row nearly complete instead of fully populated.
 - PDF Markdown recognizes repeated large-font heading tiers across sparse multi-page documents while
   retaining the single-page sparse-document safeguard against display-text false positives.
-- Wide PDF numeric tables retain validated three-row headers while preserving the compact prose and
-  caption safeguards used by smaller grids.
 
 ## [1.0.3] - 2026-07-29
 

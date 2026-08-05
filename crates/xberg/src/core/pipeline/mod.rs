@@ -60,6 +60,13 @@ async fn run_captioning_prepass(
             .collect::<Vec<_>>(),
     );
     if captioning_processors.is_empty() {
+        // Captioning was requested but no captioning processor is registered — the
+        // feature is compiled out (e.g. the Docker `--features all` gap in #1382) or
+        // otherwise unavailable. Surface it instead of silently no-opping.
+        doc.processing_warnings.push(crate::types::ProcessingWarning {
+            source: std::borrow::Cow::Borrowed("captioning"),
+            message: std::borrow::Cow::Borrowed("captioning feature not enabled — rebuild with --features captioning"),
+        });
         return Ok(());
     }
 

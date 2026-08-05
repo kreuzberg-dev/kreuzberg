@@ -9,6 +9,12 @@
     "tsv_data.json",
     "json_simple.json",
     "json_nested.json",
-    "yaml_config.json"
+    "yaml_config.json",
+    "csv/quarterly_sales.json",
+    "csv/sensor_readings.json",
+    "tsv/experiment_results.json",
+    "json/api_users.json",
+    "json/service_config.json",
+    "yaml/deployment.json"
   ]
 }

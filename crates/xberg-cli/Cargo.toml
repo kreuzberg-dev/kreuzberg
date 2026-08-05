@@ -45,6 +45,7 @@ default = [
     "liter-llm",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     # Candle pure-Rust VLM OCR backends (TrOCR, PaddleOCR-VL, GLM-OCR, DeepSeek-OCR). CPU inference,
     # shipped in the default CLI binary and the `--features all` container so `--ocr-backend
     # candle-glm-ocr` works out of the box. `all` inherits `default`, so this covers both.
@@ -99,6 +100,7 @@ mcp = ["legacy-base", "xberg/mcp"]
 mcp-http = ["legacy-base", "xberg/mcp-http"]
 embeddings = ["legacy-base", "xberg/embeddings"]
 paddle-ocr = ["legacy-base", "ocr-surface", "xberg/paddle-ocr"]
+sceptre-ocr = ["legacy-base", "ocr-surface", "xberg/sceptre-ocr"]
 candle-ocr = ["legacy-base", "ocr-surface", "xberg/candle-ocr"]
 candle-trocr = ["legacy-base", "ocr-surface", "xberg/candle-trocr"]
 candle-paddleocr-vl = ["legacy-base", "ocr-surface", "xberg/candle-paddleocr-vl"]
@@ -119,6 +121,11 @@ liter-llm = ["legacy-base", "ocr-surface", "xberg/liter-llm"]
 # containers built with `--features all` ship it. It stays opt-in at runtime —
 # it runs only when a classification LLM config is supplied.
 classification = ["legacy-base", "xberg/classification"]
+# VLM image captioning (issue #1382): like classification it rides the already-
+# enabled `liter-llm` HTTP path (no ORT/model deps). It was silently absent from
+# container builds — `all` never enabled it, so the processor was compiled out and
+# a `captioning` config was dropped without warning. Ship it in `--features all`.
+captioning = ["legacy-base", "xberg/captioning"]
 tree-sitter = ["legacy-base", "xberg/tree-sitter", "dep:tree-sitter-language-pack"]
 ner-onnx = ["legacy-base", "xberg/ner-onnx"]
 # NER (default backend: GLiNER via `ner-onnx`) and summarization were silently
@@ -167,6 +174,7 @@ all = [
     "tree-sitter",
     "liter-llm",
     "classification",
+    "captioning",
     "ner-onnx",
     "ner-llm",
     "summarization",

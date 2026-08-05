@@ -68,8 +68,17 @@ pub(crate) async fn openweb_external_handler(
         mime_type
     };
 
-    let mut config = (*state.default_config).clone();
-    config.output_format = crate::core::config::OutputFormat::Markdown;
+    // Honor the server's user config as the base, then merge the per-request config
+    // supplied via the `X-Config` header (JSON) — same capability as `/extract`.
+    let config_json = headers.get("X-Config").and_then(|value| value.to_str().ok());
+    let mut config = crate::core::config::merge::build_config_from_json(&state.default_config, config_json)
+        .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e)))?;
+    // OpenWebUI's external loader consumes rendered content, so default to Markdown only
+    // when neither the user's server config nor the request selects a format (`Plain` is
+    // the struct default, i.e. "unspecified").
+    if config.output_format == crate::core::config::OutputFormat::Plain {
+        config.output_format = crate::core::config::OutputFormat::Markdown;
+    }
 
     let request = ExtractionRequest::bytes(body.to_vec(), mime_type, config);
     let mut svc = state
@@ -113,6 +122,7 @@ pub(crate) async fn openweb_docling_handler(
     MultipartApi(mut multipart): MultipartApi,
 ) -> Result<Json<DoclingCompatResponse>, ApiError> {
     let mut file_data: Option<(Vec<u8>, String)> = None;
+    let mut config_json: Option<String> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -121,25 +131,39 @@ pub(crate) async fn openweb_docling_handler(
     {
         let field_name = field.name().unwrap_or("").to_string();
 
-        if field_name == "files" || field_name == "file" {
-            let file_name = field.file_name().map(|s| s.to_string());
-            let content_type = field.content_type().map(|s| s.to_string());
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e.to_string())))?;
+        match field_name.as_str() {
+            "files" | "file" => {
+                let file_name = field.file_name().map(|s| s.to_string());
+                let content_type = field.content_type().map(|s| s.to_string());
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e.to_string())))?;
 
-            let mut mime_type = content_type.unwrap_or_else(|| crate::core::mime::OCTET_STREAM_MIME_TYPE.to_string());
+                let mut mime_type =
+                    content_type.unwrap_or_else(|| crate::core::mime::OCTET_STREAM_MIME_TYPE.to_string());
 
-            if mime_type == crate::core::mime::OCTET_STREAM_MIME_TYPE
-                && let Some(ref name) = file_name
-                && let Ok(detected) = crate::core::mime::detect_mime_type(name, false)
-            {
-                mime_type = detected;
+                if mime_type == crate::core::mime::OCTET_STREAM_MIME_TYPE
+                    && let Some(ref name) = file_name
+                    && let Ok(detected) = crate::core::mime::detect_mime_type(name, false)
+                {
+                    mime_type = detected;
+                }
+
+                file_data = Some((data.to_vec(), mime_type));
             }
-
-            file_data = Some((data.to_vec(), mime_type));
-            break;
+            // OpenWebUI's Docling engine sends extraction parameters as a form field. Accept
+            // the /extract field name "config" as well as OpenWebUI's own "parameters" label.
+            "config" | "parameters" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e.to_string())))?;
+                if !text.trim().is_empty() {
+                    config_json = Some(text);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -149,8 +173,13 @@ pub(crate) async fn openweb_docling_handler(
         ))
     })?;
 
-    let mut config = (*state.default_config).clone();
-    config.output_format = crate::core::config::OutputFormat::Markdown;
+    // Honor the server's user config as the base, then merge the per-request config —
+    // same capability as `/extract`.
+    let mut config = crate::core::config::merge::build_config_from_json(&state.default_config, config_json.as_deref())
+        .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e)))?;
+    if config.output_format == crate::core::config::OutputFormat::Plain {
+        config.output_format = crate::core::config::OutputFormat::Markdown;
+    }
 
     let request = ExtractionRequest::bytes(data, mime_type, config);
     let mut svc = state
@@ -166,4 +195,345 @@ pub(crate) async fn openweb_docling_handler(
         },
         status: "success".to_string(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        routing::{post, put},
+    };
+    use tower::ServiceExt;
+
+    use super::*;
+
+    /// Tiny real fixture (39 bytes) from the shared `test_documents` corpus: plain text,
+    /// no OCR/network required, extracts to non-empty Markdown quickly.
+    fn fixture_bytes() -> Vec<u8> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/text/plain.txt");
+        std::fs::read(&path).unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()))
+    }
+
+    fn test_router() -> Router {
+        test_router_with_config(crate::ExtractionConfig::default())
+    }
+
+    fn test_router_with_config(config: crate::ExtractionConfig) -> Router {
+        let extraction_service = crate::service::ExtractionServiceBuilder::new().build();
+        let state = ApiState {
+            default_config: std::sync::Arc::new(config),
+            extraction_service: std::sync::Arc::new(std::sync::Mutex::new(extraction_service)),
+            #[cfg(feature = "api")]
+            job_store: std::sync::Arc::new(crate::api::jobs::JobStore::new()),
+        };
+
+        Router::new()
+            .route("/process", put(openweb_external_handler))
+            .route("/v1/convert/file", post(openweb_docling_handler))
+            .with_state(state)
+    }
+
+    fn docling_body(boundary: &str, config: Option<&str>) -> Vec<u8> {
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"plain.txt\"\r\nContent-Type: text/plain\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(&fixture_bytes());
+        body.extend_from_slice(b"\r\n");
+        if let Some(cfg) = config {
+            body.extend_from_slice(
+                format!("--{boundary}\r\nContent-Disposition: form-data; name=\"config\"\r\n\r\n{cfg}\r\n").as_bytes(),
+            );
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        body
+    }
+
+    async fn docling_md_content(config: Option<&str>) -> String {
+        let app = test_router();
+        let boundary = "cfgboundary";
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(docling_body(boundary, config)))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        serde_json::from_slice::<DoclingCompatResponse>(&bytes)
+            .expect("response parses")
+            .document
+            .md_content
+    }
+
+    #[tokio::test]
+    async fn openweb_process_returns_markdown_and_source() {
+        let app = test_router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/process")
+                    .header("content-type", "text/plain")
+                    .header("X-Filename", "plain.txt")
+                    .body(Body::from(fixture_bytes()))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let parsed: OpenWebDocumentResponse =
+            serde_json::from_slice(&bytes).expect("response parses as OpenWebDocumentResponse");
+        assert!(!parsed.page_content.is_empty(), "page_content must be non-empty");
+        assert_eq!(parsed.metadata.source, "plain.txt");
+    }
+
+    #[tokio::test]
+    async fn openweb_process_rejects_empty_body() {
+        let app = test_router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/process")
+                    .header("content-type", "text/plain")
+                    .header("X-Filename", "empty.txt")
+                    .body(Body::empty())
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn openweb_process_url_decodes_filename_header() {
+        let app = test_router();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/process")
+                    .header("content-type", "text/plain")
+                    .header("X-Filename", "my%20file.txt")
+                    .body(Body::from(fixture_bytes()))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let parsed: OpenWebDocumentResponse =
+            serde_json::from_slice(&bytes).expect("response parses as OpenWebDocumentResponse");
+        assert_eq!(parsed.metadata.source, "my file.txt");
+    }
+
+    #[tokio::test]
+    async fn openweb_docling_convert_returns_md_content() {
+        let app = test_router();
+        let boundary = "testboundary123";
+
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"plain.txt\"\r\nContent-Type: text/plain\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(&fixture_bytes());
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(body))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let parsed: DoclingCompatResponse =
+            serde_json::from_slice(&bytes).expect("response parses as DoclingCompatResponse");
+        assert!(!parsed.document.md_content.is_empty(), "md_content must be non-empty");
+        assert_eq!(parsed.status, "success");
+    }
+
+    #[tokio::test]
+    async fn openweb_docling_rejects_missing_file() {
+        let app = test_router();
+        let boundary = "testboundary";
+        let body = format!("--{boundary}--\r\n");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(body))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// A `config` field is now parsed and merged: an invalid config must fail the request
+    /// rather than being silently ignored (regression for the OpenWebUI params-ignored bug).
+    #[tokio::test]
+    async fn openweb_docling_rejects_invalid_config() {
+        let app = test_router();
+        let boundary = "badcfg";
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(docling_body(
+                        boundary,
+                        Some(r#"{"use_cache":"not_a_bool"}"#),
+                    )))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// A per-request `config` field changes the rendered output — proof the config now
+    /// reaches the pipeline instead of being dropped.
+    #[tokio::test]
+    async fn openweb_docling_config_field_changes_output() {
+        let markdown = docling_md_content(None).await;
+        let json = docling_md_content(Some(r#"{"output_format":"json"}"#)).await;
+        assert_ne!(
+            markdown, json,
+            "config output_format should change the rendered content"
+        );
+    }
+
+    /// The Docling endpoint honors the server's user config as the base when no per-request
+    /// config is sent (no more unconditional force-to-Markdown).
+    #[tokio::test]
+    async fn openweb_docling_honors_default_config_format() {
+        let cfg = crate::ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Json,
+            ..Default::default()
+        };
+        let app = test_router_with_config(cfg);
+        let boundary = "defcfg";
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(docling_body(boundary, None)))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let from_user_config = serde_json::from_slice::<DoclingCompatResponse>(&bytes)
+            .expect("response parses")
+            .document
+            .md_content;
+        let markdown_default = docling_md_content(None).await;
+        assert_ne!(
+            from_user_config, markdown_default,
+            "server-configured output_format must be honored, not overridden by Markdown"
+        );
+    }
+
+    /// The External endpoint accepts a per-request config via the `X-Config` header and
+    /// rejects an invalid one.
+    #[tokio::test]
+    async fn openweb_external_rejects_invalid_x_config() {
+        let app = test_router();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/process")
+                    .header("content-type", "text/plain")
+                    .header("X-Filename", "plain.txt")
+                    .header("X-Config", r#"{"use_cache":"not_a_bool"}"#)
+                    .body(Body::from(fixture_bytes()))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// A valid `X-Config` header changes the External endpoint's rendered output.
+    #[tokio::test]
+    async fn openweb_external_x_config_changes_output() {
+        async fn page_content(x_config: Option<&str>) -> String {
+            let app = test_router();
+            let mut builder = Request::builder()
+                .method("PUT")
+                .uri("/process")
+                .header("content-type", "text/plain")
+                .header("X-Filename", "plain.txt");
+            if let Some(cfg) = x_config {
+                builder = builder.header("X-Config", cfg);
+            }
+            let response = app
+                .oneshot(builder.body(Body::from(fixture_bytes())).expect("valid request"))
+                .await
+                .expect("handler responded");
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("body bytes readable");
+            serde_json::from_slice::<OpenWebDocumentResponse>(&bytes)
+                .expect("response parses")
+                .page_content
+        }
+
+        let markdown = page_content(None).await;
+        let json = page_content(Some(r#"{"output_format":"json"}"#)).await;
+        assert_ne!(markdown, json, "X-Config output_format should change rendered content");
+    }
 }

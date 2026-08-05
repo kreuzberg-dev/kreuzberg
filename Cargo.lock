@@ -97,9 +97,9 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
+checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
 dependencies = [
  "memchr",
 ]
@@ -593,7 +593,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "benchmark-harness"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "ahash 0.8.12",
  "async-trait",
@@ -8112,6 +8112,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sceptre"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0193d61334511f06aa143f03d628eb3717aa669cc6f751e0ca04cf51f7ff8678"
+dependencies = [
+ "hf-hub",
+ "image 0.25.10",
+ "imageproc",
+ "ndarray 0.17.2",
+ "num_cpus",
+ "once_cell",
+ "ort",
+ "rayon",
+ "serde",
+ "sha2 0.11.0",
+ "thiserror 2.0.19",
+ "tracing",
+ "tract-onnx",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10307,9 +10328,9 @@ checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
 name = "tree-sitter-language-pack"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe2c9cf0a4296b63dbacc707afe795598f51bdb7a5469d4185e5ad75066ffc1e"
+checksum = "3da225dcb166a011d3445bcdc168df8c30e0937aa7a4b988ba04b4c18224d91f"
 dependencies = [
  "ahash 0.8.12",
  "cc",
@@ -11646,7 +11667,7 @@ dependencies = [
 
 [[package]]
 name = "xberg"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "aes-gcm",
  "ahash 0.8.12",
@@ -11734,6 +11755,7 @@ dependencies = [
  "roxmltree 0.21.1",
  "rqrr",
  "safetensors 0.8.0",
+ "sceptre",
  "scrypt",
  "serde",
  "serde_json",
@@ -11786,7 +11808,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-candle-ocr"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "base64 0.23.0",
  "candle-core",
@@ -11806,7 +11828,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-cli"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -11828,7 +11850,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-dart"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
  "crawlberg",
@@ -11842,7 +11864,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-ffi"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "ahash 0.8.12",
  "async-trait",
@@ -11858,7 +11880,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-gliner"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -11881,10 +11903,10 @@ dependencies = [
 
 [[package]]
 name = "xberg-jni"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
- "base64 0.23.0",
+ "base64 0.22.1",
  "futures-util",
  "jni 0.22.4",
  "serde_json",
@@ -11895,7 +11917,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libheif"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cfg-if 1.0.4",
  "enumn",
@@ -11907,7 +11929,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-libwpd"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cc",
  "flate2",
@@ -11920,7 +11942,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-node"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
  "crawlberg",
@@ -11938,7 +11960,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-paddle-ocr"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "geo-clipper",
  "geo-types",
@@ -11953,7 +11975,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-php"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
  "crawlberg",
@@ -11968,7 +11990,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-py"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
  "crawlberg",
@@ -11984,7 +12006,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-swift"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "ahash 0.8.12",
  "async-trait",
@@ -12002,7 +12024,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-tesseract"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "cc",
  "cmake",
@@ -12014,7 +12036,7 @@ dependencies = [
 
 [[package]]
 name = "xberg-wasm"
-version = "1.0.11"
+version = "1.0.14"
 dependencies = [
  "async-trait",
  "crawlberg",
@@ -12399,9 +12421,9 @@ dependencies = [
 
 [[package]]
 name = "zlib-rs"
-version = "0.6.6"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b142a20ec14a91d5bc708c1dc21b080c550113d8aa77afa29635673a65dd02c5"
+checksum = "34b31d188d9d685a4f9c7b46d6e36631b07058d2cfe190267adce54dc230bf12"
 
 [[package]]
 name = "zmij"

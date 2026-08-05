@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/wire_protocol_spec.org",
+	"file_type": "org",
+	"file_size": 1816,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Binary wire protocol spec with header field tables and validation rules",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/org/wire_protocol_spec.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/org/wire_protocol_spec.md",
+		"source": "pandoc"
+	}
+}

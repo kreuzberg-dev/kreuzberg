@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "name": "ocr-images-structured-v1",
+  "batch_size": 8,
+  "ocr_enabled": true,
+  "fixtures": [
+    "cord_receipt_01.json",
+    "cord_receipt_02.json",
+    "cord_receipt_03.json",
+    "cord_receipt_04.json",
+    "doclaynet_page_01.json",
+    "doclaynet_page_02.json",
+    "image_table.json",
+    "image_invoice.json"
+  ]
+}

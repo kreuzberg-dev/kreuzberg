@@ -187,6 +187,11 @@ impl Cohort {
         matches!(self, Cohort::Ocr | Cohort::Images)
     }
 
+    /// Whether this release cohort includes the normal ONNX Runtime Sceptre variants.
+    pub fn includes_sceptre_ort(self) -> bool {
+        matches!(self, Cohort::Ocr | Cohort::Images)
+    }
+
     /// Build this cohort's pinned release contract.
     pub fn contract(self) -> CohortContract {
         match self {
@@ -244,7 +249,7 @@ const OCR_DOCUMENT_EXTENSIONS: &[&str] = &["pdf", "pdf", "pdf", "pdf"];
 
 const OFFICE_COHORT: &str = "native-office-fast";
 const OFFICE_MANIFEST_NAME: &str = "native-office-fast-v1";
-const OFFICE_MANIFEST_BLAKE3: &str = "da00b5e555de6dd7e6226a626a23d1db334599350ae3b956b874936b149f7f60";
+const OFFICE_MANIFEST_BLAKE3: &str = "f732f8eb582d58b56492b047cfade8d2298861fb3313675595d8162037e6960e";
 const OFFICE_BATCH_SIZE: usize = 8;
 const OFFICE_FIXTURES: &[&str] = &[
     "docx_simple.json",
@@ -255,6 +260,14 @@ const OFFICE_FIXTURES: &[&str] = &[
     "xlsx/excel_multi_sheet.json",
     "odt/headers.json",
     "rtf/formatting.json",
+    "docx/quarterly_operations_report.json",
+    "docx/budget_fy2027_memo.json",
+    "odt/battery_storage_overview.json",
+    "odt/platform_sync_minutes.json",
+    "rtf/aurora_launch_plan.json",
+    "xlsx/department_budget_2026.json",
+    "xlsx/warehouse_inventory.json",
+    "doc/vendor_renewal_letter.json",
 ];
 const OFFICE_DOCUMENT_STEMS: &[&str] = &[
     "lorem_ipsum",
@@ -265,12 +278,23 @@ const OFFICE_DOCUMENT_STEMS: &[&str] = &[
     "excel_multi_sheet",
     "headers",
     "formatting",
+    "quarterly_operations_report",
+    "budget_fy2027_memo",
+    "battery_storage_overview",
+    "platform_sync_minutes",
+    "aurora_launch_plan",
+    "department_budget_2026",
+    "warehouse_inventory",
+    "vendor_renewal_letter",
 ];
-const OFFICE_DOCUMENT_EXTENSIONS: &[&str] = &["docx", "docx", "doc", "pptx", "ppt", "xlsx", "odt", "rtf"];
+const OFFICE_DOCUMENT_EXTENSIONS: &[&str] = &[
+    "docx", "docx", "doc", "pptx", "ppt", "xlsx", "odt", "rtf", "docx", "docx", "odt", "odt", "rtf", "xlsx", "xlsx",
+    "doc",
+];
 
 const MARKUP_COHORT: &str = "native-markup-fast";
 const MARKUP_MANIFEST_NAME: &str = "native-markup-fast-v1";
-const MARKUP_MANIFEST_BLAKE3: &str = "6ffa2e256ea2b28b7f4ce2494df421d5cdb2b1df0300631a25979be2dcd459aa";
+const MARKUP_MANIFEST_BLAKE3: &str = "f4b40fae95ccf14a0b02e67cacc9e29fa79e27deb8ff81fe98d00170bbdc7264";
 const MARKUP_BATCH_SIZE: usize = 8;
 const MARKUP_FIXTURES: &[&str] = &[
     "html/complex_table.json",
@@ -281,6 +305,14 @@ const MARKUP_FIXTURES: &[&str] = &[
     "rst/restructured_text.json",
     "org/tables.json",
     "docbook_chapter.json",
+    "html/payments_api_guide.json",
+    "latex/cache_layer_release_notes.json",
+    "rst/cli_quickstart_tutorial.json",
+    "org/wire_protocol_spec.json",
+    "docbook/deployment_faq.json",
+    "typst/rate_limiter_design.json",
+    "md/observability_readme.json",
+    "rst/sdk_changelog.json",
 ];
 const MARKUP_DOCUMENT_STEMS: &[&str] = &[
     "complex_table",
@@ -291,8 +323,19 @@ const MARKUP_DOCUMENT_STEMS: &[&str] = &[
     "restructured_text",
     "tables",
     "docbook-chapter",
+    "payments_api_guide",
+    "cache_layer_release_notes",
+    "cli_quickstart_tutorial",
+    "wire_protocol_spec",
+    "deployment_faq",
+    "rate_limiter_design",
+    "observability_readme",
+    "sdk_changelog",
 ];
-const MARKUP_DOCUMENT_EXTENSIONS: &[&str] = &["html", "md", "md", "tex", "typ", "rst", "org", "docbook"];
+const MARKUP_DOCUMENT_EXTENSIONS: &[&str] = &[
+    "html", "md", "md", "tex", "typ", "rst", "org", "docbook", "html", "tex", "rst", "org", "docbook", "typ", "md",
+    "rst",
+];
 
 const EBOOK_COHORT: &str = "native-ebook-fast";
 const EBOOK_MANIFEST_NAME: &str = "native-ebook-fast-v1";
@@ -333,7 +376,7 @@ const EMAIL_DOCUMENT_EXTENSIONS: &[&str] = &["eml", "eml", "eml", "msg", "msg", 
 
 const DATA_COHORT: &str = "native-data-fast";
 const DATA_MANIFEST_NAME: &str = "native-data-fast-v1";
-const DATA_MANIFEST_BLAKE3: &str = "de2595f6ba5ca275f8adc7367755089c2d9fa064489d874f314bc4a80e83c1b3";
+const DATA_MANIFEST_BLAKE3: &str = "fc2e39e80324501140a7b32f9feba6a593bfec94ecd91e291ca4396ea2abd36f";
 const DATA_BATCH_SIZE: usize = 6;
 const DATA_FIXTURES: &[&str] = &[
     "csv/csv-comma.json",
@@ -342,6 +385,12 @@ const DATA_FIXTURES: &[&str] = &[
     "json_simple.json",
     "json_nested.json",
     "yaml_config.json",
+    "csv/quarterly_sales.json",
+    "csv/sensor_readings.json",
+    "tsv/experiment_results.json",
+    "json/api_users.json",
+    "json/service_config.json",
+    "yaml/deployment.json",
 ];
 const DATA_DOCUMENT_STEMS: &[&str] = &[
     "csv-comma",
@@ -350,8 +399,16 @@ const DATA_DOCUMENT_STEMS: &[&str] = &[
     "simple",
     "complex_nested",
     "sample_config",
+    "quarterly_sales",
+    "sensor_readings",
+    "experiment_results",
+    "api_users",
+    "service_config",
+    "deployment",
 ];
-const DATA_DOCUMENT_EXTENSIONS: &[&str] = &["csv", "csv", "tsv", "json", "json", "yaml"];
+const DATA_DOCUMENT_EXTENSIONS: &[&str] = &[
+    "csv", "csv", "tsv", "json", "json", "yaml", "csv", "csv", "tsv", "json", "json", "yaml",
+];
 
 const IMAGES_COHORT: &str = "ocr-images-fast";
 const IMAGES_MANIFEST_NAME: &str = "ocr-images-fast-v1";
@@ -411,9 +468,9 @@ fn matrix_entry(
 /// The Xberg cells for a cohort: markdown/plaintext x single/batch for each enabled pipeline.
 /// Rendered-page cohorts (`include_layout`) run both `baseline` and `layout`; OCR cohorts
 /// (`include_paddle`) additionally run the PaddleOCR-engine variants `baseline-paddle` (and
-/// `layout-paddle` when layout is also included). Each pipeline contributes 4 cells, so the counts
-/// are: baseline-only = 4, +layout = 8, +paddle = 16.
-fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool) -> Vec<MatrixEntry> {
+/// `layout-paddle` when layout is also included). Sceptre-enabled cohorts add three ORT variants.
+/// Each pipeline contributes four cells: the OCR/Image cohorts therefore contain 28 Xberg cells.
+fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool, include_sceptre: bool) -> Vec<MatrixEntry> {
     let mut pipelines: Vec<&str> = vec!["baseline"];
     if include_layout {
         pipelines.push("layout");
@@ -423,6 +480,9 @@ fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool) -> Ve
         if include_layout {
             pipelines.push("layout-paddle");
         }
+    }
+    if include_sceptre {
+        pipelines.extend(["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"]);
     }
     let mut entries = Vec::new();
     for &pipeline in &pipelines {
@@ -493,7 +553,7 @@ fn optional(entries: Vec<MatrixEntry>) -> Vec<MatrixEntry> {
 }
 
 fn native_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(NATIVE_COHORT, true, false);
+    let mut matrix = xberg_entries(NATIVE_COHORT, true, false, false);
     matrix.extend(grid_entries("docling", NATIVE_COHORT));
     matrix.push(matrix_entry(
         format!("benchmarks-markitdown-markdown-single-file-{NATIVE_COHORT}"),
@@ -525,7 +585,7 @@ fn native_matrix() -> Vec<MatrixEntry> {
 }
 
 fn ocr_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(OCR_COHORT, true, true);
+    let mut matrix = xberg_entries(OCR_COHORT, true, true, true);
     matrix.extend(grid_entries("docling", OCR_COHORT));
     matrix.push(markdown_single_file_entry("mineru", OCR_COHORT).into_optional());
     // Tika and Unstructured are Tesseract-backed and now run the OCR cohorts too
@@ -547,39 +607,39 @@ fn broad_office_competitors(cohort: &str) -> Vec<MatrixEntry> {
 }
 
 fn office_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(OFFICE_COHORT, false, false);
+    let mut matrix = xberg_entries(OFFICE_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(OFFICE_COHORT));
     matrix
 }
 
 fn markup_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(MARKUP_COHORT, false, false);
+    let mut matrix = xberg_entries(MARKUP_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(MARKUP_COHORT));
     matrix
 }
 
 fn data_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(DATA_COHORT, false, false);
+    let mut matrix = xberg_entries(DATA_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(DATA_COHORT));
     matrix
 }
 
 fn ebook_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(EBOOK_COHORT, false, false);
+    let mut matrix = xberg_entries(EBOOK_COHORT, false, false, false);
     matrix.push(plaintext_single_file_entry("tika", EBOOK_COHORT).into_optional());
     matrix.push(markdown_single_file_entry("pymupdf4llm", EBOOK_COHORT).into_optional());
     matrix
 }
 
 fn email_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(EMAIL_COHORT, false, false);
+    let mut matrix = xberg_entries(EMAIL_COHORT, false, false, false);
     matrix.push(plaintext_single_file_entry("unstructured", EMAIL_COHORT).into_optional());
     matrix.push(plaintext_single_file_entry("tika", EMAIL_COHORT).into_optional());
     matrix
 }
 
 fn images_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(IMAGES_COHORT, true, true);
+    let mut matrix = xberg_entries(IMAGES_COHORT, true, true, true);
     matrix.extend(optional(grid_entries("docling", IMAGES_COHORT)));
     // pymupdf4llm has no OCR path (`pymupdf4llm.to_markdown` only reads existing text layers), so on
     // a scanned-image cohort it always returns empty content and can never clear the min-success-rate
@@ -699,13 +759,13 @@ mod tests {
     /// but never required for the per-format-family cohorts.
     const CONTRACT_CELL_COUNTS: [(Cohort, usize, usize); 8] = [
         (Cohort::Native, 21, 20),
-        (Cohort::Ocr, 27, 24),
+        (Cohort::Ocr, 39, 36),
         (Cohort::Office, 11, 4),
         (Cohort::Markup, 11, 4),
         (Cohort::Ebook, 6, 4),
         (Cohort::Email, 6, 4),
         (Cohort::Data, 11, 4),
-        (Cohort::Images, 23, 16),
+        (Cohort::Images, 35, 28),
     ];
 
     #[test]
@@ -768,6 +828,16 @@ mod tests {
                 "{}: paddle-pipeline presence must match includes_paddle_ocr()",
                 cohort.as_str()
             );
+            let has_sceptre = contract
+                .matrix
+                .iter()
+                .any(|entry| entry.framework.contains("-sceptre-ort"));
+            assert_eq!(
+                has_sceptre,
+                cohort.includes_sceptre_ort(),
+                "{}: Sceptre ORT presence must match includes_sceptre_ort()",
+                cohort.as_str()
+            );
             let xberg_required = contract
                 .matrix
                 .iter()
@@ -785,8 +855,38 @@ mod tests {
                     pipelines += 1;
                 }
             }
+            if cohort.includes_sceptre_ort() {
+                pipelines += 3;
+            }
             assert_eq!(xberg_required, pipelines * 4, "{}: xberg cell count", cohort.as_str());
         }
+    }
+
+    #[test]
+    fn ocr_release_cohorts_include_explicit_ort_variants_but_not_tract() {
+        for cohort in [Cohort::Ocr, Cohort::Images] {
+            let contract = cohort.contract();
+            let frameworks: HashSet<&str> = contract.matrix.iter().map(|entry| entry.framework.as_str()).collect();
+            for variant in ["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"] {
+                assert!(
+                    frameworks.iter().any(|framework| framework.ends_with(variant)),
+                    "{} missing {variant}",
+                    cohort.as_str()
+                );
+            }
+            assert!(!frameworks.iter().any(|framework| framework.contains("sceptre-tract")));
+        }
+    }
+
+    #[test]
+    fn sceptre_ort_aggregate_keys_preserve_engine_and_variant_identity() {
+        let contract = Cohort::Ocr.contract();
+        let keys: HashSet<String> = contract.matrix.iter().map(MatrixEntry::aggregate_key).collect();
+        for variant in ["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"] {
+            assert!(keys.contains(&format!("xberg-markdown-{variant}:single")));
+            assert!(keys.contains(&format!("xberg-plaintext-{variant}:batch")));
+        }
+        assert!(keys.iter().all(|key| !key.contains("sceptre-tract")));
     }
 
     #[test]

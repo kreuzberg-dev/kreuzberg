@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/odt/platform_sync_minutes.odt",
+	"file_type": "odt",
+	"file_size": 7796,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Engineering sync meeting minutes with attendee, decision, and action-item lists",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/odt/platform_sync_minutes.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/odt/platform_sync_minutes.md",
+		"source": "pandoc"
+	}
+}

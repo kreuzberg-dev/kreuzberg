@@ -107,6 +107,7 @@ flutter pub add xberg
 ```
 
 ### System Requirements
+
 - **Dart SDK 3.0+** for pure-Dart consumers
 - Flutter projects supported on macOS, iOS, Android, Linux, and Windows; Flutter Web is not supported
 - Native runtime delivered via `flutter_rust_bridge` with bundled binaries for the supported platforms

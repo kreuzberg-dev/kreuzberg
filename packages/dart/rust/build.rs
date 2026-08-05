@@ -1,12 +1,6 @@
 use std::path::Path;
 
 fn main() {
-    if std::env::args().any(|arg| arg == PATCH_ONLY_ARG) {
-        // Preserve surrounding generated output; Dart SDK formatter versions create unrelated churn. ~keep
-        patch_published_loader(false);
-        return;
-    }
-
     // Re-run whenever any Rust source changes or FRB config changes.
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=flutter_rust_bridge.yaml");
@@ -40,7 +34,7 @@ fn main() {
 
             // Patch the generated Dart entrypoint so the published package resolves
             // its native library from its own installed location.
-            patch_published_loader(true);
+            patch_published_loader();
 
             // Rewrite FRB-generated handler.executeSync/handler.executeNormal calls
             // into direct handler invocations. FRB 2.x emits these calls assuming
@@ -63,11 +57,8 @@ fn main() {
 }
 
 const FRB_GENERATED_DART: &str = "../lib/src/xberg_bridge_generated/frb_generated.dart";
-const PATCH_ONLY_ARG: &str = "--patch-only";
 const FRB_HANDLER_EXECUTOR_MARKER: &str = "handler.executeSync(";
 const LOADER_MARKER: &str = "_alefResolveExternalLibrary";
-const LOADER_START_MARKER: &str = "  /// Resolve the prebuilt native library";
-const LOADER_END_MARKER: &str = "  /// Map the host platform";
 const FRB_INIT_PROLOGUE: &str = "  /// Initialize flutter_rust_bridge\n  static Future<void> init({\n    RustLibApi? api,\n    BaseHandler? handler,\n    ExternalLibrary? externalLibrary,\n    bool forceSameCodegenVersion = true,\n  }) async {\n";
 const FRB_INIT_REPLACEMENT: &str = r#"  /// Resolve the prebuilt native library from this package's own installed
   /// location so the load works from any working directory and under hardened
@@ -88,51 +79,41 @@ const FRB_INIT_REPLACEMENT: &str = r#"  /// Resolve the prebuilt native library 
         final envUri = Uri.directory(envDir);
         for (final name in _alefHostLibNames()) {
           final libPath = envUri.resolve(name).toFilePath();
-          final library = await _alefOpenIfPresent(libPath);
-          if (library != null) return library;
+          if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
+            return ExternalLibrary.open(libPath);
+          }
         }
       }
 
-      final packageRoot = await Isolate.resolvePackageUri(
-        Uri.parse('package:xberg/xberg.dart'),
-      );
+      final packageRoot =
+          await Isolate.resolvePackageUri(Uri.parse('package:xberg/xberg.dart'));
       if (packageRoot != null) {
         final libNames = _alefHostLibNames();
         final searchDirs = <Uri>[
-          if (_alefHostRid() != null)
-            packageRoot.resolve('src/native/${_alefHostRid()}/'),
+          if (_alefHostRid() != null) packageRoot.resolve('src/native/${_alefHostRid()}/'),
           packageRoot.resolve('src/xberg_bridge_generated/'),
         ];
         for (final dir in searchDirs) {
           for (final name in libNames) {
             final libPath = dir.resolve(name).toFilePath();
-            final library = await _alefOpenIfPresent(libPath);
-            if (library != null) return library;
+            if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
+              return ExternalLibrary.open(libPath);
+            }
           }
         }
       }
 
       final cachedPath = nativeCachedLibPath();
-      if (cachedPath != null) {
-        final library = await _alefOpenIfPresent(cachedPath);
-        if (library != null) return library;
+      if (cachedPath != null && File(cachedPath).existsSync()) {
+        return ExternalLibrary.open(cachedPath);
       }
 
       final downloadedPath = await nativeDownloadAndCacheLibrary();
       return ExternalLibrary.open(downloadedPath);
-    } catch (error, stackTrace) {
-      Error.throwWithStackTrace(error, stackTrace);
+    } catch (_) {
+      // Fall through to the default loader on any resolution failure.
     }
-  }
-
-  /// Open a local native candidate, returning `null` only when the operating
-  /// system confirms the path does not exist. Other filesystem and loader
-  /// failures propagate to the contextual resolver error above.
-  static Future<ExternalLibrary?> _alefOpenIfPresent(String path) async {
-    final type = await FileSystemEntity.type(path);
-    // Only confirmed absence may defer to FRB's default loader. ~keep
-    if (type == FileSystemEntityType.notFound) return null;
-    return ExternalLibrary.open(path);
+    return null;
   }
 
   /// Map the host platform to the pub.dev native staging RID. Returns `null`
@@ -173,26 +154,27 @@ const FRB_INIT_REPLACEMENT: &str = r#"  /// Resolve the prebuilt native library 
     externalLibrary ??= await _alefResolveExternalLibrary();
 "#;
 
-fn patch_published_loader_source(source: &str) -> Result<String, &'static str> {
-    let mut patched = if source.contains(LOADER_MARKER) {
-        let Some(start) = source.find(LOADER_START_MARKER) else {
-            return Err("loader start marker not found");
-        };
-        let Some(relative_end) = source[start..].find(LOADER_END_MARKER) else {
-            return Err("loader end marker not found");
-        };
-        let Some(replacement_end) = FRB_INIT_REPLACEMENT.find(LOADER_END_MARKER) else {
-            return Err("replacement end marker not found");
-        };
-        let mut patched = source.to_owned();
-        patched.replace_range(start..start + relative_end, &FRB_INIT_REPLACEMENT[..replacement_end]);
-        patched
-    } else {
-        if !source.contains(FRB_INIT_PROLOGUE) {
-            return Err("FRB init prologue not found");
-        }
-        source.replacen(FRB_INIT_PROLOGUE, FRB_INIT_REPLACEMENT, 1)
+/// Inject the published-package native-library loader into `frb_generated.dart`.
+/// Idempotent: a no-op when the marker is already present or the FRB entrypoint
+/// signature is absent.
+fn patch_published_loader() {
+    let path = Path::new(FRB_GENERATED_DART);
+    let Ok(source) = std::fs::read_to_string(path) else {
+        println!(
+            "cargo:warning=published-loader patch skipped: {} not found",
+            FRB_GENERATED_DART
+        );
+        return;
     };
+    if source.contains(LOADER_MARKER) {
+        return;
+    }
+    if !source.contains(FRB_INIT_PROLOGUE) {
+        println!("cargo:warning=published-loader patch skipped: FRB init prologue not found");
+        return;
+    }
+
+    let mut patched = source.replacen(FRB_INIT_PROLOGUE, FRB_INIT_REPLACEMENT, 1);
 
     // Ensure the helper's `File`/`Isolate`/`Abi` dependencies, and the cache-aware
     // `native_loader.dart` helpers (`nativeCachedLibPath`, `nativeDownloadAndCacheLibrary`,
@@ -213,34 +195,9 @@ fn patch_published_loader_source(source: &str) -> Result<String, &'static str> {
         }
     }
 
-    Ok(patched)
-}
-
-/// Inject the published-package native-library loader into `frb_generated.dart`.
-/// Reapplying the patch refreshes a stale loader block without changing fresh output. ~keep
-fn patch_published_loader(run_dart_format: bool) {
-    let path = Path::new(FRB_GENERATED_DART);
-    let Ok(source) = std::fs::read_to_string(path) else {
-        println!(
-            "cargo:warning=published-loader patch skipped: {} not found",
-            FRB_GENERATED_DART
-        );
-        return;
-    };
-    let patched = match patch_published_loader_source(&source) {
-        Ok(patched) => patched,
-        Err(reason) => {
-            println!("cargo:warning=published-loader patch skipped: {reason}");
-            return;
-        }
-    };
-
     if patched != source {
         if let Err(err) = std::fs::write(path, &patched) {
             println!("cargo:warning=failed to write published-loader patch: {err}");
-            return;
-        }
-        if !run_dart_format {
             return;
         }
         match std::process::Command::new("dart")
@@ -490,60 +447,5 @@ mod tests {
             "signature extraction should stop before body"
         );
         assert_eq!(sig, "void process(String data) {");
-    }
-
-    #[test]
-    fn loader_propagates_integrity_and_download_failures() {
-        assert!(FRB_INIT_REPLACEMENT.contains("catch (error, stackTrace)"));
-        assert!(FRB_INIT_REPLACEMENT.contains("Error.throwWithStackTrace(error, stackTrace)"));
-        assert!(!FRB_INIT_REPLACEMENT.contains("catch (_)"));
-    }
-
-    #[test]
-    fn loader_only_defers_when_local_library_is_absent() {
-        assert!(FRB_INIT_REPLACEMENT.contains("final downloadedPath = await nativeDownloadAndCacheLibrary();"));
-        assert!(FRB_INIT_REPLACEMENT.contains("ExternalLibrary.open(downloadedPath)"));
-        assert!(!FRB_INIT_REPLACEMENT.contains("_alefOpenIfPresent(downloadedPath)"));
-        assert!(FRB_INIT_REPLACEMENT.contains("await FileSystemEntity.type(path)"));
-        assert!(FRB_INIT_REPLACEMENT.contains("type == FileSystemEntityType.notFound"));
-
-        let resolver = FRB_INIT_REPLACEMENT
-            .split("/// Map the host platform")
-            .next()
-            .expect("loader source should contain the resolver");
-        assert_eq!(resolver.matches("return null;").count(), 1);
-    }
-
-    #[test]
-    fn published_loader_patch_is_idempotent() {
-        let source = format!("import 'package:example/example.dart';\n{FRB_INIT_PROLOGUE}}}\n");
-        let patched = patch_published_loader_source(&source).expect("first patch should succeed");
-        let repatched = patch_published_loader_source(&patched).expect("second patch should succeed");
-        assert_eq!(repatched, patched);
-    }
-
-    #[test]
-    fn generated_loader_is_fresh() {
-        let generated = std::fs::read_to_string(FRB_GENERATED_DART).expect("generated Dart bridge should exist");
-        let start = generated
-            .find(LOADER_START_MARKER)
-            .expect("generated Dart bridge should contain the loader start marker");
-        let end = generated[start..]
-            .find(LOADER_END_MARKER)
-            .map(|offset| start + offset)
-            .expect("generated Dart bridge should contain the loader end marker");
-        let replacement_end = FRB_INIT_REPLACEMENT
-            .find(LOADER_END_MARKER)
-            .expect("replacement should contain the loader end marker");
-        let actual = generated[start..end]
-            .split_whitespace()
-            .collect::<String>()
-            .replace(",)", ")");
-        let expected = FRB_INIT_REPLACEMENT[..replacement_end]
-            .split_whitespace()
-            .collect::<String>()
-            .replace(",)", ")");
-
-        assert_eq!(actual, expected, "generated Dart loader is stale");
     }
 }

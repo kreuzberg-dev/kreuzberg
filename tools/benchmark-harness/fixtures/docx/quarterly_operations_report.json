@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/docx/quarterly_operations_report.docx",
+	"file_type": "docx",
+	"file_size": 11715,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Quarterly operations report with headings, a bulleted list, and a regional performance table",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/docx/quarterly_operations_report.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/docx/quarterly_operations_report.md",
+		"source": "pandoc"
+	}
+}

@@ -15,6 +15,13 @@ fn main() {
         println!("cargo::rustc-cfg=auto_rotate");
     }
 
+    println!("cargo::rustc-check-cfg=cfg(sceptre_ocr)");
+    if std::env::var_os("CARGO_FEATURE_SCEPTRE_OCR_ORT").is_some()
+        || std::env::var_os("CARGO_FEATURE_SCEPTRE_OCR_TRACT").is_some()
+    {
+        println!("cargo::rustc-cfg=sceptre_ocr");
+    }
+
     if std::env::var_os("CARGO_FEATURE_ORT_BUNDLED").is_some()
         && std::env::var_os("CARGO_FEATURE_ORT_DYNAMIC").is_some()
     {

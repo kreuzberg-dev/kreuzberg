@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/markup/cli_quickstart_tutorial.rst",
+	"file_type": "rst",
+	"file_size": 1737,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "CLI quickstart tutorial with install steps, flag table, and code blocks",
+		"category": "markup"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/rst/cli_quickstart_tutorial.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/rst/cli_quickstart_tutorial.md",
+		"source": "pandoc"
+	}
+}

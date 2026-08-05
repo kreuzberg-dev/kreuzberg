@@ -9,6 +9,6 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/docx/docx_simple.txt",
-		"source": "vision"
+		"source": "pandoc"
 	}
 }

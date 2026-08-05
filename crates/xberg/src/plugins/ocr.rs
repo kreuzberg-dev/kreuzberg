@@ -23,7 +23,7 @@ pub enum OcrBackendType {
     PaddleOCR,
     /// Candle-based VLM OCR (TrOCR, PaddleOCR-VL).
     Candle,
-    /// Custom/third-party OCR backend
+    /// Name-selected built-in or third-party OCR backend.
     Custom,
 }
 

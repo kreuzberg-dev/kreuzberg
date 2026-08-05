@@ -11,6 +11,14 @@
     "ppt_presentation.json",
     "xlsx/excel_multi_sheet.json",
     "odt/headers.json",
-    "rtf/formatting.json"
+    "rtf/formatting.json",
+    "docx/quarterly_operations_report.json",
+    "docx/budget_fy2027_memo.json",
+    "odt/battery_storage_overview.json",
+    "odt/platform_sync_minutes.json",
+    "rtf/aurora_launch_plan.json",
+    "xlsx/department_budget_2026.json",
+    "xlsx/warehouse_inventory.json",
+    "doc/vendor_renewal_letter.json"
   ]
 }

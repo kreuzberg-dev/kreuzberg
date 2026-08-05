@@ -196,14 +196,14 @@ OCR backends are usable individually or chained into a quality-driven fallback p
 
 ### Backend Comparison
 
-|                    | Tesseract                                | PaddleOCR                                                          |
-| ------------------ | ---------------------------------------- | ------------------------------------------------------------------ |
-| **Languages**      | 100+                                     | 80+ (11 script families)                                           |
-| **Best for**       | General purpose, broad language coverage | CJK, complex scripts, high accuracy                                |
-| **Platform**       | Native and WASM targets                  | Native ONNX Runtime builds                                         |
-| **Install**        | System package (`tesseract-ocr`)         | Cargo feature `paddle-ocr` (bundled in the Python package)         |
-| **Runtime**        | C library (Tesseract 4.0+)               | ONNX Runtime (models downloaded on first use)                      |
-| **Python version** | Any                                      | Any                                                                |
+|                    | Tesseract                                | PaddleOCR                                                  | Sceptre |
+| ------------------ | ---------------------------------------- | ---------------------------------------------------------- | ------- |
+| **Languages**      | 100+                                     | 80+ (11 script families)                                   | 8 EasyOCR Gen2 groups |
+| **Best for**       | General purpose, broad language coverage | CJK, complex scripts, high accuracy                        | CRAFT scene/document text with line geometry |
+| **Platform**       | Native and WASM targets                  | Native ONNX Runtime builds                                 | ORT desktop/server; tract Android/iOS; opt-in Sceptre worker API on WASM |
+| **Install**        | System package (`tesseract-ocr`)         | Cargo feature `paddle-ocr`                                 | `sceptre-ocr` or `sceptre-ocr-tract` |
+| **Runtime**        | C library (Tesseract 4.0+)               | ONNX Runtime                                               | ONNX Runtime or tract; CPU-only |
+| **Models**         | OS language packs                        | Downloaded on first use                                    | Desktop cache; required mobile asset paths; verified caller-supplied WASM bytes |
 
 ### Multi-Backend Pipeline
 
@@ -491,7 +491,7 @@ Polyglot bindings share the Rust core and expose the same generated types where 
 **TypeScript: Two flavors**
 
 - **Native** (`@xberg-io/xberg`) — Full speed, complete feature parity (servers, plugins, config file discovery)
-- **WASM** (`@xberg-io/xberg-wasm`) — Browser/edge runtime, 60–80% of native speed, no native dependencies required. Excluded features: ORT-dependent inference (`paddle-ocr`, embeddings, reranker, transcription), liter-llm/VLM features, server modes (`api`/`mcp`), CLI binary, tree-sitter code intelligence, and browser filesystem paths. Supported: pure-Rust extraction formats, Tesseract WASM OCR, RT-DETR layout detection and document-orientation through the pure-Rust `tract` engine (streamed model weights via `detectLayout` / `detectOrientation`), chunking, keywords, language detection, stopwords, redaction, summarization, SVG, and QR-code detection.
+- **WASM** (`@xberg-io/xberg-wasm`) — Browser/edge runtime, 60–80% of native speed, no native dependencies required. Excluded features: ORT-dependent inference (`paddle-ocr`, embeddings, reranker, transcription), liter-llm/VLM features, server modes (`api`/`mcp`), CLI binary, tree-sitter code intelligence, and browser filesystem paths. Supported: pure-Rust extraction formats, Tesseract WASM OCR, RT-DETR layout detection and document-orientation through tract, chunking, keywords, language detection, stopwords, redaction, summarization, SVG, and QR-code detection. Sceptre tract OCR is available to source builds through the opt-in `sceptre-wasm` feature and a synchronous byte-fed API that applications run inside their own Web Worker; it is not part of the published default bundle.
 
 Choose Native for server-side Node.js; choose WASM for browser or edge deployments.
 
@@ -502,7 +502,7 @@ Rust builds are modular through Cargo features. The default feature set is `toki
 | Category              | Features                                                                                                |
 | --------------------- | ------------------------------------------------------------------------------------------------------- |
 | **Format extractors** | `pdf`, `excel`, `office`, `hwp`, `hwpx`, `iwork`, `email`, `html`, `xml`, `archives`, `mdx`, `svg`, `heic` |
-| **OCR and ML**        | `ocr`, `ocr-wasm`, `paddle-ocr`, `layout-detection`, `embeddings`, `reranker`, `transcription`, `liter-llm` |
+| **OCR and ML**        | `ocr`, `ocr-wasm`, `paddle-ocr`, `sceptre-ocr`, `sceptre-ocr-tract`, `layout-detection`, `embeddings`, `reranker`, `transcription`, `liter-llm` |
 | **Text analysis**     | `language-detection`, `chunking`, `quality`, `keywords`, `stopwords`, `diff`, `ner`, `redaction`, `summarization`, `translation`, `classification`, `captioning`, `qr-codes` |
 | **Servers**           | `api`, `mcp`, `mcp-http`, `otel`                                                                        |
 | **Bundles**           | `formats`, `analysis`, `services`, `full`, `server`, `cli`, `wasm-target`, `android-target`, `windows-target` |

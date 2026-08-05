@@ -17,9 +17,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downloads and no billable API calls. `xberg doctor --clean` removes stray files from
   xberg-owned cache dirs; the shared Hugging Face cache is never modified. Custom OCR
   backends can add their own diagnostics via the new `OcrBackend::probe` hook. (#1347)
+- Added Sceptre as an EasyOCR Gen2 backend using ONNX Runtime on desktop/server and tract on
+  Android/iOS, with a separate byte-fed WebAssembly API intended for Web Workers. Select it with
+  `ocr.backend = "sceptre"` or `--ocr-backend sceptre`; it returns line quadrilaterals and
+  recognition confidence, supports all eight Gen2 model groups, and accepts tuning under
+  `backend_options`.
 
 ### Fixed
 
+- Image OCR benchmarks now score structural F1 only against genuinely structured Markdown ground
+  truth; scene-text fixtures remain text-only, and a dedicated structured image cohort covers
+  receipts, document pages, tables, and invoices.
+- Benchmark adapters now honor fixture OCR languages, partition batch-global backends into
+  homogeneous native batches, and record unsupported-language exclusions in provenance instead of
+  silently evaluating non-English documents with default English models.
+  
+## [1.0.14] - 2026-08-04
+
+### Fixed
+
+- OpenWebUI-compatible endpoints (`PUT /process` and `POST /v1/convert/file`) now honor extraction
+  configuration. They previously cloned the server default, forced Markdown output, and ignored all
+  inbound parameters, so configuration passed through OpenWebUI had no effect. They now use the
+  server's configured defaults as the base and merge a per-request config — a multipart
+  `config`/`parameters` field, or the `X-Config` header — matching the `/extract` endpoint, keeping
+  Markdown as the default only when neither the server config nor the request selects a format.
+- Image captioning is now included in the official Docker images (`--features all`), and the server
+  emits a `ProcessingWarning` when a `captioning` config is supplied but the feature is compiled out,
+  instead of silently doing nothing (#1382).
+- Release builds no longer check out the `test_documents` benchmark submodule, so a benchmark-only
+  submodule update can no longer fail every publish build and ship a release with no assets (#1380).
+
+### Changed
+
+- Embedded-image captioning now runs with bounded concurrency (mirroring the image-OCR path) instead
+  of one VLM request at a time, reducing wall-clock time on image-heavy documents (#1378).
+
+## [1.0.13] - 2026-08-04
+
+### Fixed
+
+- OCR-backed PDF extraction now preserves geometry-derived document structure without requiring
+  optional ML layout detection, including pages replaced by mixed native/OCR extraction, and keeps
+  consecutive Tesseract paragraphs in their shared hOCR text area.
+- PDF table reconstruction now rejects sparse, short-wide contact blocks that were previously
+  misclassified as tables.
+- Standalone-image Tesseract OCR now defaults to sparse-text segmentation, while cropped layout
+  regions use single-block segmentation and explicit user settings remain unchanged. Vertical
+  language packs such as Japanese (`jpn_vert`) use vertical-block segmentation.
+- Standalone image extraction now reports successful OCR through `metadata.ocr_used` and the OCR
+  extraction method, including layout-aware OCR results.
+- Tesseract now applies its default image preprocessing only to clean, near-white document pages;
+  shadowed receipts and photographic images keep their source pixels, avoiding quality loss from
+  destructive DPI upscaling, background normalization, sharpening, and grayscale conversion.
+- Sparse, low-confidence standalone Tesseract results now retry the previous automatic page
+  segmentation with explicit preprocessing and use it only when word confidence is consistently
+  strong, recovering difficult receipts and scene text without replacing reliable sparse output.
+- CSV and TSV plaintext now use the canonical table renderer instead of lossy `Row N` and
+  header-value prose.
+- Extracted EML and MSG attachment text is now included in the parent document while the structured
+  attachment children remain available.
+- DOCX extraction now emits a tab character for an in-run `<w:tab/>` instead of dropping it, so
+  tab-separated fields — most visibly Word table-of-contents rows — no longer weld adjacent words
+  together (`Alpha<tab>Beta` was extracted as `AlphaBeta`). Tab-stop definitions remain invisible.
+  (#1377)
+- The Swift package builds and publishes again. The cross-compiled desktop `xberg-ffi` dependency no
+  longer pulls in HEIC (`libheif-sys`, which has no cross-compile support) or the Candle OCR
+  backends, which had broken Swift package publishing in 1.0.12.
+- The NuGet runtime packages for macOS and Linux (`osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`)
+  now publish at the current version instead of being stuck at an older one; previously only the
+  Windows runtime package was updated. (#1375)
+- The public in-browser (WASM) demo now attributes its file-size limit to the browser sandbox and
+  points to the CLI and API for large or multi-page documents, instead of implying the document
+  itself is at fault. (#1376)
+
+## [1.0.12] - 2026-08-03
+
+### Fixed
+
+- The `xberg mcp` `extract` and `extract_batch` tools no longer emit structured output that fails
+  their own declared output schema. The schema required `errors` and the `crawl_*` fields, but a
+  normal extraction omits them when empty, so MCP clients (e.g. Claude Code) rejected the result.
+  Those fields are now optional in the schema, matching the serialized output. (#1372)
+- The `install.sh` script no longer creates a self-referential `xberg` symlink that shadowed the
+  installed binary, and it now selects the glibc (`-gnu`) build on standard Linux distributions
+  instead of always downloading the musl build — which failed to run on glibc systems such as
+  Ubuntu. musl systems (e.g. Alpine) still get the musl build. (#1371)
 - CSV header inference no longer misclassifies all-text tables as headerless. A first row such as
   `Name,City` is now treated as the header (the dominant CSV convention) instead of rendering a
   broken blank header row with the real header pushed down into the data. A numeric-looking first

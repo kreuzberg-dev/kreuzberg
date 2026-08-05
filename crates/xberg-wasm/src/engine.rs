@@ -197,6 +197,56 @@ pub fn detect_orientation(image_bytes: Vec<u8>, model_bytes: Vec<u8>) -> Result<
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Reusable Sceptre tract OCR engine for the opt-in browser worker build.
+///
+/// Construction verifies and compiles caller-fetched CRAFT and Gen2 recognizer
+/// models. Create and retain this object inside a Web Worker; `ocr` is
+/// synchronous and CPU-intensive by design.
+#[cfg(feature = "sceptre-wasm")]
+#[wasm_bindgen]
+pub struct SceptreOcrEngine {
+    inner: xberg::sceptre_wasm::SceptreWasmEngine,
+}
+
+#[cfg(feature = "sceptre-wasm")]
+#[wasm_bindgen]
+impl SceptreOcrEngine {
+    /// Create and warm a reader for one Sceptre Gen2 model group.
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        detector_bytes: Vec<u8>,
+        recognizer_bytes: Vec<u8>,
+        language: String,
+        options: JsValue,
+    ) -> Result<SceptreOcrEngine, JsValue> {
+        let options = if options.is_null() || options.is_undefined() {
+            None
+        } else {
+            Some(
+                serde_wasm_bindgen::from_value(options)
+                    .map_err(|error| JsValue::from_str(&format!("invalid Sceptre options: {error}")))?,
+            )
+        };
+        let inner = xberg::sceptre_wasm::SceptreWasmEngine::new(
+            std::sync::Arc::from(detector_bytes),
+            std::sync::Arc::from(recognizer_bytes),
+            &language,
+            options,
+        )
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    /// Recognize one encoded image with the already-warmed models.
+    pub fn ocr(&self, image_bytes: Vec<u8>) -> Result<JsValue, JsValue> {
+        let result = self
+            .inner
+            .recognize(&image_bytes)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_wasm_bindgen::to_value(&result).map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+}
+
 /// In-crate tests for the engine's bridge surface, run under Node via
 /// `scripts/ci/wasm/run-crate-tests.sh` (which wraps `wasm-pack test --node`
 /// with the import shims from `test-shims/`).
@@ -486,6 +536,13 @@ mod tests {
         // Orientation loads its model lazily, so this fails at image decode;
         // either way the wired path must surface an error, not trap. ~keep
         let result = detect_orientation(vec![0u8; 8], b"not an onnx model".to_vec());
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "sceptre-wasm")]
+    #[wasm_bindgen_test]
+    fn sceptre_rejects_non_gen2_group_before_model_loading() {
+        let result = SceptreOcrEngine::new(vec![0_u8; 8], vec![0_u8; 8], "arabic".to_string(), JsValue::UNDEFINED);
         assert!(result.is_err());
     }
 }

@@ -1,14 +1,11 @@
-//! Tests verifying CSV extraction produces embedding-friendly output.
-//!
-//! Header-value pairs preserve semantic associations between column names
-//! and cell values, improving vector search quality over flat space-separated output.
+//! Tests verifying CSV extraction uses canonical plain table rendering.
 
 mod helpers;
 use helpers::extract_bytes_document;
 
 use xberg::core::config::ExtractionConfig;
 
-/// Header-value pairs should be explicit in the content.
+/// Header and data rows should use the shared space-separated table rendering.
 #[tokio::test]
 async fn test_csv_preserves_header_value_association() {
     let config = ExtractionConfig::default();
@@ -16,15 +13,10 @@ async fn test_csv_preserves_header_value_association() {
 
     let result = extract_bytes_document(csv, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Name: Alice"));
-    assert!(result.content.contains("Age: 30"));
-    assert!(result.content.contains("City: NYC"));
-    assert!(result.content.contains("Name: Bob"));
-    assert!(result.content.contains("Age: 25"));
-    assert!(result.content.contains("City: LA"));
+    assert_eq!(result.content, "Name Age City\nAlice 30 NYC\nBob 25 LA");
 }
 
-/// Rows should be labeled and separated by blank lines for chunker-friendly splitting.
+/// Rows should remain one line each without extractor-specific labels.
 #[tokio::test]
 async fn test_csv_row_grouping() {
     let config = ExtractionConfig::default();
@@ -32,16 +24,10 @@ async fn test_csv_row_grouping() {
 
     let result = extract_bytes_document(csv, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Row 1:"));
-    assert!(result.content.contains("Row 2:"));
-    assert!(result.content.contains("Row 3:"));
-    assert!(
-        result.content.contains("\n\nRow 2:"),
-        "Rows should be separated by blank lines"
-    );
+    assert_eq!(result.content, "Name Score\nAlice 95\nBob 88\nCarol 72");
 }
 
-/// Empty cells should be omitted to avoid noisy `Header:` lines.
+/// Empty cells should retain their column position in canonical table rendering.
 #[tokio::test]
 async fn test_csv_skips_empty_values() {
     let config = ExtractionConfig::default();
@@ -49,10 +35,7 @@ async fn test_csv_skips_empty_values() {
 
     let result = extract_bytes_document(csv, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Name: Alice"));
-    assert!(result.content.contains("City: NYC"));
-    let row1 = result.content.split("\n\n").next().unwrap_or("");
-    assert!(!row1.contains("Age:"), "Empty cells should be skipped");
+    assert_eq!(result.content, "Name Age City\nAlice  NYC\nBob 25 LA");
 }
 
 /// The tables field should still contain the full parsed structure.
@@ -77,10 +60,7 @@ async fn test_csv_short_row_no_panic() {
 
     let result = extract_bytes_document(csv, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Name: Alice"));
-    assert!(result.content.contains("Age: 30"));
-    let row1 = result.content.split("\n\n").next().unwrap_or("");
-    assert!(!row1.contains("City:"));
+    assert_eq!(result.content, "Name Age City\nAlice 30\nBob 25 LA");
 }
 
 /// Rows where all cells are empty should be omitted entirely.
@@ -91,7 +71,7 @@ async fn test_csv_all_empty_data_rows() {
 
     let result = extract_bytes_document(csv, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Name: Alice"));
+    assert_eq!(result.content, "Name Age\nAlice 30");
 }
 
 /// When no header is detected, should fall back to space-separated output.
@@ -122,7 +102,7 @@ async fn test_csv_header_only() {
     assert!(result.content.contains("Name"));
 }
 
-/// Real CSV file with header-value pairing.
+/// Real CSV files use the same canonical table rendering.
 #[tokio::test]
 async fn test_csv_real_file_header_value() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/csv/data_table.csv");
@@ -134,7 +114,7 @@ async fn test_csv_real_file_header_value() {
 
     let result = extract_bytes_document(&content, "text/csv", &config).await.unwrap();
 
-    assert!(result.content.contains("Name: Alice Johnson"));
-    assert!(result.content.contains("Department: Engineering"));
-    assert!(result.content.contains("Row 1:"));
+    assert!(result.content.contains("Alice Johnson"));
+    assert!(result.content.contains("Engineering"));
+    assert!(!result.content.contains("Row 1:"));
 }

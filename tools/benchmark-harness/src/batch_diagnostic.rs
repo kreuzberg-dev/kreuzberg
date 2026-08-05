@@ -212,21 +212,43 @@ fn disable_ocr_result_caches(config: &mut ExtractionConfig, inputs: &[PathBuf]) 
         return Ok(());
     }
     let ocr = config.ocr.get_or_insert_with(xberg::OcrConfig::default);
+    // Flip `use_cache` on a `tesseract_config` that is already present (an explicit PSM preset)
+    // without touching its `psm`. For a Tesseract backend/stage that leaves `tesseract_config`
+    // implicit, materialize one instead of leaving the cache enabled: by this point `ocr.language`
+    // (or a stage's own language override) is already final — this diagnostic tool has no
+    // fixture-language step run afterward — so the PSM `apply_default_whole_image_tesseract_psm`
+    // in `crates/xberg/src/extractors/image.rs` would itself have picked can be computed
+    // directly, keeping the result cache genuinely disabled without regressing to PSM 3. ~keep
+    let parent_language = ocr.language.clone();
     if let Some(pipeline) = ocr.pipeline.as_mut() {
         for stage in &mut pipeline.stages {
-            if stage.backend == "tesseract" {
-                stage
-                    .tesseract_config
-                    .get_or_insert_with(xberg::TesseractConfig::default)
-                    .use_cache = false;
+            if stage.backend != "tesseract" {
+                continue;
             }
+            let languages = stage.language.clone().unwrap_or_else(|| parent_language.clone());
+            materialize_or_disable_tesseract_result_cache(&mut stage.tesseract_config, &languages);
         }
     } else if ocr.backend == "tesseract" {
-        ocr.tesseract_config
-            .get_or_insert_with(xberg::TesseractConfig::default)
-            .use_cache = false;
+        materialize_or_disable_tesseract_result_cache(&mut ocr.tesseract_config, &parent_language);
     }
     Ok(())
+}
+
+fn materialize_or_disable_tesseract_result_cache(
+    tesseract_config: &mut Option<xberg::TesseractConfig>,
+    languages: &[String],
+) {
+    match tesseract_config.as_mut() {
+        Some(existing) => existing.use_cache = false,
+        None => {
+            *tesseract_config = Some(xberg::TesseractConfig {
+                language: languages.to_vec(),
+                psm: crate::adapter::xberg_default_tesseract_psm(languages),
+                use_cache: false,
+                ..Default::default()
+            });
+        }
+    }
 }
 
 fn reject_implicit_ocr_caches(config: &ExtractionConfig, inputs: &[PathBuf]) -> Result<()> {
@@ -600,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn config_json_enables_forced_tesseract_ocr() {
+    fn config_json_enables_forced_tesseract_ocr_and_materializes_matching_psm() {
         let config = diagnostic_config(Some(
             r#"{"output_format":"markdown","ocr":{"enabled":true,"backend":"tesseract","language":["eng"]},"force_ocr":true}"#,
         ));
@@ -609,32 +631,52 @@ mod tests {
         assert!(extraction.force_ocr);
         let ocr = extraction.ocr.unwrap();
         assert_eq!(ocr.backend, "tesseract");
-        assert!(!ocr.tesseract_config.unwrap().use_cache);
+        // An implicit `tesseract_config` must be materialized so its result cache is genuinely
+        // disabled, with PSM matching xberg's own auto-selection for "eng" (non-vertical) instead
+        // of the pinned PSM 3 default.
+        let tesseract = ocr
+            .tesseract_config
+            .expect("disable_ocr_result_caches must materialize a tesseract_config");
+        assert!(!tesseract.use_cache);
+        assert_eq!(tesseract.psm, crate::adapter::XBERG_WHOLE_IMAGE_TESSERACT_PSM);
+        assert_eq!(tesseract.language, ["eng"]);
     }
 
     #[test]
     fn diagnostic_overrides_explicit_tesseract_cache() {
         let config = diagnostic_config(Some(
-            r#"{"ocr":{"backend":"tesseract","tesseract_config":{"use_cache":true}},"force_ocr":true}"#,
+            r#"{"ocr":{"backend":"tesseract","tesseract_config":{"use_cache":true,"psm":6}},"force_ocr":true}"#,
         ));
         let extraction = resolve_extraction_config(&config).unwrap();
 
-        assert!(!extraction.ocr.unwrap().tesseract_config.unwrap().use_cache);
+        let tesseract = extraction.ocr.unwrap().tesseract_config.unwrap();
+        assert!(!tesseract.use_cache);
+        assert_eq!(tesseract.psm, 6, "disabling the cache must not touch an explicit PSM");
     }
 
     #[test]
-    fn diagnostic_disables_tesseract_pipeline_stage_caches() {
+    fn diagnostic_disables_cache_and_materializes_psm_for_implicit_tesseract_stages() {
         let config = diagnostic_config(Some(
-            r#"{"ocr":{"pipeline":{"stages":[{"backend":"tesseract","priority":100},{"backend":"tesseract","priority":50,"tesseract_config":{"use_cache":true}}]}}}"#,
+            r#"{"ocr":{"pipeline":{"stages":[{"backend":"tesseract","priority":100,"language":["jpn_vert"]},{"backend":"tesseract","priority":50,"tesseract_config":{"use_cache":true,"psm":6}}]}}}"#,
         ));
         let extraction = resolve_extraction_config(&config).unwrap();
         let stages = extraction.ocr.unwrap().pipeline.unwrap().stages;
 
-        assert!(
-            stages
-                .iter()
-                .all(|stage| !stage.tesseract_config.as_ref().unwrap().use_cache)
+        let implicit = stages[0]
+            .tesseract_config
+            .as_ref()
+            .expect("an implicit stage must be materialized so its result cache is genuinely disabled");
+        assert!(!implicit.use_cache);
+        assert_eq!(
+            implicit.psm,
+            crate::adapter::XBERG_VERTICAL_BLOCK_TESSERACT_PSM,
+            "a vertical-language stage must materialize PSM 5, not the default PSM 3"
         );
+        assert_eq!(implicit.language, ["jpn_vert"]);
+
+        let explicit = stages[1].tesseract_config.as_ref().unwrap();
+        assert!(!explicit.use_cache);
+        assert_eq!(explicit.psm, 6, "disabling the cache must not touch an explicit PSM");
     }
 
     #[test]

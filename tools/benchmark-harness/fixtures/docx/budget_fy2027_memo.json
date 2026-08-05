@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/docx/budget_fy2027_memo.docx",
+	"file_type": "docx",
+	"file_size": 11721,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Interoffice budget-guidelines memo with numbered submission steps and key dates",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/docx/budget_fy2027_memo.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/docx/budget_fy2027_memo.md",
+		"source": "pandoc"
+	}
+}

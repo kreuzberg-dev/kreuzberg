@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/xlsx/warehouse_inventory.xlsx",
+	"file_type": "xlsx",
+	"file_size": 6361,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Warehouse fastener inventory spreadsheet with on-hand and reorder levels",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/xlsx/warehouse_inventory.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/xlsx/warehouse_inventory.md",
+		"source": "raw_source"
+	}
+}

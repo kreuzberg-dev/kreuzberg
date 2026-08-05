@@ -113,6 +113,7 @@ fn select_pdf_document(
     pre_rendered_doc: Option<InternalDocument>,
     ocr_internal_doc: Option<InternalDocument>,
     ocr_results: Option<&ahash::AHashMap<u32, String>>,
+    structured_ocr_pages: Option<&ahash::AHashMap<u32, InternalDocument>>,
 ) -> (InternalDocument, PdfDocumentOrigin, bool) {
     let (mut doc, origin, structured) = match extraction_method {
         ExtractionMethod::Native => match pre_rendered_doc {
@@ -122,7 +123,11 @@ fn select_pdf_document(
         ExtractionMethod::Mixed => match pre_rendered_doc {
             Some(mut doc) => {
                 if let Some(results) = ocr_results {
-                    ocr::merge_ocr_pages_into_internal_document(&mut doc, results);
+                    if let Some(structured_pages) = structured_ocr_pages {
+                        ocr::merge_structured_ocr_pages_into_internal_document(&mut doc, results, structured_pages);
+                    } else {
+                        ocr::merge_ocr_pages_into_internal_document(&mut doc, results);
+                    }
                 }
                 (doc, PdfDocumentOrigin::Mixed, true)
             }
@@ -716,6 +721,8 @@ impl PdfExtractor {
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let mut ocr_results_map: Option<ahash::AHashMap<u32, String>> = None;
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        let mut structured_ocr_pages: Option<ahash::AHashMap<u32, InternalDocument>> = None;
+        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let mut ocr_page_rasters: Option<Vec<crate::types::ExtractedImage>> = None;
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let mut ocr_formulas: Vec<crate::types::Formula> = Vec::new();
@@ -786,11 +793,19 @@ impl PdfExtractor {
             if !ocr_pages.is_empty() {
                 if let Some(ref bounds) = boundaries {
                     if !bounds.is_empty() {
-                        let (mixed, results_map, mixed_llm_usage, mixed_rstrs, mixed_formulas, mixed_warnings) =
-                            ocr::extract_mixed_ocr_native(&native_text, bounds, ocr_pages, content, config, path)
-                                .await?;
+                        let (
+                            mixed,
+                            results_map,
+                            mixed_structured_pages,
+                            mixed_llm_usage,
+                            mixed_rstrs,
+                            mixed_formulas,
+                            mixed_warnings,
+                        ) = ocr::extract_mixed_ocr_native(&native_text, bounds, ocr_pages, content, config, path)
+                            .await?;
                         ocr_llm_usage = mixed_llm_usage;
                         ocr_results_map = Some(results_map);
+                        structured_ocr_pages = Some(mixed_structured_pages);
                         ocr_page_rasters = mixed_rstrs;
                         if !mixed_formulas.is_empty() {
                             ocr_formulas = mixed_formulas;
@@ -816,10 +831,18 @@ impl PdfExtractor {
             if let Some(ref bounds) = boundaries
                 && !bounds.is_empty()
             {
-                let (mixed, results_map, mixed_llm_usage, mixed_rstrs, mixed_formulas, mixed_warnings) =
-                    ocr::extract_mixed_ocr_native(&native_text, bounds, &scanned_pages, content, config, path).await?;
+                let (
+                    mixed,
+                    results_map,
+                    mixed_structured_pages,
+                    mixed_llm_usage,
+                    mixed_rstrs,
+                    mixed_formulas,
+                    mixed_warnings,
+                ) = ocr::extract_mixed_ocr_native(&native_text, bounds, &scanned_pages, content, config, path).await?;
                 ocr_llm_usage = mixed_llm_usage;
                 ocr_results_map = Some(results_map);
+                structured_ocr_pages = Some(mixed_structured_pages);
                 ocr_page_rasters = mixed_rstrs;
                 if !mixed_formulas.is_empty() {
                     ocr_formulas = mixed_formulas;
@@ -965,9 +988,18 @@ impl PdfExtractor {
                 ocr::OcrGateOutcome::RunFallbackOnPages(pages) => match boundaries.as_deref() {
                     Some(bounds) if !bounds.is_empty() => {
                         match ocr::extract_mixed_ocr_native(&native_text, bounds, &pages, content, config, path).await {
-                            Ok((mixed, results_map, mixed_llm_usage, mixed_rstrs, mixed_formulas, mixed_warnings)) => {
+                            Ok((
+                                mixed,
+                                results_map,
+                                mixed_structured_pages,
+                                mixed_llm_usage,
+                                mixed_rstrs,
+                                mixed_formulas,
+                                mixed_warnings,
+                            )) => {
                                 ocr_llm_usage = mixed_llm_usage;
                                 ocr_results_map = Some(results_map);
+                                structured_ocr_pages = Some(mixed_structured_pages);
                                 ocr_page_rasters = mixed_rstrs;
                                 if !mixed_formulas.is_empty() {
                                     ocr_formulas = mixed_formulas;
@@ -1132,6 +1164,7 @@ impl PdfExtractor {
             pre_rendered_doc,
             ocr_internal_doc.take(),
             ocr_results_map.as_ref(),
+            structured_ocr_pages.as_ref(),
         );
         #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
         let (mut doc, document_is_structured) = match pre_rendered_doc {
@@ -1822,6 +1855,7 @@ mod tests {
             Some(native),
             None,
             None,
+            None,
         );
 
         assert_eq!(origin, PdfDocumentOrigin::Ocr);
@@ -1864,6 +1898,7 @@ mod tests {
             Some(native),
             None,
             Some(&results),
+            None,
         );
 
         assert_eq!(origin, PdfDocumentOrigin::Mixed);
@@ -1899,6 +1934,7 @@ mod tests {
             "application/pdf",
             None,
             Some(ocr_doc),
+            None,
             None,
         );
         let allow_injection = !structured || (origin == PdfDocumentOrigin::Ocr && doc.tables.is_empty());

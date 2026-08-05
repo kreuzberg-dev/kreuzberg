@@ -1,0 +1,15 @@
+{
+	"document": "../../../../test_documents/rtf/aurora_launch_plan.rtf",
+	"file_type": "rtf",
+	"file_size": 3669,
+	"expected_frameworks": ["xberg"],
+	"metadata": {
+		"description": "Product launch plan with phased rollout list and a success-metrics table",
+		"category": "office"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/rtf/aurora_launch_plan.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/rtf/aurora_launch_plan.md",
+		"source": "pandoc"
+	}
+}

@@ -8,7 +8,7 @@
 //! - **EML support**: RFC822 format parsing
 //! - **HTML to text**: Strips HTML tags from HTML email bodies
 //! - **Metadata extraction**: Sender, recipients, subject, message ID
-//! - **Attachment list**: Names of all attachments (content not extracted)
+//! - **Attachments**: Lists attachment metadata and recursively extracts supported content
 //!
 //! # Example
 //!

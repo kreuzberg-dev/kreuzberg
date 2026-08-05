@@ -146,6 +146,7 @@ pub fn create_docling_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter> {
     // Docling maps the forwarded Tesseract codes to EasyOCR (kor->ko, jpn->ja); the ~keep
     // ko/ja EasyOCR weights are prefetched and cached in the docling job.
     .with_ocr_language_arg("--ocr-lang")
+    .with_ocr_language_policy(crate::adapter::declared_ocr_language_policy("docling"))
     .with_max_timeout(Duration::from_secs(PERSISTENT_MAX_TIMEOUT_SECS)))
 }
 
@@ -600,6 +601,7 @@ pub fn create_mineru_adapter(ocr_enabled: bool) -> Result<SubprocessAdapter> {
     // MinerU maps the forwarded Tesseract codes to its PaddleOCR model (kor->korean, ~keep
     // jpn->japan); the Korean/Japanese weights are prefetched in the model-cache job.
     .with_ocr_language_arg("--ocr-lang")
+    .with_ocr_language_policy(crate::adapter::declared_ocr_language_policy("mineru"))
     .with_max_timeout(Duration::from_secs(MINERU_MAX_TIMEOUT_SECS)))
 }
 

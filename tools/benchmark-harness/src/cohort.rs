@@ -210,6 +210,26 @@ mod tests {
     }
 
     #[test]
+    fn image_cohorts_are_fully_eligible_for_sceptre() {
+        use crate::adapter::OcrLanguagePolicy;
+
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        for cohort in ["ocr-images-structured", "ocr-images-fast"] {
+            let manifest_path = crate_root.join(format!("cohorts/{cohort}.json"));
+            let manifest = CohortManifest::from_file(&manifest_path).unwrap();
+            let fixtures = manifest
+                .load_fixtures(&crate_root.join("fixtures"), &manifest_path)
+                .unwrap();
+
+            assert!(manifest.ocr_enabled);
+            assert_eq!(fixtures.len(), manifest.batch_size);
+            assert!(fixtures.fixtures().iter().all(|(_, fixture)| {
+                fixture.requires_ocr() && OcrLanguagePolicy::SceptrePerDocument.supports(fixture.ocr_language())
+            }));
+        }
+    }
+
+    #[test]
     fn ocr_pdf_fast_b4_is_loadable_with_quality_ground_truth() {
         const BATCH_SIZE: usize = 4;
 
@@ -254,11 +274,11 @@ mod tests {
         let fixtures_root = crate_root.join("fixtures");
         // (manifest file stem, manifest `name`, expected fixture count, ocr_enabled).
         let cohorts = [
-            ("native-office-fast", "native-office-fast-v1", 8, false),
-            ("native-markup-fast", "native-markup-fast-v1", 8, false),
+            ("native-office-fast", "native-office-fast-v1", 16, false),
+            ("native-markup-fast", "native-markup-fast-v1", 16, false),
             ("native-ebook-fast", "native-ebook-fast-v1", 6, false),
             ("native-email-fast", "native-email-fast-v1", 6, false),
-            ("native-data-fast", "native-data-fast-v1", 6, false),
+            ("native-data-fast", "native-data-fast-v1", 12, false),
             ("ocr-images-fast", "ocr-images-fast-v1", 14, true),
             ("paddle-layout-quality-b4", "paddle-layout-quality-b4-v1", 12, true),
         ];

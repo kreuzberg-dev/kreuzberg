@@ -51,17 +51,6 @@ exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
-  "packages/*/README.md",
-  "crates/xberg/README.md",
-  "crates/xberg-cli/README.md",
-  "crates/xberg-node/README.md",
-  "crates/xberg-ffi/README.md",
-  "crates/xberg-wasm/README.md",
-  "crates/xberg-paddle-ocr/README.md",
-  "crates/xberg-tesseract/README.md",
-  "packages/dart/lib/src/xberg_bridge_generated/**",
-  "docs-site/public/assets/**",
-  "packages/go/cmd/setup/main.go",
 ]
 
 [lint.markdown.rumdl]
@@ -139,6 +128,8 @@ acn = "acn"
 ake = "ake"
 algoritmos = "algoritmos"
 arange = "arange"
+# Corpus fixture identifier preserves this source filename spelling. ~keep
+Availabilty = "Availabilty"
 bre = "bre"
 caf = "caf"
 charater = "charater"
@@ -156,6 +147,8 @@ faiure = "faiure"
 fith = "fith"
 flate = "flate"
 formated = "formated"
+# ISO 639 bibliographic language aliases used by OCR backends. ~keep
+fre = "fre"
 headerr = "headerr"
 helo = "helo"
 hocr = "hocr"
@@ -204,6 +197,8 @@ tre = "tre"
 unparseable = "unparseable"
 utiliza = "utiliza"
 webui = "webui"
+# ISO 639 bibliographic language alias used by OCR backends. ~keep
+wel = "wel"
 yor = "yor"
 
 [lint.typos.extend_identifiers]
@@ -220,6 +215,7 @@ remove_todos = false
 remove_fixme = false
 remove_docs = false
 use_default_ignores = true
+# clang-format owns C++ namespace-closing comments and restores them after lint fixes. ~keep
 preserve_patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under", "namespace"]
 
 [tools.clang-format]
@@ -356,7 +352,6 @@ enabled = true
 "**/examples/**" = ["ANN", "D100", "D103", "I001", "INP001", "PLR2004", "S101", "PLC0415", "SLF001", "T201", "typo"]
 "**/tests/**/*.py" = ["PT019", "PLC0415", "SLF001"]
 "**/text_repair.rs" = ["typo"]
-"tools/benchmark-harness/guardrails.json" = ["typo"]
 ".cargo/config.toml" = ["comment", "doc-comment"]
 "Package.swift" = ["comment", "doc-comment"]
 "cli-proxy/pypi/**/*.py" = ["ANN001", "ANN202", "S310", "T201"]
@@ -403,9 +398,6 @@ enabled = true
   "T201",
 ]
 "scripts/ci/docker/test_docker.py" = ["EXE001"]
-# Benchmark-matrix guard runs under `python3 -m unittest` (no pytest in the CI job),
-# so unittest-style assertions are intentional here. ~keep
-"scripts/ci/benchmarks/test_*.py" = ["PT009", "PT027"]
 "tools/benchmark-harness/python_baselines/*.py" = [
   "ANN001",
   "ANN201",
@@ -534,17 +526,6 @@ lint = { exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
-  "packages/*/README.md",
-  "crates/xberg/README.md",
-  "crates/xberg-cli/README.md",
-  "crates/xberg-node/README.md",
-  "crates/xberg-ffi/README.md",
-  "crates/xberg-wasm/README.md",
-  "crates/xberg-paddle-ocr/README.md",
-  "crates/xberg-tesseract/README.md",
-  "packages/dart/lib/src/xberg_bridge_generated/**",
-  "docs-site/public/assets/**",
-  "packages/go/cmd/setup/main.go",
 ] }
 fmt = { exclude = [
   "**/*.freezed.dart",
@@ -598,17 +579,6 @@ fmt = { exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
-  "packages/*/README.md",
-  "crates/xberg/README.md",
-  "crates/xberg-cli/README.md",
-  "crates/xberg-node/README.md",
-  "crates/xberg-ffi/README.md",
-  "crates/xberg-wasm/README.md",
-  "crates/xberg-paddle-ocr/README.md",
-  "crates/xberg-tesseract/README.md",
-  "packages/dart/lib/src/xberg_bridge_generated/**",
-  "docs-site/public/assets/**",
-  "packages/go/cmd/setup/main.go",
 ] }
 file_safety = { exclude = [
   "**/*.freezed.dart",
@@ -662,17 +632,6 @@ file_safety = { exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
-  "packages/*/README.md",
-  "crates/xberg/README.md",
-  "crates/xberg-cli/README.md",
-  "crates/xberg-node/README.md",
-  "crates/xberg-ffi/README.md",
-  "crates/xberg-wasm/README.md",
-  "crates/xberg-paddle-ocr/README.md",
-  "crates/xberg-tesseract/README.md",
-  "packages/dart/lib/src/xberg_bridge_generated/**",
-  "docs-site/public/assets/**",
-  "packages/go/cmd/setup/main.go",
 ] }
 cargo = true
 commit = { stages = ["commit-msg"] }

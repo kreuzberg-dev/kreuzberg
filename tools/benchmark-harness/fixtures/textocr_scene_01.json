@@ -17,7 +17,6 @@
   },
   "ground_truth": {
     "text_file": "../../../test_documents/ground_truth/jpg/textocr_scene_01.txt",
-    "markdown_file": "../../../test_documents/ground_truth/jpg/textocr_scene_01.md",
     "source": "manual"
   }
 }

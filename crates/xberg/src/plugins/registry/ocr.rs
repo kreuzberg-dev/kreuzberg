@@ -30,11 +30,31 @@ pub struct OcrBackendRegistry {
     pub(super) backends: AHashMap<String, Arc<dyn OcrBackend>>,
 }
 
+#[cfg(all(test, sceptre_ocr, not(target_arch = "wasm32")))]
+mod sceptre_tests {
+    use std::sync::Arc;
+
+    use super::OcrBackendRegistry;
+
+    #[test]
+    fn registry_registers_sceptre_without_loading_models() {
+        let registry = OcrBackendRegistry::new();
+        let backend = registry.get("sceptre").expect("Sceptre backend should be registered");
+        let uppercase = registry
+            .get("SCEPTRE")
+            .expect("validated built-in backend names should be case-insensitive");
+
+        assert_eq!(backend.backend_type(), crate::plugins::OcrBackendType::Custom);
+        assert!(Arc::ptr_eq(&backend, &uppercase));
+    }
+}
+
 impl OcrBackendRegistry {
     /// Create a new OCR backend registry with default backends.
     ///
     /// Registers the Tesseract backend by default if the "ocr" feature is enabled,
-    /// and PaddleOCR if the "paddle-ocr" feature is enabled.
+    /// PaddleOCR if the "paddle-ocr" feature is enabled, and Sceptre if the
+    /// "sceptre-ocr" feature is enabled.
     ///
     /// If a backend fails to initialize or register it is skipped with a warning,
     /// allowing the process to continue with whichever backends are available.
@@ -50,10 +70,10 @@ impl OcrBackendRegistry {
     /// Register the built-in OCR backends into this registry.
     ///
     /// Registers whichever backends the active feature set enables — Tesseract
-    /// (`ocr`/`ocr-wasm`), PaddleOCR (`paddle-ocr`), and the VLM backend
-    /// (`liter-llm`). Each backend is registered independently: if one fails to
-    /// initialize it is skipped with a warning so the remaining backends still
-    /// register.
+    /// (`ocr`/`ocr-wasm`), PaddleOCR (`paddle-ocr`), Sceptre (`sceptre-ocr`),
+    /// and the VLM backend (`liter-llm`). Each backend is registered independently:
+    /// if one fails to initialize it is skipped with a warning so the remaining
+    /// backends still register.
     ///
     /// This is invoked by [`OcrBackendRegistry::new`] at construction and reused
     /// by the self-healing initialization path so a registry emptied via
@@ -104,6 +124,20 @@ impl OcrBackendRegistry {
                          Check ONNX Runtime availability and model files."
                     );
                 }
+            }
+        }
+
+        #[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
+        {
+            use crate::sceptre_ocr::SceptreOcrBackend;
+            tracing::info!("Registering Sceptre OCR backend");
+            match SceptreOcrBackend::new() {
+                Ok(backend) => {
+                    self.register(Arc::new(backend)).unwrap_or_else(|error| {
+                        tracing::warn!("Failed to register Sceptre OCR backend: {error}");
+                    });
+                }
+                Err(error) => tracing::warn!("Failed to initialize Sceptre OCR backend: {error}"),
             }
         }
 
@@ -221,9 +255,14 @@ impl OcrBackendRegistry {
     #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
     #[tracing::instrument(skip(self), fields(registered_backends = ?self.backends.keys().collect::<Vec<_>>()))]
     pub(crate) fn get(&self, name: &str) -> Result<Arc<dyn OcrBackend>> {
-        let canonical = match name {
+        if let Some(backend) = self.backends.get(name) {
+            return Ok(Arc::clone(backend));
+        }
+
+        let normalized = name.to_ascii_lowercase();
+        let canonical = match normalized.as_str() {
             "paddleocr" => "paddle-ocr",
-            _ => name,
+            _ => normalized.as_str(),
         };
         self.backends.get(canonical).cloned().ok_or_else(|| {
             tracing::error!(

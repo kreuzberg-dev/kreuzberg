@@ -1,0 +1,20 @@
+{
+	"document": "../../../../test_documents/data_formats/quarterly_sales.csv",
+	"file_type": "csv",
+	"file_size": 741,
+	"expected_frameworks": [
+		"xberg",
+		"pandoc",
+		"tika",
+		"unstructured"
+	],
+	"metadata": {
+		"description": "Quarterly sales by region and product with quoted fields and embedded commas",
+		"category": "data"
+	},
+	"ground_truth": {
+		"text_file": "../../../../test_documents/ground_truth/csv/quarterly_sales.txt",
+		"markdown_file": "../../../../test_documents/ground_truth/csv/quarterly_sales.md",
+		"source": "raw_source"
+	}
+}

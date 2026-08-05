@@ -9,7 +9,7 @@
 //! More reliable than Tesseract's `DetectOrientationScript` which crashes
 //! on raw images without DPI metadata.
 
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 use std::path::PathBuf;
 
 use image::RgbImage;
@@ -24,16 +24,15 @@ use super::types::OrientationResult;
 /// from caller-supplied bytes (see [`DocOrientationDetector::from_bytes`]), so the
 /// download coordinates are not compiled there.
 ///
-/// Only read by `ensure_model`/`with_acceleration`, the `ocr` feature's cache-dir
-/// resolution path; dead in builds that enable `auto_rotate` without `ocr` (e.g. the
-/// tract/ORT parity test build). ~keep
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+/// Only read by `ensure_model`/`with_acceleration`, the native cache-dir resolution
+/// path; dead on WASM, which receives model bytes from the caller. ~keep
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 const HF_REPO_ID: &str = "xberg-io/paddleocr-onnx-models";
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 const HF_REPO_REVISION: &str = "bfaf0b492cfc1dee0c73245fc5860bfdcf2c3443";
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 const REMOTE_FILENAME: &str = "v2/classifiers/PP-LCNet_x1_0_doc_ori.onnx";
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 const SHA256: &str = "6b742aebce6f0f7f71f747931ac7becfc7c96c51641e14943b291eeb334e7947";
 
 const INPUT_SIZE: u32 = 224;
@@ -57,10 +56,9 @@ pub const MIN_CONFIDENCE: f32 = 0.35;
 /// run into the hundreds of MB) and hands the already-resolved bytes over.
 enum ModelSource {
     // Only constructed by `with_acceleration`, the cache-dir entry point used by the
-    // `ocr` feature's auto-rotate integration (see `ocr::processor::execution`); dead
-    // otherwise (e.g. the tract/ORT parity test build, which enables `auto-rotate`
-    // without `ocr`). ~keep
-    #[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+    // Native OCR backends resolve this model through the Hugging Face cache. WASM
+    // callers provide model bytes instead because they do not have that cache. ~keep
+    #[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
     CacheDir(PathBuf),
     Bytes(Vec<u8>),
 }
@@ -82,10 +80,8 @@ impl DocOrientationDetector {
     /// Creates a new detector with the given cache directory and acceleration config.
     ///
     /// Not available on `wasm32` — see [`Self::from_bytes`] for the WASM constructor.
-    /// Only called by the `ocr` feature's auto-rotate integration
-    /// (`ocr::processor::execution::doc_orientation_detector`); dead in builds that enable
-    /// `auto_rotate` without `ocr` (e.g. the tract/ORT parity test build). ~keep
-    #[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+    /// Used by native OCR backends that support whole-image automatic rotation. ~keep
+    #[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
     pub(crate) fn with_acceleration(
         cache_dir: PathBuf,
         accel: Option<crate::core::config::acceleration::AccelerationConfig>,
@@ -155,7 +151,7 @@ impl DocOrientationDetector {
     ///
     /// Not available on `wasm32` — see [`ModelSource::Bytes`]. Only called from the
     /// `ModelSource::CacheDir` arm of `get_or_init_session`, gated the same way. ~keep
-    #[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+    #[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
     fn ensure_model(cache_dir: &std::path::Path) -> Result<PathBuf> {
         crate::model_download::hf_resolve_file(
             HF_REPO_ID,
@@ -179,7 +175,7 @@ impl DocOrientationDetector {
             .session
             .get_or_try_init(|| -> crate::Result<Box<dyn InferenceSession>> {
                 let session = match &self.source {
-                    #[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+                    #[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
                     ModelSource::CacheDir(cache_dir) => {
                         let model_path = Self::ensure_model(cache_dir)?;
                         default_backend()
@@ -240,10 +236,8 @@ fn infer_orientation(session: &dyn InferenceSession, image: &RgbImage) -> Result
 /// Resolve the standard Hugging Face cache directory for the auto-rotate model.
 ///
 /// Not available on `wasm32` — there is no Hugging Face cache on that target.
-/// Only called by the `ocr` feature's auto-rotate integration
-/// (`ocr::processor::execution::doc_orientation_detector`); dead in builds that enable
-/// `auto_rotate` without `ocr` (e.g. the tract/ORT parity test build). ~keep
-#[cfg(all(not(target_arch = "wasm32"), feature = "ocr"))]
+/// Used by native OCR backends that support whole-image automatic rotation. ~keep
+#[cfg(all(not(target_arch = "wasm32"), any(feature = "ocr", sceptre_ocr)))]
 pub(crate) fn resolve_cache_dir() -> PathBuf {
     hf_hub::resolve_cache_dir()
 }

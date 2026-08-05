@@ -1,5 +1,5 @@
 [workspace]
-alef_version = "0.49.0"
+alef_version = "0.52.0"
 # -D warnings (emitted into every generated Rust binding as #![allow(...)]).
 extra_clippy_allows = ["redundant_field_names"]
 languages = [
@@ -132,10 +132,13 @@ remove-todos = false
 remove-fixme = false
 remove-docs = false
 use-default-ignores = true
-preserve-patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under"]
+# clang-format owns C++ namespace-closing comments and restores them after lint fixes. ~keep
+preserve-patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under", "namespace"]
 
 [workspace.poly.typos.extend-words]
 # flate2 crate + PDF FlateDecode filter (THE ORIGINAL BUG: flate -> flat)
+# Corpus fixture identifier preserves this source filename spelling. ~keep
+Availabilty = "Availabilty"
 flate = "flate"
 delocate = "delocate"
 thw = "thw"
@@ -730,6 +733,9 @@ wasm_opt = ["-Oz"]
 # and the stateful XbergEngine handle. alef declares them in the generated
 # lib.rs but does not manage their contents. ~keep
 custom_rust_modules = ["bridge", "engine"]
+# Keep Sceptre out of the default browser artifact; consumers opt into the
+# byte-fed engine when their deployment can host the models. ~keep
+extra_features = ["sceptre-wasm"]
 exclude_types = ["OcrFallbackDecision", "OcrProcessor", "OcrCacheStats", "TessdataManager", "PageLayoutResult"]
 exclude_functions = [
   "embed_texts",
@@ -817,6 +823,61 @@ visitor_callbacks = false
 # `libheif-sys` build.rs cannot cross-compile. Not part of the auto-generated
 # passthrough set, so it must be listed here.
 extra_features = ["full-no-heic"]
+# Feature list for the desktop `cfg(not(any(android,ios,windows,macos-x86_64)))`
+# core dep. Without this override the FFI crate inherits the global
+# `[[crates]].features`, whose first entry is `full` — that pulls `heic`
+# (`libheif-sys`, no pkg-config cross-compile support) and `candle-*` into the
+# swift-bundle's cross-compiled desktop dep, which broke Swift publishing in
+# v1.0.12. This is the v1.0.11 granular floor: `full` minus heic/candle. ~keep
+features = [
+  "pdf",
+  "ocr",
+  "paddle-ocr",
+  "paddle-ocr-types",
+  "layout-detection",
+  "layout-types",
+  "embeddings",
+  "embedding-presets",
+  "reranker",
+  "reranker-presets",
+  "sparse-embeddings",
+  "sparse-embedding-presets",
+  "late-interaction",
+  "late-interaction-presets",
+  "chunking",
+  "keywords-yake",
+  "keywords-rake",
+  "language-detection",
+  "html",
+  "tree-sitter",
+  "office",
+  "email",
+  "archives",
+  "stopwords",
+  "auto-rotate",
+  "auto-rotate-types",
+  "tokio-runtime",
+  "api",
+  "api-types",
+  "mcp",
+  "liter-llm",
+  "quality",
+  "svg",
+  "transcription",
+  "transcription-types",
+  "classification",
+  "captioning",
+  "ner-onnx",
+  "ner-llm",
+  "diff",
+  "markdown-footnotes",
+  "redaction",
+  "enrichment",
+  "heuristics",
+  "presets",
+  "structured",
+  "url-ingestion",
+]
 plugin_error_constructor = "xberg::XbergError::Plugin { message: msg, plugin_name: String::new() }"
 exclude_types = []
 exclude_functions = [
@@ -3598,7 +3659,7 @@ path = "../../packages/swift"
 path = "../../packages/zig"
 
 [crates.e2e.registry.packages.zig]
-hash = "xberg-v1.0.11-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+hash = "xberg-v1.0.14-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [crates.e2e.packages.wasm]
 name = "@xberg-io/xberg-wasm"
@@ -3668,7 +3729,7 @@ docs_url = "https://xberg.io/"
 description = "High-performance document intelligence library for Rust. Extract text, tables, metadata, and code intelligence from 101 file formats and 371 programming languages."
 package_manager = ["cargo"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "ocr_backends"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "ocr/ocr_extraction.md", table_extraction = "api/tables.md" }
 
@@ -3678,10 +3739,10 @@ name = "Python"
 package_name = "xberg"
 badge_url = "https://img.shields.io/pypi/v/xberg?label=Python&color=007ec6"
 docs_url = "https://xberg.io/"
-description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Native Python bindings with async/await support, multiple OCR backends (Tesseract, PaddleOCR), and extensible plugin system."
+description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Native Python bindings with async/await support, multiple OCR backends (Tesseract, PaddleOCR, Sceptre), and extensible plugin system."
 package_manager = ["pip"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["async_vs_sync_performance", "ocr_backends", "system_requirements"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md", table_extraction = "getting-started/read_content.md" }
 
@@ -3695,7 +3756,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Native NAPI-RS bindings for Node.js with superior performance, async/await support, and TypeScript type definitions."
 package_manager = ["pnpm"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, config_discovery = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["native_vs_wasm_comparison", "ocr_support", "performance", "napi_implementation"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_batch.md", ocr_configuration = "config/config_ocr.md", table_extraction = "api/tables.md", config_discovery = "config/config_discovery.md" }
 
@@ -3709,7 +3770,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Go bindings with context-aware async support, idiomatic Go API, and CGO-based native performance."
 package_manager = ["go get"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "ffi_build_instructions"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md" }
 
@@ -3722,7 +3783,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Java bindings with type-safe API, Foreign Function & Memory API integration, and native performance."
 package_manager = ["maven", "gradle"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["maven_gradle_setup", "system_requirements"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/extract.md", batch_processing = "api/extract_batch.md", ocr_configuration = "ocr/ocr_extraction.md", configuration = "config/config_basic.md" }
 
@@ -3735,7 +3796,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. PHP bindings with modern PHP 8.2+ support and type-safe API."
 package_manager = ["composer"]
 features = { ocr = true, async = false, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["composer_installation", "system_requirements"]
 snippets = { basic_extraction = "quickstart/basic_extraction_oop.php", batch_processing = "extraction/batch_processing.php", ocr_configuration = "ocr/basic_ocr.php" }
 
@@ -3748,7 +3809,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Ruby bindings with idiomatic Ruby API and native performance."
 package_manager = ["rubygems", "bundler"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "development_setup"]
 snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/install_verify.md", ocr_configuration = "getting-started/extract_with_ocr.md" }
 
@@ -3761,7 +3822,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. .NET bindings with full type safety, async/await support, and .NET 10.0+ compatibility."
 package_manager = ["nuget"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["dotnet_installation", "system_requirements"]
 snippets = { basic_extraction = "getting-started/basic_usage.cs", async_extraction = "advanced/async_extraction.cs", batch_processing = "advanced/batch_processing.cs", ocr_configuration = "ocr/tesseract_backend.cs" }
 
@@ -3774,7 +3835,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Elixir bindings with native BEAM concurrency, OTP integration, and idiomatic Elixir API."
 package_manager = ["mix"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["mix_installation", "async_with_tasks", "plugin_system"]
 snippets = { basic_extraction = "getting-started/basic_usage.exs", async_extraction = "getting-started/extract.exs", batch_processing = "core/extract_batch.exs", ocr_configuration = "ocr/tesseract_basic.exs", plugin_system = "plugins/word_count_processor.exs" }
 
@@ -3788,7 +3849,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, and images. WebAssembly bindings for browsers, Deno, and Cloudflare Workers with portable deployment and multi-threading support."
 package_manager = ["pnpm"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = false, code_intelligence = true }
-ocr_backends = ["tesseract-wasm"]
+ocr_backends = ["tesseract-wasm", "sceptre (opt-in worker API)"]
 optional_sections = ["multi_threading", "ocr_support", "performance_comparison"]
 snippets = { basic_extraction = "getting-started/basic-extract.ts", browser_extraction = "getting-started/browser-file-input.ts", node_extraction = "getting-started/basic-extract.ts", async_extraction = "getting-started/async-extraction.ts", cloudflare_workers = "getting-started/runtime-detection.ts", batch_processing = "getting-started/batch-processing.ts", ocr_configuration = "ocr/enable-ocr.ts" }
 
@@ -3812,7 +3873,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Android library (AAR) with bundled jniLibs/arm64-v8a and jniLibs/x86_64 — Gradle automatically picks up the native cdylib for emulator and device builds. Server-side Kotlin/JVM consumers can use the Java binding directly via standard Kotlin/Java interop."
 package_manager = ["gradle", "maven"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "sceptre-tract"]
 optional_sections = ["system_requirements"]
 snippets = { basic_extraction = "api/extract.md", async_extraction = "api/extract.md", batch_processing = "api/extract_batch.md", ocr_configuration = "ocr/ocr_extraction.md" }
 
@@ -3825,7 +3886,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Swift bindings via swift-bridge for macOS, iOS, and Linux, with native Swift types and async/await support."
 package_manager = ["spm"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements"]
 snippets = { basic_extraction = "api/extract.md", async_extraction = "api/extract.md", batch_processing = "api/extract_batch.md", ocr_configuration = "ocr/ocr_extraction.md" }
 
@@ -3838,7 +3899,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Dart bindings via flutter_rust_bridge for both Flutter apps and pure-Dart server contexts, with isolate-safe Future/Stream APIs."
 package_manager = ["pub"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements"]
 snippets = { basic_extraction = "api/extract.md", async_extraction = "api/extract.md", batch_processing = "api/extract_batch.md", ocr_configuration = "ocr/ocr_extraction.md" }
 
@@ -3851,7 +3912,7 @@ docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. Zig bindings consuming the C FFI surface via @cImport, idiomatic error sets, optional types, and slice-based memory management."
 package_manager = ["zig"]
 features = { ocr = true, async = false, plugin_system = true, embeddings = true, code_intelligence = true }
-ocr_backends = ["tesseract", "paddleocr"]
+ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements"]
 snippets = { basic_extraction = "api/extract.md", async_extraction = "api/extract.md", batch_processing = "api/extract_batch.md", ocr_configuration = "ocr/ocr_extraction.md" }
 

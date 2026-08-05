@@ -13,6 +13,6 @@
 	},
 	"ground_truth": {
 		"text_file": "../../../test_documents/ground_truth/json/json_nested.txt",
-		"source": "vision"
+		"source": "raw_source"
 	}
 }
