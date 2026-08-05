@@ -81,7 +81,7 @@ jobs:
         with:
           ref: ${{ steps.meta.outputs.checkout_ref }}
           fetch-depth: 0
-          submodules: false
+          submodules: recursive
           lfs: true
 
       - name: Show metadata
@@ -186,7 +186,7 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.checkout_ref }}
           fetch-depth: 0
-          submodules: false
+          submodules: recursive
           lfs: true
 
       - name: Free up disk space
@@ -195,6 +195,9 @@ jobs:
       - name: Ensure target commit
         if: ${{ needs.prepare.outputs.target_sha != '' }}
         run: git checkout --progress --force ${{ needs.prepare.outputs.target_sha }}
+
+      - name: Pull LFS objects in submodules
+        run: git submodule foreach --recursive 'git lfs pull'
 
       - name: Decide whether to build
         id: gate

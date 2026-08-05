@@ -417,6 +417,88 @@ impl OcrBackend for TesseractBackend {
     fn supports_table_detection(&self) -> bool {
         true
     }
+
+    #[cfg_attr(alef, alef(skip))]
+    fn probe(&self, config: &OcrConfig) -> crate::doctor::DoctorCheck {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = config;
+            crate::doctor::DoctorCheck::skip("ocr.tesseract", "tessdata probe is not available on wasm32")
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            probe_tessdata(config)
+        }
+    }
+}
+
+/// Check-only tessdata probe: mirrors the runtime resolution chain without
+/// materializing or downloading language packs.
+///
+/// The runtime requires ONE directory containing every requested language
+/// (`resolve_tessdata_path`); the probe applies the same rule, then
+/// distinguishes "known language, would download on first use" (skip) from
+/// "unknown language code, download would also fail" (fail).
+#[cfg(not(target_arch = "wasm32"))]
+fn probe_tessdata(config: &OcrConfig) -> crate::doctor::DoctorCheck {
+    let dirs = crate::ocr::processor::validation::tessdata_search_dirs(config.tessdata_path.as_deref());
+    probe_tessdata_in_dirs(config, &dirs)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn probe_tessdata_in_dirs(config: &OcrConfig, dirs: &[String]) -> crate::doctor::DoctorCheck {
+    use crate::doctor::DoctorCheck;
+    use crate::ocr::validation::TESSERACT_SUPPORTED_LANGUAGE_CODES;
+
+    let version = xberg_tesseract::TesseractAPI::version();
+    let languages = config.effective_languages();
+
+    if let Some(dir) = dirs.iter().find(|dir| {
+        languages
+            .iter()
+            .all(|lang| std::path::Path::new(dir).join(format!("{lang}.traineddata")).exists())
+    }) {
+        return DoctorCheck::pass(
+            "ocr.tesseract",
+            format!(
+                "tesseract {version}; tessdata for {} language(s) at {dir}",
+                languages.len()
+            ),
+        );
+    }
+
+    let missing: Vec<&str> = languages
+        .iter()
+        .map(String::as_str)
+        .filter(|lang| {
+            !dirs
+                .iter()
+                .any(|dir| std::path::Path::new(dir).join(format!("{lang}.traineddata")).exists())
+        })
+        .collect();
+
+    let (unknown, downloadable): (Vec<&str>, Vec<&str>) = missing
+        .iter()
+        .copied()
+        .partition(|lang| !TESSERACT_SUPPORTED_LANGUAGE_CODES.contains(lang));
+
+    if !unknown.is_empty() {
+        return DoctorCheck::fail(
+            "ocr.tesseract",
+            format!(
+                "unknown language code(s): {} (no traineddata exists)",
+                unknown.join(", ")
+            ),
+        );
+    }
+
+    DoctorCheck::skip(
+        "ocr.tesseract",
+        format!(
+            "tessdata for [{}] not found locally (will download on first use)",
+            downloadable.join(", ")
+        ),
+    )
 }
 
 fn normalize_vertical_cjk_result(result: &mut crate::types::OcrExtractionResult, language: &str, output_format: &str) {
@@ -759,5 +841,50 @@ mod tests {
             !backend.processor_is_initialized(),
             "TesseractBackend::new() should not eagerly allocate the processor"
         );
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod probe_tests {
+    use super::*;
+    use crate::doctor::ProbeStatus;
+
+    fn config_with_tessdata(path: &Path, languages: &[&str]) -> OcrConfig {
+        OcrConfig {
+            tessdata_path: Some(path.to_path_buf()),
+            language: languages.iter().map(|l| l.to_string()).collect(),
+            ..OcrConfig::default()
+        }
+    }
+
+    fn probe_with_dirs(config: &OcrConfig, dirs: &[&Path]) -> crate::doctor::DoctorCheck {
+        let dirs: Vec<String> = dirs.iter().map(|d| d.to_string_lossy().into_owned()).collect();
+        probe_tessdata_in_dirs(config, &dirs)
+    }
+
+    #[test]
+    fn probe_passes_when_all_languages_present() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("eng.traineddata"), b"fake").unwrap();
+        let check = probe_with_dirs(&config_with_tessdata(dir.path(), &["eng"]), &[dir.path()]);
+        assert_eq!(check.status, ProbeStatus::Pass);
+        assert!(check.message.contains(dir.path().to_str().unwrap()));
+    }
+
+    #[test]
+    fn probe_skips_downloadable_language() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("eng.traineddata"), b"fake").unwrap();
+        let check = probe_with_dirs(&config_with_tessdata(dir.path(), &["eng", "deu"]), &[dir.path()]);
+        assert_eq!(check.status, ProbeStatus::Skip);
+        assert!(check.message.contains("deu"));
+    }
+
+    #[test]
+    fn probe_fails_on_unknown_language_code() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let check = probe_with_dirs(&config_with_tessdata(dir.path(), &["xx9"]), &[dir.path()]);
+        assert_eq!(check.status, ProbeStatus::Fail);
+        assert!(check.message.contains("xx9"));
     }
 }

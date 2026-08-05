@@ -45,6 +45,7 @@ default = [
     "liter-llm",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     # Candle pure-Rust VLM OCR backends (TrOCR, PaddleOCR-VL, GLM-OCR, DeepSeek-OCR). CPU inference,
     # shipped in the default CLI binary and the `--features all` container so `--ocr-backend
     # candle-glm-ocr` works out of the box. `all` inherits `default`, so this covers both.
@@ -99,6 +100,7 @@ mcp = ["legacy-base", "xberg/mcp"]
 mcp-http = ["legacy-base", "xberg/mcp-http"]
 embeddings = ["legacy-base", "xberg/embeddings"]
 paddle-ocr = ["legacy-base", "ocr-surface", "xberg/paddle-ocr"]
+sceptre-ocr = ["legacy-base", "ocr-surface", "xberg/sceptre-ocr"]
 candle-ocr = ["legacy-base", "ocr-surface", "xberg/candle-ocr"]
 candle-trocr = ["legacy-base", "ocr-surface", "xberg/candle-trocr"]
 candle-paddleocr-vl = ["legacy-base", "ocr-surface", "xberg/candle-paddleocr-vl"]

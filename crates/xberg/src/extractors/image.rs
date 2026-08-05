@@ -1366,21 +1366,25 @@ impl ImageExtractor {
             enable_image_ocr_elements(&mut ocr_config_with_format, true);
         }
 
-        let mut ocr_result = backend.process_image(content, &ocr_config_with_format).await?;
+        let ocr_result = backend.process_image(content, &ocr_config_with_format).await?;
         #[cfg(not(target_arch = "wasm32"))]
-        if should_retry_sparse_image_ocr(ocr_config, &ocr_result) {
-            let fallback_config = sparse_image_ocr_fallback_config(&ocr_config_with_format);
-            match backend.process_image(content, &fallback_config).await {
-                Ok(mut fallback_result) if has_robust_word_confidence_distribution(&fallback_result) => {
-                    let mut processing_warnings = ocr_result.processing_warnings.clone();
-                    processing_warnings.append(&mut fallback_result.processing_warnings);
-                    fallback_result.processing_warnings = processing_warnings;
-                    ocr_result = fallback_result;
+        let ocr_result = {
+            let mut ocr_result = ocr_result;
+            if should_retry_sparse_image_ocr(ocr_config, &ocr_result) {
+                let fallback_config = sparse_image_ocr_fallback_config(&ocr_config_with_format);
+                match backend.process_image(content, &fallback_config).await {
+                    Ok(mut fallback_result) if has_robust_word_confidence_distribution(&fallback_result) => {
+                        let mut processing_warnings = ocr_result.processing_warnings.clone();
+                        processing_warnings.append(&mut fallback_result.processing_warnings);
+                        fallback_result.processing_warnings = processing_warnings;
+                        ocr_result = fallback_result;
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::warn!(%error, "sparse standalone image OCR fallback failed"),
                 }
-                Ok(_) => {}
-                Err(error) => tracing::warn!(%error, "sparse standalone image OCR fallback failed"),
             }
-        }
+            ocr_result
+        };
 
         let ocr_content = ocr_result.content;
         let ocr_metadata = ocr_result.metadata;

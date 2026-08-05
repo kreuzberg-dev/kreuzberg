@@ -1,11 +1,12 @@
 //! Xberg adapter for Wave 2 benchmark harness.
 //!
 //! Provides subprocess-based extraction via xberg with support for:
-//! - Three pipelines: baseline, layout, paddle-ocr
+//! - Native, layout, PaddleOCR, Sceptre, and candle OCR pipelines
 //! - Single-file and batch extraction modes
 //! - JSON envelope parsing (ExtractEnvelope and BatchEnvelope)
 
 use crate::{
+    adapter::declared_ocr_language_policy,
     adapters::subprocess::SubprocessAdapter,
     error::Result,
     types::{BatchCapability, BatchEntryPoint, BatchTimingScope, OutputFormat, XbergPipeline},
@@ -17,6 +18,8 @@ use std::{
 use which::which;
 
 const XBERG_CLI_BINARY_ENV_VAR: &str = "XBERG_CLI_BINARY";
+const SCEPTRE_ORT_OPTIONS_JSON: &str = r#"{"model":{"backend":"ort"}}"#;
+const SCEPTRE_TRACT_OPTIONS_JSON: &str = r#"{"model":{"backend":"tract"}}"#;
 
 /// Environment variable that requests per-stage cold-start timing from the xberg CLI (must
 /// match `crates/xberg-cli/src/commands/extract.rs::STAGE_TIMING_ENV_VAR`).
@@ -64,6 +67,34 @@ fn benchmark_base_args(batch: bool, content_format: &str, tesseract_ocr_enabled:
     ]
 }
 
+fn push_layout_args(args: &mut Vec<String>) {
+    args.extend([
+        "--layout".to_string(),
+        "true".to_string(),
+        "--use-layout-for-markdown".to_string(),
+    ]);
+}
+
+fn push_ocr_args(args: &mut Vec<String>, backend: &str) {
+    args.extend([
+        "--ocr".to_string(),
+        "true".to_string(),
+        "--ocr-backend".to_string(),
+        backend.to_string(),
+        "--force-ocr".to_string(),
+        "true".to_string(),
+    ]);
+}
+
+fn push_sceptre_args(args: &mut Vec<String>, engine_options: &str) {
+    push_ocr_args(args, "sceptre");
+    args.extend(["--ocr-backend-options".to_string(), engine_options.to_string()]);
+}
+
+fn pipeline_requires_ocr(pipeline: XbergPipeline) -> bool {
+    !matches!(pipeline, XbergPipeline::Baseline | XbergPipeline::Layout)
+}
+
 /// Creates a Xberg adapter for the given pipeline and configuration.
 ///
 /// # Arguments
@@ -80,19 +111,7 @@ pub fn create_xberg_adapter(
     batch: bool,
     ocr_enabled: bool,
 ) -> Result<SubprocessAdapter> {
-    if !ocr_enabled
-        && matches!(
-            pipeline,
-            XbergPipeline::PaddleOcr
-                | XbergPipeline::BaselinePaddle
-                | XbergPipeline::LayoutPaddle
-                | XbergPipeline::CandleTrocr
-                | XbergPipeline::CandlePaddleocrVl
-                | XbergPipeline::CandleGlmOcr
-                | XbergPipeline::CandleDeepseekOcr
-                | XbergPipeline::CandlePaddleocrVl15
-        )
-    {
+    if !ocr_enabled && pipeline_requires_ocr(pipeline) {
         return Err(crate::Error::Config(format!(
             "xberg pipeline '{}' requires OCR, but OCR is disabled",
             pipeline.as_str()
@@ -112,9 +131,7 @@ pub fn create_xberg_adapter(
     match pipeline {
         XbergPipeline::Baseline => {}
         XbergPipeline::Layout => {
-            args.push("--layout".to_string());
-            args.push("true".to_string());
-            args.push("--use-layout-for-markdown".to_string());
+            push_layout_args(&mut args);
         }
         XbergPipeline::PaddleOcr | XbergPipeline::BaselinePaddle => {
             args.push("--ocr".to_string());
@@ -125,9 +142,7 @@ pub fn create_xberg_adapter(
             args.push("true".to_string());
         }
         XbergPipeline::LayoutPaddle => {
-            args.push("--layout".to_string());
-            args.push("true".to_string());
-            args.push("--use-layout-for-markdown".to_string());
+            push_layout_args(&mut args);
             args.push("--ocr".to_string());
             args.push("true".to_string());
             args.push("--ocr-backend".to_string());
@@ -135,6 +150,16 @@ pub fn create_xberg_adapter(
             args.push("--force-ocr".to_string());
             args.push("true".to_string());
         }
+        XbergPipeline::SceptreOrt => push_sceptre_args(&mut args, SCEPTRE_ORT_OPTIONS_JSON),
+        XbergPipeline::SceptreOrtLayout => {
+            push_layout_args(&mut args);
+            push_sceptre_args(&mut args, SCEPTRE_ORT_OPTIONS_JSON);
+        }
+        XbergPipeline::SceptreOrtAutoRotate => {
+            push_sceptre_args(&mut args, SCEPTRE_ORT_OPTIONS_JSON);
+            args.extend(["--ocr-auto-rotate".to_string(), "true".to_string()]);
+        }
+        XbergPipeline::SceptreTract => push_sceptre_args(&mut args, SCEPTRE_TRACT_OPTIONS_JSON),
         XbergPipeline::CandleTrocr => {
             args.push("--ocr".to_string());
             args.push("true".to_string());
@@ -221,7 +246,8 @@ pub fn create_xberg_adapter(
     } else {
         SubprocessAdapter::new(&framework_name, cli_path, args, env, supported_formats)
     }
-    .with_supported_output_formats(vec![output_format]);
+    .with_supported_output_formats(vec![output_format])
+    .with_ocr_language_policy(declared_ocr_language_policy(&framework_name));
     if let Some(single_args) = single_file_args {
         adapter = adapter.with_single_file_args(single_args);
     }
@@ -354,6 +380,44 @@ mod tests {
     #[test]
     fn test_pipeline_paddle_ocr_str() {
         assert_eq!(XbergPipeline::PaddleOcr.as_str(), "paddle-ocr");
+    }
+
+    #[test]
+    fn sceptre_args_select_explicit_inference_engine() {
+        for (pipeline, expected_options) in [
+            (XbergPipeline::SceptreOrt, SCEPTRE_ORT_OPTIONS_JSON),
+            (XbergPipeline::SceptreTract, SCEPTRE_TRACT_OPTIONS_JSON),
+        ] {
+            let mut args = Vec::new();
+            match pipeline {
+                XbergPipeline::SceptreOrt => push_sceptre_args(&mut args, SCEPTRE_ORT_OPTIONS_JSON),
+                XbergPipeline::SceptreTract => push_sceptre_args(&mut args, SCEPTRE_TRACT_OPTIONS_JSON),
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                args.windows(2).find(|pair| pair[0] == "--ocr-backend").unwrap()[1],
+                "sceptre"
+            );
+            assert_eq!(
+                args.windows(2).find(|pair| pair[0] == "--ocr-backend-options").unwrap()[1],
+                expected_options
+            );
+        }
+    }
+
+    #[test]
+    fn sceptre_ort_variants_enable_only_the_requested_structure_option() {
+        let mut layout = Vec::new();
+        push_layout_args(&mut layout);
+        push_sceptre_args(&mut layout, SCEPTRE_ORT_OPTIONS_JSON);
+        assert!(layout.iter().any(|arg| arg == "--layout"));
+        assert!(!layout.iter().any(|arg| arg == "--ocr-auto-rotate"));
+
+        let mut autorotate = Vec::new();
+        push_sceptre_args(&mut autorotate, SCEPTRE_ORT_OPTIONS_JSON);
+        autorotate.extend(["--ocr-auto-rotate".to_string(), "true".to_string()]);
+        assert!(!autorotate.iter().any(|arg| arg == "--layout"));
+        assert!(autorotate.iter().any(|arg| arg == "--ocr-auto-rotate"));
     }
 
     #[test]

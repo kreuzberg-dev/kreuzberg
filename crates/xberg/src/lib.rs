@@ -35,6 +35,12 @@
 
 #![deny(unsafe_code)]
 
+#[cfg(all(
+    feature = "sceptre-ocr-ort",
+    any(target_arch = "wasm32", target_os = "android", target_os = "ios")
+))]
+compile_error!("`sceptre-ocr-ort` supports desktop and server targets only; use `sceptre-ocr-tract` on mobile");
+
 pub mod cache;
 pub(crate) mod cache_dir;
 pub mod cancellation;
@@ -131,6 +137,8 @@ pub mod presets;
 #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 pub mod ocr;
 
+pub mod doctor;
+
 #[cfg(any(
     feature = "paddle-ocr",
     feature = "embeddings",
@@ -155,6 +163,15 @@ pub(crate) mod inference;
 
 #[cfg(any(feature = "paddle-ocr", feature = "paddle-ocr-types"))]
 pub mod paddle_ocr;
+
+#[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
+pub mod sceptre_ocr;
+
+#[cfg(any(sceptre_ocr, feature = "sceptre-wasm"))]
+mod sceptre_languages;
+
+#[cfg(feature = "sceptre-wasm")]
+pub mod sceptre_wasm;
 
 #[cfg(feature = "candle-ocr")]
 pub mod candle_ocr;
@@ -414,6 +431,8 @@ pub fn detect_mime_type(path: String, check_exists: bool) -> crate::Result<Strin
 
 #[cfg(feature = "pdf")]
 pub use pdf::render::{pdf_page_count, render_pdf_page_to_png};
+
+pub use doctor::{DoctorCheck, DoctorReport, ProbeStatus, doctor};
 
 #[cfg_attr(alef, alef(skip))]
 pub use plugins::{

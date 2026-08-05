@@ -8,7 +8,7 @@
 mod api_pool;
 mod config;
 mod execution;
-mod validation;
+pub(crate) mod validation;
 
 pub(crate) use api_pool::MAX_TESSERACT_APIS;
 

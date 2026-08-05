@@ -28,6 +28,11 @@ pub(crate) struct EntityReader<'x> {
 }
 
 #[cfg(any(feature = "xml", feature = "office"))]
+// `from_str`, `config_mut`, and `buffer_position` are used only by some of the
+// xml/office/docx extractor paths; in feature combos that enable one of `xml`/`office`
+// but not the callers (e.g. the default `xberg-ffi` surface), they are unused. They are
+// live in other builds, so allow the conditional dead code rather than misgate per method.
+#[allow(dead_code)]
 impl<'x> EntityReader<'x> {
     pub(crate) fn from_str(content: &'x str) -> Self {
         Self {

@@ -312,6 +312,37 @@ def _api_post_file(port: int, path: str, filepath: str) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
+def _api_put_body(port: int, path: str, filepath: str, extra_headers: dict[str, str] | None = None) -> str | None:
+    """PUT a raw binary body (OpenWebUI External engine) with an optional set of extra headers."""
+    cmd = [
+        "curl",
+        "-f",
+        "-s",
+        "-X",
+        "PUT",
+        f"http://localhost:{port}{path}",
+        "-H",
+        "Content-Type: text/plain",
+        "-H",
+        "X-Filename: openweb.txt",
+        "--data-binary",
+        f"@{filepath}",
+    ]
+    for key, value in (extra_headers or {}).items():
+        cmd += ["-H", f"{key}: {value}"]
+    r = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
+    return r.stdout if r.returncode == 0 else None
+
+
+def _api_post_multipart(port: int, path: str, filepath: str, fields: dict[str, str] | None = None) -> str | None:
+    """POST a multipart form (OpenWebUI Docling engine): a `files` part plus optional text fields."""
+    cmd = ["curl", "-f", "-s", "-X", "POST", f"http://localhost:{port}{path}", "-F", f"files=@{filepath}"]
+    for key, value in (fields or {}).items():
+        cmd += ["-F", f"{key}={value}"]
+    r = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
+    return r.stdout if r.returncode == 0 else None
+
+
 def test_ocr_extraction(t: TestRunner) -> None:
     t.start("OCR extraction with Tesseract")
     name = t.container_name()
@@ -643,6 +674,62 @@ def test_api_batch(t: TestRunner) -> None:
     t.docker_rm(name)
 
 
+def test_api_openweb(t: TestRunner) -> None:
+    """OpenWebUI-compat endpoints: External `PUT /process` and Docling `POST /v1/convert/file`.
+
+    Also asserts a per-request config actually reaches the pipeline (regression guard for the
+    OpenWebUI "parameters ignored" bug): the same document rendered with `output_format=json`
+    must differ from the default Markdown rendering.
+    """
+    port = 9000 + random.randint(0, 999)
+    name = t.docker_run_detached("--memory", "2g", "--cpus", "2", "-p", f"{port}:8000", t.image)
+    if not _wait_for_api(port):
+        t.start("OpenWebUI endpoints")
+        t.fail_test("OpenWebUI endpoints", "Server not ready")
+        t.docker_rm(name)
+        return
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("OpenWebUI compat content")
+        tmp = f.name
+
+    try:
+        t.start("OpenWebUI External /process returns page_content + source")
+        proc = _api_put_body(port, "/process", tmp)
+        t.debug(f"/process response: {proc}")
+        if proc and "OpenWebUI compat content" in proc and '"page_content"' in proc and '"source"' in proc:
+            t.pass_test()
+        else:
+            t.fail_test("OpenWebUI /process", f"Missing expected fields: {proc}")
+
+        t.start("OpenWebUI External /process honors X-Config")
+        proc_json = _api_put_body(port, "/process", tmp, {"X-Config": '{"output_format":"json"}'})
+        t.debug(f"/process X-Config response: {proc_json}")
+        if proc and proc_json and proc_json != proc:
+            t.pass_test()
+        else:
+            t.fail_test("OpenWebUI /process X-Config", "Config did not change output (params ignored)")
+
+        t.start("OpenWebUI Docling /v1/convert/file returns md_content + status")
+        docling = _api_post_multipart(port, "/v1/convert/file", tmp)
+        t.debug(f"/v1/convert/file response: {docling}")
+        if docling and '"md_content"' in docling and '"status"' in docling and "OpenWebUI compat content" in docling:
+            t.pass_test()
+        else:
+            t.fail_test("OpenWebUI /v1/convert/file", f"Missing expected fields: {docling}")
+
+        t.start("OpenWebUI Docling /v1/convert/file honors config field")
+        docling_json = _api_post_multipart(port, "/v1/convert/file", tmp, {"config": '{"output_format":"json"}'})
+        t.debug(f"/v1/convert/file config response: {docling_json}")
+        if docling and docling_json and docling_json != docling:
+            t.pass_test()
+        else:
+            t.fail_test("OpenWebUI /v1/convert/file config", "Config did not change output (params ignored)")
+    finally:
+        os.unlink(tmp)
+        t.docker_rm(name)
+
+
 def test_cli_batch_json(t: TestRunner) -> None:
     t.start("CLI batch extraction with JSON format")
     name = t.container_name()
@@ -872,6 +959,7 @@ def run_core_full_tests(t: TestRunner) -> None:
     test_api_openapi(t)
     test_api_cache(t)
     test_api_batch(t)
+    test_api_openweb(t)
     test_cli_batch_json(t)
     test_mcp_server(t)
     test_cli_cache(t)

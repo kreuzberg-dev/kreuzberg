@@ -17,6 +17,7 @@ use std::time::Duration;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::adapter::declared_ocr_language_policy;
 use crate::aggregate::{
     NewConsolidatedResults, PerFixtureRow, PerformancePercentiles, SCHEMA_VERSION, comparison_for_cohort,
     extract_framework_and_mode,
@@ -144,12 +145,14 @@ struct ExpectedFixture {
     document_name: String,
     has_quality_ground_truth: bool,
     has_structural_ground_truth: bool,
+    ocr_language: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct FixtureQualityExpectation {
     has_quality_ground_truth: bool,
     has_structural_ground_truth: bool,
+    ocr_language: Option<String>,
 }
 
 fn fixture_quality_expectations(
@@ -169,6 +172,7 @@ fn fixture_quality_expectations(
                     .ground_truth
                     .as_ref()
                     .is_some_and(|ground_truth| ground_truth.markdown_file.is_some()),
+                ocr_language: descriptor.ocr_language().map(str::to_string),
             })
         })
         .collect()
@@ -297,6 +301,7 @@ fn expected_fixtures(fixtures_root: &Path, contract: &CohortContract) -> Result<
             document_name,
             has_quality_ground_truth,
             has_structural_ground_truth,
+            ocr_language: descriptor.ocr_language().map(str::to_string),
         });
     }
 
@@ -394,6 +399,7 @@ fn validate_provenance(
     source_sha: &str,
     iterations: usize,
     eligible_documents: usize,
+    expected_partitions: Option<usize>,
 ) -> Result<()> {
     require(
         provenance.schema_version == EXPECTED_PROVENANCE_SCHEMA_VERSION,
@@ -476,11 +482,13 @@ fn validate_provenance(
         framework.eligible_documents == eligible_documents,
         format!("{}: fixture count mismatch", path.display()),
     )?;
-    let expected_partitions =
-        matches!(entry.mode, ExecutionMode::Batch).then(|| eligible_documents.div_ceil(contract.batch_size));
     require(
         framework.batch_partitions == expected_partitions,
         format!("{}: batch partition mismatch", path.display()),
+    )?;
+    require(
+        framework.ocr_language_policy == declared_ocr_language_policy(&entry.framework),
+        format!("{}: OCR language policy mismatch", path.display()),
     )?;
 
     Ok(())
@@ -624,16 +632,23 @@ fn validate_release_quality_contract(
     Ok(())
 }
 
-fn supported_fixture_indexes(entry: &MatrixEntry, contract: &CohortContract) -> Vec<usize> {
-    if entry.framework.starts_with("xberg-") {
-        return (0..contract.fixtures.len()).collect();
-    }
+fn supported_fixture_indexes(
+    entry: &MatrixEntry,
+    contract: &CohortContract,
+    ocr_languages: &[Option<String>],
+) -> Vec<usize> {
     let supported = crate::adapters::external::declared_supported_formats(&entry.framework);
     contract
         .document_extensions
         .iter()
         .enumerate()
-        .filter_map(|(index, extension)| supported.iter().any(|item| item == extension).then_some(index))
+        .filter_map(|(index, extension)| {
+            let format_supported =
+                entry.framework.starts_with("xberg-") || supported.iter().any(|item| item == extension);
+            let language_supported =
+                declared_ocr_language_policy(&entry.framework).supports(ocr_languages[index].as_deref());
+            (format_supported && language_supported).then_some(index)
+        })
         .collect()
 }
 
@@ -691,9 +706,18 @@ fn validate_raw_artifacts(
         let entry = allowed_names[artifact_name];
         let results_path = only_file(artifact_dir, "results.json")?;
         let provenance_path = only_file(artifact_dir, "provenance.json")?;
-        let supported_indexes = supported_fixture_indexes(entry, contract);
+        let ocr_languages: Vec<Option<String>> = fixtures.iter().map(|fixture| fixture.ocr_language.clone()).collect();
+        let supported_indexes = supported_fixture_indexes(entry, contract, &ocr_languages);
         let selected_fixtures: Vec<&ExpectedFixture> =
             supported_indexes.iter().map(|index| &fixtures[*index]).collect();
+        let eligible_languages: Vec<Option<String>> = supported_indexes
+            .iter()
+            .map(|index| ocr_languages[*index].clone())
+            .collect();
+        let expected_partitions = matches!(entry.mode, ExecutionMode::Batch).then(|| {
+            declared_ocr_language_policy(&entry.framework)
+                .batch_partition_count(&eligible_languages, contract.batch_size)
+        });
 
         let provenance: RunProvenance = load_typed_json(&provenance_path)?;
         validate_provenance(
@@ -706,6 +730,7 @@ fn validate_raw_artifacts(
             source_sha,
             iterations,
             supported_indexes.len(),
+            expected_partitions,
         )?;
 
         let results: Vec<BenchmarkResult> = load_typed_json(&results_path)?;
@@ -813,6 +838,7 @@ fn validate_aggregate_provenance(
     present_entries: &[&MatrixEntry],
     contract: &CohortContract,
     iterations: usize,
+    fixture_expectations: &[FixtureQualityExpectation],
     path: &Path,
 ) -> Result<()> {
     require(
@@ -919,23 +945,28 @@ fn validate_aggregate_provenance(
                 path.display()
             ))
         })?;
-        let expected_eligible = contract
-            .document_extensions
+        let ocr_languages: Vec<Option<String>> = fixture_expectations
             .iter()
-            .filter(|extension| {
-                entry.framework.starts_with("xberg-")
-                    || crate::adapters::external::declared_supported_formats(&entry.framework)
-                        .iter()
-                        .any(|supported| supported == *extension)
-            })
-            .count();
+            .map(|fixture| fixture.ocr_language.clone())
+            .collect();
+        let supported_indexes = supported_fixture_indexes(entry, contract, &ocr_languages);
+        let expected_eligible = supported_indexes.len();
+        let eligible_languages: Vec<Option<String>> = supported_indexes
+            .iter()
+            .map(|index| ocr_languages[*index].clone())
+            .collect();
         let is_batch = entry.mode == ExecutionMode::Batch;
         require(
             provenance.timing.mode == entry.mode.benchmark_mode()
                 && provenance.timing.benchmark_iterations == iterations
                 && provenance.fixed_batch_size == is_batch.then_some(contract.batch_size)
                 && framework.eligible_documents == expected_eligible
-                && framework.batch_partitions == is_batch.then(|| expected_eligible.div_ceil(contract.batch_size)),
+                && framework.batch_partitions
+                    == is_batch.then(|| {
+                        declared_ocr_language_policy(&entry.framework)
+                            .batch_partition_count(&eligible_languages, contract.batch_size)
+                    })
+                && framework.ocr_language_policy == declared_ocr_language_policy(&entry.framework),
             format!("{}: aggregate provenance settings mismatch for {cell}", path.display()),
         )?;
         actual_cells.insert(cell);
@@ -1193,7 +1224,14 @@ fn validate_aggregate(
 
     let present_entries: Vec<&MatrixEntry> = actual_keys.iter().map(|key| allowed_entries[*key]).collect();
     validate_format_support(&aggregate, &present_entries, contract, path)?;
-    validate_aggregate_provenance(&aggregate, &present_entries, contract, iterations, path)?;
+    validate_aggregate_provenance(
+        &aggregate,
+        &present_entries,
+        contract,
+        iterations,
+        quality_expectations,
+        path,
+    )?;
 
     let expects_ocr = cohort.expects_ocr();
     // A present best-effort group must retain exact supported-format cardinality and valid failure
@@ -1234,7 +1272,11 @@ fn validate_aggregate(
                 })?;
                 actual_ext_counts.insert(file_type.as_str(), validate_bucket(bucket, key, entry.optional)?);
             }
-            let supported_indexes = supported_fixture_indexes(entry, contract);
+            let ocr_languages: Vec<Option<String>> = quality_expectations
+                .iter()
+                .map(|fixture| fixture.ocr_language.clone())
+                .collect();
+            let supported_indexes = supported_fixture_indexes(entry, contract, &ocr_languages);
             let mut entry_ext_counts: HashMap<&str, usize> = HashMap::new();
             for index in supported_indexes {
                 *entry_ext_counts.entry(contract.document_extensions[index]).or_insert(0) += 1;
@@ -1273,10 +1315,14 @@ fn validate_aggregate(
     }
 
     let rows: Vec<&PerFixtureRow> = aggregate.per_fixture_results.iter().collect();
+    let ocr_languages: Vec<Option<String>> = quality_expectations
+        .iter()
+        .map(|fixture| fixture.ocr_language.clone())
+        .collect();
     let expected_identities: HashSet<String> = present_entries
         .iter()
         .flat_map(|entry| {
-            supported_fixture_indexes(entry, contract)
+            supported_fixture_indexes(entry, contract, &ocr_languages)
                 .into_iter()
                 .map(move |index| {
                     identity_string(
@@ -1317,7 +1363,7 @@ fn validate_aggregate(
             .iter()
             .position(|stem| *stem == row.fixture_id)
             .ok_or_else(|| contract_error(format!("{}: row has unknown fixture identity", path.display())))?;
-        let quality_expectation = quality_expectations[fixture_index];
+        let quality_expectation = &quality_expectations[fixture_index];
         if row.success {
             require(
                 row.error_kind.is_none() && row.error_message.is_none(),

@@ -83,6 +83,18 @@ pub enum XbergPipeline {
     /// Layout structure pipeline with the PaddleOCR engine (force-OCR + layout model)
     #[serde(rename = "layout-paddle")]
     LayoutPaddle,
+    /// Sceptre OCR using ONNX Runtime.
+    #[serde(rename = "sceptre-ort")]
+    SceptreOrt,
+    /// Sceptre OCR using ONNX Runtime with layout detection.
+    #[serde(rename = "sceptre-ort-layout")]
+    SceptreOrtLayout,
+    /// Sceptre OCR using ONNX Runtime with automatic page orientation correction.
+    #[serde(rename = "sceptre-ort-autorotate")]
+    SceptreOrtAutoRotate,
+    /// Sceptre OCR using tract. This is reserved for the bounded diagnostic matrix.
+    #[serde(rename = "sceptre-tract")]
+    SceptreTract,
     /// Candle TrOCR: OCR with candle-based TrOCR backend
     #[serde(rename = "candle-trocr")]
     CandleTrocr,
@@ -109,6 +121,10 @@ impl XbergPipeline {
             XbergPipeline::PaddleOcr => "paddle-ocr",
             XbergPipeline::BaselinePaddle => "baseline-paddle",
             XbergPipeline::LayoutPaddle => "layout-paddle",
+            XbergPipeline::SceptreOrt => "sceptre-ort",
+            XbergPipeline::SceptreOrtLayout => "sceptre-ort-layout",
+            XbergPipeline::SceptreOrtAutoRotate => "sceptre-ort-autorotate",
+            XbergPipeline::SceptreTract => "sceptre-tract",
             XbergPipeline::CandleTrocr => "candle-trocr",
             XbergPipeline::CandlePaddleocrVl => "candle-paddleocr-vl",
             XbergPipeline::CandleGlmOcr => "candle-glm-ocr",
@@ -134,6 +150,14 @@ impl FromStr for XbergPipeline {
             "paddle-ocr" | "paddle_ocr" | "paddleocr" => Ok(XbergPipeline::PaddleOcr),
             "baseline-paddle" | "baseline_paddle" => Ok(XbergPipeline::BaselinePaddle),
             "layout-paddle" | "layout_paddle" => Ok(XbergPipeline::LayoutPaddle),
+            "sceptre" | "sceptre-ort" | "sceptre_ort" => Ok(XbergPipeline::SceptreOrt),
+            "sceptre-ort-layout" | "sceptre_ort_layout" | "sceptre-layout" | "sceptre_layout" => {
+                Ok(XbergPipeline::SceptreOrtLayout)
+            }
+            "sceptre-ort-autorotate" | "sceptre_ort_autorotate" | "sceptre-autorotate" | "sceptre_autorotate" => {
+                Ok(XbergPipeline::SceptreOrtAutoRotate)
+            }
+            "sceptre-tract" | "sceptre_tract" => Ok(XbergPipeline::SceptreTract),
             "candle-trocr" | "candle_trocr" | "trocr" => Ok(XbergPipeline::CandleTrocr),
             "candle-paddleocr-vl" | "candle_paddleocr_vl" | "paddleocr-vl" => Ok(XbergPipeline::CandlePaddleocrVl),
             "candle-glm-ocr" | "candle_glm_ocr" | "glm-ocr" => Ok(XbergPipeline::CandleGlmOcr),
@@ -142,7 +166,7 @@ impl FromStr for XbergPipeline {
                 Ok(XbergPipeline::CandlePaddleocrVl15)
             }
             _ => Err(format!(
-                "unknown Xberg pipeline: {}. Valid: baseline, layout, paddle-ocr, baseline-paddle, layout-paddle, candle-trocr, candle-paddleocr-vl, candle-glm-ocr, candle-deepseek-ocr, candle-paddleocr-vl-15",
+                "unknown Xberg pipeline: {}. Valid: baseline, layout, paddle-ocr, baseline-paddle, layout-paddle, sceptre-ort, sceptre-ort-layout, sceptre-ort-autorotate, sceptre-tract, candle-trocr, candle-paddleocr-vl, candle-glm-ocr, candle-deepseek-ocr, candle-paddleocr-vl-15",
                 s
             )),
         }
@@ -580,6 +604,20 @@ mod tests {
     fn legacy_paddle_pipeline_parses_supported_spellings() {
         for value in ["paddle-ocr", "paddle_ocr", "paddleocr"] {
             assert_eq!(value.parse::<XbergPipeline>(), Ok(XbergPipeline::PaddleOcr));
+        }
+    }
+
+    #[test]
+    fn sceptre_pipeline_identities_are_explicit_and_alias_defaults_to_ort() {
+        assert_eq!("sceptre".parse(), Ok(XbergPipeline::SceptreOrt));
+        for pipeline in [
+            XbergPipeline::SceptreOrt,
+            XbergPipeline::SceptreOrtLayout,
+            XbergPipeline::SceptreOrtAutoRotate,
+            XbergPipeline::SceptreTract,
+        ] {
+            assert_eq!(pipeline.as_str().parse(), Ok(pipeline));
+            assert!(pipeline.as_str().contains("ort") || pipeline.as_str().contains("tract"));
         }
     }
 

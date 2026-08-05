@@ -97,6 +97,85 @@ impl OcrBackend for VlmOcrBackend {
     fn backend_type(&self) -> OcrBackendType {
         OcrBackendType::Custom
     }
+
+    #[cfg_attr(alef, alef(skip))]
+    fn probe(&self, config: &crate::OcrConfig) -> crate::doctor::DoctorCheck {
+        use crate::doctor::DoctorCheck;
+
+        let Some(vlm_config) = config.vlm_config.as_ref() else {
+            return DoctorCheck::fail(
+                "ocr.vlm",
+                "ocr.backend = \"vlm\" requires vlm_config (model endpoint configuration)",
+            );
+        };
+
+        // Client construction resolves the provider, applies the env-var key
+        // fallback, and validates provider requirements (e.g. Azure base_url).
+        // liter-llm error messages name the missing env var, never the secret.
+        if let Err(e) = super::client::create_client(vlm_config) {
+            return DoctorCheck::fail("ocr.vlm", format!("{e}"));
+        }
+
+        let Some(base_url) = vlm_config
+            .base_url
+            .clone()
+            .or_else(|| default_base_url_for_model(&vlm_config.model))
+        else {
+            return DoctorCheck::skip(
+                "ocr.vlm",
+                "client config ok; endpoint reachability not probed (no base_url in config or provider default)",
+            );
+        };
+
+        probe_endpoint(&base_url)
+    }
+}
+
+/// Resolve a provider's default base URL from the model string via liter-llm's
+/// static provider registry (explicit `provider/` prefix first, then model
+/// prefixes). Custom providers without a default return None.
+fn default_base_url_for_model(model: &str) -> Option<String> {
+    let providers = liter_llm::provider::all_providers().ok()?;
+    let (prefixed, bare) = match model.split_once('/') {
+        Some((head, rest)) => (Some(head), rest),
+        None => (None, model),
+    };
+    providers
+        .iter()
+        .find(|p| Some(p.name.as_str()) == prefixed)
+        .or_else(|| {
+            providers.iter().find(|p| {
+                p.model_prefixes
+                    .as_ref()
+                    .is_some_and(|prefixes| prefixes.iter().any(|px| bare.starts_with(px.as_str())))
+            })
+        })
+        .and_then(|p| p.base_url.clone())
+}
+
+/// Unauthenticated GET against the configured endpoint: any HTTP response —
+/// including 401/404 — proves reachability. No API key is sent, so nothing
+/// billable happens and no secret can leak into the report; transport errors
+/// are reported without the request URL.
+fn probe_endpoint(base_url: &str) -> crate::doctor::DoctorCheck {
+    use crate::doctor::DoctorCheck;
+
+    let config = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(5)))
+        .build();
+    let agent = ureq::Agent::new_with_config(config);
+
+    match agent.get(base_url).call() {
+        Ok(response) => DoctorCheck::pass("ocr.vlm", format!("endpoint reachable (HTTP {})", response.status())),
+        Err(ureq::Error::StatusCode(code)) => DoctorCheck::pass("ocr.vlm", format!("endpoint reachable (HTTP {code})")),
+        Err(e) => {
+            tracing::debug!(error = %e, "vlm endpoint probe failed");
+            DoctorCheck::fail(
+                "ocr.vlm",
+                "endpoint unreachable (connection failed; run with RUST_LOG=debug for detail)",
+            )
+        }
+    }
 }
 
 /// Perform OCR on an image using a vision language model.

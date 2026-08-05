@@ -15,6 +15,14 @@ const HEADER: Style = Style::new()
 /// Green for success values (MIME types, file paths, versions).
 const SUCCESS: Style = Style::new().fg_color(Some(anstyle::Color::Ansi(AnsiColor::Green)));
 
+/// Yellow for warnings: actionable but not broken.
+const WARNING: Style = Style::new().fg_color(Some(anstyle::Color::Ansi(AnsiColor::Yellow)));
+
+/// Bold red for failures.
+const ERROR: Style = Style::new()
+    .fg_color(Some(anstyle::Color::Ansi(AnsiColor::Red)))
+    .effects(Effects::BOLD);
+
 /// Dim for metadata, separators, secondary info.
 const DIM: Style = Style::new().effects(Effects::DIMMED);
 
@@ -49,6 +57,16 @@ pub fn header(text: &str) -> String {
 /// Style text as a success value (green).
 pub fn success(text: &str) -> String {
     styled(text, SUCCESS)
+}
+
+/// Style text as a warning (yellow).
+pub fn warning(text: &str) -> String {
+    styled(text, WARNING)
+}
+
+/// Style text as a failure (bold red).
+pub fn error(text: &str) -> String {
+    styled(text, ERROR)
 }
 
 /// Style text as dim/secondary (dimmed).

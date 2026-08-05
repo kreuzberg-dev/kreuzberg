@@ -91,7 +91,7 @@ xml = ["dep:quick-xml", "dep:roxmltree"]
 archives = ["dep:zip", "dep:tar", "dep:sevenz-rust2", "dep:flate2"]
 mdx = []
 
-liter-llm = ["dep:liter-llm", "dep:minijinja", "ocr-pipeline"]
+liter-llm = ["dep:liter-llm", "dep:minijinja", "dep:ureq", "ocr-pipeline"]
 
 # Gate for the centralised image re-encode pass (image_encode module).
 # Enabled by every feature that activates `dep:image` so the module is always
@@ -211,6 +211,20 @@ paddle-ocr = [
     "ocr",
     "auto-rotate",
 ]
+# Sceptre keeps its historical feature as the zero-config native ORT mode. The
+# explicit engine features also support native parity benchmarks and mobile tract. ~keep
+sceptre-ocr = ["sceptre-ocr-ort"]
+sceptre-ocr-ort = [
+    "dep:sceptre",
+    "sceptre/ort-bundled",
+    "sceptre/download",
+    "ocr-pipeline",
+    "tokio-runtime",
+]
+sceptre-ocr-tract = ["dep:sceptre", "sceptre/tract", "ocr-pipeline", "tokio-runtime"]
+# Opt-in browser engine used by the separate worker-backed WASM build. It
+# intentionally omits the async OCR registry and default `wasm-target`. ~keep
+sceptre-wasm = ["dep:sceptre", "sceptre/tract"]
 # Dev default: downloads the pyke prebuilt ONNX Runtime (needs glibc >= 2.38 to run).
 # Release links Microsoft's runtime instead (system strategy) — see publish.yaml (#1284).
 ort-bundled = ["ort?/download-binaries", "ort?/tls-rustls", "xberg-gliner?/ort-bundled"]
@@ -622,6 +636,7 @@ android-target = [
     "excel",
     "tree-sitter",
     "ocr",
+    "sceptre-ocr-tract",
     "auto-rotate-tract",
     "layout-tract",
     "api",
@@ -686,6 +701,7 @@ windows-target = [
     "auto-rotate",
     "layout-detection",
     "paddle-ocr",
+    "sceptre-ocr",
     # Candle VLM OCR backends. candle-core is default-features=false with GPU strictly opt-in, so
     # CPU candle links cleanly on Windows MSVC (no cudarc/metal-kernels). Parity with other platforms.
     "candle-vlm-ocr",
@@ -822,6 +838,7 @@ full = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
     # Candle pure-Rust VLM OCR backends (TrOCR, PaddleOCR-VL, GLM-OCR, DeepSeek-OCR). CPU inference
     # (candle-core is default-features=false; GPU is opt-in via candle-cuda/metal/mkl/accelerate),
@@ -872,6 +889,7 @@ full-no-heic = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
     "embeddings",
     "static-embeddings",
@@ -909,6 +927,7 @@ server = [
     "url-ingestion",
     "ocr",
     "paddle-ocr",
+    "sceptre-ocr",
     "layout-detection",
 ]
 # CLI-only features (thin gate for xberg-cli).
@@ -1028,6 +1047,7 @@ rmp-serde = "1.3"
 
 roxmltree = { version = "0.21.1", optional = true }
 rqrr = { version = "0.10", optional = true }
+sceptre = { workspace = true, optional = true }
 scrypt = { version = "0.12", optional = true, default-features = false, features = ["kdf"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

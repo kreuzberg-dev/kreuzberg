@@ -98,8 +98,8 @@ jobs:
         with:
           build-profile: release
 
-      - name: Build xberg-cli (release, all features)
-        run: cargo build --locked --release -p xberg-cli --features all
+      - name: Build xberg-cli (release, all features + Sceptre tract diagnostic)
+        run: cargo build --locked --release -p xberg-cli --features all,xberg/sceptre-ocr-tract
 
       - name: Pull test_documents LFS objects
         run: git -C test_documents lfs pull
@@ -175,14 +175,25 @@ jobs:
   bench-rust:
     name: bench-rust (${{ matrix.pipeline }}, ${{ matrix.output_format }}, ${{ matrix.mode }}, ${{ matrix.cohort }})
     needs: setup
-    runs-on: ${{ (matrix.pipeline == 'layout' || contains(matrix.pipeline, 'paddle')) && 'runner-large-arm64' || 'runner-medium-arm64' }}
+    runs-on: >-
+      ${{ (matrix.pipeline == 'layout'
+        || contains(matrix.pipeline, 'paddle')
+        || contains(matrix.pipeline, 'sceptre'))
+        && 'runner-large-arm64' || 'runner-medium-arm64' }}
     timeout-minutes: 360
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        pipeline: [baseline, layout, baseline-paddle, layout-paddle]
+        pipeline:
+          - baseline
+          - layout
+          - baseline-paddle
+          - layout-paddle
+          - sceptre-ort
+          - sceptre-ort-layout
+          - sceptre-ort-autorotate
         output_format: [markdown, plaintext]
         mode: [single-file, batch]
         cohort:
@@ -218,6 +229,24 @@ jobs:
           - { pipeline: layout-paddle, cohort: native-ebook-fast }
           - { pipeline: layout-paddle, cohort: native-email-fast }
           - { pipeline: layout-paddle, cohort: native-data-fast }
+          - { pipeline: sceptre-ort, cohort: native-pdf-fast-b8 }
+          - { pipeline: sceptre-ort, cohort: native-office-fast }
+          - { pipeline: sceptre-ort, cohort: native-markup-fast }
+          - { pipeline: sceptre-ort, cohort: native-ebook-fast }
+          - { pipeline: sceptre-ort, cohort: native-email-fast }
+          - { pipeline: sceptre-ort, cohort: native-data-fast }
+          - { pipeline: sceptre-ort-layout, cohort: native-pdf-fast-b8 }
+          - { pipeline: sceptre-ort-layout, cohort: native-office-fast }
+          - { pipeline: sceptre-ort-layout, cohort: native-markup-fast }
+          - { pipeline: sceptre-ort-layout, cohort: native-ebook-fast }
+          - { pipeline: sceptre-ort-layout, cohort: native-email-fast }
+          - { pipeline: sceptre-ort-layout, cohort: native-data-fast }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-pdf-fast-b8 }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-office-fast }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-markup-fast }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-ebook-fast }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-email-fast }
+          - { pipeline: sceptre-ort-autorotate, cohort: native-data-fast }
     steps:
       - uses: actions/checkout@v6
         with:
@@ -284,6 +313,29 @@ jobs:
         if: contains(matrix.pipeline, 'paddle')
         uses: ./.github/actions/setup-paddle-ocr-models
 
+      - name: Pre-warm Sceptre ORT models
+        if: contains(matrix.pipeline, 'sceptre-ort')
+        env:
+          PIPELINE: ${{ matrix.pipeline }}
+        run: |
+          set -euo pipefail
+          for language in eng deu jpn; do
+            args=(
+              extract test_documents/images/test_hello_world.png
+              --ocr true
+              --force-ocr true
+              --ocr-backend sceptre
+              --ocr-backend-options '{"model":{"backend":"ort"}}'
+              --ocr-language "$language"
+              --no-cache true
+              --format json
+            )
+            if [[ "$PIPELINE" == "sceptre-ort-autorotate" ]]; then
+              args+=(--ocr-auto-rotate true)
+            fi
+            ./target/release/xberg "${args[@]}" >/dev/null
+          done
+
       - name: Run benchmark
         env:
           FRAMEWORK: xberg-${{ matrix.output_format }}-${{ matrix.pipeline }}
@@ -299,6 +351,72 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: benchmarks-rust-${{ matrix.pipeline }}-${{ matrix.output_format }}-${{ matrix.mode }}-${{ matrix.cohort }}-${{ github.run_id }}
+          path: benchmark-results/
+          retention-days: 30
+
+  sceptre-tract-diagnostic:
+    name: sceptre-tract diagnostic (${{ matrix.mode }})
+    needs: setup
+    runs-on: runner-large-arm64
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [single-file, batch]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.setup.outputs.source-sha }}
+          submodules: recursive
+          lfs: true
+
+      - name: Free disk space
+        uses: xberg-io/actions/free-disk-space-linux@v1
+
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.setup.outputs.artifact-name }}
+          path: target/release
+
+      - name: Restore benchmark binary permissions
+        run: scripts/benchmarks/restore-binary-permissions.sh
+
+      - name: Pull test_documents LFS objects
+        run: git -C test_documents lfs pull
+
+      - name: Setup ONNX Runtime
+        uses: ./.github/actions/setup-onnx-runtime
+        with:
+          ort-version: ${{ env.ORT_VERSION }}
+
+      - name: Pre-warm Sceptre tract models
+        run: >-
+          ./target/release/xberg extract test_documents/images/test_hello_world.png
+          --ocr true --force-ocr true --ocr-backend sceptre
+          --ocr-backend-options '{"model":{"backend":"tract"}}'
+          --ocr-language eng --no-cache true --format json >/dev/null
+
+      - name: Run bounded diagnostic benchmark
+        env:
+          FRAMEWORK: xberg-markdown-sceptre-tract
+          MODE: ${{ matrix.mode }}
+          OUTPUT_FORMAT: markdown
+          ITERATIONS: ${{ env.ITERATIONS }}
+          TIMEOUT: ${{ github.event.inputs.timeout }}
+          COHORT: tools/benchmark-harness/cohorts/ocr-images-structured.json
+        run: scripts/benchmarks/run-benchmark.sh
+
+      - name: Upload diagnostic artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostic-sceptre-tract-markdown-${{ matrix.mode }}-ocr-images-structured-${{ github.run_id }}
           path: benchmark-results/
           retention-days: 30
 

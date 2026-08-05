@@ -192,20 +192,28 @@ fn selected_frameworks_use_tesseract(frameworks: &[String]) -> bool {
         || frameworks.iter().any(|framework| {
             framework.starts_with("xberg-")
                 && !framework.contains("paddle")
+                && !framework.contains("sceptre")
                 && (framework.contains("-baseline") || framework.contains("-layout"))
         })
 }
 
-const XBERG_RUN_PIPELINES: [benchmark_harness::XbergPipeline; 5] = [
+const XBERG_RUN_PIPELINES: [benchmark_harness::XbergPipeline; 9] = [
     benchmark_harness::XbergPipeline::Baseline,
     benchmark_harness::XbergPipeline::Layout,
     benchmark_harness::XbergPipeline::PaddleOcr,
     benchmark_harness::XbergPipeline::BaselinePaddle,
     benchmark_harness::XbergPipeline::LayoutPaddle,
+    benchmark_harness::XbergPipeline::SceptreOrt,
+    benchmark_harness::XbergPipeline::SceptreOrtLayout,
+    benchmark_harness::XbergPipeline::SceptreOrtAutoRotate,
+    benchmark_harness::XbergPipeline::SceptreTract,
 ];
 
 fn should_register_xberg_pipeline(pipeline: benchmark_harness::XbergPipeline, has_explicit_frameworks: bool) -> bool {
-    pipeline != benchmark_harness::XbergPipeline::PaddleOcr || has_explicit_frameworks
+    !matches!(
+        pipeline,
+        benchmark_harness::XbergPipeline::PaddleOcr | benchmark_harness::XbergPipeline::SceptreTract
+    ) || has_explicit_frameworks
 }
 
 fn parse_pipeline_names(names: &[String], argument: &str) -> Result<Vec<benchmark_harness::comparison::Pipeline>> {
@@ -811,7 +819,13 @@ async fn main() -> Result<()> {
                 if !ocr
                     && matches!(
                         pipeline,
-                        XbergPipeline::PaddleOcr | XbergPipeline::BaselinePaddle | XbergPipeline::LayoutPaddle
+                        XbergPipeline::PaddleOcr
+                            | XbergPipeline::BaselinePaddle
+                            | XbergPipeline::LayoutPaddle
+                            | XbergPipeline::SceptreOrt
+                            | XbergPipeline::SceptreOrtLayout
+                            | XbergPipeline::SceptreOrtAutoRotate
+                            | XbergPipeline::SceptreTract
                     )
                 {
                     continue;
@@ -1749,11 +1763,15 @@ mod tests {
                 .iter()
                 .filter(|pipeline| should_register_xberg_pipeline(**pipeline, false))
                 .count(),
-            4
+            7
         );
         assert!(should_register_xberg_pipeline(
             benchmark_harness::XbergPipeline::PaddleOcr,
             true
+        ));
+        assert!(!should_register_xberg_pipeline(
+            benchmark_harness::XbergPipeline::SceptreTract,
+            false
         ));
     }
 

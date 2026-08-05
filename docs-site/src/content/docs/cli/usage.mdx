@@ -401,6 +401,25 @@ xberg cache clear
 xberg cache stats
 ```
 
+### Environment Diagnostics
+
+`doctor` checks whether the backends in your config will actually run on this machine, before the first document. Each check reports pass, warn, fail, or skip with a one-line reason; warnings are actionable but never fail the command, and it exits nonzero only on failures.
+
+```bash title="Terminal"
+# Probe the backends from xberg.toml (or the discovered config)
+xberg doctor
+
+# JSON output for bug reports
+xberg doctor --format json
+
+# Also remove stray files from xberg-owned cache dirs
+xberg doctor --clean
+```
+
+Tesseract checks tessdata per configured language, PaddleOCR verifies model checksums, VLM checks the API key and endpoint reachability (no billable call), and layout detection runs one real RT-DETR inference. Models that aren't downloaded yet report `skip` rather than failing.
+
+When `XBERG_CACHE_DIR` is set, cache inspection and `--clean` are disabled (reported as `skip`): the override is a raw path and xberg cannot verify it owns the directory.
+
 ## Extraction Override Flags
 
 `extract` and `batch` accept the flags below; they take precedence over config-file settings.
@@ -410,8 +429,8 @@ xberg cache stats
 | Flag                              | Description                                                                                                                  |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `--ocr <true\|false>`             | Enable or disable OCR. Defaults to tesseract backend when enabled.                                                           |
-| `--ocr-backend <BACKEND>`         | OCR backend: `tesseract`, `paddle-ocr`, `candle-trocr`, `candle-paddleocr-vl`, `candle-paddleocr-vl-15`, `candle-glm-ocr`, `candle-deepseek-ocr`, or `vlm`. |
-| `--ocr-language <LANG>` | OCR language code. Tesseract uses ISO 639-3 (`eng`, `fra`, `deu`). PaddleOCR uses short codes (`en`, `ch`, `korean`). |
+| `--ocr-backend <BACKEND>`         | OCR backend: `tesseract`, `paddle-ocr`, `sceptre`, `candle-trocr`, `candle-paddleocr-vl`, `candle-paddleocr-vl-15`, `candle-glm-ocr`, `candle-deepseek-ocr`, or `vlm`. |
+| `--ocr-language <LANG>` | OCR language code. Sceptre accepts its eight group tokens or ISO aliases such as `eng`, `deu`, `tel`, and `kan`. |
 | `--force-ocr <true\|false>`       | Force OCR even if the document has an existing text layer.                                                                   |
 | `--ocr-auto-rotate <true\|false>` | Automatically rotate images before OCR based on detected orientation.                                                        |
 | `--disable-ocr <true\|false>` | Disable OCR entirely, even for images. |

@@ -8112,6 +8112,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sceptre"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0193d61334511f06aa143f03d628eb3717aa669cc6f751e0ca04cf51f7ff8678"
+dependencies = [
+ "hf-hub",
+ "image 0.25.10",
+ "imageproc",
+ "ndarray 0.17.2",
+ "num_cpus",
+ "once_cell",
+ "ort",
+ "rayon",
+ "serde",
+ "sha2 0.11.0",
+ "thiserror 2.0.19",
+ "tracing",
+ "tract-onnx",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11732,6 +11753,7 @@ dependencies = [
  "roxmltree 0.21.1",
  "rqrr",
  "safetensors 0.8.0",
+ "sceptre",
  "scrypt",
  "serde",
  "serde_json",

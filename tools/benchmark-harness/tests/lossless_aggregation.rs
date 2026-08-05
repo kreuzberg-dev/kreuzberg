@@ -157,6 +157,7 @@ fn sample_provenance() -> RunProvenance {
             effective_warmup_iterations: 1,
             eligible_documents: 8,
             batch_partitions: Some(1),
+            ocr_language_policy: benchmark_harness::adapter::OcrLanguagePolicy::DefaultOnly,
         }],
         timing: TimingProvenance {
             mode: benchmark_harness::BenchmarkMode::Batch,

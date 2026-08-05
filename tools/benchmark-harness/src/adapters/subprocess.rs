@@ -556,6 +556,7 @@ pub struct SubprocessAdapter {
     /// exposes no explicit OCR-language selection, so the language is not
     /// forwarded and parity is not assumed on its behalf.
     ocr_language_arg: Option<String>,
+    ocr_language_policy: crate::adapter::OcrLanguagePolicy,
 }
 
 impl SubprocessAdapter {
@@ -935,6 +936,7 @@ impl SubprocessAdapter {
             batch_sequence: AtomicU64::new(0),
             xberg_max_threads: None,
             ocr_language_arg: None,
+            ocr_language_policy: crate::adapter::OcrLanguagePolicy::DefaultOnly,
         }
     }
 
@@ -976,6 +978,7 @@ impl SubprocessAdapter {
             batch_sequence: AtomicU64::new(0),
             xberg_max_threads: None,
             ocr_language_arg: None,
+            ocr_language_policy: crate::adapter::OcrLanguagePolicy::DefaultOnly,
         }
     }
 
@@ -1024,6 +1027,12 @@ impl SubprocessAdapter {
     /// form (`eng+kor`, `jpn_vert`) and the wrapper maps it to its own engine.
     pub fn with_ocr_language_arg(mut self, flag: impl Into<String>) -> Self {
         self.ocr_language_arg = Some(flag.into());
+        self.ocr_language_policy = crate::adapter::OcrLanguagePolicy::AnyPerDocument;
+        self
+    }
+
+    pub fn with_ocr_language_policy(mut self, policy: crate::adapter::OcrLanguagePolicy) -> Self {
+        self.ocr_language_policy = policy;
         self
     }
 
@@ -1036,6 +1045,26 @@ impl SubprocessAdapter {
         let flag = self.ocr_language_arg.as_deref()?;
         let language = ocr_language.and_then(crate::adapter::canonical_ocr_language_arg)?;
         Some(format!("{flag}={language}"))
+    }
+
+    fn batch_ocr_language_forward_arg(&self, ocr_languages: &[Option<String>]) -> Result<Option<String>> {
+        if !self.ocr_language_policy.requires_homogeneous_batch_language() {
+            return Ok(None);
+        }
+        let Some(first) = ocr_languages.first() else {
+            return Ok(None);
+        };
+        let expected = self.ocr_language_policy.partition_key(first.as_deref());
+        if ocr_languages
+            .iter()
+            .any(|language| self.ocr_language_policy.partition_key(language.as_deref()) != expected)
+        {
+            return Err(Error::Config(format!(
+                "framework '{}' received a native batch with mixed OCR languages",
+                self.name
+            )));
+        }
+        Ok(self.ocr_language_forward_arg(first.as_deref()))
     }
 
     /// Set the bounded worker count used by native batch implementations.
@@ -1225,6 +1254,9 @@ impl SubprocessAdapter {
         }
         let request_args = self.request_args(force_ocr);
         cmd.args(&request_args);
+        if let Some(language_arg) = self.batch_ocr_language_forward_arg(ocr_languages)? {
+            cmd.arg(language_arg);
+        }
 
         let file_configs = if self
             .batch_capability
@@ -1628,6 +1660,10 @@ impl FrameworkAdapter for SubprocessAdapter {
 
     fn supported_output_formats(&self) -> Vec<OutputFormat> {
         self.supported_output_formats.clone()
+    }
+
+    fn ocr_language_policy(&self) -> crate::adapter::OcrLanguagePolicy {
+        self.ocr_language_policy
     }
 
     fn executable_provenance(&self) -> Option<crate::provenance::ExecutableProvenance> {
@@ -2318,6 +2354,25 @@ mod tests {
         assert_eq!(
             forwarding.ocr_language_forward_arg(Some(" jpn_vert ")).as_deref(),
             Some("--ocr-lang=jpn_vert")
+        );
+    }
+
+    #[test]
+    fn native_batch_language_forwarding_requires_one_global_language() {
+        let adapter = SubprocessAdapter::new("docling", "echo", vec![], vec![], vec!["png".to_string()])
+            .with_ocr_language_arg("--ocr-lang")
+            .with_ocr_language_policy(crate::adapter::OcrLanguagePolicy::AnyBatchGlobal);
+        assert_eq!(
+            adapter
+                .batch_ocr_language_forward_arg(&[Some(" eng ".to_string()), Some("eng".to_string())])
+                .unwrap()
+                .as_deref(),
+            Some("--ocr-lang=eng")
+        );
+        assert!(
+            adapter
+                .batch_ocr_language_forward_arg(&[Some("eng".to_string()), Some("deu".to_string())])
+                .is_err()
         );
     }
 

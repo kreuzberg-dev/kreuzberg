@@ -108,14 +108,14 @@ Point Xberg at anything — a PDF, a spreadsheet, a scanned image, an audio file
 | **URLs & the web** | Point Xberg at an `http(s)` URL — it fetches and extracts a single document, or crawls and follows links (Auto / Document / Crawl modes via the [crawlberg](https://github.com/xberg-io/crawlberg) engine). *Requires the `url-ingestion` feature.* |
 | **Audio & video transcription** | Speech-to-text from MP3, M4A, WAV, WebM, and MP4 tracks via Whisper ONNX (tiny → large-v3). *Requires the `transcription` feature.* |
 | **Archives, traversed** | List and **recursively** extract nested `.zip`, `.tar`, `.gz`, `.7z` — documents inside documents — guarded by zip-bomb, compression-ratio, and nesting-depth limits. |
-| **OCR on demand** | Tesseract, PaddleOCR, Candle, or VLM backends — fallback chains, confidence scores, language auto-detection, extensible via plugins. |
+| **OCR on demand** | Tesseract, PaddleOCR, Sceptre, Candle, or VLM backends — fallback chains, confidence scores, language auto-detection, extensible via plugins. |
 | **Layout & tables** | ML layout models (PP-DocLayout-V3, RT-DETR) and table structure (TATR, SLANet) reconstruct reading order and cell grids for clean Markdown. |
 | **Code intelligence** | Functions, classes, imports, symbols, docstrings from 371 programming languages. Syntax-aware chunking for RAG pipelines. |
 | **Embeddings & search** | Local (ONNX) or provider-hosted embeddings (165 providers via liter-llm), sparse and late-interaction, cross-encoder reranking. |
 | **Enrichment** | NER, keyword extraction (YAKE/RAKE), summarization, translation, redaction, page classification, QR detection, language detection, token reduction (TOON). |
 | **Structured extraction** | Schema-driven JSON straight from any document via local (Ollama, LM Studio, vLLM) or hosted LLMs — no prompt engineering. |
 | **6 output formats** | Plain text, Markdown, Djot, HTML, JSON tree, or Structured (JSON with OCR metadata and bounding boxes). |
-| **Runs anywhere** | Library, CLI (12 commands), REST API (`xberg serve`), MCP server, Docker, Helm — no GPU needed. Content-hash caching, parallel batch, per-file timeouts. |
+| **Runs anywhere** | Library, CLI (13 commands), REST API (`xberg serve`), MCP server, Docker, Helm — no GPU needed. Content-hash caching, parallel batch, per-file timeouts. |
 
 > Capabilities marked *requires a feature* are Cargo feature flags on the core crate (`url-ingestion`, `transcription`, `reranker`, layout/ORT). Prebuilt language packages and the Docker image bundle the common set; a from-source build enables only what you select.
 
@@ -278,7 +278,7 @@ Build from source as part of this workspace. See [C (FFI) README](https://github
 brew install xberg-io/tap/xberg
 ```
 
-12 commands: `extract`, `batch`, `detect`, `formats`, `version`, `cache` (stats/clear/manifest/warm), `serve`, `mcp`, `api`, `embed`, `chunk`, `completions`.
+13 commands: `extract`, `batch`, `detect`, `formats`, `version`, `cache` (stats/clear/manifest/warm), `doctor`, `serve`, `mcp`, `api`, `embed`, `chunk`, `completions`.
 
 See [CLI usage guide](https://docs.xberg.io/cli/usage/) for detailed documentation.
 
@@ -530,6 +530,7 @@ Powered by [tree-sitter-language-pack](https://github.com/xberg-io/tree-sitter-l
 
 - **Tesseract** — Native C FFI (Linux/macOS/Windows) and WASM (browser)
 - **PaddleOCR** — ONNX Runtime, mobile-optimized models
+- **Sceptre** — EasyOCR Gen2 CRAFT + CRNN: ONNX Runtime on desktop/server, tract on Android/iOS, and an opt-in WebAssembly worker API
 - **Candle** — Pure Rust, CPU-only, lightweight
 - **VLM** — GPT-4 Vision, Claude Vision, Gemini Vision, or 165 providers via liter-llm
 
@@ -581,7 +582,7 @@ Schema validation. Temperature, top-p, frequency penalty tuning.
 ## CLI Reference
 
 <details>
-<summary><strong>All 12 commands</strong></summary>
+<summary><strong>All 13 commands</strong></summary>
 
 | Command | Subcommands | Purpose |
 |---------|-------------|---------|
@@ -591,6 +592,7 @@ Schema validation. Temperature, top-p, frequency penalty tuning.
 | `formats` | — | List all supported formats and MIME types |
 | `version` | — | Show Xberg version |
 | `cache` | `stats`, `clear`, `manifest`, `warm` | Manage extraction cache and models |
+| `doctor` | — | Probe configured backends and report what will actually execute |
 | `serve` | — | Start REST API server (default: <http://127.0.0.1:8000>) |
 | `mcp` | — | Start MCP server (stdio or HTTP transport) |
 | `api` | `schema` | Output OpenAPI 3.1 specification |

@@ -26,7 +26,7 @@ flowchart TD
     S3 --> S4["<b>4. Format Extraction</b>\nRun the extractor: PDF, Excel, image, email, etc."]
 
     S4 --> S5{"<b>5. OCR</b>\nImages present\nand OCR enabled?"}
-    S5 -->|Yes| OCR["Run OCR backend\n(Tesseract / PaddleOCR / VLM)"]
+    S5 -->|Yes| OCR["Run OCR backend\n(Tesseract / PaddleOCR / Sceptre / VLM)"]
     S5 -->|No| S6
 
     OCR --> S6["<b>6. Validators</b>\nCheck result meets requirements"]
@@ -151,6 +151,7 @@ Xberg ships multiple OCR backends:
 | ------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | **Tesseract** | Native Rust bindings | Default. Fast, solid accuracy for Latin scripts. Good general-purpose choice.                                                |
 | **PaddleOCR** | ONNX Runtime         | Best accuracy for Chinese, Japanese, Korean (CJK) scripts. Runs natively without Python.                                     |
+| **Sceptre**   | ORT or tract         | EasyOCR Gen2 CRAFT and CRNN pipeline with structured line geometry and confidence.                                          |
 | **VLM OCR**   | liter-llm providers  | Best for handwriting, poor scans, and complex layouts. Requires a vision-capable model.                                      |
 
 When OCR completes, the OCR output is merged with any text the format extractor already

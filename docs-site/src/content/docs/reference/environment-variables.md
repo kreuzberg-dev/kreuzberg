@@ -188,15 +188,17 @@ export XBERG_OCR_LANGUAGE=jpn
 
 - **Tesseract codes** (ISO 639-3): `eng`, `deu`, `fra`, `spa`, `ita`, `por`, `rus`, `chi_sim`, `chi_tra`, `jpn`, `kor`
 - **PaddleOCR codes**: `en`, `ch`, `french`, `german`, `korean`, `thai`, `greek`, `cyrillic`, `latin`, `arabic`, `devanagari`, `tamil`, `telugu`
+- **Sceptre groups**: `english`, `latin`, `chinese_simplified`, `japanese`, `korean`, `cyrillic`, `telugu`, and `kannada`; English may be combined with one other group
 - **ISO 639-1 codes**: `en`, `de`, `fr`, `es`, `ja`, `ko`, `zh`, `ru`, `ar`, `th`, `el`
 
-All code formats are accepted regardless of backend — Xberg automatically maps between them.
+Use a code supported by the selected backend. Xberg maps ISO codes to that backend's model or script group where
+supported.
 
 ### XBERG_OCR_BACKEND
 
 **Type**: `String`
 **Default**: `tesseract`
-**Valid Values**: `tesseract`, `paddleocr`, `paddle-ocr`, `vlm`
+**Valid Values**: `tesseract`, `paddleocr`, `paddle-ocr`, `sceptre`, `vlm`
 
 OCR engine to use for text extraction from images and scanned documents.
 
@@ -206,12 +208,16 @@ export XBERG_OCR_BACKEND=tesseract
 
 # PaddleOCR (fast, good accuracy across languages)
 export XBERG_OCR_BACKEND=paddleocr
+
+# Sceptre (CPU inference)
+export XBERG_OCR_BACKEND=sceptre
 ```
 
 **Performance Notes**:
 
 - **tesseract**: Fastest, best for English and Latin scripts
 - **paddleocr**: Fast with good accuracy for many languages
+- **sceptre**: EasyOCR Gen2 CRAFT + CRNN inference through ONNX Runtime on desktop/server and tract on Android/iOS. WebAssembly requires the opt-in Sceptre worker build/API and caller-supplied model bytes.
 
 ### XBERG_DISABLE_OCR
 

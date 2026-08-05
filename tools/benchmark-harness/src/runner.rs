@@ -3,7 +3,7 @@
 //! This module orchestrates benchmark execution across multiple fixtures and frameworks,
 //! with support for concurrent execution and progress reporting.
 
-use crate::adapter::FrameworkAdapter;
+use crate::adapter::{FrameworkAdapter, OcrLanguagePolicy};
 use crate::config::{BenchmarkConfig, BenchmarkMode};
 use crate::fixture::FixtureManager;
 use crate::registry::AdapterRegistry;
@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 type SingleBenchmarkTask = (PathBuf, String, Arc<dyn FrameworkAdapter>, bool, Option<String>);
+type BatchBenchmarkEntry = (usize, PathBuf, bool, Option<String>);
 
 fn effective_batch_warmup_iterations(capability: BatchCapability, configured: usize) -> usize {
     if capability.timing_scope == BatchTimingScope::ColdEndToEndSubprocess {
@@ -321,6 +322,32 @@ fn fixed_batch_ranges(item_count: usize, batch_size: Option<usize>) -> Result<Ve
         .step_by(batch_size)
         .map(|start| start..(start + batch_size).min(item_count))
         .collect())
+}
+
+fn language_partitions(entries: Vec<BatchBenchmarkEntry>, policy: OcrLanguagePolicy) -> Vec<Vec<BatchBenchmarkEntry>> {
+    if !policy.requires_homogeneous_batch_language() {
+        return (!entries.is_empty()).then_some(entries).into_iter().collect();
+    }
+
+    let mut partitions: Vec<(Option<String>, Vec<BatchBenchmarkEntry>)> = Vec::new();
+    for entry in entries {
+        let key = policy.partition_key(entry.3.as_deref());
+        if let Some((_, partition)) = partitions.iter_mut().find(|(candidate, _)| *candidate == key) {
+            partition.push(entry);
+        } else {
+            partitions.push((key, vec![entry]));
+        }
+    }
+    partitions.into_iter().map(|(_, entries)| entries).collect()
+}
+
+fn ensure_batch_result_cardinality(adapter_name: &str, input_count: usize, result_count: usize) -> Result<()> {
+    if input_count == result_count {
+        return Ok(());
+    }
+    Err(Error::Benchmark(format!(
+        "framework '{adapter_name}' returned {result_count} batch results for {input_count} inputs"
+    )))
 }
 
 /// Resolve the installation size to report for a benchmark result framework.
@@ -1101,11 +1128,13 @@ impl BenchmarkRunner {
                 );
                 continue;
             }
-            let warmup_fixture = self
-                .fixtures
-                .fixtures()
-                .iter()
-                .find(|(_, fixture)| adapter.supports_format(&fixture.file_type));
+            let warmup_fixture = self.fixtures.fixtures().iter().find(|(_, fixture)| {
+                adapter.supports_fixture(
+                    &fixture.file_type,
+                    fixture.document.file_name().and_then(|name| name.to_str()),
+                    fixture.ocr_language(),
+                )
+            });
 
             if let Some((fixture_path, fixture)) = warmup_fixture {
                 let fixture_dir = fixture_path.parent().unwrap_or_else(|| std::path::Path::new("."));
@@ -1159,17 +1188,16 @@ impl BenchmarkRunner {
         if use_batch {
             use std::collections::HashMap;
 
-            let mut adapter_files: HashMap<String, Vec<(PathBuf, bool, Option<String>)>> = HashMap::new();
+            let mut adapter_files: HashMap<String, Vec<BatchBenchmarkEntry>> = HashMap::new();
 
-            for (fixture_path, fixture) in self.fixtures.fixtures() {
+            for (fixture_index, (fixture_path, fixture)) in self.fixtures.fixtures().iter().enumerate() {
                 let force_ocr = fixture.requires_ocr();
                 for adapter in &frameworks {
-                    if !adapter.supports_format(&fixture.file_type) {
-                        continue;
-                    }
-                    if let Some(name) = fixture.document.file_name().and_then(|n| n.to_str())
-                        && adapter.should_skip_file(name)
-                    {
+                    if !adapter.supports_fixture(
+                        &fixture.file_type,
+                        fixture.document.file_name().and_then(|name| name.to_str()),
+                        fixture.ocr_language(),
+                    ) {
                         continue;
                     }
 
@@ -1177,6 +1205,7 @@ impl BenchmarkRunner {
                     let document_path = fixture.resolve_document_path(fixture_dir);
 
                     adapter_files.entry(adapter.name().to_string()).or_default().push((
+                        fixture_index,
                         document_path,
                         force_ocr,
                         fixture.ocr_language().map(str::to_string),
@@ -1194,50 +1223,71 @@ impl BenchmarkRunner {
                         continue;
                     }
 
-                    let ranges = fixed_batch_ranges(entries.len(), self.fixed_batch_size).map_err(|error| {
-                        Error::Config(format!(
-                            "framework '{adapter_name}' fixed batch validation failed: {error}"
-                        ))
-                    })?;
+                    let mut adapter_results = Vec::with_capacity(entries.len());
+                    for partition in language_partitions(entries.clone(), adapter.ocr_language_policy()) {
+                        let ranges = fixed_batch_ranges(partition.len(), self.fixed_batch_size).map_err(|error| {
+                            Error::Config(format!(
+                                "framework '{adapter_name}' fixed batch validation failed: {error}"
+                            ))
+                        })?;
 
-                    for range in ranges {
-                        let mut file_paths = Vec::new();
-                        let mut force_ocr_flags = Vec::new();
-                        let mut ocr_languages = Vec::new();
-                        for (path, force_ocr, ocr_language) in &entries[range] {
-                            file_paths.push(path.clone());
-                            force_ocr_flags.push(*force_ocr);
-                            ocr_languages.push(ocr_language.clone());
-                        }
-                        let adapter = Arc::clone(adapter);
-                        let config = config.clone();
-                        let cold_start = self.cold_start_durations.get(adapter_name).copied();
+                        for range in ranges {
+                            let batch_entries = &partition[range];
+                            let file_paths = batch_entries.iter().map(|(_, path, _, _)| path.clone()).collect();
+                            let force_ocr_flags = batch_entries.iter().map(|(_, _, force_ocr, _)| *force_ocr).collect();
+                            let ocr_languages = batch_entries
+                                .iter()
+                                .map(|(_, _, _, language)| language.clone())
+                                .collect();
+                            let original_indexes: Vec<usize> =
+                                batch_entries.iter().map(|(index, _, _, _)| *index).collect();
+                            let adapter = Arc::clone(adapter);
+                            let config = config.clone();
+                            let cold_start = self.cold_start_durations.get(adapter_name).copied();
 
-                        match Self::run_batch_iterations_static(
-                            file_paths,
-                            adapter,
-                            &config,
-                            cold_start,
-                            force_ocr_flags,
-                            ocr_languages,
-                            self.output_format,
-                        )
-                        .await
-                        {
-                            Ok(mut batch_results) => {
-                                for result in &mut batch_results {
-                                    self.enrich_with_framework_size(result);
+                            match Self::run_batch_iterations_static(
+                                file_paths,
+                                adapter,
+                                &config,
+                                cold_start,
+                                force_ocr_flags,
+                                ocr_languages,
+                                self.output_format,
+                            )
+                            .await
+                            {
+                                Ok(batch_results) => {
+                                    if let Err(error) = ensure_batch_result_cardinality(
+                                        adapter_name,
+                                        original_indexes.len(),
+                                        batch_results.len(),
+                                    ) {
+                                        if let Err(teardown_error) = Self::teardown_frameworks(&frameworks).await {
+                                            eprintln!(
+                                                "Warning: teardown after batch cardinality failure also failed: {teardown_error}"
+                                            );
+                                        }
+                                        return Err(error);
+                                    }
+                                    for (original_index, mut result) in original_indexes.into_iter().zip(batch_results)
+                                    {
+                                        self.enrich_with_framework_size(&mut result);
+                                        adapter_results.push((original_index, result));
+                                    }
                                 }
-                                results.extend(batch_results);
-                            }
-                            Err(e) => {
-                                if let Err(teardown_error) = Self::teardown_frameworks(&frameworks).await {
-                                    eprintln!("Warning: teardown after batch failure also failed: {teardown_error}");
+                                Err(e) => {
+                                    if let Err(teardown_error) = Self::teardown_frameworks(&frameworks).await {
+                                        eprintln!(
+                                            "Warning: teardown after batch failure also failed: {teardown_error}"
+                                        );
+                                    }
+                                    return Err(e);
                                 }
-                                return Err(e);
                             }
                         }
                     }
+                    adapter_results.sort_by_key(|(original_index, _)| *original_index);
+                    results.extend(adapter_results.into_iter().map(|(_, result)| result));
                 }
             }
         } else {
@@ -1246,12 +1296,11 @@ impl BenchmarkRunner {
             for (fixture_path, fixture) in self.fixtures.fixtures() {
                 let force_ocr = fixture.requires_ocr();
                 for adapter in &frameworks {
-                    if !adapter.supports_format(&fixture.file_type) {
-                        continue;
-                    }
-                    if let Some(name) = fixture.document.file_name().and_then(|n| n.to_str())
-                        && adapter.should_skip_file(name)
-                    {
+                    if !adapter.supports_fixture(
+                        &fixture.file_type,
+                        fixture.document.file_name().and_then(|name| name.to_str()),
+                        fixture.ocr_language(),
+                    ) {
                         continue;
                     }
 
@@ -1378,6 +1427,38 @@ mod tests {
         // Zero documents -> no batches; a zero batch size is still rejected.
         assert!(fixed_batch_ranges(0, Some(4)).unwrap().is_empty());
         assert!(fixed_batch_ranges(0, Some(0)).is_err());
+    }
+
+    #[test]
+    fn global_language_batches_partition_without_losing_fixture_order_metadata() {
+        let entries = vec![
+            (0, PathBuf::from("a.png"), true, Some("eng".to_string())),
+            (1, PathBuf::from("b.png"), true, Some("deu".to_string())),
+            (2, PathBuf::from("c.png"), true, Some("eng".to_string())),
+        ];
+        let partitions = language_partitions(entries, OcrLanguagePolicy::AnyBatchGlobal);
+        assert_eq!(partitions.len(), 2);
+        assert_eq!(partitions[0].iter().map(|entry| entry.0).collect::<Vec<_>>(), [0, 2]);
+        assert_eq!(partitions[1].iter().map(|entry| entry.0).collect::<Vec<_>>(), [1]);
+    }
+
+    #[test]
+    fn per_document_language_batches_remain_single_partition() {
+        let entries = vec![
+            (0, PathBuf::from("a.png"), true, Some("eng".to_string())),
+            (1, PathBuf::from("b.png"), true, Some("deu".to_string())),
+        ];
+        assert_eq!(
+            language_partitions(entries, OcrLanguagePolicy::SceptrePerDocument).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn batch_result_cardinality_rejects_missing_and_surplus_rows() {
+        assert!(ensure_batch_result_cardinality("xberg", 2, 2).is_ok());
+        assert!(ensure_batch_result_cardinality("xberg", 2, 1).is_err());
+        assert!(ensure_batch_result_cardinality("xberg", 2, 3).is_err());
     }
 
     #[test]
@@ -1761,7 +1842,7 @@ mod tests {
     #[async_trait::async_trait]
     impl FrameworkAdapter for FailedWarmupAdapter {
         fn name(&self) -> &str {
-            "failed-warmup"
+            "xberg-failed-warmup"
         }
 
         fn supports_format(&self, file_type: &str) -> bool {
@@ -2394,7 +2475,7 @@ mod tests {
             document: PathBuf::from("document.pdf"),
             file_type: "pdf".to_string(),
             file_size: 3,
-            expected_frameworks: vec!["failed-warmup".to_string()],
+            expected_frameworks: vec!["xberg-failed-warmup".to_string()],
             metadata: HashMap::new(),
             ground_truth: None,
         };
@@ -2414,11 +2495,11 @@ mod tests {
         let mut runner = BenchmarkRunner::new(config, registry);
         runner.load_fixtures(&fixture_path).unwrap();
 
-        let error = runner.run(&["failed-warmup".to_string()]).await.unwrap_err();
+        let error = runner.run(&["xberg-failed-warmup".to_string()]).await.unwrap_err();
 
-        assert!(error.to_string().contains("warmup failed for 'failed-warmup'"));
+        assert!(error.to_string().contains("warmup failed for 'xberg-failed-warmup'"));
         assert!(error.to_string().contains("intentional warmup failure"));
-        assert!(!runner.cold_start_durations.contains_key("failed-warmup"));
+        assert!(!runner.cold_start_durations.contains_key("xberg-failed-warmup"));
         assert_eq!(teardown_calls.load(Ordering::SeqCst), 1);
     }
 

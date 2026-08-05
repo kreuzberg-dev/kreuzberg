@@ -194,6 +194,38 @@ fn supports_extension(framework: &str, extension: &str) -> bool {
     supported.contains(&extension)
 }
 
+fn supports_fixture_language(framework: &str, fixture: &str) -> bool {
+    let descriptor: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repo_path(&format!("fixtures/{fixture}"))).expect("read fixture descriptor"),
+    )
+    .expect("parse fixture descriptor");
+    let language = descriptor["metadata"]["ocr_language"].as_str();
+    benchmark_harness::adapter::declared_ocr_language_policy(framework).supports(language)
+}
+
+#[test]
+fn ocr_pdf_contract_eligibility_matches_framework_language_capabilities() {
+    let contract = Cohort::Ocr.contract();
+    let eligible = |framework: &str| {
+        contract
+            .document_extensions
+            .iter()
+            .zip(contract.fixtures.iter())
+            .filter(|(extension, fixture)| {
+                supports_extension(framework, extension) && supports_fixture_language(framework, fixture)
+            })
+            .count()
+    };
+
+    assert_eq!(
+        eligible("liteparse"),
+        3,
+        "default-language LiteParse must exclude German"
+    );
+    assert_eq!(eligible("docling"), 4, "Docling accepts the per-batch German selection");
+    assert_eq!(eligible("xberg-markdown-sceptre-ort"), 4);
+}
+
 fn build_provenance(
     entry: &benchmark_harness::bench_matrix::MatrixEntry,
     contract: &CohortContract,
@@ -203,11 +235,23 @@ fn build_provenance(
     use benchmark_harness::bench_matrix::ExecutionMode;
 
     let batch = matches!(entry.mode, ExecutionMode::Batch);
-    let eligible_documents = contract
+    let policy = benchmark_harness::adapter::declared_ocr_language_policy(&entry.framework);
+    let eligible_languages: Vec<Option<String>> = contract
         .document_extensions
         .iter()
-        .filter(|extension| supports_extension(&entry.framework, extension))
-        .count();
+        .zip(contract.fixtures.iter())
+        .filter(|(extension, fixture)| {
+            supports_extension(&entry.framework, extension) && supports_fixture_language(&entry.framework, fixture)
+        })
+        .map(|(_, fixture)| {
+            let descriptor: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(repo_path(&format!("fixtures/{fixture}"))).expect("read fixture descriptor"),
+            )
+            .expect("parse fixture descriptor");
+            descriptor["metadata"]["ocr_language"].as_str().map(str::to_string)
+        })
+        .collect();
+    let eligible_documents = eligible_languages.len();
     RunProvenance {
         schema_version: 2,
         harness_version: "test".to_string(),
@@ -232,7 +276,8 @@ fn build_provenance(
             worker_semantics: "test".to_string(),
             effective_warmup_iterations: 0,
             eligible_documents,
-            batch_partitions: batch.then(|| eligible_documents.div_ceil(contract.batch_size)),
+            batch_partitions: batch.then(|| policy.batch_partition_count(&eligible_languages, contract.batch_size)),
+            ocr_language_policy: policy,
         }],
         timing: TimingProvenance {
             mode: entry.mode.benchmark_mode(),
@@ -256,7 +301,9 @@ fn build_results(
         .iter()
         .zip(contract.document_extensions.iter())
         .zip(contract.fixtures.iter())
-        .filter(|((_, extension), _)| supports_extension(&entry.framework, extension))
+        .filter(|((_, extension), fixture)| {
+            supports_extension(&entry.framework, extension) && supports_fixture_language(&entry.framework, fixture)
+        })
         .map(|((stem, extension), fixture)| {
             let descriptor: serde_json::Value = serde_json::from_str(
                 &std::fs::read_to_string(fixtures_root.join(fixture)).expect("read fixture descriptor"),
@@ -912,13 +959,25 @@ fn accepts_exact_ocr_aggregate_contract() {
     let aggregate = build_aggregate(&contract, Cohort::Ocr);
     let (_root, path) = write_aggregate(&aggregate);
     let present = contract.matrix.len();
+    let expected_rows: usize = contract
+        .matrix
+        .iter()
+        .map(|entry| {
+            contract
+                .document_extensions
+                .iter()
+                .zip(contract.fixtures.iter())
+                .filter(|(extension, fixture)| {
+                    supports_extension(&entry.framework, extension)
+                        && supports_fixture_language(&entry.framework, fixture)
+                })
+                .count()
+        })
+        .sum();
     let message = validate(&aggregate_args(Cohort::Ocr, path)).expect("ocr aggregate should validate");
     assert_eq!(
         message,
-        format!(
-            "validated {present} ocr aggregate keys and {} fixture rows",
-            present * contract.fixtures.len()
-        )
+        format!("validated {present} ocr aggregate keys and {expected_rows} fixture rows")
     );
 }
 

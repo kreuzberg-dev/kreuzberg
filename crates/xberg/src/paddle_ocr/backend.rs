@@ -911,6 +911,56 @@ impl OcrBackend for PaddleOcrBackend {
     fn supports_table_detection(&self) -> bool {
         self.config.enable_table_detection
     }
+
+    #[cfg_attr(alef, alef(skip))]
+    fn probe(&self, config: &OcrConfig) -> crate::doctor::DoctorCheck {
+        use crate::doctor::DoctorCheck;
+
+        let effective_config: PaddleOcrConfig = match &config.paddle_ocr_config {
+            Some(paddle_json) => match serde_json::from_value(paddle_json.clone()) {
+                Ok(overridden) => overridden,
+                Err(e) => {
+                    return DoctorCheck::fail("ocr.paddle-ocr", format!("invalid paddle_ocr_config: {e}"));
+                }
+            },
+            None => (*self.config).clone(),
+        };
+
+        let languages = config.effective_languages();
+        let (paddle_lang, _warnings) = super::select_paddle_language(&languages);
+        let family = language_to_script_family(paddle_lang);
+
+        let manager = ModelManager::new(effective_config.resolve_cache_dir());
+        match manager.check_models_cached(
+            &effective_config.model_version,
+            family,
+            &effective_config.model_tier,
+            config.auto_rotate,
+        ) {
+            Ok(artifacts) => {
+                let missing: Vec<&str> = artifacts
+                    .iter()
+                    .filter(|(_, cached)| !cached)
+                    .map(|(label, _)| label.as_str())
+                    .collect();
+                if missing.is_empty() {
+                    DoctorCheck::pass(
+                        "ocr.paddle-ocr",
+                        format!("all models cached and verified ({family} recognition)"),
+                    )
+                } else {
+                    DoctorCheck::skip(
+                        "ocr.paddle-ocr",
+                        format!(
+                            "models not cached locally: {} (will download on first use)",
+                            missing.join(", ")
+                        ),
+                    )
+                }
+            }
+            Err(e) => DoctorCheck::fail("ocr.paddle-ocr", format!("{e}")),
+        }
+    }
 }
 
 impl Default for PaddleOcrBackend {

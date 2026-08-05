@@ -95,12 +95,14 @@ mod tests {
     fn test_validate_ocr_backend_valid() {
         assert!(validate_ocr_backend("tesseract").is_ok());
         assert!(validate_ocr_backend("paddleocr").is_ok());
+        assert!(validate_ocr_backend("sceptre").is_ok());
     }
 
     #[test]
     fn test_validate_ocr_backend_case_insensitive() {
         assert!(validate_ocr_backend("TESSERACT").is_ok());
         assert!(validate_ocr_backend("PADDLEOCR").is_ok());
+        assert!(validate_ocr_backend("SCEPTRE").is_ok());
     }
 
     #[test]
@@ -141,6 +143,18 @@ mod tests {
         assert!(validate_language_code("jpn_vert").is_ok());
         assert!(validate_language_code("JPN_VERT").is_ok());
         assert!(validate_language_code("kor").is_ok());
+        for language in ["afr", "aze", "bos", "bel", "kaz", "kir", "srp", "tgk"] {
+            assert!(
+                validate_language_code(language).is_ok(),
+                "Sceptre language {language} should pass shared validation"
+            );
+        }
+        for language in ["ch_sim", "rs_latin", "rs-cyrillic", "tel", "kan", "abq", "tjk"] {
+            assert!(
+                validate_language_code(language).is_ok(),
+                "EasyOCR Gen2 language {language} should pass shared validation"
+            );
+        }
     }
 
     #[test]

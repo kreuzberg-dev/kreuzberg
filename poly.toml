@@ -135,6 +135,8 @@ acn = "acn"
 ake = "ake"
 algoritmos = "algoritmos"
 arange = "arange"
+# Corpus fixture identifier preserves this source filename spelling. ~keep
+Availabilty = "Availabilty"
 bre = "bre"
 caf = "caf"
 charater = "charater"
@@ -152,6 +154,8 @@ faiure = "faiure"
 fith = "fith"
 flate = "flate"
 formated = "formated"
+# ISO 639 bibliographic language aliases used by OCR backends. ~keep
+fre = "fre"
 headerr = "headerr"
 helo = "helo"
 hocr = "hocr"
@@ -200,6 +204,8 @@ tre = "tre"
 unparseable = "unparseable"
 utiliza = "utiliza"
 webui = "webui"
+# ISO 639 bibliographic language alias used by OCR backends. ~keep
+wel = "wel"
 yor = "yor"
 
 [lint.typos.extend_identifiers]
@@ -216,7 +222,8 @@ remove_todos = false
 remove_fixme = false
 remove_docs = false
 use_default_ignores = true
-preserve_patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under"]
+# clang-format owns C++ namespace-closing comments and restores them after lint fixes. ~keep
+preserve_patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under", "namespace"]
 
 [tools.clang-format]
 enabled = true

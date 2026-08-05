@@ -187,6 +187,11 @@ impl Cohort {
         matches!(self, Cohort::Ocr | Cohort::Images)
     }
 
+    /// Whether this release cohort includes the normal ONNX Runtime Sceptre variants.
+    pub fn includes_sceptre_ort(self) -> bool {
+        matches!(self, Cohort::Ocr | Cohort::Images)
+    }
+
     /// Build this cohort's pinned release contract.
     pub fn contract(self) -> CohortContract {
         match self {
@@ -463,9 +468,9 @@ fn matrix_entry(
 /// The Xberg cells for a cohort: markdown/plaintext x single/batch for each enabled pipeline.
 /// Rendered-page cohorts (`include_layout`) run both `baseline` and `layout`; OCR cohorts
 /// (`include_paddle`) additionally run the PaddleOCR-engine variants `baseline-paddle` (and
-/// `layout-paddle` when layout is also included). Each pipeline contributes 4 cells, so the counts
-/// are: baseline-only = 4, +layout = 8, +paddle = 16.
-fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool) -> Vec<MatrixEntry> {
+/// `layout-paddle` when layout is also included). Sceptre-enabled cohorts add three ORT variants.
+/// Each pipeline contributes four cells: the OCR/Image cohorts therefore contain 28 Xberg cells.
+fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool, include_sceptre: bool) -> Vec<MatrixEntry> {
     let mut pipelines: Vec<&str> = vec!["baseline"];
     if include_layout {
         pipelines.push("layout");
@@ -475,6 +480,9 @@ fn xberg_entries(cohort: &str, include_layout: bool, include_paddle: bool) -> Ve
         if include_layout {
             pipelines.push("layout-paddle");
         }
+    }
+    if include_sceptre {
+        pipelines.extend(["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"]);
     }
     let mut entries = Vec::new();
     for &pipeline in &pipelines {
@@ -545,7 +553,7 @@ fn optional(entries: Vec<MatrixEntry>) -> Vec<MatrixEntry> {
 }
 
 fn native_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(NATIVE_COHORT, true, false);
+    let mut matrix = xberg_entries(NATIVE_COHORT, true, false, false);
     matrix.extend(grid_entries("docling", NATIVE_COHORT));
     matrix.push(matrix_entry(
         format!("benchmarks-markitdown-markdown-single-file-{NATIVE_COHORT}"),
@@ -577,7 +585,7 @@ fn native_matrix() -> Vec<MatrixEntry> {
 }
 
 fn ocr_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(OCR_COHORT, true, true);
+    let mut matrix = xberg_entries(OCR_COHORT, true, true, true);
     matrix.extend(grid_entries("docling", OCR_COHORT));
     matrix.push(markdown_single_file_entry("mineru", OCR_COHORT).into_optional());
     // Tika and Unstructured are Tesseract-backed and now run the OCR cohorts too
@@ -599,39 +607,39 @@ fn broad_office_competitors(cohort: &str) -> Vec<MatrixEntry> {
 }
 
 fn office_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(OFFICE_COHORT, false, false);
+    let mut matrix = xberg_entries(OFFICE_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(OFFICE_COHORT));
     matrix
 }
 
 fn markup_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(MARKUP_COHORT, false, false);
+    let mut matrix = xberg_entries(MARKUP_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(MARKUP_COHORT));
     matrix
 }
 
 fn data_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(DATA_COHORT, false, false);
+    let mut matrix = xberg_entries(DATA_COHORT, false, false, false);
     matrix.extend(broad_office_competitors(DATA_COHORT));
     matrix
 }
 
 fn ebook_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(EBOOK_COHORT, false, false);
+    let mut matrix = xberg_entries(EBOOK_COHORT, false, false, false);
     matrix.push(plaintext_single_file_entry("tika", EBOOK_COHORT).into_optional());
     matrix.push(markdown_single_file_entry("pymupdf4llm", EBOOK_COHORT).into_optional());
     matrix
 }
 
 fn email_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(EMAIL_COHORT, false, false);
+    let mut matrix = xberg_entries(EMAIL_COHORT, false, false, false);
     matrix.push(plaintext_single_file_entry("unstructured", EMAIL_COHORT).into_optional());
     matrix.push(plaintext_single_file_entry("tika", EMAIL_COHORT).into_optional());
     matrix
 }
 
 fn images_matrix() -> Vec<MatrixEntry> {
-    let mut matrix = xberg_entries(IMAGES_COHORT, true, true);
+    let mut matrix = xberg_entries(IMAGES_COHORT, true, true, true);
     matrix.extend(optional(grid_entries("docling", IMAGES_COHORT)));
     // pymupdf4llm has no OCR path (`pymupdf4llm.to_markdown` only reads existing text layers), so on
     // a scanned-image cohort it always returns empty content and can never clear the min-success-rate
@@ -751,13 +759,13 @@ mod tests {
     /// but never required for the per-format-family cohorts.
     const CONTRACT_CELL_COUNTS: [(Cohort, usize, usize); 8] = [
         (Cohort::Native, 21, 20),
-        (Cohort::Ocr, 27, 24),
+        (Cohort::Ocr, 39, 36),
         (Cohort::Office, 11, 4),
         (Cohort::Markup, 11, 4),
         (Cohort::Ebook, 6, 4),
         (Cohort::Email, 6, 4),
         (Cohort::Data, 11, 4),
-        (Cohort::Images, 23, 16),
+        (Cohort::Images, 35, 28),
     ];
 
     #[test]
@@ -820,6 +828,16 @@ mod tests {
                 "{}: paddle-pipeline presence must match includes_paddle_ocr()",
                 cohort.as_str()
             );
+            let has_sceptre = contract
+                .matrix
+                .iter()
+                .any(|entry| entry.framework.contains("-sceptre-ort"));
+            assert_eq!(
+                has_sceptre,
+                cohort.includes_sceptre_ort(),
+                "{}: Sceptre ORT presence must match includes_sceptre_ort()",
+                cohort.as_str()
+            );
             let xberg_required = contract
                 .matrix
                 .iter()
@@ -837,8 +855,38 @@ mod tests {
                     pipelines += 1;
                 }
             }
+            if cohort.includes_sceptre_ort() {
+                pipelines += 3;
+            }
             assert_eq!(xberg_required, pipelines * 4, "{}: xberg cell count", cohort.as_str());
         }
+    }
+
+    #[test]
+    fn ocr_release_cohorts_include_explicit_ort_variants_but_not_tract() {
+        for cohort in [Cohort::Ocr, Cohort::Images] {
+            let contract = cohort.contract();
+            let frameworks: HashSet<&str> = contract.matrix.iter().map(|entry| entry.framework.as_str()).collect();
+            for variant in ["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"] {
+                assert!(
+                    frameworks.iter().any(|framework| framework.ends_with(variant)),
+                    "{} missing {variant}",
+                    cohort.as_str()
+                );
+            }
+            assert!(!frameworks.iter().any(|framework| framework.contains("sceptre-tract")));
+        }
+    }
+
+    #[test]
+    fn sceptre_ort_aggregate_keys_preserve_engine_and_variant_identity() {
+        let contract = Cohort::Ocr.contract();
+        let keys: HashSet<String> = contract.matrix.iter().map(MatrixEntry::aggregate_key).collect();
+        for variant in ["sceptre-ort", "sceptre-ort-layout", "sceptre-ort-autorotate"] {
+            assert!(keys.contains(&format!("xberg-markdown-{variant}:single")));
+            assert!(keys.contains(&format!("xberg-plaintext-{variant}:batch")));
+        }
+        assert!(keys.iter().all(|key| !key.contains("sceptre-tract")));
     }
 
     #[test]

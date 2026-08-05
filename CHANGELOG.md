@@ -9,8 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `xberg-ttf-parser` crate: a vendored copy of `ttf-parser` 0.25.1 carrying the fix above.
+  Upstream is currently unmaintained, so vendoring lets us ship font parser fixes without waiting
+  on a release. The crate tracks which upstream pull requests it carries in its README.
+- New `xberg doctor` command and `doctor()` API probe the configured OCR backend, layout
+  detection, and caches, then report pass / warn / fail / skip with a one-line reason —
+  answering "is it my document or my environment?" before the first document, with no
+  downloads and no billable API calls. `xberg doctor --clean` removes stray files from
+  xberg-owned cache dirs; the shared Hugging Face cache is never modified. Custom OCR
+  backends can add their own diagnostics via the new `OcrBackend::probe` hook. (#1347)
+- Added Sceptre as an EasyOCR Gen2 backend using ONNX Runtime on desktop/server and tract on
+  Android/iOS, with a separate byte-fed WebAssembly API intended for Web Workers. Select it with
+  `ocr.backend = "sceptre"` or `--ocr-backend sceptre`; it returns line quadrilaterals and
+  recognition confidence, supports all eight Gen2 model groups, and accepts tuning under
+  `backend_options`.
+
 ### Fixed
 
+- Image OCR benchmarks now score structural F1 only against genuinely structured Markdown ground
+  truth; scene-text fixtures remain text-only, and a dedicated structured image cohort covers
+  receipts, document pages, tables, and invoices.
+- Benchmark adapters now honor fixture OCR languages, partition batch-global backends into
+  homogeneous native batches, and record unsupported-language exclusions in provenance instead of
+  silently evaluating non-English documents with default English models.
 - PDF pages that embed a CFF font converted from Type 1 no longer lose their dot-bearing glyphs.
   The font parser rejected the deprecated `dotsection` operator and discarded the entire glyph, so
   every `i`, `j`, `!` and `.` on the page rendered as blank space, and OCR run over those pages
@@ -21,13 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exponential work. Both now carry a total visit budget.
 - Fonts at the maximum 65535 glyphs now parse. The glyph offset table needs 65536 entries at that
   size, which overflowed a counter and dropped the table, leaving the font with no outlines at all.
-
-### Added
-
-- New `xberg-ttf-parser` crate: a vendored copy of `ttf-parser` 0.25.1 carrying the fix above.
-  Upstream is currently unmaintained, so vendoring lets us ship font parser fixes without waiting
-  on a release. The crate tracks which upstream pull requests it carries in its README.
-
+  
 ## [1.0.14] - 2026-08-04
 
 ### Fixed

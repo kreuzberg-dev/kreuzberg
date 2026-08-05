@@ -189,6 +189,34 @@ Fast text detection and recognition for 80+ languages across 11 script families.
 
 **Note:** PaddleOCR uses two-letter ISO 639-1 codes and script-specific variants (e.g., `zh_hans` for Simplified Chinese). Consult the [paddleocr-vl backend source](https://github.com/xberg-io/xberg/blob/main/crates/xberg/src/candle_ocr/paddleocr_vl_backend.rs) for the authoritative list.
 
+### Sceptre
+
+Sceptre implements the complete EasyOCR Gen2 recognizer family. Xberg accepts the raw model-group aliases
+`english`, `latin`, `chinese_simplified`, `japanese`, `korean`, `cyrillic`, `telugu`, and `kannada`. It also accepts
+the exact EasyOCR tokens and the additional ISO aliases below. A language is supported only when it appears here;
+sharing a script with a model does not make an arbitrary language code valid.
+
+| Group | Official EasyOCR Gen2 tokens | Additional aliases accepted by Xberg |
+| --- | --- | --- |
+| `english` | `en` | `eng` |
+| `latin` | `af`, `az`, `bs`, `cs`, `cy`, `da`, `de`, `es`, `et`, `fr`, `ga`, `hr`, `hu`, `id`, `is`, `it`, `ku`, `la`, `lt`, `lv`, `mi`, `ms`, `mt`, `nl`, `no`, `oc`, `pi`, `pl`, `pt`, `ro`, `rs_latin`, `sk`, `sl`, `sq`, `sv`, `sw`, `tl`, `tr`, `uz`, `vi` | `afr`, `aze`, `bos`, `ces`/`cze`, `cym`/`wel`, `dan`, `deu`/`ger`, `spa`, `est`, `fra`/`fre`, `gle`, `hrv`, `hun`, `ind`, `isl`/`ice`, `ita`, `kur`, `lat`, `lit`, `lav`, `mri`/`mao`, `msa`/`may`, `mlt`, `nld`/`dut`, `nor`, `oci`, `pli`, `pol`, `por`, `ron`/`rum`, `sr-Latn`/`sr_Latn`, `srp-Latn`/`srp_Latn`, `slk`/`slo`, `slv`, `sqi`/`alb`, `swe`, `swa`, `fil`, `tur`, `uzb`, `vie` |
+| `chinese_simplified` | `ch_sim` | `zh`, `zh-CN`, `zh-Hans`, `zho`, `chi`, `chs` |
+| `japanese` | `ja` | `jpn`, `jpn_vert` |
+| `korean` | `ko` | `kor` |
+| `cyrillic` | `ru`, `rs_cyrillic`, `be`, `bg`, `uk`, `mn`, `abq`, `ady`, `kbd`, `ava`, `dar`, `inh`, `che`, `lbe`, `lez`, `tab`, `tjk` | `rus`, `sr-Cyrl`/`sr_Cyrl`, `srp-Cyrl`/`srp_Cyrl`, `bel`, `bul`, `ukr`, `mon`, `tg`/`tgk` |
+| `telugu` | `te` | `tel` |
+| `kannada` | `kn` | `kan` |
+
+Every non-English Gen2 recognizer includes English characters. You may therefore configure English with one other
+group. Do not combine two distinct non-English groups in one reader.
+
+Desktop and server builds use ONNX Runtime and download checksum-pinned models into the Hugging Face cache. Android
+and iOS use tract and exclude the downloader: the application must resolve packaged assets to filesystem paths and set
+both `backend_options.model.detector_path` and `backend_options.model.recognizer_path`. The opt-in Sceptre worker
+build/API requires the JavaScript host to fetch and supply the CRAFT and selected recognizer model bytes, which the
+Rust engine verifies against the registry digests;
+Sceptre is excluded from the default `wasm-target` bundle.
+
 ### Candle TrOCR
 
 Lightweight line-level text recognition using Microsoft's TrOCR model. **Trained primarily for English.**
