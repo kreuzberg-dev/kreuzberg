@@ -886,6 +886,7 @@ impl<'a> Table<'a> {
         let mut recursion_stack = RecursionStack {
             stack: [0; 64],
             len: 0,
+            visits_left: MAX_PAINT_VISITS,
         };
 
         self.paint_impl(
@@ -1002,6 +1003,10 @@ impl<'a> Table<'a> {
         if recursion_stack.contains(offset) {
             return None;
         }
+
+        // Total-visit budget exceeded (a DAG can revisit the same offset via different sibling
+        // branches without ever cycling on the active path -- see `RecursionStack::visits_left`).
+        recursion_stack.consume_visit().ok()?;
 
         recursion_stack.push(offset).ok()?;
         let result = self.parse_paint_impl(
@@ -1835,7 +1840,20 @@ struct RecursionStack {
     // The limit of 64 is chosen arbitrarily and not from the spec. But we have to stop somewhere...
     stack: [usize; 64],
     len: usize,
+    // `stack`/`contains` only detect a cycle on the CURRENT root-to-leaf path (an entry is popped
+    // as soon as its call returns), so a paint graph shaped as a DAG -- the same offset reachable
+    // through multiple sibling branches, none of which individually cycles -- is not caught by it.
+    // A chain of `PaintColrLayers` records where every layer slot at each level points at one
+    // shared next-level record forces `branching^depth` calls while never re-entering the active
+    // path. This budget bounds the total number of `parse_paint` calls for one top-level `paint`
+    // call, independent of the DAG's branching factor.
+    visits_left: u32,
 }
+
+// The limit of 100_000 total paint-graph node visits is chosen arbitrarily, mirroring
+// `glyf::MAX_COMPONENT_VISITS` -- real color-font paint graphs are expected to have at most a few
+// hundred nodes.
+const MAX_PAINT_VISITS: u32 = 100_000;
 
 impl RecursionStack {
     #[inline]
@@ -1867,6 +1885,17 @@ impl RecursionStack {
     pub fn pop(&mut self) {
         debug_assert!(!self.is_empty());
         self.len -= 1;
+    }
+
+    #[inline]
+    pub fn consume_visit(&mut self) -> Result<(), ()> {
+        match self.visits_left.checked_sub(1) {
+            Some(left) => {
+                self.visits_left = left;
+                Ok(())
+            }
+            None => Err(()),
+        }
     }
 }
 

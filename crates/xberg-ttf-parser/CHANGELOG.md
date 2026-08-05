@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 ### Fixed
+- COLRv1 painting now bounds the total number of paint-graph nodes it visits. A paint graph
+  shaped as a DAG could force exponentially many visits without ever cycling on the active
+  path, which the existing recursion stack could not detect.
 - `avar` axis value mapping no longer wraps when a segment maps an extreme coordinate.
   The `value - from + to` arithmetic ran in `i16` and silently overflowed; it now runs
   in `i32` and rejects results that fall outside `i16`.
