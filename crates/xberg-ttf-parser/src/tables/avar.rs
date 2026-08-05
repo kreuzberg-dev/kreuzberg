@@ -137,6 +137,12 @@ impl<'a> Table<'a> {
     }
 }
 
+// `value - from + to`, promoted to i32 so an extreme (from, to) combination cannot silently
+// wrap the way plain i16 arithmetic would; out-of-i16-range results are rejected instead.
+fn shift_coordinate(value: i16, from: i16, to: i16) -> Option<i16> {
+    i16::try_from(i32::from(value) - i32::from(from) + i32::from(to)).ok()
+}
+
 fn map_value(map: &LazyArray16<AxisValueMap>, value: i16) -> Option<i16> {
     // This code is based on harfbuzz implementation.
 
@@ -144,12 +150,12 @@ fn map_value(map: &LazyArray16<AxisValueMap>, value: i16) -> Option<i16> {
         return Some(value);
     } else if map.len() == 1 {
         let record = map.get(0)?;
-        return Some(value - record.from_coordinate + record.to_coordinate);
+        return shift_coordinate(value, record.from_coordinate, record.to_coordinate);
     }
 
     let record_0 = map.get(0)?;
     if value <= record_0.from_coordinate {
-        return Some(value - record_0.from_coordinate + record_0.to_coordinate);
+        return shift_coordinate(value, record_0.from_coordinate, record_0.to_coordinate);
     }
 
     let mut i = 1;
@@ -165,7 +171,7 @@ fn map_value(map: &LazyArray16<AxisValueMap>, value: i16) -> Option<i16> {
     let curr_from = record_curr.from_coordinate;
     let curr_to = record_curr.to_coordinate;
     if value >= curr_from {
-        return Some(value - curr_from + curr_to);
+        return shift_coordinate(value, curr_from, curr_to);
     }
 
     let record_prev = map.get(i - 1)?;

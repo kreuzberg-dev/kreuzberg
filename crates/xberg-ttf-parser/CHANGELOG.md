@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 ### Fixed
+- `avar` axis value mapping no longer wraps when a segment maps an extreme coordinate.
+  The `value - from + to` arithmetic ran in `i16` and silently overflowed; it now runs
+  in `i32` and rejects results that fall outside `i16`.
 - A CFF2 charstring whose `blend` operator arrives with an empty argument stack is now
   rejected instead of reading past the bottom of the stack.
 - CFF glyphs containing the deprecated `dotsection` operator are no longer rejected.
