@@ -1745,6 +1745,7 @@ impl<'a> Table<'a> {
     ) -> Option<Rect> {
         let mut b = glyf::Builder::new(Transform::default(), RectF::new(), builder);
         let glyph_data = glyf_table.get(glyph_id)?;
+        let mut budget = glyf::MAX_COMPONENT_VISITS;
         outline_var_impl(
             glyf_table,
             self,
@@ -1752,6 +1753,7 @@ impl<'a> Table<'a> {
             glyph_data,
             coordinates,
             0,
+            &mut budget,
             &mut b,
         );
         b.bbox.to_rect()
@@ -1795,11 +1797,14 @@ fn outline_var_impl(
     data: &[u8],
     coordinates: &[NormalizedCoordinate],
     depth: u8,
+    budget: &mut u32,
     builder: &mut glyf::Builder,
 ) -> Option<()> {
     if depth >= glyf::MAX_COMPONENTS {
         return None;
     }
+
+    *budget = budget.checked_sub(1)?;
 
     let mut s = Stream::new(data);
     let number_of_contours = s.read::<i16>()?;
@@ -1867,6 +1872,7 @@ fn outline_var_impl(
                     glyph_data,
                     coordinates,
                     depth + 1,
+                    budget,
                     &mut b,
                 )?;
 

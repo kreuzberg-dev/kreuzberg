@@ -427,6 +427,15 @@ impl CompositeGlyphFlags {
 // It's not defined in the spec, so we are using our own value.
 pub(crate) const MAX_COMPONENTS: u8 = 32;
 
+// `MAX_COMPONENTS` only bounds the depth of a single component chain; it does not bound how many
+// times a component-glyph subtree can be revisited via sibling components at the same or a
+// shallower depth. A composite glyph whose components all reference one shared child glyph
+// (instead of `MAX_COMPONENTS` distinct ones) can force `branching^depth` calls to this function
+// while staying under the depth cap and needing only `depth+1` distinct glyphs. This budget caps
+// the total number of component visits for one top-level `outline_glyph`/`outline` call,
+// independent of depth or branching factor.
+pub(crate) const MAX_COMPONENT_VISITS: u32 = 100_000;
+
 #[allow(clippy::comparison_chain)]
 #[inline]
 fn outline_impl(
@@ -434,11 +443,14 @@ fn outline_impl(
     glyf_table: &[u8],
     data: &[u8],
     depth: u8,
+    budget: &mut u32,
     builder: &mut Builder,
 ) -> Option<Option<Rect>> {
     if depth >= MAX_COMPONENTS {
         return None;
     }
+
+    *budget = budget.checked_sub(1)?;
 
     let mut s = Stream::new(data);
     let number_of_contours = s.read::<i16>()?;
@@ -464,7 +476,7 @@ fn outline_impl(
                 if let Some(glyph_data) = glyf_table.get(range) {
                     let transform = Transform::combine(builder.transform, comp.transform);
                     let mut b = Builder::new(transform, builder.bbox, builder.builder);
-                    outline_impl(loca_table, glyf_table, glyph_data, depth + 1, &mut b)?;
+                    outline_impl(loca_table, glyf_table, glyph_data, depth + 1, budget, &mut b)?;
 
                     // Take updated bbox.
                     builder.bbox = b.bbox;
@@ -596,7 +608,8 @@ impl<'a> Table<'a> {
     pub fn outline(&self, glyph_id: GlyphId, builder: &mut dyn OutlineBuilder) -> Option<Rect> {
         let mut b = Builder::new(Transform::default(), RectF::new(), builder);
         let glyph_data = self.get(glyph_id)?;
-        outline_impl(self.loca_table, self.data, glyph_data, 0, &mut b)?
+        let mut budget = MAX_COMPONENT_VISITS;
+        outline_impl(self.loca_table, self.data, glyph_data, 0, &mut budget, &mut b)?
     }
 
     /// The bounding box of the glyph. Unlike the `outline` method, this method does not

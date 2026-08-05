@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   maximum 65535 glyphs.
 
 ### Fixed
+- Composite glyph outlining now bounds the total number of component records it walks, for
+  both `glyf` and `gvar`. The existing depth cap did not stop a glyph whose components all
+  reference one shared child from forcing exponentially many visits.
 - `Face::set_variation` returns `None` for an axis tag the face does not define, as its
   documentation already promised. It previously returned `Some(())` after doing nothing.
 - `VariationAxis::hidden` now reads the `HIDDEN_AXIS` flag from bit 0 of the `fvar` axis
