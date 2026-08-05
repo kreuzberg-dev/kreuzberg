@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 ### Fixed
+- A CFF2 charstring whose `blend` operator arrives with an empty argument stack is now
+  rejected instead of reading past the bottom of the stack.
 - CFF glyphs containing the deprecated `dotsection` operator are no longer rejected.
   Previously the whole charstring failed with `UnsupportedOperator`, so glyphs like
   `i`, `j`, `!` and `.` in fonts converted from Type 1 produced no outline at all.

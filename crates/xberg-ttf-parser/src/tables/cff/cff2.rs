@@ -379,6 +379,10 @@ fn _parse_char_string(
 
                 ctx.had_blend = true;
 
+                if p.stack.is_empty() {
+                    return Err(CFFError::InvalidArgumentsStackLength);
+                }
+
                 let n = u16::try_num_from(p.stack.pop())
                     .ok_or(CFFError::InvalidNumberOfBlendOperands)?;
                 let k = ctx.scalars.len();
