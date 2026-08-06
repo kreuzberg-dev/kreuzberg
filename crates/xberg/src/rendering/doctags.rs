@@ -432,6 +432,222 @@ fn collect_captions(doc: &InternalDocument) -> Captions {
     Captions { sources, targets }
 }
 
+/// Structural validation of a DocTags stream.
+///
+/// Kept as independent checks rather than one pass so each can be applied where
+/// it is actually valid. The vendored Docling corpus predates OTSL in places and
+/// still carries legacy `<table>`/`<tr>`/`<td>` markup, so vocabulary and OTSL
+/// checks cannot run against it, while wrapper and location invariants can.
+#[cfg(test)]
+mod validate {
+    /// Cell tokens that occupy one OTSL grid position.
+    const OTSL_CELLS: &[&str] = &["fcel", "ched", "ecel", "lcel", "ucel", "xcel", "rhed"];
+
+    /// Tokens that stand alone rather than wrapping content.
+    const STANDALONE: &[&str] = &["nl", "page_break"];
+
+    /// Tags that must open and close.
+    ///
+    /// `checkbox_*` wrap their label text in real Docling output, e.g.
+    /// `<checkbox_unselected><loc_…>بلی</checkbox_unselected>`, so they pair.
+    const PAIRED: &[&str] = &[
+        "doctag",
+        "checkbox_selected",
+        "checkbox_unselected",
+        "text",
+        "title",
+        "page_header",
+        "page_footer",
+        "footnote",
+        "caption",
+        "code",
+        "formula",
+        "otsl",
+        "picture",
+        "list_item",
+        "ordered_list",
+        "unordered_list",
+    ];
+
+    #[derive(Debug, PartialEq)]
+    pub(super) enum Token<'a> {
+        Open(&'a str),
+        Close(&'a str),
+    }
+
+    /// Extract tag tokens in order. Text content between tags is ignored.
+    ///
+    /// Only *recognised* tag names count as tags. DocTags has no escaping, and
+    /// real Docling output carries literal `<` in prose (the vendored
+    /// `2203.01017v2` corpus discusses `< td >` in a caption). Scanning for the
+    /// next `>` would swallow the real closing tag that follows such text, so
+    /// anything that is not a known token is treated as content.
+    pub(super) fn tags(doc: &str) -> Vec<Token<'_>> {
+        let mut out = Vec::new();
+        let bytes = doc.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] != b'<' {
+                i += 1;
+                continue;
+            }
+            let Some(end) = doc[i..].find('>') else { break };
+            let name = &doc[i + 1..i + end];
+            let token = match name.strip_prefix('/') {
+                Some(closing) => Token::Close(closing),
+                None => Token::Open(name),
+            };
+            let recognised = match token {
+                Token::Open(name) | Token::Close(name) => is_standalone(name) || is_paired(name),
+            };
+            if !recognised {
+                i += 1;
+                continue;
+            }
+            out.push(token);
+            i += end + 1;
+        }
+        out
+    }
+
+    fn is_standalone(name: &str) -> bool {
+        STANDALONE.contains(&name)
+            || OTSL_CELLS.contains(&name)
+            || name.starts_with("loc_")
+            // Code language tokens, e.g. `<_rust_>` and `<_unknown_>`.
+            || (name.starts_with('_') && name.ends_with('_') && name.len() > 1)
+    }
+
+    fn is_paired(name: &str) -> bool {
+        PAIRED.contains(&name) || name.starts_with("section_header_level_")
+    }
+
+    /// Every angle-bracketed run is a tag this format defines.
+    ///
+    /// Unlike [`tags`], this scans raw and refuses to skip what it does not
+    /// recognise, which is the point: it catches a tag we emitted by mistake.
+    /// Only meaningful for output built from content with no stray `<`, since
+    /// the format cannot distinguish the two.
+    pub(super) fn vocabulary(doc: &str) -> Result<(), String> {
+        let mut rest = doc;
+        while let Some(start) = rest.find('<') {
+            rest = &rest[start + 1..];
+            let Some(end) = rest.find('>') else { break };
+            let name = &rest[..end];
+            let name = name.strip_prefix('/').unwrap_or(name);
+            if !is_standalone(name) && !is_paired(name) {
+                return Err(format!("unknown tag <{}>", name));
+            }
+            rest = &rest[end + 1..];
+        }
+        Ok(())
+    }
+
+    /// Paired tags nest correctly and the document is wrapped in `<doctag>`.
+    pub(super) fn wrapper_and_nesting(doc: &str) -> Result<(), String> {
+        if !doc.starts_with("<doctag>") {
+            return Err("missing opening <doctag>".to_string());
+        }
+        if !doc.ends_with("</doctag>") {
+            return Err("missing closing </doctag>".to_string());
+        }
+
+        let mut stack: Vec<&str> = Vec::new();
+        for token in tags(doc) {
+            match token {
+                Token::Open(name) if is_paired(name) => stack.push(name),
+                Token::Close(name) => match stack.pop() {
+                    Some(open) if open == name => {}
+                    Some(open) => return Err(format!("</{}> closes <{}>", name, open)),
+                    None => return Err(format!("</{}> with nothing open", name)),
+                },
+                _ => {}
+            }
+        }
+        if let Some(unclosed) = stack.pop() {
+            return Err(format!("<{}> never closed", unclosed));
+        }
+        Ok(())
+    }
+
+    /// Location tokens come in fours, sit on the 0–500 grid, and are ordered
+    /// left ≤ right and top ≤ bottom.
+    pub(super) fn location_tokens(doc: &str) -> Result<(), String> {
+        let mut group: Vec<u32> = Vec::with_capacity(4);
+        for token in tags(doc) {
+            let Token::Open(name) = token else { continue };
+            let Some(value) = name.strip_prefix("loc_") else {
+                if !group.is_empty() && group.len() < 4 {
+                    return Err(format!("location group of {}, expected 4", group.len()));
+                }
+                group.clear();
+                continue;
+            };
+            let value: u32 = value.parse().map_err(|_| format!("malformed <{}>", name))?;
+            if value > 500 {
+                return Err(format!("<{}> exceeds the 0-500 grid", name));
+            }
+            group.push(value);
+            if group.len() == 4 {
+                if group[0] > group[2] {
+                    return Err(format!("left {} right {}", group[0], group[2]));
+                }
+                if group[1] > group[3] {
+                    return Err(format!("top {} bottom {}", group[1], group[3]));
+                }
+                group.clear();
+            }
+        }
+        if !group.is_empty() {
+            return Err(format!("trailing location group of {}", group.len()));
+        }
+        Ok(())
+    }
+
+    /// Every OTSL row holds the same number of cells.
+    pub(super) fn otsl_rows(doc: &str) -> Result<(), String> {
+        let mut in_otsl = false;
+        let mut row = 0usize;
+        let mut expected: Option<usize> = None;
+        for token in tags(doc) {
+            match token {
+                Token::Open("otsl") => {
+                    in_otsl = true;
+                    row = 0;
+                    expected = None;
+                }
+                Token::Close("otsl") => {
+                    if row != 0 {
+                        return Err("OTSL row not terminated by <nl>".to_string());
+                    }
+                    in_otsl = false;
+                }
+                Token::Open("nl") if in_otsl => {
+                    match expected {
+                        Some(width) if width != row => {
+                            return Err(format!("OTSL row of {} cells, expected {}", row, width));
+                        }
+                        None => expected = Some(row),
+                        _ => {}
+                    }
+                    row = 0;
+                }
+                Token::Open(name) if in_otsl && OTSL_CELLS.contains(&name) => row += 1,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// All checks, for output this renderer produced.
+    pub(super) fn strict(doc: &str) -> Result<(), String> {
+        vocabulary(doc)?;
+        wrapper_and_nesting(doc)?;
+        location_tokens(doc)?;
+        otsl_rows(doc)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,6 +797,117 @@ mod tests {
             "got: {}",
             out
         );
+    }
+
+    /// A document exercising every element kind the renderer handles, so the
+    /// structural checks run against the full tag surface rather than a slice.
+    fn kitchen_sink() -> InternalDocument {
+        let mut b = InternalDocumentBuilder::new("pdf");
+        b.push_title("Doc", Some(1), Some(bbox(61.2, 700.0, 306.0, 780.0)));
+        b.push_heading(1, "Section", Some(1), Some(bbox(61.2, 650.0, 306.0, 690.0)));
+        b.push_paragraph("Body.", vec![], Some(1), Some(bbox(61.2, 600.0, 306.0, 640.0)));
+        b.push_list(true);
+        b.push_list_item("First", true, vec![], Some(1), None);
+        b.end_list();
+        b.push_list_item("Bare", false, vec![], None, None);
+        b.push_code("fn main() {}", Some("rust"), Some(1), None);
+        b.push_formula("E = mc^2", Some(1), None);
+        b.push_raw_block("tex", "\\LaTeX{}", None);
+        b.push_admonition("warning", Some("Careful"), None);
+        b.push_page_break();
+
+        let cells = vec![
+            vec!["H1".to_string(), "H2".to_string()],
+            vec!["a".to_string(), String::new()],
+            vec!["b".to_string()],
+        ];
+        let table = b.push_table_from_cells(&cells, Some(1), Some(bbox(61.2, 400.0, 306.0, 500.0)));
+        let caption = b.push_paragraph("Table 1.", vec![], Some(1), Some(bbox(61.2, 380.0, 306.0, 395.0)));
+        b.push_relationship(caption, RelationshipTarget::Index(table), RelationshipKind::Caption);
+
+        b.push_image(Some("A photo"), image(Some("A photo")), Some(1), None);
+
+        let header = b.push_paragraph("Running header", vec![], Some(1), None);
+        b.set_layer(header, ContentLayer::Header);
+        let footer = b.push_paragraph("Page 1", vec![], Some(1), None);
+        b.set_layer(footer, ContentLayer::Footer);
+        b.push_footnote_ref("1", "fn1", None);
+        let def = b.push_footnote_definition("A note.", "fn1", Some(1));
+        b.set_layer(def, ContentLayer::Footnote);
+
+        with_page_dims(b.build(), Some((PAGE_W, PAGE_H)))
+    }
+
+    #[test]
+    fn test_rendered_output_is_structurally_valid() {
+        let out = render_doctags(&kitchen_sink());
+        if let Err(problem) = validate::strict(&out) {
+            panic!("invalid DocTags: {}\n{}", problem, out);
+        }
+    }
+
+    #[test]
+    fn test_rendered_output_is_valid_without_geometry() {
+        let doc = kitchen_sink();
+        let mut stripped = doc.clone();
+        stripped.metadata.pages = None;
+        let out = render_doctags(&stripped);
+        assert!(!out.contains("<loc_"), "got: {}", out);
+        if let Err(problem) = validate::strict(&out) {
+            panic!("invalid DocTags: {}\n{}", problem, out);
+        }
+    }
+
+    /// The validator must accept genuine Docling output, otherwise it is
+    /// encoding our own idea of the format rather than the format itself.
+    /// Vocabulary and OTSL checks are omitted: two corpus files predate OTSL
+    /// and still carry legacy `<table>`/`<tr>`/`<td>` markup.
+    #[test]
+    fn test_validator_accepts_the_vendored_docling_corpus() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents");
+        let mut checked = 0;
+        for dir in ["vendored/docling/txt", "ground_truth/txt"] {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.to_string_lossy().ends_with(".doctags.txt") {
+                    continue;
+                }
+                let Ok(content) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let content = content.trim();
+                if content.is_empty() {
+                    continue;
+                }
+                if let Err(problem) = validate::wrapper_and_nesting(content) {
+                    panic!("{}: {}", path.display(), problem);
+                }
+                if let Err(problem) = validate::location_tokens(content) {
+                    panic!("{}: {}", path.display(), problem);
+                }
+                checked += 1;
+            }
+        }
+        // Self-skips when the submodule is absent, matching the repo convention.
+        if checked == 0 {
+            eprintln!("test_documents not populated, skipping corpus validation");
+        }
+    }
+
+    #[test]
+    fn test_validator_rejects_malformed_streams() {
+        assert!(validate::wrapper_and_nesting("<text>no wrapper</text>").is_err());
+        assert!(validate::wrapper_and_nesting("<doctag><text>unclosed</doctag>").is_err());
+        assert!(validate::vocabulary("<doctag><nonsense>x</nonsense></doctag>").is_err());
+        assert!(validate::location_tokens("<doctag><text><loc_501>x</text></doctag>").is_err());
+        // Only three tokens in the group.
+        assert!(validate::location_tokens("<doctag><text><loc_1><loc_2><loc_3>x</text></doctag>").is_err());
+        // Right edge left of the left edge.
+        assert!(validate::location_tokens("<doctag><text><loc_9><loc_2><loc_1><loc_4>x</text></doctag>").is_err());
+        assert!(validate::otsl_rows("<doctag><otsl><ched>a<ched>b<nl><fcel>c<nl></otsl></doctag>").is_err());
     }
 
     #[test]
