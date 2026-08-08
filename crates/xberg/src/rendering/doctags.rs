@@ -76,7 +76,7 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
 
         match elem.kind {
             ElementKind::QuoteStart | ElementKind::QuoteEnd | ElementKind::GroupStart | ElementKind::GroupEnd => {}
-            ElementKind::FootnoteRef => {}
+            ElementKind::FootnoteRef | ElementKind::CommentRef => {}
             ElementKind::PageBreak => {
                 out.push_str("<page_break>\n");
             }
@@ -133,6 +133,16 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
             }
             ElementKind::FootnoteDefinition => {
                 push_element(&mut out, "footnote", loc, &normalize_inline_text(&elem.text), None);
+            }
+            // DocTags has no comment tag. Rather than drop the body, key it and
+            // emit it as a footnote, which is what the Djot renderer does with
+            // the same element for the same reason (#300).
+            ElementKind::CommentDefinition => {
+                let body = match elem.anchor.as_deref() {
+                    Some(key) => format!("{}: {}", key, normalize_inline_text(&elem.text)),
+                    None => normalize_inline_text(&elem.text),
+                };
+                push_element(&mut out, "footnote", loc, &body, None);
             }
             ElementKind::Paragraph
             | ElementKind::Citation
@@ -1141,6 +1151,28 @@ mod tests {
     fn test_render_doctags_footnote_ref_is_not_emitted() {
         let mut b = InternalDocumentBuilder::new("test");
         b.push_footnote_ref("1", "fn1", None);
+        let out = render_doctags(&b.build());
+        assert_eq!(out, "<doctag></doctag>");
+    }
+
+    #[test]
+    fn test_render_doctags_comment_definition_is_keyed() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_paragraph("Main text", vec![], None, None);
+        b.push_comment_ref("1", "c1", None);
+        b.push_comment_definition("Please rephrase.", "c1", None);
+        let out = render_doctags(&b.build());
+        assert!(
+            out.contains("<footnote>c1: Please rephrase.</footnote>"),
+            "got: {}",
+            out
+        );
+    }
+
+    #[test]
+    fn test_render_doctags_comment_ref_is_not_emitted() {
+        let mut b = InternalDocumentBuilder::new("test");
+        b.push_comment_ref("1", "c1", None);
         let out = render_doctags(&b.build());
         assert_eq!(out, "<doctag></doctag>");
     }
