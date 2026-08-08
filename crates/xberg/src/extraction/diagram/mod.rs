@@ -11,6 +11,7 @@
 //! lets a second source format (vector PDF, DrawingML) reuse the matching rules
 //! without reimplementing them.
 
+mod polyline;
 pub(crate) mod svg;
 
 use crate::types::diagram::{DiagramEdge, DiagramGraph, DiagramNode, DiagramShape};
