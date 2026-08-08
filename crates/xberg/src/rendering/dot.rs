@@ -87,6 +87,9 @@ fn edge_attributes(edge: &DiagramEdge) -> String {
     if let Some(label) = &edge.label {
         attributes.push(format!("label={}", quote(label)));
     }
+    if edge.bidirectional {
+        attributes.push("dir=both".to_string());
+    }
     if edge.dashed {
         attributes.push("style=dashed".to_string());
     }
@@ -155,6 +158,7 @@ mod tests {
             edges: vec![DiagramEdge {
                 from: 0,
                 to: 1,
+                bidirectional: false,
                 label: None,
                 stroke: None,
                 dashed: false,
@@ -184,6 +188,7 @@ mod tests {
             edges: vec![DiagramEdge {
                 from: 0,
                 to: 1,
+                bidirectional: false,
                 label: Some("yes".to_string()),
                 stroke: Some("#333333".to_string()),
                 dashed: true,
@@ -217,6 +222,7 @@ mod tests {
             edges: vec![DiagramEdge {
                 from: 0,
                 to: 1,
+                bidirectional: false,
                 label: None,
                 stroke: None,
                 dashed: false,
@@ -238,6 +244,7 @@ mod tests {
             edges: vec![DiagramEdge {
                 from: 0,
                 to: 1,
+                bidirectional: false,
                 label: None,
                 stroke: None,
                 dashed: false,
@@ -268,6 +275,7 @@ mod tests {
                 edges: vec![DiagramEdge {
                     from: 0,
                     to: 1,
+                    bidirectional: false,
                     label: None,
                     stroke: None,
                     dashed: false,
@@ -333,6 +341,7 @@ mod tests {
             edges: vec![DiagramEdge {
                 from: 0,
                 to: 7,
+                bidirectional: false,
                 label: None,
                 stroke: None,
                 dashed: false,

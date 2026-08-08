@@ -76,6 +76,13 @@ pub struct DiagramEdge {
     /// Index into [`DiagramGraph::nodes`] of the connector's end.
     pub to: usize,
 
+    /// Whether the connector is drawn with an arrowhead at both ends.
+    ///
+    /// A single arrowhead sets `from` and `to`, so it needs no flag. When the
+    /// source draws no arrowhead at all, the connector's own point order stands
+    /// in for direction and this stays `false`.
+    pub bidirectional: bool,
+
     /// Text drawn on the connector, `None` when it carries none.
     pub label: Option<String>,
 

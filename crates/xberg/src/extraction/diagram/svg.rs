@@ -110,6 +110,7 @@ fn collect_geometry(group: &usvg::Group, outlines: &mut Vec<Outline>, connectors
                     connectors.push(Connector {
                         start: points[0],
                         end: points[points.len() - 1],
+                        midpoint: points[points.len() / 2],
                         stroke: stroke_color,
                         dashed,
                     });
@@ -308,9 +309,10 @@ impl TextPass {
         }
 
         match name {
-            // Only the root `<svg>`'s own title names the diagram; a `<title>`
-            // deeper in the tree is a tooltip on one shape.
-            "title" if self.depth.len() == 1 => self.in_title = true,
+            // The document title, or the accessible name of the outermost
+            // group, which is where Graphviz and Mermaid put the diagram's
+            // name. Deeper than that a `<title>` is a tooltip on one shape.
+            "title" if self.depth.len() <= 2 && self.title.is_none() => self.in_title = true,
             "text" | "tspan" => {
                 let position = (
                     attribute(e, "x").and_then(|v| first_number(&v)),
