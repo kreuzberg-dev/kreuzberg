@@ -1,6 +1,10 @@
 #[cfg(any(feature = "pdf", feature = "office", feature = "ocr"))]
 pub mod blank_detection;
 pub mod derive;
+/// Deterministic node/edge recovery from vector diagrams. Needs `svg` for the
+/// geometry and `xml` for the source-text pass that recovers labels.
+#[cfg(all(feature = "svg", feature = "xml"))]
+pub(crate) mod diagram;
 pub(crate) mod doctags;
 #[cfg(any(feature = "html", feature = "email"))]
 pub(crate) mod grid_flatten;

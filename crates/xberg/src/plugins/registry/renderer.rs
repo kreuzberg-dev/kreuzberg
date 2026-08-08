@@ -113,6 +113,21 @@ impl InternalRenderer for DocTagsRenderer {
     }
 }
 
+/// Built-in Graphviz DOT renderer.
+struct DotRenderer;
+
+impl Plugin for DotRenderer {
+    fn name(&self) -> &str {
+        "dot"
+    }
+}
+
+impl InternalRenderer for DotRenderer {
+    fn render(&self, doc: &InternalDocument) -> Result<String> {
+        Ok(crate::rendering::render_dot(doc))
+    }
+}
+
 /// Built-in plain text renderer.
 struct PlainRenderer;
 
@@ -144,7 +159,7 @@ impl InternalRenderer for PlainRenderer {
 ///
 /// let registry = RendererRegistry::new();
 /// let available = registry.list();
-/// // Built-in renderers: "markdown", "html", "djot", "doctags", "plain"
+/// // Built-in renderers: "markdown", "html", "djot", "doctags", "dot", "plain"
 /// ```
 #[cfg_attr(alef, alef(skip))]
 pub struct RendererRegistry {
@@ -159,6 +174,7 @@ impl RendererRegistry {
     /// - `html` — HTML5 (via comrak)
     /// - `djot` — Djot markup
     /// - `doctags` — Docling DocTags (tables as OTSL)
+    /// - `dot` — Graphviz DOT (diagrams recovered from vector sources)
     /// - `plain` — Plain text (no formatting)
     pub fn new() -> Self {
         let mut registry = Self {
@@ -192,6 +208,8 @@ impl RendererRegistry {
             "doctags".to_string(),
             RegisteredRenderer::internal(Arc::new(DocTagsRenderer)),
         );
+        self.renderers
+            .insert("dot".to_string(), RegisteredRenderer::internal(Arc::new(DotRenderer)));
         self.renderers.insert(
             "plain".to_string(),
             RegisteredRenderer::internal(Arc::new(PlainRenderer)),

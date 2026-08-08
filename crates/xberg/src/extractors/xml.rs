@@ -266,6 +266,17 @@ impl SyncExtractor for XmlExtractor {
         let mut doc = build_internal_document(content, mime_type, &mut budget)?;
         doc.mime_type = mime_type.to_string();
 
+        // An SVG diagram carries its own node/edge structure, so it can be read
+        // rather than inferred. Recovery reports `None` for drawings that are
+        // not diagrams, which is most SVGs, and leaves the rest of extraction
+        // untouched either way.
+        #[cfg(feature = "svg")]
+        if mime_type == "image/svg+xml"
+            && let Some(graph) = crate::extraction::diagram::svg::recover(content)
+        {
+            doc.diagrams.push(graph);
+        }
+
         doc.metadata = Metadata {
             format: Some(crate::types::FormatMetadata::Xml(crate::types::XmlMetadata {
                 element_count: xml_result.element_count as u32,

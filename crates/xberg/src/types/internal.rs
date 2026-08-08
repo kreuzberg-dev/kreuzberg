@@ -146,6 +146,14 @@ pub struct InternalDocument {
     /// Extracted tables (structured data). Referenced by index from `ElementKind::Table`.
     pub tables: Vec<Table>,
 
+    /// Node/edge graphs recovered from vector diagrams in the source.
+    ///
+    /// Populated by extractors that can read diagram geometry deterministically
+    /// (SVG today). The `dot` renderer turns these into Graphviz DOT; every
+    /// other renderer ignores them, so the field only ever adds output.
+    #[serde(default)]
+    pub diagrams: Vec<super::diagram::DiagramGraph>,
+
     /// URIs/links discovered during extraction (hyperlinks, image refs, citations, etc.).
     pub uris: Vec<super::uri::ExtractedUri>,
 
@@ -315,6 +323,7 @@ impl InternalDocument {
             metadata: Metadata::default(),
             images: Vec::new(),
             tables: Vec::new(),
+            diagrams: Vec::new(),
             uris: Vec::new(),
             uris_dropped: 0,
             children: None,

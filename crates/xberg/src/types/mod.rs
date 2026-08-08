@@ -3,6 +3,7 @@
 pub mod annotations;
 pub mod builder;
 pub mod classification;
+pub mod diagram;
 pub mod djot;
 pub mod document_structure;
 pub mod entity;
