@@ -160,15 +160,16 @@ pub(crate) fn assemble(
     let min_side = (canvas_max * MIN_NODE_SIDE_RATIO).clamp(RATIO_FLOOR, MIN_NODE_SIDE_CEILING);
     let snap = (canvas_max * SNAP_RATIO).clamp(RATIO_FLOOR, SNAP_CEILING);
 
-    let mut kept: Vec<Outline> = outlines
+    // Two collections, because a shape too small to be a node can still be an
+    // arrowhead, and an arrowhead is what tells a connector which way it points.
+    // Filtering decoration away before looking for arrowheads would leave only
+    // the arrowheads big enough to have been nodes, which on a diagram measured
+    // in points is none of them.
+    let (mut kept, decoration): (Vec<Outline>, Vec<Outline>) = outlines
         .into_iter()
         .take(MAX_OUTLINES)
-        .filter(|o| {
-            o.bbox.width() >= min_side
-                && o.bbox.height() >= min_side
-                && o.bbox.area() < canvas_area * BACKGROUND_AREA_RATIO
-        })
-        .collect();
+        .filter(|o| o.bbox.area() < canvas_area * BACKGROUND_AREA_RATIO)
+        .partition(|o| o.bbox.width() >= min_side && o.bbox.height() >= min_side);
 
     // Reading order, with the remaining fields breaking ties so that two shapes
     // sharing a corner still sort deterministically.
@@ -211,6 +212,27 @@ pub(crate) fn assemble(
 
     let connectors: Vec<Connector> = connectors.into_iter().take(MAX_CONNECTORS).collect();
     let arrowheads = find_arrowheads(&kept, &connectors, &owners, snap, canvas_max);
+
+    // Every arrowhead a connector may have to reach across: the ones large
+    // enough to have been mistaken for nodes, and the decoration-sized ones
+    // that were never candidates. Only the geometry is needed here, so the two
+    // sources collapse to one list of boxes.
+    let reach: Vec<Rect> = arrowheads
+        .iter()
+        .zip(&kept)
+        .filter(|(is_arrowhead, _)| **is_arrowhead)
+        .map(|(_, outline)| outline.bbox)
+        .chain(
+            decoration
+                .iter()
+                .filter(|o| {
+                    connectors.iter().any(|c| {
+                        o.bbox.distance_to(c.start.0, c.start.1) <= snap || o.bbox.distance_to(c.end.0, c.end.1) <= snap
+                    })
+                })
+                .map(|o| o.bbox),
+        )
+        .collect();
 
     // Arrowheads are geometry belonging to the connector that ends in them, not
     // shapes in their own right, so they never become nodes.
@@ -258,8 +280,8 @@ pub(crate) fn assemble(
         // points at, so the endpoint has to reach across it. Widening the
         // tolerance by the arrowhead's own size does that without inventing a
         // coordinate the source never drew.
-        let head_at_start = touching_arrowhead(&kept, &arrowheads, connector.start, snap);
-        let head_at_end = touching_arrowhead(&kept, &arrowheads, connector.end, snap);
+        let head_at_start = touching_arrowhead(&reach, connector.start, snap);
+        let head_at_end = touching_arrowhead(&reach, connector.end, snap);
         let (Some(from), Some(to)) = (
             snap_to_outline(&node_outlines, connector.start, snap + head_at_start.unwrap_or(0.0)),
             snap_to_outline(&node_outlines, connector.end, snap + head_at_end.unwrap_or(0.0)),
@@ -388,19 +410,17 @@ fn find_arrowheads(
 
 /// Size of the arrowhead sitting on `point`, if one does, as the reach a
 /// connector needs to see past it.
-fn touching_arrowhead(outlines: &[Outline], arrowheads: &[bool], point: (f32, f32), snap: f32) -> Option<f32> {
-    outlines
+fn touching_arrowhead(arrowheads: &[Rect], point: (f32, f32), snap: f32) -> Option<f32> {
+    arrowheads
         .iter()
-        .enumerate()
-        .filter(|(i, _)| arrowheads[*i])
-        .map(|(_, o)| (o.bbox.distance_to(point.0, point.1), o))
+        .map(|bbox| (bbox.distance_to(point.0, point.1), bbox))
         .filter(|(distance, _)| *distance <= snap)
         // Nearest, not largest. Two nodes joined by a pair of opposing
         // connectors put four arrowheads within a few units of each other, and
         // taking the biggest would let one connector reach across its
         // neighbour's head and land on the wrong shape.
         .min_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, o)| o.bbox.width().hypot(o.bbox.height()))
+        .map(|(_, bbox)| bbox.width().hypot(bbox.height()))
 }
 
 /// Index of the shape a connector endpoint lands on: the one containing it, or

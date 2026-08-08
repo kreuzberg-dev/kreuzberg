@@ -171,11 +171,10 @@ const CASES: &[Case] = &[
 /// shape is either there or it is not, so anything below perfect is a defect.
 const MIN_NODE_RECALL: f64 = 1.0;
 
-/// Edges are harder. Two nodes joined by a pair of opposing connectors put four
-/// arrowheads within a few units of each other, and one of the pair is
-/// currently lost, so `graphviz_states` scores 0.75. Raising this floor is the
-/// next thing worth doing, and the number is here so that it is visible.
-const MIN_EDGE_RECALL: f64 = 0.75;
+/// Edges too. The hard case is two nodes joined by a pair of opposing
+/// connectors, which puts four arrowheads within a few units of each other;
+/// `graphviz_states` is here to hold that case at full recall.
+const MIN_EDGE_RECALL: f64 = 1.0;
 
 #[test]
 fn recovers_the_diagram_corpus() {
