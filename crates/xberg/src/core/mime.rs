@@ -59,6 +59,11 @@ pub(crate) const IWORK_PAGES_MIME_TYPE: &str = "application/x-iwork-pages-sffpag
 pub(crate) const IWORK_NUMBERS_MIME_TYPE: &str = "application/x-iwork-numbers-sffnumbers";
 pub(crate) const IWORK_KEYNOTE_MIME_TYPE: &str = "application/x-iwork-keynote-sffkey";
 
+/// Docling DocTags. The format has no registered media type, and its files are
+/// conventionally named `*.doctags.txt`, so callers reading those will need to
+/// pass this explicitly rather than relying on the extension.
+pub(crate) const DOCTAGS_MIME_TYPE: &str = "text/vnd.docling.doctags";
+
 /// A format definition in the centralized registry.
 ///
 /// Each entry defines a document format with its file extensions, primary MIME type,
@@ -162,6 +167,11 @@ static FORMATS: &[FormatEntry] = &[
         extensions: &["djot"],
         mime_type: "text/x-djot",
         aliases: &["text/djot"],
+    },
+    FormatEntry {
+        extensions: &["doctags"],
+        mime_type: DOCTAGS_MIME_TYPE,
+        aliases: &["application/vnd.docling.doctags"],
     },
     FormatEntry {
         extensions: &["pdf"],
