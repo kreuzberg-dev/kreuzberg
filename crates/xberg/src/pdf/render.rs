@@ -369,6 +369,34 @@ pub(crate) fn normalize_rendered_page_for_ocr(
     rotate_png_page_if_needed(png_data, width, height, ocr_page_correction_degrees(rotation_degrees))
 }
 
+/// Contain a panic raised while rasterizing one page, turning it into an
+/// ordinary `pdf_oxide::Error` for that page.
+///
+/// Rasterization runs third-party code over attacker-controlled geometry, and a
+/// malformed page can violate an invariant the rasterizer only asserts: on a PDF
+/// whose content streams fail to inflate (`FlateDecode` recovery exhausted),
+/// tiny-skia 0.12.0 unwraps an `AlphaRun` in `break_run` (`alpha_runs.rs:170`)
+/// that is `None`, and panics. There is no newer tiny-skia to upgrade to —
+/// 0.12.0 is the current release.
+///
+/// Because render calls run synchronously on a Tokio worker, that panic unwinds
+/// through the async boundary and fails the entire request with a 500, so a
+/// single bad page costs the caller every other page's text as well. Containing
+/// it here is the same treatment the text path gives the total-order sort panic
+/// (#1198): the page becomes an `Err`, callers fall back to their existing
+/// render-failure handling, and the rest of the document still extracts.
+fn guard_render_panic(
+    page_index: usize,
+    render: impl FnOnce() -> std::result::Result<pdf_oxide::rendering::RenderedImage, pdf_oxide::Error>,
+) -> std::result::Result<pdf_oxide::rendering::RenderedImage, pdf_oxide::Error> {
+    super::oxide::guard_oxide_panic(render, |message| {
+        pdf_oxide::Error::InvalidPdf(format!(
+            "page {} could not be rasterized: the rasterizer panicked and was contained ({message})",
+            page_index + 1
+        ))
+    })
+}
+
 /// Render a page using safeguards for extreme dimensions (wide vector diagrams,
 /// CAD sheets, etc.). This is the root-cause fix for render failures on such
 /// inputs during force_ocr / VLM / layout paths.
@@ -392,8 +420,13 @@ pub(crate) fn render_page_with_safeguards(
         );
     }
     let options = pdf_oxide::rendering::RenderOptions::with_dpi(safe_dpi);
+    // The panic guard sits inside the capture wrapper, not around it, so a
+    // panicking page still lets the wrapper take its thread-local buffer back
+    // instead of leaving it armed on a pooled thread.
     render_page_capturing_glyph_drops(page_index, || {
-        pdf_oxide::rendering::render_page(doc, page_index, &options)
+        guard_render_panic(page_index, || {
+            pdf_oxide::rendering::render_page(doc, page_index, &options)
+        })
     })
 }
 
@@ -684,6 +717,25 @@ mod tests {
             res.is_ok(),
             "wide page render should succeed thanks to safeguard, got: {:?}",
             res.err()
+        );
+    }
+
+    // A rasterizer panic used to unwind through the Tokio worker and fail the
+    // whole extraction with a 500, so the other pages' text was lost with it.
+    #[test]
+    fn test_guard_render_panic_contains_panic_as_page_error() {
+        // Matched rather than `expect_err`, which would require RenderedImage: Debug.
+        let message = match guard_render_panic(3, || panic!("simulated tiny-skia unwrap")) {
+            Ok(_) => panic!("panic must not escape the guard"),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            message.contains("page 4"),
+            "error should name the 1-based page: {message}"
+        );
+        assert!(
+            message.contains("simulated tiny-skia unwrap"),
+            "error should carry the panic message: {message}"
         );
     }
 
