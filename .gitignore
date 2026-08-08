@@ -205,6 +205,12 @@ e2e/elixir/config/
 test_documents/_build/
 test_documents/deps/
 
+# Never commit a local e2e/test_documents symlink/checkout — it previously shipped as a
+# committed symlink to a machine-specific, pre-rename path (kreuzberg-dev/kreuzberg) and
+# dangled on every other machine and CI runner. The submodule at repo-root `test_documents/`
+# is the only supported source; e2e helpers walk up to find it.
+e2e/test_documents
+
 # Maven plugin artifacts
 *.versionsBackup
 
@@ -232,7 +238,10 @@ packages/csharp/Xberg/runtime.json
 .codex/
 .gemini/
 .xberg/
-.mcp.json
+# Root-only: local Claude Code MCP config. NOT anchored with a bare pattern -- that
+# also matched plugin/.mcp.json, a generated, committed plugin bundle output (ai-rulez
+# `[[plugin.mcp]]`), which made CI's "Plugin bundle freshness" check fail on checkout.
+/.mcp.json
 # Alef-generated agent skills (mirrors of .ai-rulez/skills; .claude/.codex covered above)
 .agents/skills/
 .github/skills/

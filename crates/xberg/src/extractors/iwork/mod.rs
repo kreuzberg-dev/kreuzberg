@@ -30,6 +30,26 @@ use std::io::Read;
 /// Maximum size for an individual IWA file to guard against decompression bombs.
 const MAX_IWA_DECOMPRESSED_SIZE: usize = 64 * 1024 * 1024;
 
+/// `ProcessingWarning::source` used for every degradation reported by the iWork extractors.
+pub(crate) const IWORK_WARNING_SOURCE: &str = "iwork";
+
+/// Record that an IWA archive member could not be parsed and its content was
+/// dropped from the output (#106). Callers hit this whenever `read_iwa_file`,
+/// `parse_iwa_segments`, or a structured-schema decode fails for a non-Security
+/// reason; a `Security` error is never routed here because it aborts the whole
+/// extraction instead of skipping one member.
+pub(crate) fn push_member_parse_warning(
+    warnings: &mut Vec<crate::types::ProcessingWarning>,
+    member: &str,
+    cause: &dyn std::fmt::Display,
+) {
+    crate::core::diagnostics::push_warning(
+        warnings,
+        IWORK_WARNING_SOURCE,
+        format!("Failed to parse iWork archive member '{member}'; its content was not extracted (cause: {cause})"),
+    );
+}
+
 /// Document-wide budget for bytes expanded from nested IWA Snappy streams.
 pub(crate) struct IwaExpansionBudget {
     growth: StringGrowthValidator,
@@ -306,7 +326,12 @@ fn append_proto_text(payload: &[u8], budget: &mut SecurityBudget, texts: &mut Ve
         return Ok(());
     };
     let trimmed = text.trim();
-    if trimmed.len() >= 3 && trimmed.chars().any(|character| character.is_alphanumeric()) {
+    // A field is accepted as text once it has *any* alphanumeric character; that
+    // condition already implies non-empty, so no separate minimum-length floor
+    // is applied. A byte-length floor here (previously 3) silently dropped real
+    // short content — single-letter headings, numeric answers, unit labels like
+    // "OK", "5", "Q1" (#107).
+    if trimmed.chars().any(|character| character.is_alphanumeric()) {
         budget.check_entity(trimmed)?;
         budget.account_text(trimmed.len())?;
         texts.push(trimmed.to_string());
@@ -439,13 +464,21 @@ fn extract_plist_tag(line: &str, tag: &str) -> Option<String> {
 }
 
 /// Deduplicate a list of text strings while preserving order.
-/// Adjacent duplicates and near-duplicates are removed.
+///
+/// Only *adjacent* duplicates are collapsed. The iWork wire format sometimes
+/// emits the exact same text run twice in a row as a structural artifact of
+/// nested protobuf messages (see `extract_length_delimited_field`, which reads
+/// a payload as text and then recurses into the same bytes looking for nested
+/// fields); removing an immediate repeat like that loses nothing. Removing
+/// *non-adjacent* repeats — the previous behavior, which used a `HashSet` over
+/// the whole document — deleted legitimately repeated text: a heading reused
+/// on two slides, a footer repeated on every page, a word that just happens to
+/// appear twice. That was data loss (#101).
 pub(crate) fn dedup_text(texts: Vec<String>) -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
-    let mut result = Vec::new();
-    for t in texts {
-        if seen.insert(t.clone()) {
-            result.push(t);
+    let mut result: Vec<String> = Vec::with_capacity(texts.len());
+    for text in texts {
+        if result.last() != Some(&text) {
+            result.push(text);
         }
     }
     result
@@ -577,6 +610,62 @@ mod tests {
         let mut expansion = IwaExpansionBudget::from_limits(&limits);
 
         assert!(decode_iwa_stream(&[0, 0, 0], &mut expansion).is_err());
+    }
+
+    /// Regression for #101: dedup_text must keep non-adjacent repeats. A global
+    /// HashSet-based dedup previously deleted the second "Confidential" even
+    /// though it is legitimately repeated content, not a wire-format artifact.
+    #[test]
+    fn dedup_text_keeps_non_adjacent_repeats_but_collapses_adjacent_ones() {
+        let texts = vec![
+            "Confidential".to_string(),
+            "Confidential".to_string(), // adjacent repeat: wire-format artifact, collapse
+            "Body text".to_string(),
+            "Confidential".to_string(), // non-adjacent repeat: legitimate content, keep
+        ];
+
+        assert_eq!(
+            dedup_text(texts),
+            vec![
+                "Confidential".to_string(),
+                "Body text".to_string(),
+                "Confidential".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn dedup_text_on_empty_input_is_empty() {
+        assert_eq!(dedup_text(Vec::new()), Vec::<String>::new());
+    }
+
+    /// Regression for #107: a single-character alphanumeric field (a numeric
+    /// answer, a unit label) must survive, not be discarded by a byte-length floor.
+    #[test]
+    fn extract_text_from_proto_keeps_short_alphanumeric_strings() {
+        let text = b"5";
+        let mut proto = vec![0x1A, text.len() as u8];
+        proto.extend_from_slice(text);
+
+        let mut budget = SecurityBudget::from_limits(&SecurityLimits::default());
+        let extracted = extract_text_from_proto(&proto, &mut budget).unwrap();
+
+        assert_eq!(extracted, vec!["5".to_string()]);
+    }
+
+    #[test]
+    fn extract_text_from_proto_drops_purely_non_alphanumeric_strings() {
+        let text = b"---";
+        let mut proto = vec![0x1A, text.len() as u8];
+        proto.extend_from_slice(text);
+
+        let mut budget = SecurityBudget::from_limits(&SecurityLimits::default());
+        let extracted = extract_text_from_proto(&proto, &mut budget).unwrap();
+
+        assert!(
+            extracted.is_empty(),
+            "punctuation-only noise should still be dropped: {extracted:?}"
+        );
     }
 
     #[test]

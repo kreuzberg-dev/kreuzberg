@@ -169,18 +169,23 @@ impl InternalDocumentBuilder {
     }
 
     /// Push a table element from a 2D cell grid, building a `Table` struct automatically.
+    ///
+    /// `bbox` lands on both the element *and* the `Table` DTO: the DTO's
+    /// `bounding_box` was previously hard-coded to `None`, so every table built
+    /// through this path was published to consumers without its geometry even
+    /// when the caller knew it (xberg-io/xberg#240).
     pub fn push_table_from_cells(
         &mut self,
         cells: &[Vec<String>],
         page: Option<u32>,
         bbox: Option<BoundingBox>,
     ) -> u32 {
-        let markdown = cells_to_markdown(cells);
+        let markdown = crate::rendering::common::render_table_markdown(cells);
         let table = Table {
             cells: cells.to_vec(),
             markdown,
             page_number: page.unwrap_or(0),
-            bounding_box: None,
+            bounding_box: bbox,
             ..Default::default()
         };
         self.push_table(table, page, bbox)
@@ -245,6 +250,38 @@ impl InternalDocumentBuilder {
     pub fn push_footnote_definition(&mut self, text: &str, key: &str, page: Option<u32>) -> u32 {
         self.push_simple(
             ElementKind::FootnoteDefinition,
+            text,
+            page,
+            None,
+            Vec::new(),
+            None,
+            Some(key),
+        )
+    }
+
+    /// Push a comment reference marker (e.g. a DOCX reviewer comment anchor).
+    ///
+    /// Creates a `CommentRef` element with `anchor = key` and also records
+    /// a `Relationship` with `RelationshipTarget::Key(key)` so the derivation
+    /// step can resolve it to the definition. Mirrors [`Self::push_footnote_ref`]
+    /// but keeps comments distinguishable from footnotes in `NodeContent`
+    /// (xberg-io/xberg#300).
+    pub fn push_comment_ref(&mut self, marker: &str, key: &str, page: Option<u32>) -> u32 {
+        let idx = self.push_simple(ElementKind::CommentRef, marker, page, None, Vec::new(), None, Some(key));
+        self.doc.push_relationship(Relationship {
+            source: idx,
+            target: RelationshipTarget::Key(key.to_string()),
+            kind: RelationshipKind::FootnoteReference,
+        });
+        idx
+    }
+
+    /// Push a comment definition element with `anchor = key`.
+    ///
+    /// Mirrors [`Self::push_footnote_definition`]; see [`Self::push_comment_ref`].
+    pub fn push_comment_definition(&mut self, text: &str, key: &str, page: Option<u32>) -> u32 {
+        self.push_simple(
+            ElementKind::CommentDefinition,
             text,
             page,
             None,
@@ -482,6 +519,7 @@ impl InternalDocumentBuilder {
         self.doc.tables.extend(other.tables);
         self.doc.images.extend(other.images);
         self.doc.uris.extend(other.uris);
+        self.doc.uris_dropped += other.uris_dropped;
 
         for mut element in other.elements {
             match &mut element.kind {
@@ -585,31 +623,6 @@ fn single_attr(key: &str, val: &str) -> AHashMap<String, String> {
     let mut m = AHashMap::with_capacity(1);
     m.insert(key.to_string(), val.to_string());
     m
-}
-
-/// Convert a 2D cell grid to markdown table format.
-fn cells_to_markdown(cells: &[Vec<String>]) -> String {
-    if cells.is_empty() {
-        return String::new();
-    }
-    let mut md = String::new();
-    for (row_idx, row) in cells.iter().enumerate() {
-        md.push('|');
-        for cell in row {
-            md.push(' ');
-            md.push_str(cell);
-            md.push_str(" |");
-        }
-        md.push('\n');
-        if row_idx == 0 && cells.len() > 1 {
-            md.push('|');
-            for _ in row {
-                md.push_str(" --- |");
-            }
-            md.push('\n');
-        }
-    }
-    md
 }
 
 /// Generate a URL-friendly anchor slug from heading text.

@@ -109,16 +109,68 @@ fn validate_workbook_budget(workbook: &crate::types::ExcelWorkbook, budget: &mut
     Ok(())
 }
 
+/// MIME types backed by an OOXML (or OOXML-derived binary) ZIP package, i.e.
+/// formats that may carry embedded objects under `xl/embeddings/`
+/// (xberg-io/xberg#78). `.xls`/`.xla` (legacy binary, not a ZIP) and `.ods`
+/// (OpenDocument, different embedding convention) are excluded.
+#[cfg(feature = "office")]
+fn is_ooxml_zip_mime(mime_type: &str) -> bool {
+    matches!(
+        mime_type,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            | "application/vnd.ms-excel.sheet.macroEnabled.12"
+            | "application/vnd.ms-excel.addin.macroEnabled.12"
+            | "application/vnd.ms-excel.template.macroEnabled.12"
+            | "application/vnd.ms-excel.sheet.binary.macroEnabled.12"
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
+    )
+}
+
+/// Name the embedded objects under `xl/embeddings/` in an OOXML zip package,
+/// for the [`SyncExtractor`] path (WASM), which cannot recurse into them the way
+/// `extract_content`/`extract_path` do via `ooxml_embedded` (that helper calls
+/// back into the async extraction pipeline). Naming them in a warning at least
+/// makes their presence and identity visible (xberg-io/xberg#78) rather than
+/// silently dropping them.
+///
+/// Returns `None` when `mime_type` is not an OOXML zip format, the content is
+/// not a readable zip, or the archive has no `xl/embeddings/` entries.
+#[cfg(feature = "office")]
+fn scan_for_embedded_objects(content: &[u8], mime_type: &str) -> Option<ProcessingWarning> {
+    if !is_ooxml_zip_mime(mime_type) {
+        return None;
+    }
+
+    let cursor = std::io::Cursor::new(content);
+    let mut archive = zip::ZipArchive::new(cursor).ok()?;
+
+    let mut names = Vec::new();
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).ok()?;
+        let name = entry.name().to_string();
+        if name.starts_with("xl/embeddings/") && !name.ends_with('/') {
+            names.push(name);
+        }
+    }
+    if names.is_empty() {
+        return None;
+    }
+    names.sort();
+
+    Some(ProcessingWarning {
+        source: Cow::Borrowed("excel"),
+        message: Cow::Owned(format!(
+            "Workbook contains {} embedded object{} that were not extracted ({})",
+            names.len(),
+            if names.len() == 1 { "" } else { "s" },
+            crate::core::diagnostics::format_entry_list(&names)
+        )),
+    })
+}
+
 /// Excel spreadsheet extractor using calamine.
 ///
 /// Supports: .xlsx, .xlsm, .xlam, .xltm, .xls, .xla, .xlsb, .ods
-///
-/// # Limitations
-///
-/// - **Hyperlinks**: calamine (v0.34) does not expose cell hyperlink data in its
-///   public API. Excel files may contain hyperlinks via the `HYPERLINK()` formula
-///   or via the relationships XML, but neither is accessible through the crate.
-///   This would require either a calamine upstream change or manual OOXML parsing.
 #[cfg_attr(alef, alef(skip))]
 pub struct ExcelExtractor;
 
@@ -160,11 +212,28 @@ impl ExcelExtractor {
         out
     }
 
+    /// Parse the `hidden_sheets` workbook-metadata entry (a comma-separated list of
+    /// sheet names populated by `extraction::excel::extract_metadata` from calamine's
+    /// `sheets_metadata()`) into the set of sheet names that are hidden or very-hidden
+    /// (xberg-io/xberg#119). A sheet's own content carries no visibility flag, so this
+    /// is the only way `build_internal_document` can tell a hidden sheet from a visible
+    /// one.
+    fn hidden_sheet_names(workbook: &crate::types::ExcelWorkbook) -> std::collections::HashSet<&str> {
+        workbook
+            .metadata
+            .get("hidden_sheets")
+            .map(|names| names.split(", ").collect())
+            .unwrap_or_default()
+    }
+
     /// Build an `InternalDocument` from the workbook.
     ///
     /// Each sheet becomes a table preceded by an H2 heading with the sheet name (when
-    /// non-empty). Additionally, `prebuilt_pages` is set to `Some(Vec<PageContent>)` with
-    /// one entry per sheet so that `ExtractedDocument.pages` is always `Some` for Excel.
+    /// non-empty). A sheet hidden in the workbook (`hidden_sheets` metadata) has
+    /// `" (hidden)"` appended to its heading so hidden content is distinguishable from
+    /// visible content (xberg-io/xberg#119). Additionally, `prebuilt_pages` is set to
+    /// `Some(Vec<PageContent>)` with one entry per sheet so that `ExtractedDocument.pages`
+    /// is always `Some` for Excel.
     ///
     /// Empty sheets still produce a `PageContent` entry so the page index aligns with the
     /// sheet index. The top-level `content` remains the concatenation of all per-sheet
@@ -172,6 +241,7 @@ impl ExcelExtractor {
     fn build_internal_document(workbook: &crate::types::ExcelWorkbook) -> InternalDocument {
         let mut builder = InternalDocumentBuilder::new("excel");
         let mut pages: Vec<PageContent> = Vec::with_capacity(workbook.sheets.len());
+        let hidden_sheets = Self::hidden_sheet_names(workbook);
 
         for (sheet_index, sheet) in workbook.sheets.iter().enumerate() {
             let page_number = (sheet_index + 1) as u32;
@@ -180,12 +250,14 @@ impl ExcelExtractor {
             } else {
                 Some(sheet.name.clone())
             };
+            let is_hidden = hidden_sheets.contains(sheet.name.as_str());
+            let hidden_suffix = if is_hidden { " (hidden)" } else { "" };
 
             if let Some(ref cells) = sheet.table_cells
                 && !cells.is_empty()
             {
                 if !sheet.name.is_empty() {
-                    builder.push_heading(2, &sheet.name, None, None);
+                    builder.push_heading(2, &format!("{}{hidden_suffix}", sheet.name), None, None);
                 }
                 builder.push_table_from_cells(cells, Some(page_number), None);
 
@@ -193,7 +265,7 @@ impl ExcelExtractor {
                     sheet.markdown.clone()
                 } else {
                     format!(
-                        "## {}\n\n{}",
+                        "## {}{hidden_suffix}\n\n{}",
                         Self::escape_sheet_name_for_heading(&sheet.name),
                         sheet.markdown
                     )
@@ -221,7 +293,7 @@ impl ExcelExtractor {
                 });
             } else {
                 let content = match name_opt.as_deref() {
-                    Some(n) => format!("## {}\n\n", Self::escape_sheet_name_for_heading(n)),
+                    Some(n) => format!("## {}{hidden_suffix}\n\n", Self::escape_sheet_name_for_heading(n)),
                     None => String::new(),
                 };
 
@@ -345,11 +417,24 @@ impl SyncExtractor for ExcelExtractor {
             _ => ".xlsx",
         };
 
-        let workbook = crate::extraction::excel::read_excel_bytes(content, extension)?;
+        let (workbook, read_warnings) = crate::extraction::excel::read_excel_bytes(content, extension)?;
         let mut budget = SecurityBudget::from_config(config);
         validate_workbook_budget(&workbook, &mut budget)?;
         let mut doc = Self::workbook_to_internal_document(&workbook);
+        doc.processing_warnings.extend(read_warnings);
         doc.mime_type = mime_type.to_string();
+
+        // The sync path (WASM) cannot recurse into embedded objects the way
+        // `extract_content`/`extract_path` do via `ooxml_embedded`, which requires
+        // async pipeline extraction. Name them in a warning instead so a workbook
+        // with embedded files doesn't look fully extracted (xberg-io/xberg#78).
+        #[cfg(feature = "office")]
+        if config.max_archive_depth > 0
+            && let Some(warning) = scan_for_embedded_objects(content, mime_type)
+        {
+            doc.processing_warnings.push(warning);
+        }
+
         Ok(doc)
     }
 }
@@ -382,7 +467,7 @@ impl InternalDocumentExtractor for ExcelExtractor {
             _ => ".xlsx",
         };
 
-        let workbook = {
+        let (workbook, read_warnings) = {
             #[cfg(feature = "tokio-runtime")]
             {
                 if crate::core::batch_mode::is_batch_mode() {
@@ -414,24 +499,62 @@ impl InternalDocumentExtractor for ExcelExtractor {
         let mut budget = SecurityBudget::from_config(config);
         validate_workbook_budget(&workbook, &mut budget)?;
         let mut doc = Self::workbook_to_internal_document(&workbook);
+        doc.processing_warnings.extend(read_warnings);
         doc.mime_type = mime_type.to_string();
+
+        #[cfg(feature = "office")]
+        if config.max_archive_depth > 0 && is_ooxml_zip_mime(mime_type) {
+            let (children, embed_warnings) = crate::extraction::ooxml_embedded::extract_ooxml_embedded_objects(
+                content,
+                "xl/embeddings/",
+                "excel",
+                config,
+            )
+            .await;
+            if !children.is_empty() {
+                doc.children = Some(children);
+            }
+            doc.processing_warnings.extend(embed_warnings);
+        }
+
         Ok(doc)
     }
 
     #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, _config),
+        skip(self, path, config),
         fields(
             extractor.name = self.name(),
         )
     ))]
-    async fn extract_path(&self, path: &Path, mime_type: &str, _config: &ExtractionConfig) -> Result<InternalDocument> {
+    async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let path_str = path
             .to_str()
             .ok_or_else(|| crate::XbergError::validation("Invalid file path".to_string()))?;
 
-        let workbook = crate::extraction::excel::read_excel_file(path_str)?;
+        let (workbook, read_warnings) = crate::extraction::excel::read_excel_file(path_str)?;
         let mut doc = Self::workbook_to_internal_document(&workbook);
+        doc.processing_warnings.extend(read_warnings);
         doc.mime_type = mime_type.to_string();
+
+        #[cfg(not(feature = "office"))]
+        let _ = config;
+
+        #[cfg(feature = "office")]
+        if config.max_archive_depth > 0 && is_ooxml_zip_mime(mime_type) {
+            let file_bytes = crate::core::io::open_file_bytes(path)?;
+            let (children, embed_warnings) = crate::extraction::ooxml_embedded::extract_ooxml_embedded_objects(
+                &file_bytes,
+                "xl/embeddings/",
+                "excel",
+                config,
+            )
+            .await;
+            if !children.is_empty() {
+                doc.children = Some(children);
+            }
+            doc.processing_warnings.extend(embed_warnings);
+        }
+
         Ok(doc)
     }
 
@@ -836,5 +959,88 @@ mod tests {
         );
         assert!(pages[0].content.starts_with("## "), "content must start with H2 marker");
         assert!(pages[0].content.contains("Profit"));
+    }
+
+    /// xberg-io/xberg#119: a sheet named in the `hidden_sheets` workbook-metadata
+    /// entry gets `" (hidden)"` appended to its heading, while a visible sheet's
+    /// heading is untouched; its content is still fully present either way.
+    #[test]
+    fn should_mark_hidden_sheet_heading_but_keep_its_content() {
+        let mut workbook = make_workbook(vec![
+            make_sheet("Visible", Some(vec![vec!["A".to_string()]])),
+            make_sheet("Hidden", Some(vec![vec!["Secret".to_string()]])),
+        ]);
+        workbook
+            .metadata
+            .insert("hidden_sheets".to_string(), "Hidden".to_string());
+
+        let doc = ExcelExtractor::build_internal_document(&workbook);
+        let pages = doc.prebuilt_pages.as_ref().unwrap();
+
+        assert!(pages[0].content.starts_with("## Visible\n"), "{:?}", pages[0].content);
+        assert!(
+            pages[1].content.starts_with("## Hidden (hidden)\n"),
+            "{:?}",
+            pages[1].content
+        );
+        assert!(pages[1].content.contains("Secret"), "hidden sheet content must survive");
+    }
+
+    #[test]
+    fn should_treat_no_sheets_as_hidden_when_metadata_key_is_absent() {
+        let workbook = make_workbook(vec![make_sheet("Sheet1", Some(vec![vec!["A".to_string()]]))]);
+        let doc = ExcelExtractor::build_internal_document(&workbook);
+        let pages = doc.prebuilt_pages.as_ref().unwrap();
+        assert!(pages[0].content.starts_with("## Sheet1\n"), "{:?}", pages[0].content);
+    }
+
+    #[cfg(feature = "office")]
+    fn make_zip_with_entry(entry_path: &str, entry_data: &[u8]) -> Vec<u8> {
+        use std::io::{Cursor, Write};
+        let buf = Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(buf);
+        let options = zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file(entry_path, options).unwrap();
+        zip.write_all(entry_data).unwrap();
+        zip.finish().unwrap().into_inner()
+    }
+
+    /// xberg-io/xberg#78: an OOXML zip carrying files under `xl/embeddings/`
+    /// must be flagged, naming the embedded file, on the sync (WASM) path that
+    /// cannot recurse into them.
+    #[cfg(feature = "office")]
+    #[test]
+    fn should_warn_about_embedded_objects_on_sync_path() {
+        let bytes = make_zip_with_entry("xl/embeddings/Workbook1.xlsx", b"fake embedded workbook bytes");
+        let warning = scan_for_embedded_objects(
+            &bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .expect("embedded object under xl/embeddings/ must produce a warning");
+        assert_eq!(warning.source, "excel");
+        assert_eq!(
+            warning.message,
+            "Workbook contains 1 embedded object that were not extracted (xl/embeddings/Workbook1.xlsx)"
+        );
+    }
+
+    #[cfg(feature = "office")]
+    #[test]
+    fn should_not_warn_when_no_embedded_objects_present() {
+        let bytes = make_zip_with_entry("xl/worksheets/sheet1.xml", b"<worksheet/>");
+        assert!(
+            scan_for_embedded_objects(
+                &bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            .is_none()
+        );
+    }
+
+    #[cfg(feature = "office")]
+    #[test]
+    fn should_not_scan_non_ooxml_zip_mime_types_for_embedded_objects() {
+        let bytes = make_zip_with_entry("xl/embeddings/Object1.bin", b"data");
+        assert!(scan_for_embedded_objects(&bytes, "application/vnd.ms-excel").is_none());
     }
 }

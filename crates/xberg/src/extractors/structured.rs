@@ -43,12 +43,25 @@ fn build_internal_document(
 
     let mut builder = InternalDocumentBuilder::new(source_format);
 
-    if source_format == "json"
-        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&result.content)
-        && value.is_object()
+    // Render document structure (headings, sub-headings, lists) from the parsed value for
+    // every structured format, not just JSON objects: YAML, TOML, and JSONL already parse
+    // into the same `serde_json::Value` shape, and a top-level array (JSONL's natural shape,
+    // and valid JSON on its own) gets per-item structure instead of an opaque code block
+    // (xberg-io/xberg#155).
+    if matches!(source_format, "json" | "jsonl" | "yaml" | "toml")
+        && let Some(value) = result.value.as_ref()
     {
-        build_json_internal_structure(&value, &mut builder, 1, budget)?;
-        return Ok(builder.build());
+        match value {
+            serde_json::Value::Object(_) => {
+                build_json_internal_structure(value, &mut builder, 1, budget)?;
+                return Ok(builder.build());
+            }
+            serde_json::Value::Array(items) if !items.is_empty() => {
+                build_json_array(items, &mut builder, 1, budget)?;
+                return Ok(builder.build());
+            }
+            _ => {}
+        }
     }
 
     budget.account_text(result.content.len())?;
@@ -241,6 +254,16 @@ impl InternalDocumentExtractor for StructuredExtractor {
             Cow::Borrowed("data_format"),
             serde_json::json!(structured_result.format),
         );
+        // Surface the full flattened `path: value` view instead of discarding it
+        // (xberg-io/xberg#166): the structured renderer above only emits headings/lists for
+        // a subset of shapes, so this is the one place a consumer can always get every leaf
+        // field as text, regardless of source format or nesting.
+        if !structured_result.flattened.is_empty() {
+            additional.insert(
+                Cow::Borrowed("flattened_fields"),
+                serde_json::json!(structured_result.flattened),
+            );
+        }
 
         for (key, value) in &structured_result.metadata {
             additional.insert(Cow::Owned(key.clone()), serde_json::json!(value));

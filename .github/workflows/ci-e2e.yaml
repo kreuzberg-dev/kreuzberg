@@ -54,10 +54,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
-
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
 
       - name: Compute FFI source hash
         id: ffi-hash
@@ -202,10 +198,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # fixtures/**/*.json `body_file` entries span nearly every top-level corpus
+      # directory across the 14 language e2e suites -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Setup Rust
         uses: xberg-io/actions/setup-rust@v1
@@ -235,6 +232,9 @@ jobs:
           if [ -f ffi-artifacts/crates/xberg-ffi/xberg-ffi.pc ]; then
             cp ffi-artifacts/crates/xberg-ffi/xberg-ffi.pc crates/xberg-ffi/
           fi
+          # Every matrix.target here builds the same .so, but this step runs for every
+          # lang leg including ones whose task (python/node/wasm/...) links its own native
+          # artifact and never touches this file -- absence is expected, not a failure. ~keep
           chmod +x target/release/libxberg_ffi.so 2>/dev/null || true
           ls -la target/release/
           if [ -f target/release/libxberg_ffi.so ]; then
@@ -283,6 +283,9 @@ jobs:
         run: |
           if [ -n "${ORT_LIB_LOCATION:-}" ] && [ -d "$ORT_LIB_LOCATION" ]; then
             mkdir -p target/release
+            # The setup-onnx-runtime action may vendor ORT as a system package instead of
+            # loose .so files at this path, so the glob can legitimately match nothing;
+            # the ls right below reports the outcome instead of failing silently. ~keep
             cp -f "$ORT_LIB_LOCATION"/libonnxruntime.so* target/release/ || true
             echo "Staged ORT libraries to target/release:"
             ls -la target/release/libonnxruntime.so* 2>/dev/null || echo "No ORT libraries found (may be bundled)"
@@ -293,9 +296,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p e2e/csharp/bin/Debug/net10.0
-          cp -f target/release/libxberg_ffi.so e2e/csharp/bin/Debug/net10.0/ 2>/dev/null || true
+          # This job always runs on ubuntu-latest / x86_64-unknown-linux-gnu and needs:
+          # [build-ffi], which uploads with if-no-files-found: error -- by this point
+          # target/release/libxberg_ffi.so is guaranteed present. A copy failure here is a
+          # real problem (e.g. a broken staging step upstream) and must fail loudly instead
+          # of surfacing as a baffling dlopen error once the .NET tests run.
+          cp -f target/release/libxberg_ffi.so e2e/csharp/bin/Debug/net10.0/
           if [ -f target/release/libonnxruntime.so.1 ]; then
-            cp -f target/release/libonnxruntime.so.1 e2e/csharp/bin/Debug/net10.0/ || true
+            cp -f target/release/libonnxruntime.so.1 e2e/csharp/bin/Debug/net10.0/
           fi
           ls -la e2e/csharp/bin/Debug/net10.0/lib*.so 2>/dev/null || echo "No native libraries found for C#"
 
@@ -476,6 +484,11 @@ jobs:
       - name: Capture swift crash backtrace
         if: ${{ matrix.lang == 'swift' && failure() }}
         shell: bash
+        # Diagnostic-only, and it only runs once the job is ALREADY failure() -- the real
+        # test failure was recorded by the "Run e2e tests (swift, instrumented)" step above.
+        # This step's own internal tools (lldb, core files) are best-effort forensics; if the
+        # last command in the script trips a nonzero exit, that must not overwrite the
+        # already-recorded real failure with a second, unrelated one. ~keep
         continue-on-error: true
         run: |
           set +e

@@ -2564,6 +2564,10 @@ class EmbeddingModelType_Llm extends EmbeddingModelType {
 
 
 /// LLM provider configuration specifying the model and API credentials.
+///
+/// Boxed because `LlmConfig` carries liter-llm's full configuration surface and is
+/// an order of magnitude larger than the other variants, which would otherwise make
+/// every `Preset`/`Custom` value pay for it. ~keep
  final  LlmConfig llm;
 
 /// Create a copy of EmbeddingModelType
@@ -7293,7 +7297,7 @@ extension NodeContentPatterns on NodeContent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( NodeContent_Title value)?  title,TResult Function( NodeContent_Heading value)?  heading,TResult Function( NodeContent_Paragraph value)?  paragraph,TResult Function( NodeContent_List value)?  list,TResult Function( NodeContent_ListItem value)?  listItem,TResult Function( NodeContent_Table value)?  table,TResult Function( NodeContent_Image value)?  image,TResult Function( NodeContent_Code value)?  code,TResult Function( NodeContent_Quote value)?  quote,TResult Function( NodeContent_Formula value)?  formula,TResult Function( NodeContent_Footnote value)?  footnote,TResult Function( NodeContent_Group value)?  group,TResult Function( NodeContent_PageBreak value)?  pageBreak,TResult Function( NodeContent_Slide value)?  slide,TResult Function( NodeContent_DefinitionList value)?  definitionList,TResult Function( NodeContent_DefinitionItem value)?  definitionItem,TResult Function( NodeContent_Citation value)?  citation,TResult Function( NodeContent_Admonition value)?  admonition,TResult Function( NodeContent_RawBlock value)?  rawBlock,TResult Function( NodeContent_MetadataBlock value)?  metadataBlock,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( NodeContent_Title value)?  title,TResult Function( NodeContent_Heading value)?  heading,TResult Function( NodeContent_Paragraph value)?  paragraph,TResult Function( NodeContent_List value)?  list,TResult Function( NodeContent_ListItem value)?  listItem,TResult Function( NodeContent_Table value)?  table,TResult Function( NodeContent_Image value)?  image,TResult Function( NodeContent_Code value)?  code,TResult Function( NodeContent_Quote value)?  quote,TResult Function( NodeContent_Formula value)?  formula,TResult Function( NodeContent_Footnote value)?  footnote,TResult Function( NodeContent_Comment value)?  comment,TResult Function( NodeContent_Group value)?  group,TResult Function( NodeContent_PageBreak value)?  pageBreak,TResult Function( NodeContent_Slide value)?  slide,TResult Function( NodeContent_DefinitionList value)?  definitionList,TResult Function( NodeContent_DefinitionItem value)?  definitionItem,TResult Function( NodeContent_Citation value)?  citation,TResult Function( NodeContent_Admonition value)?  admonition,TResult Function( NodeContent_RawBlock value)?  rawBlock,TResult Function( NodeContent_MetadataBlock value)?  metadataBlock,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case NodeContent_Title() when title != null:
@@ -7307,7 +7311,8 @@ return image(_that);case NodeContent_Code() when code != null:
 return code(_that);case NodeContent_Quote() when quote != null:
 return quote(_that);case NodeContent_Formula() when formula != null:
 return formula(_that);case NodeContent_Footnote() when footnote != null:
-return footnote(_that);case NodeContent_Group() when group != null:
+return footnote(_that);case NodeContent_Comment() when comment != null:
+return comment(_that);case NodeContent_Group() when group != null:
 return group(_that);case NodeContent_PageBreak() when pageBreak != null:
 return pageBreak(_that);case NodeContent_Slide() when slide != null:
 return slide(_that);case NodeContent_DefinitionList() when definitionList != null:
@@ -7334,7 +7339,7 @@ return metadataBlock(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( NodeContent_Title value)  title,required TResult Function( NodeContent_Heading value)  heading,required TResult Function( NodeContent_Paragraph value)  paragraph,required TResult Function( NodeContent_List value)  list,required TResult Function( NodeContent_ListItem value)  listItem,required TResult Function( NodeContent_Table value)  table,required TResult Function( NodeContent_Image value)  image,required TResult Function( NodeContent_Code value)  code,required TResult Function( NodeContent_Quote value)  quote,required TResult Function( NodeContent_Formula value)  formula,required TResult Function( NodeContent_Footnote value)  footnote,required TResult Function( NodeContent_Group value)  group,required TResult Function( NodeContent_PageBreak value)  pageBreak,required TResult Function( NodeContent_Slide value)  slide,required TResult Function( NodeContent_DefinitionList value)  definitionList,required TResult Function( NodeContent_DefinitionItem value)  definitionItem,required TResult Function( NodeContent_Citation value)  citation,required TResult Function( NodeContent_Admonition value)  admonition,required TResult Function( NodeContent_RawBlock value)  rawBlock,required TResult Function( NodeContent_MetadataBlock value)  metadataBlock,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( NodeContent_Title value)  title,required TResult Function( NodeContent_Heading value)  heading,required TResult Function( NodeContent_Paragraph value)  paragraph,required TResult Function( NodeContent_List value)  list,required TResult Function( NodeContent_ListItem value)  listItem,required TResult Function( NodeContent_Table value)  table,required TResult Function( NodeContent_Image value)  image,required TResult Function( NodeContent_Code value)  code,required TResult Function( NodeContent_Quote value)  quote,required TResult Function( NodeContent_Formula value)  formula,required TResult Function( NodeContent_Footnote value)  footnote,required TResult Function( NodeContent_Comment value)  comment,required TResult Function( NodeContent_Group value)  group,required TResult Function( NodeContent_PageBreak value)  pageBreak,required TResult Function( NodeContent_Slide value)  slide,required TResult Function( NodeContent_DefinitionList value)  definitionList,required TResult Function( NodeContent_DefinitionItem value)  definitionItem,required TResult Function( NodeContent_Citation value)  citation,required TResult Function( NodeContent_Admonition value)  admonition,required TResult Function( NodeContent_RawBlock value)  rawBlock,required TResult Function( NodeContent_MetadataBlock value)  metadataBlock,}){
 final _that = this;
 switch (_that) {
 case NodeContent_Title():
@@ -7348,7 +7353,8 @@ return image(_that);case NodeContent_Code():
 return code(_that);case NodeContent_Quote():
 return quote(_that);case NodeContent_Formula():
 return formula(_that);case NodeContent_Footnote():
-return footnote(_that);case NodeContent_Group():
+return footnote(_that);case NodeContent_Comment():
+return comment(_that);case NodeContent_Group():
 return group(_that);case NodeContent_PageBreak():
 return pageBreak(_that);case NodeContent_Slide():
 return slide(_that);case NodeContent_DefinitionList():
@@ -7371,7 +7377,7 @@ return metadataBlock(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( NodeContent_Title value)?  title,TResult? Function( NodeContent_Heading value)?  heading,TResult? Function( NodeContent_Paragraph value)?  paragraph,TResult? Function( NodeContent_List value)?  list,TResult? Function( NodeContent_ListItem value)?  listItem,TResult? Function( NodeContent_Table value)?  table,TResult? Function( NodeContent_Image value)?  image,TResult? Function( NodeContent_Code value)?  code,TResult? Function( NodeContent_Quote value)?  quote,TResult? Function( NodeContent_Formula value)?  formula,TResult? Function( NodeContent_Footnote value)?  footnote,TResult? Function( NodeContent_Group value)?  group,TResult? Function( NodeContent_PageBreak value)?  pageBreak,TResult? Function( NodeContent_Slide value)?  slide,TResult? Function( NodeContent_DefinitionList value)?  definitionList,TResult? Function( NodeContent_DefinitionItem value)?  definitionItem,TResult? Function( NodeContent_Citation value)?  citation,TResult? Function( NodeContent_Admonition value)?  admonition,TResult? Function( NodeContent_RawBlock value)?  rawBlock,TResult? Function( NodeContent_MetadataBlock value)?  metadataBlock,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( NodeContent_Title value)?  title,TResult? Function( NodeContent_Heading value)?  heading,TResult? Function( NodeContent_Paragraph value)?  paragraph,TResult? Function( NodeContent_List value)?  list,TResult? Function( NodeContent_ListItem value)?  listItem,TResult? Function( NodeContent_Table value)?  table,TResult? Function( NodeContent_Image value)?  image,TResult? Function( NodeContent_Code value)?  code,TResult? Function( NodeContent_Quote value)?  quote,TResult? Function( NodeContent_Formula value)?  formula,TResult? Function( NodeContent_Footnote value)?  footnote,TResult? Function( NodeContent_Comment value)?  comment,TResult? Function( NodeContent_Group value)?  group,TResult? Function( NodeContent_PageBreak value)?  pageBreak,TResult? Function( NodeContent_Slide value)?  slide,TResult? Function( NodeContent_DefinitionList value)?  definitionList,TResult? Function( NodeContent_DefinitionItem value)?  definitionItem,TResult? Function( NodeContent_Citation value)?  citation,TResult? Function( NodeContent_Admonition value)?  admonition,TResult? Function( NodeContent_RawBlock value)?  rawBlock,TResult? Function( NodeContent_MetadataBlock value)?  metadataBlock,}){
 final _that = this;
 switch (_that) {
 case NodeContent_Title() when title != null:
@@ -7385,7 +7391,8 @@ return image(_that);case NodeContent_Code() when code != null:
 return code(_that);case NodeContent_Quote() when quote != null:
 return quote(_that);case NodeContent_Formula() when formula != null:
 return formula(_that);case NodeContent_Footnote() when footnote != null:
-return footnote(_that);case NodeContent_Group() when group != null:
+return footnote(_that);case NodeContent_Comment() when comment != null:
+return comment(_that);case NodeContent_Group() when group != null:
 return group(_that);case NodeContent_PageBreak() when pageBreak != null:
 return pageBreak(_that);case NodeContent_Slide() when slide != null:
 return slide(_that);case NodeContent_DefinitionList() when definitionList != null:
@@ -7411,7 +7418,7 @@ return metadataBlock(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  title,TResult Function( PlatformInt64 level,  String text)?  heading,TResult Function( String text)?  paragraph,TResult Function( bool ordered)?  list,TResult Function( String text)?  listItem,TResult Function( TableGrid grid)?  table,TResult Function( String description,  PlatformInt64 imageIndex,  String src)?  image,TResult Function( String text,  String language)?  code,TResult Function()?  quote,TResult Function( String text)?  formula,TResult Function( String text)?  footnote,TResult Function( String label,  PlatformInt64 headingLevel,  String headingText)?  group,TResult Function()?  pageBreak,TResult Function( PlatformInt64 number,  String title)?  slide,TResult Function()?  definitionList,TResult Function( String term,  String definition)?  definitionItem,TResult Function( String key,  String text)?  citation,TResult Function( String kind,  String title)?  admonition,TResult Function( String format,  String content)?  rawBlock,TResult Function()?  metadataBlock,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String text)?  title,TResult Function( PlatformInt64 level,  String text)?  heading,TResult Function( String text)?  paragraph,TResult Function( bool ordered)?  list,TResult Function( String text)?  listItem,TResult Function( TableGrid grid)?  table,TResult Function( String description,  PlatformInt64 imageIndex,  String src)?  image,TResult Function( String text,  String language)?  code,TResult Function()?  quote,TResult Function( String text)?  formula,TResult Function( String text)?  footnote,TResult Function( String text)?  comment,TResult Function( String label,  PlatformInt64 headingLevel,  String headingText)?  group,TResult Function()?  pageBreak,TResult Function( PlatformInt64 number,  String title)?  slide,TResult Function()?  definitionList,TResult Function( String term,  String definition)?  definitionItem,TResult Function( String key,  String text)?  citation,TResult Function( String kind,  String title)?  admonition,TResult Function( String format,  String content)?  rawBlock,TResult Function()?  metadataBlock,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case NodeContent_Title() when title != null:
 return title(_that.text);case NodeContent_Heading() when heading != null:
@@ -7424,7 +7431,8 @@ return image(_that.description,_that.imageIndex,_that.src);case NodeContent_Code
 return code(_that.text,_that.language);case NodeContent_Quote() when quote != null:
 return quote();case NodeContent_Formula() when formula != null:
 return formula(_that.text);case NodeContent_Footnote() when footnote != null:
-return footnote(_that.text);case NodeContent_Group() when group != null:
+return footnote(_that.text);case NodeContent_Comment() when comment != null:
+return comment(_that.text);case NodeContent_Group() when group != null:
 return group(_that.label,_that.headingLevel,_that.headingText);case NodeContent_PageBreak() when pageBreak != null:
 return pageBreak();case NodeContent_Slide() when slide != null:
 return slide(_that.number,_that.title);case NodeContent_DefinitionList() when definitionList != null:
@@ -7451,7 +7459,7 @@ return metadataBlock();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  title,required TResult Function( PlatformInt64 level,  String text)  heading,required TResult Function( String text)  paragraph,required TResult Function( bool ordered)  list,required TResult Function( String text)  listItem,required TResult Function( TableGrid grid)  table,required TResult Function( String description,  PlatformInt64 imageIndex,  String src)  image,required TResult Function( String text,  String language)  code,required TResult Function()  quote,required TResult Function( String text)  formula,required TResult Function( String text)  footnote,required TResult Function( String label,  PlatformInt64 headingLevel,  String headingText)  group,required TResult Function()  pageBreak,required TResult Function( PlatformInt64 number,  String title)  slide,required TResult Function()  definitionList,required TResult Function( String term,  String definition)  definitionItem,required TResult Function( String key,  String text)  citation,required TResult Function( String kind,  String title)  admonition,required TResult Function( String format,  String content)  rawBlock,required TResult Function()  metadataBlock,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String text)  title,required TResult Function( PlatformInt64 level,  String text)  heading,required TResult Function( String text)  paragraph,required TResult Function( bool ordered)  list,required TResult Function( String text)  listItem,required TResult Function( TableGrid grid)  table,required TResult Function( String description,  PlatformInt64 imageIndex,  String src)  image,required TResult Function( String text,  String language)  code,required TResult Function()  quote,required TResult Function( String text)  formula,required TResult Function( String text)  footnote,required TResult Function( String text)  comment,required TResult Function( String label,  PlatformInt64 headingLevel,  String headingText)  group,required TResult Function()  pageBreak,required TResult Function( PlatformInt64 number,  String title)  slide,required TResult Function()  definitionList,required TResult Function( String term,  String definition)  definitionItem,required TResult Function( String key,  String text)  citation,required TResult Function( String kind,  String title)  admonition,required TResult Function( String format,  String content)  rawBlock,required TResult Function()  metadataBlock,}) {final _that = this;
 switch (_that) {
 case NodeContent_Title():
 return title(_that.text);case NodeContent_Heading():
@@ -7464,7 +7472,8 @@ return image(_that.description,_that.imageIndex,_that.src);case NodeContent_Code
 return code(_that.text,_that.language);case NodeContent_Quote():
 return quote();case NodeContent_Formula():
 return formula(_that.text);case NodeContent_Footnote():
-return footnote(_that.text);case NodeContent_Group():
+return footnote(_that.text);case NodeContent_Comment():
+return comment(_that.text);case NodeContent_Group():
 return group(_that.label,_that.headingLevel,_that.headingText);case NodeContent_PageBreak():
 return pageBreak();case NodeContent_Slide():
 return slide(_that.number,_that.title);case NodeContent_DefinitionList():
@@ -7487,7 +7496,7 @@ return metadataBlock();}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  title,TResult? Function( PlatformInt64 level,  String text)?  heading,TResult? Function( String text)?  paragraph,TResult? Function( bool ordered)?  list,TResult? Function( String text)?  listItem,TResult? Function( TableGrid grid)?  table,TResult? Function( String description,  PlatformInt64 imageIndex,  String src)?  image,TResult? Function( String text,  String language)?  code,TResult? Function()?  quote,TResult? Function( String text)?  formula,TResult? Function( String text)?  footnote,TResult? Function( String label,  PlatformInt64 headingLevel,  String headingText)?  group,TResult? Function()?  pageBreak,TResult? Function( PlatformInt64 number,  String title)?  slide,TResult? Function()?  definitionList,TResult? Function( String term,  String definition)?  definitionItem,TResult? Function( String key,  String text)?  citation,TResult? Function( String kind,  String title)?  admonition,TResult? Function( String format,  String content)?  rawBlock,TResult? Function()?  metadataBlock,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String text)?  title,TResult? Function( PlatformInt64 level,  String text)?  heading,TResult? Function( String text)?  paragraph,TResult? Function( bool ordered)?  list,TResult? Function( String text)?  listItem,TResult? Function( TableGrid grid)?  table,TResult? Function( String description,  PlatformInt64 imageIndex,  String src)?  image,TResult? Function( String text,  String language)?  code,TResult? Function()?  quote,TResult? Function( String text)?  formula,TResult? Function( String text)?  footnote,TResult? Function( String text)?  comment,TResult? Function( String label,  PlatformInt64 headingLevel,  String headingText)?  group,TResult? Function()?  pageBreak,TResult? Function( PlatformInt64 number,  String title)?  slide,TResult? Function()?  definitionList,TResult? Function( String term,  String definition)?  definitionItem,TResult? Function( String key,  String text)?  citation,TResult? Function( String kind,  String title)?  admonition,TResult? Function( String format,  String content)?  rawBlock,TResult? Function()?  metadataBlock,}) {final _that = this;
 switch (_that) {
 case NodeContent_Title() when title != null:
 return title(_that.text);case NodeContent_Heading() when heading != null:
@@ -7500,7 +7509,8 @@ return image(_that.description,_that.imageIndex,_that.src);case NodeContent_Code
 return code(_that.text,_that.language);case NodeContent_Quote() when quote != null:
 return quote();case NodeContent_Formula() when formula != null:
 return formula(_that.text);case NodeContent_Footnote() when footnote != null:
-return footnote(_that.text);case NodeContent_Group() when group != null:
+return footnote(_that.text);case NodeContent_Comment() when comment != null:
+return comment(_that.text);case NodeContent_Group() when group != null:
 return group(_that.label,_that.headingLevel,_that.headingText);case NodeContent_PageBreak() when pageBreak != null:
 return pageBreak();case NodeContent_Slide() when slide != null:
 return slide(_that.number,_that.title);case NodeContent_DefinitionList() when definitionList != null:
@@ -8223,6 +8233,73 @@ class _$NodeContent_FootnoteCopyWithImpl<$Res>
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? text = null,}) {
   return _then(NodeContent_Footnote(
+text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class NodeContent_Comment extends NodeContent {
+  const NodeContent_Comment({required this.text}): super._();
+
+
+/// The comment body text.
+ final  String text;
+
+/// Create a copy of NodeContent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$NodeContent_CommentCopyWith<NodeContent_Comment> get copyWith => _$NodeContent_CommentCopyWithImpl<NodeContent_Comment>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is NodeContent_Comment&&(identical(other.text, text) || other.text == text));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,text);
+
+@override
+String toString() {
+  return 'NodeContent.comment(text: $text)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $NodeContent_CommentCopyWith<$Res> implements $NodeContentCopyWith<$Res> {
+  factory $NodeContent_CommentCopyWith(NodeContent_Comment value, $Res Function(NodeContent_Comment) _then) = _$NodeContent_CommentCopyWithImpl;
+@useResult
+$Res call({
+ String text
+});
+
+
+
+
+}
+/// @nodoc
+class _$NodeContent_CommentCopyWithImpl<$Res>
+    implements $NodeContent_CommentCopyWith<$Res> {
+  _$NodeContent_CommentCopyWithImpl(this._self, this._then);
+
+  final NodeContent_Comment _self;
+  final $Res Function(NodeContent_Comment) _then;
+
+/// Create a copy of NodeContent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? text = null,}) {
+  return _then(NodeContent_Comment(
 text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -10754,6 +10831,9 @@ class RerankerModelType_Llm extends RerankerModelType {
 
 
 /// LLM provider configuration specifying the model and API credentials.
+///
+/// Boxed for the same reason as `EmbeddingModelType::Llm` -- kept in step so the two
+/// parallel enums present one shape to the generated bindings. ~keep
  final  LlmConfig llm;
 
 /// Create a copy of RerankerModelType

@@ -11,10 +11,20 @@ use crate::types::metadata::Metadata;
 use ahash::AHashMap;
 use async_trait::async_trait;
 
+/// `ProcessingWarning::source` used for every degradation reported by this extractor.
+const XML_WARNING_SOURCE: &str = "xml";
+
 /// Decode raw XML bytes to a UTF-8 string, honoring the `<?xml encoding=...?>`
 /// declaration when present and falling back to charset detection otherwise.
 /// Strips a leading BOM.
-fn decode_xml_to_utf8(content: &[u8]) -> String {
+///
+/// Returns whether any bytes were lost to a U+FFFD replacement (#395). This is the one
+/// call site in the crate where that can happen under an *explicit* encoding rather
+/// than only through `quality`'s chardetng detection: a declared `<?xml encoding=...?>`
+/// that does not match the actual bytes decodes deterministically with errors in both
+/// build configurations, so `decode_with_provenance` must be consulted for the declared
+/// path too, not only the detection fallback.
+fn decode_xml_to_utf8(content: &[u8]) -> (String, bool) {
     let prolog_len = content.len().min(256);
     let prolog = String::from_utf8_lossy(&content[..prolog_len]);
     let declared = prolog
@@ -24,21 +34,20 @@ fn decode_xml_to_utf8(content: &[u8]) -> String {
         .map(str::trim)
         .filter(|s| !s.is_empty());
 
-    let decoded = if let Some(label) = declared
-        && let Some(encoding) = encoding_rs::Encoding::for_label(label.as_bytes())
-    {
-        encoding.decode(content).0.into_owned()
-    } else {
-        #[cfg(feature = "quality")]
-        {
-            crate::utils::safe_decode(content, None)
-        }
-        #[cfg(not(feature = "quality"))]
-        {
-            String::from_utf8_lossy(content).into_owned()
-        }
-    };
-    crate::utils::strip_bom(&decoded).to_string()
+    // `decode_with_provenance` honors a valid `declared` label the same way the previous
+    // manual `encoding_rs::Encoding::for_label` check did, and falls through to
+    // detection/lossy decoding for `None` or an unrecognized label -- so passing `declared`
+    // through unconditionally reproduces the old branching without duplicating it here.
+    //
+    // One deliberate behaviour change under `quality`: the declared-label path now also
+    // runs `fix_mojibake_internal`, which the old raw `encoding.decode()` call skipped.
+    // That is what every other extractor already does with its decoded text, so XML was
+    // the outlier; the alternative would be to keep XML uniquely un-repaired. ~keep
+    let outcome = crate::utils::decode_with_provenance(content, declared);
+    (
+        crate::utils::strip_bom(&outcome.text).to_string(),
+        outcome.replaced_characters,
+    )
 }
 
 /// Build an `InternalDocument` from XML content by parsing element hierarchy.
@@ -58,7 +67,14 @@ fn build_internal_document(content: &[u8], mime_type: &str, budget: &mut Securit
     let mut doc = InternalDocument::new("xml");
     let is_svg = mime_type == "image/svg+xml";
 
-    let decoded = decode_xml_to_utf8(content);
+    let (decoded, decoded_lossily) = decode_xml_to_utf8(content);
+    if decoded_lossily {
+        crate::core::diagnostics::push_lossy_decode_warning(
+            &mut doc.processing_warnings,
+            XML_WARNING_SOURCE,
+            "XML source",
+        );
+    }
     // No reader-level trim_text: EntityReader coalesces text fragments around
     // entity references, and trimming fragments first would corrupt spacing.
     // Text is trimmed below, after coalescing. ~keep
@@ -160,10 +176,29 @@ fn build_internal_document(content: &[u8], mime_type: &str, budget: &mut Securit
                 }
             }
             Ok(Event::Eof) => break,
-            Err(_) => break,
+            // A malformed event ends the parse; everything after it is lost, so
+            // say so rather than returning a silently truncated document (#134).
+            Err(e) => {
+                crate::core::diagnostics::push_truncated_parse_warning(
+                    &mut doc.processing_warnings,
+                    XML_WARNING_SOURCE,
+                    "the XML element tree",
+                    &e,
+                );
+                break;
+            }
             _ => {}
         }
     }
+
+    // `check_end_names` is off, so a document cut off mid-tree never raises a parser
+    // error — it just reaches EOF with elements still on the stack. Report that rather
+    // than handing back a truncated tree that looks complete (#134).
+    crate::core::diagnostics::push_unclosed_elements_warning(
+        &mut doc.processing_warnings,
+        XML_WARNING_SOURCE,
+        &element_stack,
+    );
 
     Ok(doc)
 }
@@ -309,5 +344,99 @@ mod tests {
             ]
         );
         assert_eq!(extractor.priority(), 50);
+    }
+
+    /// Warnings emitted for a lossy decode specifically, identified by message content
+    /// since `XML_WARNING_SOURCE` is also used for truncation and unclosed-element
+    /// warnings.
+    fn decode_warnings(doc: &InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == XML_WARNING_SOURCE && w.message.contains("not valid UTF-8"))
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #395: an explicit `<?xml encoding=...?>` declaration is the one place in this
+    /// extractor where `replaced_characters` is reachable deterministically under
+    /// *both* build configurations. The declared label is handed straight to
+    /// `encoding_rs` and never passes through `quality`'s chardetng detection, so a
+    /// declaration that does not match the actual bytes always decodes with errors --
+    /// unlike the no-declaration path below, whose lossy outcome depends on detection.
+    #[tokio::test]
+    async fn should_warn_when_declared_encoding_does_not_match_the_bytes() {
+        let extractor = XmlExtractor::new();
+        let config = ExtractionConfig::default();
+        let mut content = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><root>".to_vec();
+        content.extend_from_slice(&[0xFF, 0xFE]);
+        content.extend_from_slice(b"</root>");
+
+        let result = extractor
+            .extract_content(&content, "application/xml", &config)
+            .await
+            .expect("extraction of a mismatched declared encoding must still succeed");
+
+        let warnings = decode_warnings(&result);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one decode warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("replacement character"),
+            "warning must describe the lossy decode, got {warnings:?}"
+        );
+    }
+
+    /// #395: with no `<?xml encoding=...?>` declaration, invalid UTF-8 bytes fall
+    /// through to charset detection/lossy decoding and must still be reported.
+    ///
+    /// Deliberately not run under `quality`: there chardetng resolves these bytes to a
+    /// single-byte encoding that maps all of 0x00-0xFF, so nothing is *replaced* -- see
+    /// the identical note on `extractors::text::should_warn_when_text_source_is_not_valid_utf8`.
+    #[cfg(not(feature = "quality"))]
+    #[tokio::test]
+    async fn should_warn_when_undeclared_source_is_not_valid_utf8() {
+        let extractor = XmlExtractor::new();
+        let config = ExtractionConfig::default();
+        let mut content = b"<root>".to_vec();
+        content.extend_from_slice(&[0xFF, 0xFE]);
+        content.extend_from_slice(b"</root>");
+
+        let result = extractor
+            .extract_content(&content, "application/xml", &config)
+            .await
+            .expect("extraction of invalid UTF-8 must still succeed");
+
+        let warnings = decode_warnings(&result);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one decode warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("replacement character"),
+            "warning must describe the lossy decode, got {warnings:?}"
+        );
+    }
+
+    /// A valid UTF-8 document -- declared or not -- must not produce a lossy-decode
+    /// warning.
+    #[tokio::test]
+    async fn valid_utf8_xml_source_produces_zero_decode_warnings() {
+        let extractor = XmlExtractor::new();
+        let config = ExtractionConfig::default();
+        let content = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><root>Hello</root>";
+
+        let result = extractor
+            .extract_content(content, "application/xml", &config)
+            .await
+            .expect("extraction should succeed");
+
+        assert!(
+            decode_warnings(&result).is_empty(),
+            "valid UTF-8 must not warn about a lossy decode, got {:?}",
+            decode_warnings(&result)
+        );
     }
 }

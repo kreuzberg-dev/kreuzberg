@@ -248,15 +248,23 @@
             >
               <div class="space-y-1">
                 <p id="error-title" class="text-base font-semibold text-white">
-                  File too large for the in-browser demo
+                  File is over the demo's size limit
                 </p>
                 <p id="error-desc" class="text-sm font-light text-white">
-                  This demo runs entirely in your browser via WebAssembly, so it's capped by the browser sandbox's
-                  memory limits — that's a constraint of the demo, not a problem with your file. For large or
-                  multi-page documents, use the CLI (`xberg extract &lt;file&gt;`) or API (`curl -F
-                  "files=@document.pdf" http://localhost:8000/extract`), which run natively without this ceiling.
+                  This demo caps uploads at 10MB so one document can't freeze the browser tab — it is a limit chosen
+                  for the demo, not a limit of Xberg or WebAssembly, and the library handles far larger files. Extract
+                  it anyway below, or use the CLI (`xberg extract &lt;file&gt;`) or API (`curl -F "files=@document.pdf"
+                  http://localhost:8000/extract`).
                 </p>
               </div>
+              <button
+                id="btn-try-anyway"
+                type="button"
+                style="display: none"
+                class="mt-4 self-start cursor-pointer rounded-[8px] border border-green bg-dark-purple px-4 py-2 font-sora text-sm text-green transition-colors hover:bg-black"
+              >
+                Extract it anyway
+              </button>
             </div>
 
             <div
@@ -357,6 +365,7 @@
     const fileInfo = document.getElementById("file-info");
     const outputScreen = document.getElementById("output-screen");
     const btnBack = document.getElementById("btn-back");
+    const btnTryAnyway = document.getElementById("btn-try-anyway");
 
     // ── Structured logger ──────────────────────────────────────────────────
     // All demo output is prefixed with [xberg/wasm] so you can filter
@@ -394,17 +403,44 @@
     let resolvedVersion = null;
     let wasmCdnBase = null;
 
-    // ── Sandbox limits ────────────────────────────────────────────────────
-    // The WASM build has a hard memory ceiling around 2MB of input (single
-    // thread, no native acceleration, browser-limited heap). This is a
-    // limitation of running in a browser sandbox, not a judgment on the
-    // document — the CLI/API/library extract large and multi-page documents
-    // without this ceiling because they run natively.
-    const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // ~2MB — WASM engine hard limit
+    // ── Upload size limit ─────────────────────────────────────────────────
+    // This cap is a demo policy, not an engine limit. The WASM module sets no
+    // --max-memory/--initial-memory, so its heap grows dynamically and the
+    // library itself imposes no upload ceiling. What the cap buys us: the file
+    // is held in browser memory and extracted on a single worker thread, where
+    // peak memory runs to several multiples of the input and long extractions
+    // hit the 30s worker timeout below. 10MB covers the formats that carry
+    // preview payloads (Apple Pages/Keynote, docx with embedded previews)
+    // with headroom. Bigger files stay reachable on purpose — the "Extract it
+    // anyway" button bypasses the cap for one file, and ?maxUploadMB=<n>
+    // raises it for the whole session.
+    //
+    // The one genuine wasm32-only ceiling is a different thing that happens to
+    // share the number 2MB: MAX_HTML_SIZE_BYTES in
+    // crates/xberg/src/extraction/html/stack_management.rs caps the *HTML
+    // markup string* because the fixed WASM stack cannot carry the recursive
+    // HTML→markdown converter (native builds run it on a 16MB-stack thread).
+    // It never applies to a PDF, a .pages, or any other non-HTML input.
+    const DEFAULT_MAX_UPLOAD_MB = 10;
+    // Anything past this is a typo or an attempt to make the tab unresponsive:
+    // no document this demo can finish inside the 30s timeout comes close.
+    const MAX_UPLOAD_MB_CEILING = 512;
+    const MAX_UPLOAD_MB = (() => {
+      const raw = new URLSearchParams(window.location.search).get("maxUploadMB");
+      if (raw === null) return DEFAULT_MAX_UPLOAD_MB;
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0 || parsed > MAX_UPLOAD_MB_CEILING) {
+        log.warn("ignoring out-of-range maxUploadMB override", raw);
+        return DEFAULT_MAX_UPLOAD_MB;
+      }
+      log.info("upload cap overridden via query string", { maxUploadMB: parsed });
+      return parsed;
+    })();
+    const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
     const NATIVE_TOOLS_HINT =
       'Use the CLI (`xberg extract <file>`) or API ' +
       '(`curl -F "files=@document.pdf" http://localhost:8000/extract`) for documents like this — ' +
-      "both run natively, without the browser sandbox's size and memory limits.";
+      "both run natively, with no size cap.";
 
     const versionText = document.getElementById("wasm-version-text");
     const versionBadge = document.getElementById("wasm-version");
@@ -681,9 +717,22 @@
       }
 
       // ── Process File ───────────────────────────────────────────────────────
-      async function processFile(file) {
+      // The file whose size exceeded MAX_UPLOAD_BYTES, parked so #btn-try-anyway
+      // can re-run it with the cap waived. Cleared on every entry to processFile
+      // and by resetUI so it can never leak across files.
+      let oversizeFile = null;
+
+      async function processFile(file, { allowOversize = false } = {}) {
+        const errorBox = document.getElementById("error-message");
+        // Every entry starts from a clean error state — this is what keeps the
+        // "Extract it anyway" button (and the red border) from surviving into
+        // the next file, the next error, or the retry itself.
+        if (errorBox) errorBox.style.display = "none";
+        if (btnTryAnyway) btnTryAnyway.style.display = "none";
+        fileInfo.style.borderColor = "";
+        oversizeFile = null;
+
         if (!wasmCdnBase) {
-          const errorBox = document.getElementById("error-message");
           if (errorBox) {
             errorBox.style.display = "flex";
             document.getElementById("error-title").textContent = "Not ready";
@@ -700,16 +749,19 @@
         btnBack.style.display = "flex";
         fileInfo.style.display = "flex";
 
-        if (file.size > MAX_UPLOAD_BYTES) {
-          const errorBox = document.getElementById("error-message");
+        if (!allowOversize && file.size > MAX_UPLOAD_BYTES) {
+          log.warn("upload over demo cap", { file: file.name, bytes: file.size, capMB: MAX_UPLOAD_MB });
           if (errorBox) {
             errorBox.style.display = "flex";
             fileInfo.style.borderColor = "#FF456D";
-            document.getElementById("error-title").textContent = "File too large for the in-browser demo";
+            document.getElementById("error-title").textContent = "File is over the demo's size limit";
             document.getElementById("error-desc").textContent =
-              `This demo runs entirely in your browser via WebAssembly, so it's capped at ` +
-              `${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0)}MB by the browser sandbox's memory limits — ` +
-              `that's a constraint of the demo, not a problem with your file. ${NATIVE_TOOLS_HINT}`;
+              `This demo caps uploads at ${MAX_UPLOAD_MB}MB so one document can't freeze the browser tab — ` +
+              `it is a limit chosen for the demo, not a limit of Xberg or WebAssembly, and the library handles ` +
+              `far larger files. Extract it anyway below, or use the CLI (\`xberg extract <file>\`) or API ` +
+              `(\`curl -F "files=@document.pdf" http://localhost:8000/extract\`).`;
+            oversizeFile = file;
+            if (btnTryAnyway) btnTryAnyway.style.display = "block";
           }
           return;
         }
@@ -749,7 +801,6 @@
           extractPhase.end();
           log.error("extraction failed", e);
           outputScreen.style.display = "none";
-          const errorBox = document.getElementById("error-message");
           if (errorBox) {
             errorBox.style.display = "flex";
             fileInfo.style.borderColor = "#FF456D";
@@ -771,10 +822,26 @@
         btnBack.style.display = "none";
         const errorBox = document.getElementById("error-message");
         if (errorBox) errorBox.style.display = "none";
+        if (btnTryAnyway) btnTryAnyway.style.display = "none";
+        oversizeFile = null;
         uploadScreen.style.display = "flex";
       }
       btnBack.addEventListener("click", resetUI, false);
       document.getElementById("btn-remove-file").addEventListener("click", resetUI, false);
+
+      // ── Extract it anyway ──────────────────────────────────────────────────
+      // Re-runs the parked file with the size cap waived. processFile clears
+      // oversizeFile on entry, so a second click cannot re-submit the file.
+      btnTryAnyway?.addEventListener(
+        "click",
+        () => {
+          const pending = oversizeFile;
+          if (!pending) return;
+          log.info("extracting over-cap file on request", { file: pending.name, bytes: pending.size });
+          processFile(pending, { allowOversize: true });
+        },
+        false,
+      );
 
       // ── Copy ───────────────────────────────────────────────────────────────
       const copyFeedback = document.getElementById("copy-feedback");

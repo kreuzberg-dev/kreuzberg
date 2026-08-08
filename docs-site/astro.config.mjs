@@ -205,6 +205,11 @@ export default defineConfig({
                     {label : "Kubernetes", slug : "guides/kubernetes"},
                     {label : "API Server", slug : "guides/api-server"},
                     {
+                      label : "Concurrency & Scaling",
+                      slug : "guides/concurrency",
+                    },
+                    {label : "Observability", slug : "guides/observability"},
+                    {
                       label : "MCP Integration",
                       slug : "guides/mcp-integration",
                     },

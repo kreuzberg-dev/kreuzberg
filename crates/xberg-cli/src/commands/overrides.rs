@@ -7,12 +7,12 @@
 #[cfg(feature = "ocr-surface")]
 use anyhow::Context as _;
 use anyhow::{Result, bail};
-#[cfg(any(feature = "core-cli", feature = "analysis"))]
-use xberg::ChunkingConfig;
 #[cfg(feature = "analysis")]
 use xberg::LanguageDetectionConfig;
 #[cfg(feature = "ocr-surface")]
 use xberg::OcrConfig;
+#[cfg(any(feature = "core-cli", feature = "analysis"))]
+use xberg::{BreadcrumbTarget, ChunkingConfig};
 use xberg::{ExecutionProviderType, ExtractionConfig, LlmConfig};
 
 use xberg::JupyterCellRendering;
@@ -78,6 +78,28 @@ impl From<AccelerationArg> for ExecutionProviderType {
             AccelerationArg::CoreMl => ExecutionProviderType::CoreMl,
             AccelerationArg::Cuda => ExecutionProviderType::Cuda,
             AccelerationArg::TensorRt => ExecutionProviderType::TensorRt,
+        }
+    }
+}
+
+/// Where the heading-path breadcrumb is written when Markdown chunking prepends
+/// heading context. See [`xberg::BreadcrumbTarget`] for the dense-vs-lexical
+/// retrieval trade-off.
+#[cfg(any(feature = "core-cli", feature = "analysis"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum BreadcrumbTargetArg {
+    /// Prepend the breadcrumb into chunk content (default).
+    Content,
+    /// Keep content clean; rely on `ChunkMetadata::heading_path` only.
+    Metadata,
+}
+
+#[cfg(any(feature = "core-cli", feature = "analysis"))]
+impl From<BreadcrumbTargetArg> for BreadcrumbTarget {
+    fn from(arg: BreadcrumbTargetArg) -> Self {
+        match arg {
+            BreadcrumbTargetArg::Content => BreadcrumbTarget::Content,
+            BreadcrumbTargetArg::Metadata => BreadcrumbTarget::Metadata,
         }
     }
 }
@@ -220,6 +242,12 @@ pub struct ExtractionOverrides {
     #[cfg(any(feature = "core-cli", feature = "analysis"))]
     #[arg(long)]
     pub chunking_tokenizer: Option<String>,
+
+    /// Where the heading-path breadcrumb is written when Markdown chunking prepends
+    /// heading context (content, metadata, or both). Default: content.
+    #[cfg(any(feature = "core-cli", feature = "analysis"))]
+    #[arg(long, value_enum)]
+    pub chunk_breadcrumb_target: Option<BreadcrumbTargetArg>,
 
     /// Content rendering format (plain, markdown, djot, html).
     /// Controls the format of extracted content.
@@ -390,6 +418,16 @@ pub struct ExtractionOverrides {
     #[cfg(feature = "html")]
     #[arg(long)]
     pub html_no_embed_css: bool,
+
+    /// CSV/TSV field delimiter (single ASCII character, e.g. ";", "|", "\t").
+    /// When unset, the delimiter is auto-detected from the file.
+    #[arg(long, value_name = "CHAR")]
+    pub csv_delimiter: Option<String>,
+
+    /// Line prefix marking a CSV/TSV comment line to skip entirely (e.g. "#").
+    /// Can be specified multiple times. Default: no comment filtering.
+    #[arg(long, value_name = "PREFIX")]
+    pub csv_comment_prefix: Vec<String>,
 }
 
 impl ExtractionOverrides {
@@ -509,6 +547,15 @@ impl ExtractionOverrides {
             );
         }
 
+        if let Some(ref delimiter) = self.csv_delimiter
+            && !(delimiter.len() == 1 && delimiter.is_ascii())
+        {
+            bail!(
+                "Invalid CSV delimiter '{}'. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|').",
+                delimiter
+            );
+        }
+
         Ok(())
     }
 
@@ -541,6 +588,7 @@ impl ExtractionOverrides {
         self.apply_email(config);
         self.apply_cache(config);
         self.apply_html_styled(config);
+        self.apply_csv(config);
         if let Some(key) = resolved_api_key {
             apply_llm_api_key(config, &key);
         }
@@ -716,6 +764,15 @@ impl ExtractionOverrides {
                     chunking_config
                 };
 
+                let chunking_config = if let Some(target) = self.chunk_breadcrumb_target {
+                    ChunkingConfig {
+                        breadcrumb_target: target.into(),
+                        ..chunking_config
+                    }
+                } else {
+                    chunking_config
+                };
+
                 config.chunking = Some(chunking_config);
             } else {
                 config.chunking = None;
@@ -738,6 +795,10 @@ impl ExtractionOverrides {
                     model: model.clone(),
                     cache_dir: None,
                 };
+            }
+
+            if let Some(target) = self.chunk_breadcrumb_target {
+                chunking.breadcrumb_target = target.into();
             }
         }
     }
@@ -965,6 +1026,20 @@ impl ExtractionOverrides {
 
                 config.html_output = Some(html_cfg);
             }
+        }
+    }
+
+    fn apply_csv(&self, config: &mut ExtractionConfig) {
+        let has_flag = self.csv_delimiter.is_some() || !self.csv_comment_prefix.is_empty();
+        if has_flag {
+            let mut csv_cfg = config.csv.clone().unwrap_or_default();
+            if let Some(ref delimiter) = self.csv_delimiter {
+                csv_cfg.delimiter = Some(delimiter.clone());
+            }
+            if !self.csv_comment_prefix.is_empty() {
+                csv_cfg.comment_prefixes = self.csv_comment_prefix.clone();
+            }
+            config.csv = Some(csv_cfg);
         }
     }
 }
@@ -1383,6 +1458,49 @@ mod tests {
 
     #[cfg(any(feature = "core-cli", feature = "analysis"))]
     #[test]
+    fn test_chunking_breadcrumb_target_applied_on_new_config() {
+        let mut config = ExtractionConfig::default();
+        let overrides = ExtractionOverrides {
+            chunk: Some(true),
+            chunk_breadcrumb_target: Some(BreadcrumbTargetArg::Metadata),
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let chunking = config.chunking.unwrap();
+        assert_eq!(chunking.breadcrumb_target, BreadcrumbTarget::Metadata);
+    }
+
+    #[cfg(any(feature = "core-cli", feature = "analysis"))]
+    #[test]
+    fn test_chunking_breadcrumb_target_applied_on_existing_config() {
+        let mut config = ExtractionConfig {
+            chunking: Some(ChunkingConfig::default()),
+            ..Default::default()
+        };
+        let overrides = ExtractionOverrides {
+            chunk_breadcrumb_target: Some(BreadcrumbTargetArg::Metadata),
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let chunking = config.chunking.unwrap();
+        assert_eq!(chunking.breadcrumb_target, BreadcrumbTarget::Metadata);
+    }
+
+    #[cfg(any(feature = "core-cli", feature = "analysis"))]
+    #[test]
+    fn test_chunking_breadcrumb_target_defaults_to_content() {
+        let mut config = ExtractionConfig::default();
+        let overrides = ExtractionOverrides {
+            chunk: Some(true),
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let chunking = config.chunking.unwrap();
+        assert_eq!(chunking.breadcrumb_target, BreadcrumbTarget::Content);
+    }
+
+    #[cfg(any(feature = "core-cli", feature = "analysis"))]
+    #[test]
     fn test_chunking_disabled() {
         let mut config = ExtractionConfig {
             chunking: Some(ChunkingConfig::default()),
@@ -1449,6 +1567,63 @@ mod tests {
             ..default_overrides()
         };
         assert!(overrides.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_csv_delimiter_valid() {
+        let overrides = ExtractionOverrides {
+            csv_delimiter: Some(";".to_string()),
+            ..default_overrides()
+        };
+        assert!(overrides.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_csv_delimiter_empty_rejected() {
+        let overrides = ExtractionOverrides {
+            csv_delimiter: Some(String::new()),
+            ..default_overrides()
+        };
+        let err = overrides.validate().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Invalid CSV delimiter ''. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|')."
+        );
+    }
+
+    #[test]
+    fn test_validate_csv_delimiter_multi_byte_rejected() {
+        let overrides = ExtractionOverrides {
+            csv_delimiter: Some("::".to_string()),
+            ..default_overrides()
+        };
+        let err = overrides.validate().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Invalid CSV delimiter '::'. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|')."
+        );
+    }
+
+    #[test]
+    fn test_apply_csv_delimiter_and_comment_prefixes() {
+        let mut config = ExtractionConfig::default();
+        let overrides = ExtractionOverrides {
+            csv_delimiter: Some(";".to_string()),
+            csv_comment_prefix: vec!["#".to_string(), "//".to_string()],
+            ..default_overrides()
+        };
+        overrides.apply(&mut config);
+        let csv = config.csv.expect("csv config should be set");
+        assert_eq!(csv.delimiter.as_deref(), Some(";"));
+        assert_eq!(csv.comment_prefixes, vec!["#".to_string(), "//".to_string()]);
+    }
+
+    #[test]
+    fn test_apply_csv_no_flags_leaves_config_untouched() {
+        let mut config = ExtractionConfig::default();
+        let overrides = default_overrides();
+        overrides.apply(&mut config);
+        assert!(config.csv.is_none());
     }
 
     #[cfg(feature = "layout-detection")]

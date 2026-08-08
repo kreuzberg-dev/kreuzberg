@@ -1,11 +1,33 @@
 //! Integration tests for server commands (serve and mcp).
 
 #[cfg(not(coverage))]
+use std::path::PathBuf;
+#[cfg(not(coverage))]
 use std::process::{Command, Stdio};
 #[cfg(not(coverage))]
 use std::thread;
 #[cfg(not(coverage))]
 use std::time::Duration;
+
+/// Resolves the target directory used by these tests' explicit `cargo build` invocations.
+///
+/// These tests rebuild the binary with `--features all` (a superset of the default features
+/// this test target itself is compiled with, needed for the `serve`/`mcp` subcommands), so
+/// `env!("CARGO_BIN_EXE_xberg")` cannot be used here — it points at the default-feature binary.
+/// `CARGO_TARGET_DIR`, when set (the standing workaround for concurrent-agent target-dir
+/// contention in this repo), is honored so the rebuilt binary is found where cargo actually
+/// placed it.
+#[cfg(not(coverage))]
+fn target_dir() -> PathBuf {
+    std::env::var("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"))
+}
+
+#[cfg(not(coverage))]
+fn xberg_debug_binary() -> PathBuf {
+    target_dir().join("debug").join("xberg")
+}
 
 #[cfg(not(coverage))]
 #[test]
@@ -18,7 +40,7 @@ fn test_serve_command_starts() {
 
     assert!(status.success(), "Failed to build xberg binary");
 
-    let mut child = Command::new("./target/debug/xberg")
+    let mut child = Command::new(xberg_debug_binary())
         .args(["serve", "-H", "127.0.0.1", "-p", "18000"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -75,7 +97,7 @@ language = "eng"
 
     fs::write("test_config.toml", config_content).expect("Failed to write test config");
 
-    let mut child = Command::new("./target/debug/xberg")
+    let mut child = Command::new(xberg_debug_binary())
         .args(["serve", "-H", "127.0.0.1", "-p", "18001", "-c", "test_config.toml"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -104,13 +126,7 @@ fn test_serve_command_help() {
 
     assert!(build_status.success(), "Failed to build xberg binary");
 
-    let binary_path = env!("CARGO_TARGET_TMPDIR")
-        .split("target")
-        .next()
-        .map(|s| format!("{}target/debug/xberg", s))
-        .unwrap_or_else(|| "../target/debug/xberg".to_string());
-
-    let output = Command::new(&binary_path)
+    let output = Command::new(xberg_debug_binary())
         .args(["serve", "--help"])
         .output()
         .expect("Failed to execute command");
@@ -134,13 +150,7 @@ fn test_mcp_command_help() {
 
     assert!(build_status.success(), "Failed to build xberg binary");
 
-    let binary_path = env!("CARGO_TARGET_TMPDIR")
-        .split("target")
-        .next()
-        .map(|s| format!("{}target/debug/xberg", s))
-        .unwrap_or_else(|| "../target/debug/xberg".to_string());
-
-    let output = Command::new(&binary_path)
+    let output = Command::new(xberg_debug_binary())
         .args(["mcp", "--help"])
         .output()
         .expect("Failed to execute command");

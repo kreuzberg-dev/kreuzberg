@@ -13,6 +13,8 @@ use async_trait::async_trait;
 /// - Runs in the Early processing stage
 /// - Only processes when `config.language_detection` is configured
 /// - Stores detected languages in `result.detected_languages`
+/// - Stores structured per-language confidence, proportion, script, and reliability in
+///   `result.detected_language_confidences` (#261)
 /// - Uses the whatlang library for detection
 ///
 /// # Example
@@ -55,14 +57,16 @@ impl PostProcessor for LanguageDetector {
             None => return Ok(()),
         };
 
-        match super::detect_languages(&result.content, lang_config)
+        match super::detect_language_details(&result.content, lang_config)
             .map_err(|e| XbergError::Other(format!("Language detection failed: {}", e)))?
         {
-            Some(languages) => {
-                result.detected_languages = Some(languages);
+            Some(details) => {
+                result.detected_languages = Some(details.iter().map(|detail| detail.language.clone()).collect());
+                result.detected_language_confidences = Some(details);
             }
             None => {
                 result.detected_languages = None;
+                result.detected_language_confidences = None;
             }
         }
 

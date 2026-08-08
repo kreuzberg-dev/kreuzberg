@@ -1,7 +1,7 @@
 //! Concurrency and thread pool configuration.
 
-use std::sync::Once;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Once, OnceLock};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +9,26 @@ use serde::{Deserialize, Serialize};
 ///
 /// Set `max_threads` to cap all internal thread pools (Rayon, ONNX Runtime
 /// intra-op) and batch concurrency to a single limit.
+///
+/// # Default budget when `max_threads` is unset
+///
+/// Without an explicit `max_threads`, the effective budget is
+/// `min(detected_cpu_cores, 8)` — a deliberate ceiling chosen for
+/// serverless/shared-tenant defaults, not a full-host auto-scale. On a host
+/// with more than 8 cores this means the extra cores go **unused** unless one
+/// of the following applies:
+///
+/// - `max_threads` is set explicitly above 8 (the only way to exceed the
+///   ceiling on a bare-metal or VM host with no CPU quota).
+/// - The process runs under a Linux cgroup CPU quota (containers, Kubernetes
+///   `resources.limits.cpu`); in that case the quota itself is used as the
+///   ceiling instead of the hardcoded 8, since the quota already reflects a
+///   deliberately-configured resource limit.
+///
+/// When neither applies and the host has more than 8 cores, a single
+/// `WARN`-level log is emitted the first time the budget is resolved,
+/// naming the detected core count and the applied cap, so the ceiling is
+/// discoverable without reading source.
 ///
 /// # Example
 ///
@@ -27,17 +47,127 @@ pub struct ConcurrencyConfig {
     ///
     /// Caps Rayon global pool size, ONNX Runtime intra-op threads, and the
     /// combined document/inner-task budget for batch extraction. When `None`,
-    /// system defaults are used.
+    /// the effective budget is `min(detected_cpu_cores, 8)` unless a Linux
+    /// cgroup CPU quota is present, in which case the quota is used as the
+    /// ceiling instead. On hosts with more than 8 cores and no cgroup quota,
+    /// set `max_threads` explicitly to use the additional cores — the
+    /// default will not scale past 8 on its own.
     pub max_threads: Option<usize>,
 }
 
 static POOL_INIT: Once = Once::new();
 static ACTIVE_THREAD_BUDGET: AtomicUsize = AtomicUsize::new(0);
 
+/// Ceiling applied to the auto-detected thread budget when `max_threads` is
+/// unset and no tighter resource limit (e.g. a cgroup CPU quota) is found.
+///
+/// This is a deliberate serverless/shared-tenant default, not a scaling
+/// limit of the underlying pipelines — see [`ConcurrencyConfig::max_threads`].
+const DEFAULT_THREAD_CAP: usize = 8;
+
+/// Guards the one-time startup warning for the default-cap fallback so it
+/// fires at most once per process, not once per extraction.
+static DEFAULT_CAP_WARNED: AtomicBool = AtomicBool::new(false);
+
+/// Emit the "unused cores" warning at most once per `already_warned` guard.
+///
+/// The guard is a parameter rather than a direct read of [`DEFAULT_CAP_WARNED`]
+/// so that the once-per-process property can be tested against a guard the test
+/// owns. Asserting on the global is not merely racy but unfixably so: any test
+/// in the binary that runs a real extraction reaches `resolve_thread_budget`
+/// and trips the global first on a host with more than [`DEFAULT_THREAD_CAP`]
+/// cores, and `#[serial]` cannot help because it only excludes other `#[serial]`
+/// tests. That is the same defect class as #215.
+fn warn_default_thread_cap_once(already_warned: &AtomicBool, host_cpus: usize) {
+    if already_warned
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        tracing::warn!(
+            host_cpus,
+            thread_cap = DEFAULT_THREAD_CAP,
+            "detected {host_cpus} CPU cores but no `max_threads` is configured and no cgroup CPU \
+             quota was found; capping the thread budget at {DEFAULT_THREAD_CAP} \
+             (min(cpu_cores, {DEFAULT_THREAD_CAP})). Set `ConcurrencyConfig::max_threads` above \
+             {DEFAULT_THREAD_CAP} to use the remaining cores."
+        );
+    }
+}
+
+/// The cgroup CPU quota, resolved at most once per process.
+///
+/// `resolve_thread_budget` runs per extracted document (see
+/// `core::extractor::file`), and the quota cannot change under a running
+/// process, so reading `/sys/fs/cgroup/...` on every call would be two
+/// syscalls per document for a value that never moves.
+static CGROUP_QUOTA_CORES: OnceLock<Option<usize>> = OnceLock::new();
+
+/// Detect an effective CPU core cap from the process's Linux cgroup CPU
+/// quota, if any.
+///
+/// Returns `None` when no quota is configured (bare metal, most developer
+/// machines, and non-Linux platforms) — callers then fall back to
+/// [`DEFAULT_THREAD_CAP`]. Returns `Some(cores)` when a cgroup v2 (`cpu.max`)
+/// or v1 (`cpu.cfs_quota_us` / `cpu.cfs_period_us`) quota is present and
+/// finite, rounded up to the nearest whole core. Never panics: any read or
+/// parse failure is treated as "no quota".
+fn cgroup_cpu_quota_cores() -> Option<usize> {
+    *CGROUP_QUOTA_CORES.get_or_init(read_cgroup_cpu_quota_cores)
+}
+
+#[cfg(target_os = "linux")]
+fn read_cgroup_cpu_quota_cores() -> Option<usize> {
+    cgroup_v2_quota_cores().or_else(cgroup_v1_quota_cores)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn read_cgroup_cpu_quota_cores() -> Option<usize> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn cgroup_v2_quota_cores() -> Option<usize> {
+    let contents = std::fs::read_to_string("/sys/fs/cgroup/cpu.max").ok()?;
+    let mut fields = contents.split_whitespace();
+    let quota_field = fields.next()?;
+    let period_field = fields.next()?;
+    if quota_field == "max" {
+        return None;
+    }
+    quota_period_to_cores(quota_field.parse().ok()?, period_field.parse().ok()?)
+}
+
+#[cfg(target_os = "linux")]
+fn cgroup_v1_quota_cores() -> Option<usize> {
+    let quota: f64 = std::fs::read_to_string("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
+    let period: f64 = std::fs::read_to_string("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
+    quota_period_to_cores(quota, period)
+}
+
+/// `cpu.cfs_quota_us` of `-1` (v1) and a bare `max` period (v2, handled by the
+/// caller) both mean "unlimited" and must resolve to `None`, not a huge cap.
+#[cfg(target_os = "linux")]
+fn quota_period_to_cores(quota: f64, period: f64) -> Option<usize> {
+    if quota <= 0.0 || period <= 0.0 {
+        return None;
+    }
+    Some((quota / period).ceil().max(1.0) as usize)
+}
+
 /// Resolve the effective thread budget from config or auto-detection.
 ///
-/// User-set `max_threads` takes priority. Otherwise auto-detects from `num_cpus`,
-/// capped at 8 for sane defaults in serverless environments.
+/// User-set `max_threads` takes priority. Otherwise auto-detects from
+/// `num_cpus`, preferring a detected Linux cgroup CPU quota as the ceiling
+/// when present, and falling back to [`DEFAULT_THREAD_CAP`] otherwise. See
+/// the [`ConcurrencyConfig`] docs for the full default-budget explanation.
 ///
 /// # Example
 ///
@@ -50,10 +180,43 @@ static ACTIVE_THREAD_BUDGET: AtomicUsize = AtomicUsize::new(0);
 /// assert!(resolve_thread_budget(None) >= 1);
 /// ```
 pub(crate) fn resolve_thread_budget(config: Option<&ConcurrencyConfig>) -> usize {
+    resolve_thread_budget_inner(config, num_cpus::get(), cgroup_cpu_quota_cores())
+}
+
+/// Pure core of [`resolve_thread_budget`], parameterized on the host CPU
+/// count and any detected cgroup quota so tests can exercise every branch
+/// deterministically regardless of the machine actually running the tests.
+fn resolve_thread_budget_inner(
+    config: Option<&ConcurrencyConfig>,
+    host_cpus: usize,
+    quota_cores: Option<usize>,
+) -> usize {
+    resolve_thread_budget_with_guard(config, host_cpus, quota_cores, &DEFAULT_CAP_WARNED)
+}
+
+/// As [`resolve_thread_budget_inner`], but against a caller-supplied
+/// "already warned" guard — see [`warn_default_thread_cap_once`] for why the
+/// warning tests cannot share the process-global one.
+fn resolve_thread_budget_with_guard(
+    config: Option<&ConcurrencyConfig>,
+    host_cpus: usize,
+    quota_cores: Option<usize>,
+    already_warned: &AtomicBool,
+) -> usize {
     if let Some(n) = config.and_then(|c| c.max_threads) {
         return n.max(1);
     }
-    num_cpus::get().min(8)
+    match quota_cores {
+        // `clamp` rather than `min().max()`: both bounds are known non-zero here
+        // (`cgroup_cpu_quota_cores` floors its result at 1), so it cannot panic.
+        Some(quota_cores) => host_cpus.clamp(1, quota_cores.max(1)),
+        None => {
+            if host_cpus > DEFAULT_THREAD_CAP {
+                warn_default_thread_cap_once(already_warned, host_cpus);
+            }
+            host_cpus.clamp(1, DEFAULT_THREAD_CAP)
+        }
+    }
 }
 
 /// Internal worker/session allocation for one batch extraction.
@@ -232,13 +395,171 @@ pub(crate) fn init_batch_thread_pool(config: Option<&ConcurrencyConfig>) -> usiz
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::{EnvFilter, Layer};
+
     use super::*;
+
+    /// A tracing `Layer` that records the level of every emitted event.
+    #[derive(Clone, Default)]
+    struct EventCapture {
+        levels: Arc<Mutex<Vec<tracing::Level>>>,
+    }
+
+    impl<S> Layer<S> for EventCapture
+    where
+        S: tracing::Subscriber,
+    {
+        fn on_event(&self, event: &tracing::Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+            self.levels.lock().unwrap().push(*event.metadata().level());
+        }
+    }
+
+    fn warn_event_count(capture: &EventCapture) -> usize {
+        capture
+            .levels
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|level| **level == tracing::Level::WARN)
+            .count()
+    }
 
     #[test]
     fn test_resolve_thread_budget_none() {
         let budget = resolve_thread_budget(None);
         assert!(budget >= 1);
         assert!(budget <= 8);
+    }
+
+    // -- Pure-function pinning: resolve_thread_budget_inner --------------------
+    //
+    // These exercise resolve_thread_budget_inner directly with injected
+    // host_cpus/quota_cores so the assertions are deterministic regardless of
+    // the machine actually running the test suite (unlike resolve_thread_budget,
+    // which reads real num_cpus/cgroup state).
+
+    #[test]
+    fn test_inner_pins_default_cap_when_no_quota_and_no_max_threads() {
+        assert_eq!(resolve_thread_budget_inner(None, 1, None), 1);
+        assert_eq!(resolve_thread_budget_inner(None, 4, None), 4);
+        assert_eq!(resolve_thread_budget_inner(None, 8, None), 8);
+        assert_eq!(resolve_thread_budget_inner(None, 16, None), 8);
+        assert_eq!(resolve_thread_budget_inner(None, 64, None), 8);
+    }
+
+    #[test]
+    fn test_inner_explicit_max_threads_wins_over_host_cpus_and_quota() {
+        let config = ConcurrencyConfig { max_threads: Some(20) };
+        assert_eq!(resolve_thread_budget_inner(Some(&config), 4, Some(2)), 20);
+        assert_eq!(resolve_thread_budget_inner(Some(&config), 64, None), 20);
+    }
+
+    #[test]
+    fn test_inner_explicit_max_threads_of_zero_clamps_to_one() {
+        let config = ConcurrencyConfig { max_threads: Some(0) };
+        assert_eq!(resolve_thread_budget_inner(Some(&config), 16, None), 1);
+    }
+
+    #[test]
+    fn test_inner_cgroup_quota_above_default_cap_is_not_clamped_to_eight() {
+        // This is the #1392 fix: a real cgroup quota larger than the
+        // hardcoded serverless default must be honoured, not silently
+        // clamped to 8 the way the unset/no-quota path is.
+        assert_eq!(resolve_thread_budget_inner(None, 64, Some(24)), 24);
+        assert_eq!(resolve_thread_budget_inner(None, 64, Some(9)), 9);
+    }
+
+    #[test]
+    fn test_inner_cgroup_quota_below_default_cap_is_used_as_is() {
+        assert_eq!(resolve_thread_budget_inner(None, 64, Some(3)), 3);
+    }
+
+    #[test]
+    fn test_inner_cgroup_quota_never_exceeds_host_cpus() {
+        assert_eq!(resolve_thread_budget_inner(None, 4, Some(16)), 4);
+    }
+
+    // -- One-time warning ---------------------------------------------------
+    //
+    // `#[serial]`: DEFAULT_CAP_WARNED is a process-global static with no
+    // injectable variant, so concurrent tests resetting/reading it would race
+    // each other — same reasoning as the other process-global-static tests in
+    // this crate (see core::pipeline::mod::tests for the established pattern).
+
+    #[test]
+    #[serial_test::serial]
+    fn test_default_cap_warning_fires_exactly_once_when_cores_exceed_cap_and_unset() {
+        let already_warned = AtomicBool::new(false);
+        let capture = EventCapture::default();
+        let subscriber = tracing_subscriber::registry()
+            .with(EnvFilter::new("warn"))
+            .with(capture.clone());
+
+        tracing::subscriber::with_default(subscriber, || {
+            for _ in 0..5 {
+                assert_eq!(resolve_thread_budget_with_guard(None, 16, None, &already_warned), 8);
+            }
+        });
+
+        assert_eq!(
+            warn_event_count(&capture),
+            1,
+            "expected exactly one WARN event across repeated calls, got {:?}",
+            capture.levels.lock().unwrap()
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_default_cap_warning_does_not_fire_when_max_threads_is_set() {
+        let already_warned = AtomicBool::new(false);
+        let capture = EventCapture::default();
+        let subscriber = tracing_subscriber::registry()
+            .with(EnvFilter::new("warn"))
+            .with(capture.clone());
+
+        tracing::subscriber::with_default(subscriber, || {
+            let config = ConcurrencyConfig { max_threads: Some(4) };
+            resolve_thread_budget_with_guard(Some(&config), 16, None, &already_warned)
+        });
+
+        assert_eq!(warn_event_count(&capture), 0);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_default_cap_warning_does_not_fire_when_cores_at_or_below_default_cap() {
+        let already_warned = AtomicBool::new(false);
+        let capture = EventCapture::default();
+        let subscriber = tracing_subscriber::registry()
+            .with(EnvFilter::new("warn"))
+            .with(capture.clone());
+
+        tracing::subscriber::with_default(subscriber, || {
+            resolve_thread_budget_with_guard(None, 8, None, &already_warned);
+            resolve_thread_budget_with_guard(None, 1, None, &already_warned);
+        });
+
+        assert_eq!(warn_event_count(&capture), 0);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_default_cap_warning_does_not_fire_when_cgroup_quota_present() {
+        let already_warned = AtomicBool::new(false);
+        let capture = EventCapture::default();
+        let subscriber = tracing_subscriber::registry()
+            .with(EnvFilter::new("warn"))
+            .with(capture.clone());
+
+        tracing::subscriber::with_default(subscriber, || {
+            resolve_thread_budget_with_guard(None, 16, Some(12), &already_warned);
+        });
+
+        assert_eq!(warn_event_count(&capture), 0);
     }
 
     #[test]

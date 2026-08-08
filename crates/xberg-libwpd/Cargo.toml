@@ -14,8 +14,15 @@ categories = ["external-ffi-bindings", "text-processing"]
 build = "build.rs"
 links = "xberg_libwpd"
 
+# libz-sys is never `use`d by path — it is declared purely so its build script
+# statically compiles zlib and exports `DEP_Z_INCLUDE`/links the symbols into
+# this crate's build.rs (see the target block below), so cargo-machete cannot
+# see a source reference. `cc`, `flate2`, `sha2`, and `tar` were previously
+# listed here too, but all four are referenced by path in build.rs (cc::Build,
+# flate2::read::GzDecoder, sha2::Sha256, tar::Archive), which cargo-machete's
+# textual scan already covers. ~keep
 [package.metadata.cargo-machete]
-ignored = ["cc", "flate2", "tar", "sha2", "libz-sys"]
+ignored = ["libz-sys"]
 
 [lib]
 name = "xberg_libwpd"

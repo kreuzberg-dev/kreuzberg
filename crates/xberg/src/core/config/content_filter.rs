@@ -41,6 +41,19 @@ pub struct ContentFilterConfig {
     #[serde(default)]
     pub include_footers: bool,
 
+    /// Include footnote bodies in extraction output.
+    ///
+    /// - PDF: Prevents the layout model from treating `Footnote`-classified
+    ///   regions as furniture, so footnote bodies survive alongside the main
+    ///   text instead of being silently dropped.
+    /// - Other formats: No effect currently.
+    ///
+    /// Default: `false` (footnotes are stripped), matching the existing
+    /// `include_headers` / `include_footers` defaults.
+    #[serde(default)]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub include_footnotes: bool,
+
     /// Enable the heuristic cross-page repeating text detector.
     ///
     /// When `true` (default), text that repeats verbatim across a supermajority
@@ -48,9 +61,10 @@ pub struct ContentFilterConfig {
     /// names or repeated headings are being incorrectly removed by the heuristic.
     ///
     /// Note: when a layout-detection model is active, the model may independently
-    /// classify page-header / page-footer regions as furniture on a per-page basis.
-    /// To preserve those regions, set `include_headers = true`, `include_footers = true`,
-    /// or both, in addition to disabling this flag.
+    /// classify page-header / page-footer / footnote regions as furniture on a
+    /// per-page basis. To preserve those regions, set `include_headers = true`,
+    /// `include_footers = true`, `include_footnotes = true`, or any combination,
+    /// in addition to disabling this flag.
     ///
     /// Primarily affects PDF extraction.
     ///
@@ -73,6 +87,7 @@ impl Default for ContentFilterConfig {
         Self {
             include_headers: false,
             include_footers: false,
+            include_footnotes: false,
             strip_repeating_text: true,
             include_watermarks: false,
         }

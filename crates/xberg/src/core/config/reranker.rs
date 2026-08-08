@@ -34,6 +34,11 @@ pub struct RerankerConfig {
     pub batch_size: usize,
 
     /// Show model download progress (local ONNX path only).
+    ///
+    /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+    /// `info` level on the `xberg::model_download` target while they download (#279). A warm
+    /// Hugging Face cache transfers nothing and so reports nothing. Ignored by
+    /// [`RerankerModelType::Llm`] and [`RerankerModelType::Plugin`], which download no model.
     #[serde(default)]
     pub show_download_progress: bool,
 
@@ -192,7 +197,10 @@ pub enum RerankerModelType {
     /// (e.g. `"cohere/rerank-english-v3.0"`).
     Llm {
         /// LLM provider configuration specifying the model and API credentials.
-        llm: LlmConfig,
+        ///
+        /// Boxed for the same reason as `EmbeddingModelType::Llm` -- kept in step so the two
+        /// parallel enums present one shape to the generated bindings. ~keep
+        llm: Box<LlmConfig>,
     },
 
     /// In-process reranker registered via the plugin system.
@@ -204,7 +212,8 @@ pub enum RerankerModelType {
     ///
     /// When this variant is selected, only `max_rerank_duration_secs` applies.
     /// Model-loading fields (`batch_size`, `cache_dir`, `show_download_progress`,
-    /// `acceleration`) are ignored — the host owns the model lifecycle.
+    /// `acceleration`) are ignored — the host owns the model lifecycle, so there is
+    /// no download to report progress for.
     ///
     /// See [`crate::plugins::register_reranker_backend`].
     Plugin {

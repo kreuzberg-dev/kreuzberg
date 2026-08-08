@@ -262,38 +262,15 @@ pub(crate) fn reconstruct_table(
 /// Convert a table grid to markdown format.
 ///
 /// The first row is treated as the header row, with a separator line added after it.
-/// Pipe characters in cell content are escaped.
+///
+/// Delegates to the crate's single table renderer
+/// ([`crate::rendering::common::render_table_markdown`]) so a reconstructed
+/// OCR/PDF table serialises identically to one from any other source
+/// (xberg-io/xberg#220). That renderer also pads every row to the widest row,
+/// which this reconstruction path did not do — ragged rows used to emit fewer
+/// pipe columns than the header, misaligning the table for downstream parsers.
 pub(crate) fn table_to_markdown(table: &[Vec<String>]) -> String {
-    if table.is_empty() {
-        return String::new();
-    }
-
-    let num_cols = table[0].len();
-    if num_cols == 0 {
-        return String::new();
-    }
-
-    let mut markdown = String::new();
-
-    for (row_idx, row) in table.iter().enumerate() {
-        markdown.push('|');
-        for cell in row {
-            markdown.push(' ');
-            markdown.push_str(&cell.replace('|', "\\|"));
-            markdown.push_str(" |");
-        }
-        markdown.push('\n');
-
-        if row_idx == 0 {
-            markdown.push('|');
-            for _ in 0..num_cols {
-                markdown.push_str(" --- |");
-            }
-            markdown.push('\n');
-        }
-    }
-
-    markdown
+    crate::rendering::common::render_table_markdown(table)
 }
 
 #[cfg(test)]
@@ -597,5 +574,92 @@ mod tests {
         assert_eq!(table[1][1], "Truc 1", "Row 2, col 2 should contain merged text");
         assert_eq!(table[2][0], "Chose 2", "Row 3, col 1 should contain merged text");
         assert_eq!(table[2][1], "Truc 2", "Row 3, col 2 should contain merged text");
+    }
+
+    /// Regression/verification test for the claim in xberg-io/xberg#183 that
+    /// `reconstruct_table` "drops any word for which `find_row_index` or
+    /// `find_column_index` returns `None`".
+    ///
+    /// That claim does not hold for the current implementation: both
+    /// `find_row_index` and `find_column_index` resolve to the *nearest*
+    /// row/column via `min_by_key`, which is `Some` for every word whenever
+    /// `row_positions`/`col_positions` are non-empty — and `reconstruct_table`
+    /// already early-returns before this loop if either is empty. There is no
+    /// path through this function that silently discards a word; even a word
+    /// wildly outside the detected column/row bands is force-assigned to its
+    /// nearest band instead of being dropped. This test proves that with an
+    /// outlier word far outside the main table extent: every input word is
+    /// still present, exactly once, in the reconstructed table.
+    #[test]
+    fn test_reconstruct_table_never_drops_words_including_far_outliers() {
+        let mut words = vec![
+            HocrWord {
+                text: "A1".to_string(),
+                left: 0,
+                top: 0,
+                width: 10,
+                height: 10,
+                confidence: 95.0,
+            },
+            HocrWord {
+                text: "B1".to_string(),
+                left: 200,
+                top: 0,
+                width: 10,
+                height: 10,
+                confidence: 95.0,
+            },
+            HocrWord {
+                text: "A2".to_string(),
+                left: 0,
+                top: 200,
+                width: 10,
+                height: 10,
+                confidence: 95.0,
+            },
+            HocrWord {
+                text: "B2".to_string(),
+                left: 200,
+                top: 200,
+                width: 10,
+                height: 10,
+                confidence: 95.0,
+            },
+        ];
+        // Far outside every detected row/column band and every other word's
+        // neighborhood — the scenario #183 claims gets silently dropped.
+        words.push(HocrWord {
+            text: "Outlier".to_string(),
+            left: 50_000,
+            top: 50_000,
+            width: 10,
+            height: 10,
+            confidence: 95.0,
+        });
+
+        let input_word_count = words.len();
+        let table = reconstruct_table(&words, 20, 0.5);
+
+        let output_word_count: usize = table
+            .iter()
+            .flat_map(|row| row.iter())
+            .flat_map(|cell| cell.split_whitespace())
+            .count();
+
+        assert_eq!(
+            output_word_count, input_word_count,
+            "every input word (including the far outlier) must appear exactly once in the output; \
+             reconstruct_table's nearest-row/nearest-column assignment never returns None here"
+        );
+
+        let all_text: Vec<&str> = table
+            .iter()
+            .flat_map(|row| row.iter())
+            .flat_map(|c| c.split_whitespace())
+            .collect();
+        assert!(
+            all_text.contains(&"Outlier"),
+            "the outlier word must not be silently dropped"
+        );
     }
 }

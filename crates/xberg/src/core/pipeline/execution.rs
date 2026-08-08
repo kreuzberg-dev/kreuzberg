@@ -114,13 +114,31 @@ pub(super) async fn execute_validators(result: &ExtractedDocument, config: &Extr
         registry.get_all()
     };
 
-    if !validators.is_empty() {
+    if validators.is_empty() {
+        return Ok(());
+    }
+
+    // Only entered when at least one validator will actually run, so the stage span
+    // never reports a validation pass that did not happen.
+    let validate_all = async {
         for validator in validators {
             if validator.should_validate(result, config) {
                 validator.validate(result, config).await?;
             }
         }
-    }
+        Ok::<(), XbergError>(())
+    };
 
-    Ok(())
+    #[cfg(feature = "otel")]
+    {
+        validate_all
+            .instrument(crate::telemetry::spans::pipeline_stage_span(
+                crate::telemetry::conventions::stages::VALIDATION,
+            ))
+            .await
+    }
+    #[cfg(not(feature = "otel"))]
+    {
+        validate_all.await
+    }
 }

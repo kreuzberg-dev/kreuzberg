@@ -320,6 +320,22 @@ bundle or asset files.
 </TabItem>
 </Tabs>
 
+### Concurrency and Thread Limits
+
+`ConcurrencyConfig.max_threads` caps every internal thread pool at once: the global Rayon pool, ONNX Runtime intra-op threads, and the combined document/worker budget used by batch extraction.
+
+**When `max_threads` is left unset, the effective budget is `min(detected_cpu_cores, 8)` — not "use all available cores".** This 8-core ceiling is a deliberate serverless/shared-tenant default, not an auto-scaling target. On a host with more than 8 cores, the extra cores go unused by default:
+
+- **Bare metal / VM with no CPU quota**: `max_threads` must be set explicitly above 8 to use more than 8 cores. There is no other way to exceed the default ceiling on this class of host.
+- **Linux containers under a cgroup CPU quota** (e.g. Kubernetes `resources.limits.cpu`): the quota is used as the ceiling instead of the hardcoded 8, since the quota already reflects a deliberately-configured resource limit. This applies automatically; no configuration is needed.
+
+If none of the above applies and the host has more than 8 cores, a one-time `WARN`-level log is emitted the first time the thread budget is resolved, naming the detected core count and the applied cap — so the ceiling is discoverable without reading source.
+
+```toml
+[concurrency]
+max_threads = 32
+```
+
 ## All Configuration Categories
 
 - [ExtractionConfig](/reference/configuration/#extractionconfig) — top-level options
@@ -330,6 +346,7 @@ bundle or asset files.
 - [ContentFilterConfig](/reference/configuration/#contentfilterconfig) — header/footer/watermark filtering
 - [PageConfig](/reference/configuration/#pageconfig) — page tracking and markers
 - [AccelerationConfig](/reference/configuration/#accelerationconfig) — ONNX Runtime execution provider
+- [ConcurrencyConfig](#concurrency-and-thread-limits) — thread pool caps (`max_threads`); not in the auto-generated reference below, see the section above
 
 ## Next Steps
 

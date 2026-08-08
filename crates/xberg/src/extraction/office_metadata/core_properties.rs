@@ -94,7 +94,9 @@ pub fn extract_core_properties<R: Read + std::io::Seek>(archive: &mut ZipArchive
 
     let title = super::parse_xml_text(root, "title");
     let subject = super::parse_xml_text(root, "subject");
-    let creator = super::parse_xml_text(root, "creator");
+    // dc:creator may legally repeat for co-authored documents (Dublin Core); keep them all
+    // instead of silently dropping every author but the first (#237).
+    let creator = super::parse_xml_text_joined(root, "creator", "; ");
     let description = super::parse_xml_text(root, "description");
     let language = super::parse_xml_text(root, "language");
     let identifier = super::parse_xml_text(root, "identifier");

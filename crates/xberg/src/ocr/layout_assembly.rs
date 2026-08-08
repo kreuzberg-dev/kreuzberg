@@ -77,7 +77,8 @@ fn recognize_single_table(
         return None;
     }
 
-    let cell_grid = tatr::build_cell_grid(&tatr_result, None);
+    let crop_table_bbox = effective_table_bbox(tatr_result.table_bbox, crop_w as f32, crop_h as f32);
+    let (cell_grid, structure) = tatr::build_cell_grid_with_structure(&tatr_result, Some(crop_table_bbox));
     if cell_grid.is_empty() || cell_grid[0].is_empty() {
         return None;
     }
@@ -89,13 +90,26 @@ fn recognize_single_table(
 
     let table_elements = select_table_elements(elements, table_bbox);
 
-    let (cells, markdown) = build_markdown_table(&cell_grid, &table_elements, crop_x as f32, crop_y as f32);
+    let (cells, markdown) = build_markdown_table(&cell_grid, &table_elements, crop_x as f32, crop_y as f32, &structure);
     Some((cells, markdown))
+}
+
+/// Choose the crop-local bounding box used to widen table columns to the
+/// table's full horizontal extent: prefer TATR's own detected `Table` region
+/// (already in crop-pixel coordinates); otherwise fall back to the full crop
+/// extent, which was itself sized from the layout detector's table bbox.
+///
+/// Previously this call site always passed `None`, so column widening was
+/// inferred purely from row detections, clipping any column that extended
+/// past the outermost detected row (xberg-io/xberg#193).
+fn effective_table_bbox(tatr_table_bbox: Option<[f32; 4]>, crop_w: f32, crop_h: f32) -> [f32; 4] {
+    tatr_table_bbox.unwrap_or([0.0, 0.0, crop_w, crop_h])
 }
 
 fn select_table_elements<'a>(elements: &'a [OcrElement], table_bbox: &BBox) -> Vec<&'a OcrElement> {
     let mut words = Vec::new();
     let mut lines = Vec::new();
+    let mut blocks = Vec::new();
 
     for element in elements {
         if element.text.trim().is_empty() || element_bbox_iow(element, table_bbox) < MIN_CELL_ELEMENT_IOW {
@@ -105,11 +119,24 @@ fn select_table_elements<'a>(elements: &'a [OcrElement], table_bbox: &BBox) -> V
         match element.level {
             OcrElementLevel::Word => words.push(element),
             OcrElementLevel::Line => lines.push(element),
-            OcrElementLevel::Block | OcrElementLevel::Page => {}
+            // Block is a legitimate fallback: some backends only emit block-level
+            // geometry. Previously it was dropped outright, so a table region
+            // whose OCR output has no Word/Line elements produced an empty grid
+            // instead of falling back further (xberg-io/xberg#193). Page-level
+            // elements remain excluded — they span the whole page and cannot be
+            // usefully assigned to a single cell.
+            OcrElementLevel::Block => blocks.push(element),
+            OcrElementLevel::Page => {}
         }
     }
 
-    if words.is_empty() { lines } else { words }
+    if !words.is_empty() {
+        words
+    } else if !lines.is_empty() {
+        lines
+    } else {
+        blocks
+    }
 }
 
 /// Build a markdown table from TATR cell grid + OCR elements.
@@ -121,6 +148,7 @@ fn build_markdown_table(
     elements: &[&OcrElement],
     offset_x: f32,
     offset_y: f32,
+    structure: &tatr::TableStructure,
 ) -> (Vec<Vec<String>>, String) {
     if cell_grid.is_empty() {
         return (Vec::new(), String::new());
@@ -142,6 +170,13 @@ fn build_markdown_table(
         grid.push(grid_row);
     }
 
+    merge_spanning_cells(&mut grid, &structure.spans);
+
+    // TATR's own header rows are the ground truth for where the separator
+    // belongs; default to "row 0 only" when it detected none, matching the
+    // prior hardcoded behavior (xberg-io/xberg#176).
+    let header_rows = structure.header_row_count.max(1).min(grid.len());
+
     let mut md = String::new();
 
     for (row_idx, row) in grid.iter().enumerate() {
@@ -154,7 +189,7 @@ fn build_markdown_table(
         }
         md.push('\n');
 
-        if row_idx == 0 {
+        if row_idx + 1 == header_rows {
             md.push('|');
             for _ in 0..num_cols {
                 md.push_str(" --- |");
@@ -168,6 +203,33 @@ fn build_markdown_table(
     }
 
     (grid, md)
+}
+
+/// Merge each TATR spanning-cell region into its top-left grid cell and blank
+/// the rest of the covered cells.
+///
+/// TATR's cell grid is built as the rectangular row∩column intersection of
+/// independently detected rows/columns, so a single merged source cell (e.g.
+/// a two-column header) is split across several grid cells and any OCR
+/// element inside it is assigned to whichever cell it geometrically falls
+/// in — splitting one label into fragments across neighboring cells
+/// (xberg-io/xberg#176). Concatenating the covered cells' text back together
+/// restores the original single-cell content.
+fn merge_spanning_cells(grid: &mut [Vec<String>], spans: &[(usize, usize, usize, usize)]) {
+    for &(row_start, row_end, col_start, col_end) in spans {
+        if grid.is_empty() || row_end > grid.len() || col_end > grid[0].len() {
+            continue;
+        }
+        let mut combined: Vec<String> = Vec::new();
+        for row in grid.iter_mut().take(row_end).skip(row_start) {
+            for cell in row.iter_mut().take(col_end).skip(col_start) {
+                if !cell.is_empty() {
+                    combined.push(std::mem::take(cell));
+                }
+            }
+        }
+        grid[row_start][col_start] = combined.join(" ");
+    }
 }
 
 type PositionedElement<'a> = (&'a OcrElement, f32, f32);
@@ -349,6 +411,15 @@ mod tests {
         tatr::CellBBox { x1, y1, x2, y2 }
     }
 
+    /// A `TableStructure` carrying no header/span information, matching what
+    /// `build_cell_grid_with_structure` returns when TATR detected neither.
+    fn no_structure() -> tatr::TableStructure {
+        tatr::TableStructure {
+            header_row_count: 0,
+            spans: Vec::new(),
+        }
+    }
+
     fn word(text: &str, left: u32, top: u32, width: u32, height: u32) -> OcrElement {
         OcrElement::new(
             text,
@@ -407,6 +478,38 @@ mod tests {
     }
 
     #[test]
+    fn should_fall_back_to_valid_blocks_when_table_has_no_words_or_lines() {
+        let table_bbox = BBox::new(0.0, 0.0, 100.0, 100.0);
+        let block = line("block text", 10, 10, 80, 10).with_level(OcrElementLevel::Block);
+        let elements = [block, word("outside", 150, 10, 20, 10)];
+
+        let selected = select_table_elements(&elements, &table_bbox);
+        let selected_text = selected.iter().map(|element| element.text.as_str()).collect::<Vec<_>>();
+
+        assert_eq!(
+            selected_text,
+            vec!["block text"],
+            "a table region with only block-level OCR output must not yield an empty cell grid (#193)"
+        );
+    }
+
+    #[test]
+    fn should_prefer_tatr_detected_table_bbox_over_full_crop_extent() {
+        let bbox = effective_table_bbox(Some([5.0, 5.0, 95.0, 45.0]), 100.0, 50.0);
+        assert_eq!(bbox, [5.0, 5.0, 95.0, 45.0]);
+    }
+
+    #[test]
+    fn should_fall_back_to_full_crop_extent_when_tatr_has_no_table_detection() {
+        let bbox = effective_table_bbox(None, 100.0, 50.0);
+        assert_eq!(
+            bbox,
+            [0.0, 0.0, 100.0, 50.0],
+            "must widen to the full crop instead of the previous hardcoded None (#193)"
+        );
+    }
+
+    #[test]
     fn should_assign_ordinary_grid_elements_in_reading_order() {
         let grid = vec![
             vec![cell(0.0, 0.0, 50.0, 50.0), cell(50.0, 0.0, 100.0, 50.0)],
@@ -421,7 +524,7 @@ mod tests {
         ];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, markdown) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, markdown) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["one two", "B"], vec!["C", "D"]]);
         assert_eq!(markdown, "| one two | B |\n| --- | --- |\n| C | D |");
@@ -433,7 +536,7 @@ mod tests {
         let elements = [word("overlap", 50, 10, 20, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["", "overlap"]]);
     }
@@ -444,7 +547,7 @@ mod tests {
         let elements = [word("tie", 45, 10, 10, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["tie", ""]]);
     }
@@ -455,7 +558,7 @@ mod tests {
         let elements = [word("point", 75, 25, 0, 0)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["", "point"]]);
     }
@@ -467,7 +570,7 @@ mod tests {
         let elements = [word("span", 40, 10, 20, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["span", ""]]);
     }
@@ -478,7 +581,7 @@ mod tests {
         let elements = [word("edge", 30, 10, 400, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["", "edge"]]);
     }
@@ -489,7 +592,7 @@ mod tests {
         let elements = [word("gap", 45, 10, 10, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["gap", ""]]);
         assert_eq!(cells.iter().flatten().filter(|text| text.contains("gap")).count(), 1);
@@ -501,12 +604,72 @@ mod tests {
         let elements = [word("total", 30, 10, 400, 10), word("total", 30, 20, 400, 10)];
         let element_refs = elements.iter().collect::<Vec<_>>();
 
-        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0);
+        let (cells, _) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &no_structure());
 
         assert_eq!(cells, vec![vec!["", "total total"]]);
         assert_eq!(
             cells.iter().flatten().flat_map(|cell| cell.split_whitespace()).count(),
             2
+        );
+    }
+
+    #[test]
+    fn should_merge_spanning_cell_content_instead_of_splitting_across_columns() {
+        // A 2-column header ("Quarterly Report") is split into two grid cells
+        // by TATR's row∩column intersection; the structure says (row 0, cols
+        // 0..2) is one spanning cell.
+        let grid = vec![
+            vec![cell(0.0, 0.0, 50.0, 20.0), cell(50.0, 0.0, 100.0, 20.0)],
+            vec![cell(0.0, 20.0, 50.0, 40.0), cell(50.0, 20.0, 100.0, 40.0)],
+        ];
+        let elements = [
+            word("Quarterly", 10, 5, 30, 10),
+            word("Report", 60, 5, 30, 10),
+            word("Q1", 10, 25, 10, 10),
+            word("Q2", 60, 25, 10, 10),
+        ];
+        let element_refs = elements.iter().collect::<Vec<_>>();
+        let structure = tatr::TableStructure {
+            header_row_count: 1,
+            spans: vec![(0, 1, 0, 2)],
+        };
+
+        let (cells, markdown) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &structure);
+
+        assert_eq!(
+            cells,
+            vec![vec!["Quarterly Report", ""], vec!["Q1", "Q2"]],
+            "spanning cell content must be merged into the origin cell, not split (#176)"
+        );
+        assert_eq!(markdown, "| Quarterly Report |  |\n| --- | --- |\n| Q1 | Q2 |");
+    }
+
+    #[test]
+    fn should_place_header_separator_after_all_tatr_detected_header_rows() {
+        let grid = vec![
+            vec![cell(0.0, 0.0, 50.0, 20.0), cell(50.0, 0.0, 100.0, 20.0)],
+            vec![cell(0.0, 20.0, 50.0, 40.0), cell(50.0, 20.0, 100.0, 40.0)],
+            vec![cell(0.0, 40.0, 50.0, 60.0), cell(50.0, 40.0, 100.0, 60.0)],
+        ];
+        let elements = [
+            word("Title", 10, 5, 10, 10),
+            word("Region", 60, 5, 10, 10),
+            word("Sub", 10, 25, 10, 10),
+            word("Head", 60, 25, 10, 10),
+            word("A", 10, 45, 10, 10),
+            word("B", 60, 45, 10, 10),
+        ];
+        let element_refs = elements.iter().collect::<Vec<_>>();
+        let structure = tatr::TableStructure {
+            header_row_count: 2,
+            spans: Vec::new(),
+        };
+
+        let (_, markdown) = build_markdown_table(&grid, &element_refs, 0.0, 0.0, &structure);
+
+        assert_eq!(
+            markdown, "| Title | Region |\n| Sub | Head |\n| --- | --- |\n| A | B |",
+            "the separator must follow both TATR-detected header rows, not just row 0 (#176)"
         );
     }
 }

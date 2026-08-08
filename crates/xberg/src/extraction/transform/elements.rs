@@ -218,13 +218,45 @@ fn is_lone_numbered_line_in_paragraph(text: &str, line_offset: usize) -> bool {
     list_line_count == 1
 }
 
+/// Normalize `\r\n` and lone `\r` line endings to `\n`.
+///
+/// `str::split("\n\n")` (used throughout this module to find paragraph
+/// boundaries) only recognizes bare LF blank lines. Windows-authored CRLF
+/// text has blank lines encoded as `\r\n\r\n`, and classic Mac-style text
+/// uses a lone `\r` with no `\n` at all — neither is a `"\n\n"` match, so a
+/// CRLF or lone-CR document collapsed into a single paragraph (xberg-io/xberg#227).
+/// Normalizing every line ending to `\n` up front makes the existing
+/// `"\n\n"` paragraph-boundary logic (and downstream `str::lines()` calls)
+/// work identically regardless of source line-ending style, including
+/// documents that mix styles.
+pub(crate) fn normalize_line_endings(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.contains('\r') {
+        return std::borrow::Cow::Borrowed(text);
+    }
+
+    let mut normalized = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\r' {
+            if chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            normalized.push('\n');
+        } else {
+            normalized.push(c);
+        }
+    }
+    std::borrow::Cow::Owned(normalized)
+}
+
 /// Add paragraphs as NarrativeText elements, splitting on double newlines.
 pub(super) fn add_paragraphs(elements: &mut Vec<Element>, text: &str, page_number: u32, title: &Option<String>) {
     if text.is_empty() {
         return;
     }
 
-    for paragraph in text.split("\n\n").filter(|p| !p.trim().is_empty()) {
+    let normalized = normalize_line_endings(text);
+    for paragraph in normalized.split("\n\n").filter(|p| !p.trim().is_empty()) {
         let para_text = paragraph.trim();
         if para_text.is_empty() {
             continue;

@@ -206,13 +206,46 @@ impl DocumentExtractorRegistry {
             return Err(e);
         }
 
+        if self.name_index.contains_key(&name) {
+            tracing::debug!(
+                "Document extractor '{}' is already registered. Removing old instance and registering new one.",
+                name
+            );
+            self.remove(&name)?;
+        }
+
         let mut index_entries = Vec::new();
 
         for mime_type in &mime_types {
-            self.extractors
-                .entry(mime_type.clone())
-                .or_default()
-                .insert(priority, entry.clone());
+            let priority_map = self.extractors.entry(mime_type.clone()).or_default();
+            if let Some(displaced) = priority_map.insert(priority, entry.clone()) {
+                let displaced_name = displaced.plugin().name().to_string();
+                if displaced_name != name {
+                    tracing::warn!(
+                        "Document extractor '{}' claims MIME type '{}' at priority {}, the same \
+                         (MIME type, priority) slot already held by extractor '{}'. Only one extractor \
+                         can occupy a given slot; '{}' now shadows '{}' for this MIME type. Register at \
+                         a distinct priority to keep both reachable.",
+                        name,
+                        mime_type,
+                        priority,
+                        displaced_name,
+                        name,
+                        displaced_name
+                    );
+                    // `displaced`'s name_index entry still lists this (mime_type, priority) pair, but
+                    // priority_map no longer holds its slot — leaving that pair in place would let
+                    // `remove(&displaced_name)` believe it cleaned up a slot it never touched, while
+                    // the *other* MIME types `displaced_name` is still registered for stay orphaned
+                    // (#216). Prune the stale pair so `remove` only tracks slots it actually owns.
+                    if let Some(entries) = self.name_index.get_mut(&displaced_name) {
+                        entries.retain(|(m, p)| !(m == mime_type && *p == priority));
+                        if entries.is_empty() {
+                            self.name_index.remove(&displaced_name);
+                        }
+                    }
+                }
+            }
             index_entries.push((mime_type.clone(), priority));
         }
 
@@ -286,6 +319,45 @@ impl DocumentExtractorRegistry {
         #[cfg(feature = "otel")]
         tracing::Span::current().record("registry.found", false);
         Err(XbergError::UnsupportedFormat(mime_type.to_string()))
+    }
+
+    /// Ordered extractor fallback candidates for `(path, mime_type)` (#217).
+    ///
+    /// Mirrors `get_registered`'s "exact MIME match wins over `type/*` wildcard"
+    /// rule, but instead of returning only the single highest-priority match,
+    /// returns every match in priority order (highest first) so a caller can
+    /// fall back to the next one when the first fails. Unlike `get_registered`,
+    /// this also consults [`DocumentExtractor::can_handle`]: an extractor that
+    /// declares a MIME type but declines this specific file is excluded from
+    /// the candidate list entirely, rather than being selected and left to fail.
+    pub(crate) fn get_candidates(&self, path: &Path, mime_type: &str) -> Vec<RegisteredDocumentExtractor> {
+        let mut exact: Vec<RegisteredDocumentExtractor> = Vec::new();
+        if let Some(priority_map) = self.extractors.get(mime_type) {
+            for entry in priority_map.values().rev() {
+                if entry.plugin().can_handle(path, mime_type) {
+                    exact.push(entry.clone());
+                }
+            }
+        }
+        if !exact.is_empty() {
+            return exact;
+        }
+
+        let mut wildcard: Vec<(i32, RegisteredDocumentExtractor)> = Vec::new();
+        for (registered_mime, priority_map) in &self.extractors {
+            if registered_mime.ends_with("/*") {
+                let prefix = &registered_mime[..registered_mime.len() - 1];
+                if mime_type.starts_with(prefix) {
+                    for entry in priority_map.values().rev() {
+                        if entry.plugin().can_handle(path, mime_type) {
+                            wildcard.push((entry.plugin().priority(), entry.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        wildcard.sort_by_key(|(priority, _)| std::cmp::Reverse(*priority));
+        wildcard.into_iter().map(|(_, entry)| entry).collect()
     }
 
     /// List all registered extractors.
@@ -758,6 +830,194 @@ mod tests {
 
         registry.shutdown_all().unwrap();
         assert_eq!(registry.list().len(), 0);
+    }
+
+    /// #216: two different extractors claiming the same MIME type at the same
+    /// priority must not silently overwrite one another with no trace — the
+    /// later registration should win the slot (documented, not accidental) and
+    /// the collision must be observable, not merely inferred from which one
+    /// answers `get()`.
+    #[test]
+    fn test_document_extractor_priority_collision_last_registration_wins_slot() {
+        let mut registry = DocumentExtractorRegistry::new();
+
+        let first = Arc::new(MockExtractor {
+            name: "collider-a".to_string(),
+            mime_types: &["application/x-collision"],
+            priority: 50,
+        });
+        let second = Arc::new(MockExtractor {
+            name: "collider-b".to_string(),
+            mime_types: &["application/x-collision"],
+            priority: 50,
+        });
+
+        registry.register(first).unwrap();
+        registry.register(second).unwrap();
+
+        // "collider-a" had only this one (MIME type, priority) slot, and "collider-b"
+        // took it over entirely, so "collider-a" is left with nothing registered at
+        // all — `list()` must not keep it around as an unreachable zombie entry.
+        let names = registry.list();
+        assert_eq!(names, vec!["collider-b".to_string()]);
+
+        // The later registration answers the shared slot.
+        assert_eq!(registry.get("application/x-collision").unwrap().name(), "collider-b");
+    }
+
+    /// #216: re-registering under a name that is already registered for a
+    /// *different* MIME type must not orphan the old MIME entry. Before the
+    /// fix, `name_index.insert` overwrote the old index entries wholesale, so
+    /// `remove("dup-extractor")` could never reach "text/plain" again and the
+    /// stale registration stayed in `get()` forever.
+    #[test]
+    fn test_document_extractor_duplicate_name_reregistration_does_not_orphan_old_mime() {
+        let mut registry = DocumentExtractorRegistry::new();
+
+        let first = Arc::new(MockExtractor {
+            name: "dup-extractor".to_string(),
+            mime_types: &["text/plain"],
+            priority: 50,
+        });
+        registry.register(first).unwrap();
+        assert!(registry.get("text/plain").is_ok());
+
+        let second = Arc::new(MockExtractor {
+            name: "dup-extractor".to_string(),
+            mime_types: &["application/pdf"],
+            priority: 50,
+        });
+        registry.register(second).unwrap();
+
+        // The re-registration only claims application/pdf; text/plain must be
+        // fully released, not orphaned as an unreachable zombie entry.
+        assert!(registry.get("text/plain").is_err());
+        assert_eq!(registry.get("application/pdf").unwrap().name(), "dup-extractor");
+
+        // remove() must now be able to fully clean up the current registration.
+        registry.remove("dup-extractor").unwrap();
+        assert!(registry.get("application/pdf").is_err());
+        assert_eq!(registry.list().len(), 0);
+    }
+
+    struct CanHandleExtractor {
+        name: String,
+        mime_types: &'static [&'static str],
+        priority: i32,
+        can_handle_result: bool,
+    }
+
+    impl Plugin for CanHandleExtractor {
+        fn name(&self) -> &str {
+            &self.name
+        }
+        fn version(&self) -> String {
+            "1.0.0".to_string()
+        }
+        fn initialize(&self) -> Result<()> {
+            Ok(())
+        }
+        fn shutdown(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl InternalDocumentExtractor for CanHandleExtractor {
+        async fn extract_content(
+            &self,
+            _: &[u8],
+            _: &str,
+            _: &ExtractionConfig,
+        ) -> Result<crate::types::internal::InternalDocument> {
+            Ok(crate::types::internal::InternalDocument::new("mock"))
+        }
+
+        fn supported_mime_types(&self) -> &[&str] {
+            self.mime_types
+        }
+
+        fn priority(&self) -> i32 {
+            self.priority
+        }
+
+        fn can_handle(&self, _path: &std::path::Path, _mime_type: &str) -> bool {
+            self.can_handle_result
+        }
+    }
+
+    /// #217: `get_candidates` must return every registered match for a MIME type
+    /// in priority order (highest first), so a caller can fall back when the
+    /// first one fails.
+    #[test]
+    fn test_get_candidates_orders_by_priority_descending() {
+        let mut registry = DocumentExtractorRegistry::new();
+        registry
+            .register(Arc::new(MockExtractor {
+                name: "low".to_string(),
+                mime_types: &["application/pdf"],
+                priority: 10,
+            }))
+            .unwrap();
+        registry
+            .register(Arc::new(MockExtractor {
+                name: "high".to_string(),
+                mime_types: &["application/pdf"],
+                priority: 90,
+            }))
+            .unwrap();
+        registry
+            .register(Arc::new(MockExtractor {
+                name: "mid".to_string(),
+                mime_types: &["application/pdf"],
+                priority: 50,
+            }))
+            .unwrap();
+
+        let candidates = registry.get_candidates(std::path::Path::new("f.pdf"), "application/pdf");
+        let names: Vec<&str> = candidates.iter().map(|c| c.plugin().name()).collect();
+        assert_eq!(names, vec!["high", "mid", "low"]);
+    }
+
+    /// #217: an extractor whose `can_handle` declines this specific file must be
+    /// excluded from the candidate list entirely, even though it declares the
+    /// MIME type — it must never be "selected and left to fail".
+    #[test]
+    fn test_get_candidates_excludes_extractor_that_declines_can_handle() {
+        let mut registry = DocumentExtractorRegistry::new();
+        registry
+            .register(Arc::new(CanHandleExtractor {
+                name: "picky".to_string(),
+                mime_types: &["application/pdf"],
+                priority: 90,
+                can_handle_result: false,
+            }))
+            .unwrap();
+        registry
+            .register(Arc::new(MockExtractor {
+                name: "generic".to_string(),
+                mime_types: &["application/pdf"],
+                priority: 50,
+            }))
+            .unwrap();
+
+        let candidates = registry.get_candidates(std::path::Path::new("f.pdf"), "application/pdf");
+        let names: Vec<&str> = candidates.iter().map(|c| c.plugin().name()).collect();
+        assert_eq!(
+            names,
+            vec!["generic"],
+            "the can_handle=false extractor must be excluded, not just deprioritized"
+        );
+    }
+
+    #[test]
+    fn test_get_candidates_empty_when_nothing_registered() {
+        let registry = DocumentExtractorRegistry::new();
+        assert!(
+            registry
+                .get_candidates(std::path::Path::new("f.pdf"), "application/pdf")
+                .is_empty()
+        );
     }
 
     #[test]

@@ -251,6 +251,16 @@ tasks:
     cmds:
       - alef docs
 
+  alef:verify:readme-paths:
+    desc: "Check every alef.toml readme/docs path (templates, snippets) resolves on disk"
+    cmds:
+      - python3 scripts/ci/check-alef-readme-paths.py alef.toml
+
+  alef:verify:ffi-formats:
+    desc: "Check the native FFI build still selects every document format (GH#1387)"
+    cmds:
+      - python3 scripts/ci/check-ffi-format-features.py alef.toml
+
   e2e:generate:
     desc: "Generate E2E tests for all languages from fixtures"
     cmds:

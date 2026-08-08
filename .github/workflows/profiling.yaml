@@ -114,6 +114,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -183,6 +195,18 @@ jobs:
 
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
+
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
 
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
@@ -266,6 +290,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -348,6 +384,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -429,6 +477,18 @@ jobs:
 
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
+
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
 
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
@@ -514,6 +574,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -598,6 +670,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -669,6 +753,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -739,6 +835,18 @@ jobs:
 
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
+
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
 
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
@@ -842,6 +950,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -944,6 +1064,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -1030,6 +1162,18 @@ jobs:
 
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
+
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
 
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
@@ -1118,6 +1262,18 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
+
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps
 
@@ -1203,6 +1359,18 @@ jobs:
 
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
+
+      # PROFILING_FIXTURES pins the same 6 named fixtures (pdf_medium, docx_simple,
+      # image_table, markdown_technical, plus 2 not-yet-materialized names) across
+      # every language leg: pdf/docx/images plus their ground_truth entries. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            ground_truth/**
 
       - name: Install system dependencies
         uses: ./.github/actions/install-system-deps

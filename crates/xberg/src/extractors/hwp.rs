@@ -5,15 +5,20 @@
 
 use crate::Result;
 use crate::core::config::ExtractionConfig;
-use crate::extraction::hwp::model::{CharShape, HwpDocument};
+use crate::core::diagnostics::push_warning;
+use crate::extraction::hwp::model::{CharShape, HwpDocument, SummaryInfo};
 use crate::plugins::{InternalDocumentExtractor, Plugin};
 use crate::types::ExtractedImage;
 use crate::types::document_structure::{AnnotationKind, TextAnnotation};
 use crate::types::internal::InternalDocument;
 use crate::types::internal_builder::InternalDocumentBuilder;
+use crate::types::metadata::Metadata;
 use async_trait::async_trait;
 use bytes::Bytes;
 use std::borrow::Cow;
+
+/// `ProcessingWarning::source` for every warning this extractor emits (#236).
+const HWP_WARNING_SOURCE: &str = "hwp";
 #[cfg_attr(alef, alef(skip))]
 /// Extractor for Hangul Word Processor (.hwp) files.
 ///
@@ -66,6 +71,11 @@ fn extract_hwp_content(content: &[u8]) -> Result<HwpDocument> {
 /// Build an `InternalDocument` from HWP structured model.
 fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
     let mut builder = InternalDocumentBuilder::new("hwp");
+
+    if let Some(metadata) = build_metadata(hwp_doc.summary_info.as_ref()) {
+        builder.set_metadata(metadata);
+    }
+
     for section in &hwp_doc.sections {
         for para in &section.paragraphs {
             if let Some(ref t) = para.text
@@ -80,6 +90,13 @@ fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
                 } else {
                     builder.push_paragraph(&t.content, annotations, None, None);
                 }
+            }
+        }
+
+        // #105/#236 — tables were previously not read from the parsed model at all.
+        for table in &section.tables {
+            if !table.rows.is_empty() {
+                builder.push_table_from_cells(&table.rows, None, None);
             }
         }
     }
@@ -115,6 +132,32 @@ fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
     }
 
     builder.build()
+}
+
+/// Maps the parsed `SummaryInformation` stream to the common `Metadata` DTO (#105).
+fn build_metadata(summary: Option<&SummaryInfo>) -> Option<Metadata> {
+    let summary = summary?;
+    let mut metadata = Metadata {
+        title: summary.title.clone(),
+        subject: summary.subject.clone(),
+        authors: summary.author.as_ref().map(|author| vec![author.clone()]),
+        // HWP stores keywords as a single free-form string rather than a delimited
+        // list, unlike most other formats' `Metadata::keywords: Vec<String>` — kept as
+        // one entry rather than guessing a delimiter and splitting it incorrectly.
+        keywords: summary.keywords.as_ref().map(|keywords| vec![keywords.clone()]),
+        created_at: summary.created.clone(),
+        modified_at: summary.modified.clone(),
+        ..Default::default()
+    };
+
+    if let Some(last_author) = &summary.last_author {
+        metadata.additional.insert(
+            Cow::Borrowed("last_author"),
+            serde_json::Value::String(last_author.clone()),
+        );
+    }
+
+    if metadata.is_empty() { None } else { Some(metadata) }
 }
 
 fn apply_char_shapes(text: &str, runs: &[(u32, u16)], char_shapes: &[CharShape]) -> Vec<TextAnnotation> {
@@ -192,6 +235,11 @@ impl InternalDocumentExtractor for HwpExtractor {
             ));
         }
         doc.mime_type = mime_type.to_string();
+        // #236 — name what parsing could not recover instead of returning `Ok` with
+        // no indication that some body-text content was abandoned.
+        for warning in &hwp_doc.warnings {
+            push_warning(&mut doc.processing_warnings, HWP_WARNING_SOURCE, warning.clone());
+        }
         Ok(doc)
     }
 
@@ -207,6 +255,95 @@ impl InternalDocumentExtractor for HwpExtractor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::extraction::hwp::model::{HwpTable, Section};
+
+    #[test]
+    fn test_build_metadata_returns_none_for_absent_summary_info() {
+        assert!(build_metadata(None).is_none());
+    }
+
+    #[test]
+    fn test_build_metadata_returns_none_for_all_empty_summary_info() {
+        let summary = SummaryInfo::default();
+        assert!(build_metadata(Some(&summary)).is_none());
+    }
+
+    #[test]
+    fn test_build_metadata_maps_summary_info_fields() {
+        let summary = SummaryInfo {
+            title: Some("계약서".to_string()),
+            subject: Some("Subject".to_string()),
+            author: Some("Author".to_string()),
+            keywords: Some("k1, k2".to_string()),
+            comments: None,
+            last_author: Some("jinsol".to_string()),
+            created: Some("2024-07-01T06:05:58Z".to_string()),
+            modified: Some("2024-07-02T04:05:59Z".to_string()),
+        };
+
+        let metadata = build_metadata(Some(&summary)).expect("must produce metadata");
+        assert_eq!(metadata.title.as_deref(), Some("계약서"));
+        assert_eq!(metadata.subject.as_deref(), Some("Subject"));
+        assert_eq!(metadata.authors, Some(vec!["Author".to_string()]));
+        assert_eq!(metadata.keywords, Some(vec!["k1, k2".to_string()]));
+        assert_eq!(metadata.created_at.as_deref(), Some("2024-07-01T06:05:58Z"));
+        assert_eq!(metadata.modified_at.as_deref(), Some("2024-07-02T04:05:59Z"));
+        assert_eq!(
+            metadata.additional.get("last_author"),
+            Some(&serde_json::Value::String("jinsol".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_build_hwp_internal_document_includes_tables() {
+        let section = Section {
+            paragraphs: vec![],
+            tables: vec![HwpTable {
+                rows: vec![
+                    vec!["Name".to_string(), "Age".to_string()],
+                    vec!["Alice".to_string(), "30".to_string()],
+                ],
+            }],
+        };
+        let hwp_doc = HwpDocument {
+            sections: vec![section],
+            ..HwpDocument::default()
+        };
+
+        let internal_doc = build_hwp_internal_document(&hwp_doc);
+
+        assert_eq!(internal_doc.tables.len(), 1);
+        assert_eq!(
+            internal_doc.tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Age".to_string()],
+                vec!["Alice".to_string(), "30".to_string()],
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_extract_content_real_styled_document_recovers_text_and_metadata() {
+        // End-to-end regression test through the public `InternalDocumentExtractor`
+        // API (not just `extract_hwp_document`) for the #236 tag-ID fix: before it,
+        // this genuine HWP 5.0 document produced zero elements and therefore always
+        // failed with "no BodyText sections found".
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/hwp/styled_document.hwp");
+        if !path.exists() {
+            println!("Skipping: test document not found at {}", path.display());
+            return;
+        }
+        let content = std::fs::read(&path).expect("read file");
+        let extractor = HwpExtractor::new();
+        let result = extractor
+            .extract_content(&content, "application/x-hwp", &ExtractionConfig::default())
+            .await
+            .expect("extraction of styled_document.hwp must succeed");
+
+        let text: String = result.elements.iter().map(|element| element.text.as_str()).collect();
+        assert!(!text.trim().is_empty(), "expected non-empty extracted text");
+    }
 
     #[test]
     fn test_hwp_extractor_plugin_interface() {
@@ -266,7 +403,10 @@ mod tests {
             char_shape_runs: vec![(0, 0)],
         };
 
-        let section = Section { paragraphs: vec![para] };
+        let section = Section {
+            paragraphs: vec![para],
+            tables: vec![],
+        };
 
         let image = HwpImage {
             name: "image1.png".to_string(),
@@ -277,6 +417,7 @@ mod tests {
             char_shapes: vec![shape1],
             sections: vec![section],
             images: vec![image],
+            ..HwpDocument::default()
         };
 
         let internal_doc = build_hwp_internal_document(&hwp_doc);

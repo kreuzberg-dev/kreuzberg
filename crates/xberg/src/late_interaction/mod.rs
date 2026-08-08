@@ -304,6 +304,7 @@ fn resolve_model_info(
 
 /// Get or initialize a late-interaction engine from cache.
 #[cfg(feature = "late-interaction")]
+#[allow(clippy::too_many_arguments)]
 fn get_or_init_engine(
     repo_name: &str,
     model_file: &str,
@@ -311,6 +312,7 @@ fn get_or_init_engine(
     max_length: usize,
     query_max_length: usize,
     cache_dir: Option<std::path::PathBuf>,
+    progress: crate::core::config::DownloadProgress,
     accel: Option<crate::core::config::acceleration::AccelerationConfig>,
 ) -> crate::Result<Arc<LateInteractionEngine>> {
     let revision = (repo_name == "xberg-io/late-interaction-models").then_some(LATE_INTERACTION_REVISION);
@@ -351,6 +353,7 @@ fn get_or_init_engine(
         additional_files,
         revision,
         cache_dir.as_deref(),
+        progress,
         Some(LATE_INTERACTION_SHA256_MANIFEST),
         late_err,
     )?;
@@ -427,6 +430,7 @@ pub fn embed_multi_vector<T: AsRef<str>>(
         max_len,
         query_max_len,
         config.cache_dir.clone(),
+        config.into(),
         config.acceleration.clone(),
     )?;
 

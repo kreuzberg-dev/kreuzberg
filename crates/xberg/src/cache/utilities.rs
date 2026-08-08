@@ -22,7 +22,10 @@ const CACHE_KEY_HASH_WIDTH: usize = 32;
 ///
 /// # Example
 ///
-/// ```rust
+/// Not run as a doctest: this helper is `#[cfg(test)] pub(crate)`, so it does not
+/// exist in any build a downstream crate can link against.
+///
+/// ```ignore
 /// use xberg::cache::generate_cache_key;
 ///
 /// let parts = vec![

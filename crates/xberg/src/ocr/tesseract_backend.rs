@@ -153,6 +153,32 @@ impl Default for TesseractBackend {
     }
 }
 
+/// Convert a backend-internal [`crate::types::OcrTable`] into the public
+/// [`crate::types::Table`], assigning a deterministic `table_id`.
+///
+/// `index` is the table's 0-based position among the tables returned for this
+/// single OCR call (i.e. document push order for this call), so the id is
+/// `"table-{index + 1}"` — never derived from randomness or wall-clock time,
+/// so the same input always produces the same id. See
+/// `crate::types::Table::table_id` for the shared scheme doc.
+fn convert_ocr_table(index: usize, table: crate::types::OcrTable) -> crate::types::Table {
+    let bounding_box = table.bounding_box.map(|bbox| crate::types::BoundingBox {
+        x0: bbox.left as f64,
+        y0: bbox.top as f64,
+        x1: bbox.right as f64,
+        y1: bbox.bottom as f64,
+    });
+    let columns = table.cells.first().cloned();
+    crate::types::Table {
+        cells: table.cells,
+        markdown: table.markdown,
+        page_number: table.page_number,
+        bounding_box,
+        table_id: Some(format!("table-{}", index + 1)),
+        columns,
+    }
+}
+
 impl Plugin for TesseractBackend {
     fn name(&self) -> &str {
         "tesseract"
@@ -236,11 +262,10 @@ impl OcrBackend for TesseractBackend {
             .unwrap_or(&tess_config.language)
             .to_string();
 
-        let pre_formatted = ocr_result
-            .metadata
-            .get("pre_formatted")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let pre_formatted = extract_pre_formatted_metadata(&mut ocr_result.metadata);
+
+        let processing_warnings = warnings_from_ocr_metadata(&ocr_result.metadata);
+        strip_ocr_scratch_metadata_keys(&mut ocr_result.metadata);
 
         let mut additional = AHashMap::new();
         for (key, value) in ocr_result.metadata {
@@ -271,24 +296,12 @@ impl OcrBackend for TesseractBackend {
             tables: ocr_result
                 .tables
                 .into_iter()
-                .map(|t| {
-                    let bounding_box = t.bounding_box.map(|bbox| crate::types::BoundingBox {
-                        x0: bbox.left as f64,
-                        y0: bbox.top as f64,
-                        x1: bbox.right as f64,
-                        y1: bbox.bottom as f64,
-                    });
-                    crate::types::Table {
-                        cells: t.cells,
-                        markdown: t.markdown,
-                        page_number: t.page_number,
-                        bounding_box,
-                        ..Default::default()
-                    }
-                })
+                .enumerate()
+                .map(|(index, t)| convert_ocr_table(index, t))
                 .collect(),
             ocr_elements: ocr_result.ocr_elements,
             ocr_internal_document: ocr_result.internal_document,
+            processing_warnings,
             ..Default::default()
         })
     }
@@ -345,11 +358,10 @@ impl OcrBackend for TesseractBackend {
             .unwrap_or(&tess_config.language)
             .to_string();
 
-        let pre_formatted = ocr_result
-            .metadata
-            .get("pre_formatted")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let pre_formatted = extract_pre_formatted_metadata(&mut ocr_result.metadata);
+
+        let processing_warnings = warnings_from_ocr_metadata(&ocr_result.metadata);
+        strip_ocr_scratch_metadata_keys(&mut ocr_result.metadata);
 
         let mut additional = AHashMap::new();
         for (key, value) in ocr_result.metadata {
@@ -380,24 +392,12 @@ impl OcrBackend for TesseractBackend {
             tables: ocr_result
                 .tables
                 .into_iter()
-                .map(|t| {
-                    let bounding_box = t.bounding_box.map(|bbox| crate::types::BoundingBox {
-                        x0: bbox.left as f64,
-                        y0: bbox.top as f64,
-                        x1: bbox.right as f64,
-                        y1: bbox.bottom as f64,
-                    });
-                    crate::types::Table {
-                        cells: t.cells,
-                        markdown: t.markdown,
-                        page_number: t.page_number,
-                        bounding_box,
-                        ..Default::default()
-                    }
-                })
+                .enumerate()
+                .map(|(index, t)| convert_ocr_table(index, t))
                 .collect(),
             ocr_elements: ocr_result.ocr_elements,
             ocr_internal_document: ocr_result.internal_document,
+            processing_warnings,
             ..Default::default()
         })
     }
@@ -529,6 +529,110 @@ fn normalize_vertical_cjk_result(result: &mut crate::types::OcrExtractionResult,
             );
         }
     }
+}
+
+/// Metadata key `perform_ocr` sets when the Tesseract result iterator dropped
+/// one or more words (null pointer, invalid parameter, or invalid UTF-8)
+/// rather than including them in `ocr_elements`. Mirrors the literal written
+/// in `ocr::processor::execution::insert_word_iterator_skipped_count_metadata`.
+const WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY: &str = "word_iterator_skipped_count";
+
+/// Metadata key `perform_ocr` sets when `auto_rotate` was requested but the
+/// `auto-rotate` build feature is not compiled in, so orientation detection
+/// never ran. Mirrors the literal written in `ocr::processor::execution::perform_ocr`.
+const AUTO_ROTATE_UNAVAILABLE_METADATA_KEY: &str = "auto_rotate_unavailable";
+
+/// Metadata key `perform_ocr` sets when it rebuilds `content` with inline
+/// table markdown at each table's original vertical position (see
+/// `perform_ocr`'s `build_content_with_inline_tables` step). Promoted to
+/// `Metadata::output_format` by [`extract_pre_formatted_metadata`] rather
+/// than left as a raw `Metadata::additional` entry (#354).
+const PRE_FORMATTED_METADATA_KEY: &str = "pre_formatted";
+
+/// Pull the `pre_formatted` marker out of an `OcrExtractionResult`'s metadata
+/// map, returning its string value if present.
+///
+/// Uses `.remove()`, not `.get()`, so the key never also survives into the
+/// user-visible `Metadata::additional` map once the remaining metadata is
+/// copied wholesale (#354). Extracted as its own pure function, mirroring
+/// `warnings_from_ocr_metadata`, so the removal is unit-testable without a
+/// live Tesseract API instance.
+fn extract_pre_formatted_metadata(
+    metadata: &mut std::collections::HashMap<String, serde_json::Value>,
+) -> Option<String> {
+    metadata
+        .remove(PRE_FORMATTED_METADATA_KEY)
+        .and_then(|v| v.as_str().map(str::to_string))
+}
+
+/// Turn the OCR backend's metadata side-channel into the `ProcessingWarning`s a
+/// caller of `ExtractedDocument` actually sees (#309).
+///
+/// `OcrExtractionResult` has no dedicated warnings field of its own -- adding
+/// one would be binding-visible drift across every language binding, since the
+/// struct carries no `alef(skip)`. `perform_ocr` instead records data-loss
+/// signals into its existing free-form `metadata` map, the same precedent set
+/// by the `pre_formatted` and `word_iterator_skipped_count` keys. This function
+/// is the other half: it reads those same keys back out here, where the map is
+/// still available (before it is drained into `Metadata::additional`), and
+/// turns them into warnings on the returned `ExtractedDocument`.
+///
+/// Extracted as its own pure function so the metadata-to-warning mapping is
+/// unit-testable without a live Tesseract API instance.
+fn warnings_from_ocr_metadata(
+    metadata: &std::collections::HashMap<String, serde_json::Value>,
+) -> Vec<crate::types::ProcessingWarning> {
+    let mut warnings = Vec::new();
+
+    if let Some(skipped) = metadata
+        .get(WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY)
+        .and_then(serde_json::Value::as_u64)
+        && skipped > 0
+    {
+        crate::core::diagnostics::push_warning(
+            &mut warnings,
+            "tesseract",
+            format!(
+                "The Tesseract result iterator failed to extract {skipped} word(s) from this image \
+                 (null pointer, invalid parameter, or invalid UTF-8); those words are missing from \
+                 the OCR output"
+            ),
+        );
+    }
+
+    if metadata
+        .get(AUTO_ROTATE_UNAVAILABLE_METADATA_KEY)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        crate::core::diagnostics::push_warning(
+            &mut warnings,
+            "tesseract",
+            "auto_rotate was requested but this build does not include the `auto-rotate` feature; \
+             the image was OCR'd without orientation detection or correction",
+        );
+    }
+
+    warnings
+}
+
+/// Remove the OCR pipeline's internal scratch metadata keys before the
+/// remaining map is copied wholesale into the user-visible
+/// `Metadata::additional` (#354).
+///
+/// `WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY` and
+/// `AUTO_ROTATE_UNAVAILABLE_METADATA_KEY` are plumbing for
+/// `warnings_from_ocr_metadata` (call that first -- it reads these keys back
+/// out before this function removes them) and have no meaning as document
+/// metadata. `pre_formatted` is handled separately by
+/// [`extract_pre_formatted_metadata`] because it is promoted to
+/// `Metadata::output_format`, not dropped.
+///
+/// Extracted as its own pure function, mirroring `warnings_from_ocr_metadata`,
+/// so the filtering is unit-testable without a live Tesseract API instance.
+fn strip_ocr_scratch_metadata_keys(metadata: &mut std::collections::HashMap<String, serde_json::Value>) {
+    metadata.remove(WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY);
+    metadata.remove(AUTO_ROTATE_UNAVAILABLE_METADATA_KEY);
 }
 
 fn compact_cjk_horizontal_spacing(text: &str) -> String {
@@ -702,6 +806,50 @@ mod tests {
         );
     }
 
+    /// Issue #181: OCR-produced tables must carry a deterministic `table_id`,
+    /// `columns`, and `bounding_box` — not `..Default::default()` blanks.
+    #[test]
+    fn convert_ocr_table_assigns_sequential_ids_columns_and_bounding_box() {
+        let first = crate::types::OcrTable {
+            cells: vec![
+                vec!["Name".to_string(), "Age".to_string()],
+                vec!["Alice".to_string(), "30".to_string()],
+            ],
+            markdown: "| Name | Age |\n|---|---|\n| Alice | 30 |".to_string(),
+            page_number: 1,
+            bounding_box: Some(crate::types::OcrTableBoundingBox {
+                left: 10,
+                top: 20,
+                right: 110,
+                bottom: 220,
+            }),
+        };
+        let second = crate::types::OcrTable {
+            cells: vec![vec!["X".to_string()]],
+            markdown: "| X |".to_string(),
+            page_number: 2,
+            bounding_box: None,
+        };
+
+        let converted_first = convert_ocr_table(0, first);
+        let converted_second = convert_ocr_table(1, second);
+
+        assert_eq!(converted_first.table_id.as_deref(), Some("table-1"));
+        assert_eq!(
+            converted_first.columns,
+            Some(vec!["Name".to_string(), "Age".to_string()])
+        );
+        let bbox = converted_first.bounding_box.expect("bounding box must be populated");
+        assert_eq!(bbox.x0, 10.0);
+        assert_eq!(bbox.y0, 20.0);
+        assert_eq!(bbox.x1, 110.0);
+        assert_eq!(bbox.y1, 220.0);
+
+        assert_eq!(converted_second.table_id.as_deref(), Some("table-2"));
+        assert_eq!(converted_second.columns, Some(vec!["X".to_string()]));
+        assert!(converted_second.bounding_box.is_none());
+    }
+
     #[test]
     fn test_config_to_tesseract_with_none() {
         let backend = TesseractBackend::new();
@@ -832,6 +980,205 @@ mod tests {
         assert_eq!(internal_config.psm, 6u8);
         assert_eq!(internal_config.oem, 3u8);
         assert_eq!(internal_config.table_column_threshold, 100u32);
+    }
+
+    /// #309: a positive `word_iterator_skipped_count` must surface as a
+    /// `tesseract`-sourced warning naming the exact word count lost, not a
+    /// generic "something was dropped" message.
+    #[test]
+    fn warnings_from_ocr_metadata_flags_dropped_words_with_exact_count() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(2.into()),
+        );
+
+        let warnings = warnings_from_ocr_metadata(&metadata);
+
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].source, "tesseract");
+        assert!(
+            warnings[0].message.contains("2 word(s)"),
+            "message must name the exact skipped count: {}",
+            warnings[0].message
+        );
+    }
+
+    /// A `word_iterator_skipped_count` of exactly zero must not produce a
+    /// warning -- the metadata-insertion side already omits the key in that
+    /// case, but this guards the consumption side independently (#309).
+    #[test]
+    fn warnings_from_ocr_metadata_ignores_zero_skipped_count() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+
+        assert!(warnings_from_ocr_metadata(&metadata).is_empty());
+    }
+
+    /// #309: an `auto_rotate_unavailable` metadata flag must surface as a
+    /// `tesseract`-sourced warning naming the `auto-rotate` feature, so a user
+    /// who asked for rotation correction learns it never ran.
+    #[test]
+    fn warnings_from_ocr_metadata_flags_auto_rotate_unavailable() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            AUTO_ROTATE_UNAVAILABLE_METADATA_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        let warnings = warnings_from_ocr_metadata(&metadata);
+
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].source, "tesseract");
+        assert!(
+            warnings[0].message.contains("auto-rotate"),
+            "message must name the missing feature: {}",
+            warnings[0].message
+        );
+    }
+
+    /// A clean extraction (neither metadata key present) must produce no
+    /// warnings at all -- the whole point of the deduped, source-scoped
+    /// warning convention is silence on the happy path (#309).
+    #[test]
+    fn warnings_from_ocr_metadata_is_silent_on_clean_extraction() {
+        let metadata = std::collections::HashMap::new();
+        assert!(warnings_from_ocr_metadata(&metadata).is_empty());
+    }
+
+    /// Both signals can fire together (a garbled page that also requested
+    /// rotation on a build without the feature); both warnings must be kept,
+    /// not just the first one found (#309).
+    #[test]
+    fn warnings_from_ocr_metadata_keeps_both_warnings_when_both_signals_fire() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(1.into()),
+        );
+        metadata.insert(
+            AUTO_ROTATE_UNAVAILABLE_METADATA_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        assert_eq!(warnings_from_ocr_metadata(&metadata).len(), 2);
+    }
+
+    /// Round-trip test for the metadata -> warnings propagation path: the
+    /// on-disk OCR cache (`ocr/cache.rs`) serializes `OcrExtractionResult`,
+    /// including this `metadata` map, with `rmp_serde::to_vec_named` and
+    /// decodes it back on a cache hit. This proves the two side-channel keys
+    /// survive that exact round-trip and still produce the same warnings, so
+    /// a cache hit surfaces the same `ProcessingWarning`s as a cache miss
+    /// (#309).
+    #[test]
+    fn warnings_from_ocr_metadata_survives_msgpack_cache_round_trip() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(5.into()),
+        );
+        metadata.insert(
+            AUTO_ROTATE_UNAVAILABLE_METADATA_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        let serialized = rmp_serde::to_vec_named(&metadata).expect("metadata must serialize for the OCR cache");
+        let round_tripped: std::collections::HashMap<String, serde_json::Value> =
+            rmp_serde::from_slice(&serialized).expect("metadata must deserialize from the OCR cache");
+
+        let before = warnings_from_ocr_metadata(&metadata);
+        let after = warnings_from_ocr_metadata(&round_tripped);
+        assert_eq!(before.len(), 2);
+        assert_eq!(after.len(), 2);
+        assert_eq!(before[0].source, after[0].source);
+        assert_eq!(before[0].message, after[0].message);
+        assert_eq!(before[1].source, after[1].source);
+        assert_eq!(before[1].message, after[1].message);
+    }
+
+    /// #354: `word_iterator_skipped_count` is pipeline plumbing consumed by
+    /// `warnings_from_ocr_metadata` -- it must not survive into the
+    /// user-visible metadata map that becomes `Metadata::additional`.
+    #[test]
+    fn strip_ocr_scratch_metadata_keys_removes_word_iterator_skipped_count() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(2.into()),
+        );
+
+        strip_ocr_scratch_metadata_keys(&mut metadata);
+
+        assert!(!metadata.contains_key(WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY));
+    }
+
+    /// #354: `auto_rotate_unavailable` is pipeline plumbing consumed by
+    /// `warnings_from_ocr_metadata` -- it must not survive into the
+    /// user-visible metadata map that becomes `Metadata::additional`.
+    #[test]
+    fn strip_ocr_scratch_metadata_keys_removes_auto_rotate_unavailable() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            AUTO_ROTATE_UNAVAILABLE_METADATA_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        strip_ocr_scratch_metadata_keys(&mut metadata);
+
+        assert!(!metadata.contains_key(AUTO_ROTATE_UNAVAILABLE_METADATA_KEY));
+    }
+
+    /// #354: `pre_formatted` is promoted to `Metadata::output_format`, so it
+    /// must be removed from the metadata map (not merely read), or it would
+    /// also leak into `Metadata::additional` once the remaining map is
+    /// copied wholesale.
+    #[test]
+    fn extract_pre_formatted_metadata_removes_key_and_returns_value() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert(
+            PRE_FORMATTED_METADATA_KEY.to_string(),
+            serde_json::Value::String("markdown".to_string()),
+        );
+
+        let extracted = extract_pre_formatted_metadata(&mut metadata);
+
+        assert_eq!(extracted.as_deref(), Some("markdown"));
+        assert!(!metadata.contains_key(PRE_FORMATTED_METADATA_KEY));
+    }
+
+    /// #354 must not over-fire: genuine document metadata that happens to
+    /// share the map with the scratch keys has to survive the filter intact,
+    /// both in value and key set, so callers still see it in
+    /// `Metadata::additional`.
+    #[test]
+    fn strip_ocr_scratch_metadata_keys_preserves_genuine_user_metadata() {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("language".to_string(), serde_json::Value::String("eng".to_string()));
+        metadata.insert("mean_text_conf".to_string(), serde_json::Value::Number(87.into()));
+        metadata.insert(
+            WORD_ITERATOR_SKIPPED_COUNT_METADATA_KEY.to_string(),
+            serde_json::Value::Number(1.into()),
+        );
+        metadata.insert(
+            AUTO_ROTATE_UNAVAILABLE_METADATA_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+
+        strip_ocr_scratch_metadata_keys(&mut metadata);
+
+        assert_eq!(metadata.len(), 2);
+        assert_eq!(
+            metadata.get("language"),
+            Some(&serde_json::Value::String("eng".to_string()))
+        );
+        assert_eq!(
+            metadata.get("mean_text_conf"),
+            Some(&serde_json::Value::Number(87.into()))
+        );
     }
 
     #[test]

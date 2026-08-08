@@ -143,6 +143,10 @@ pub mod presets;
 #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 pub mod ocr;
 
+/// Canonical OCR metadata key names, shared across every OCR-producing and
+/// OCR-consuming feature domain. Deliberately ungated — see the module docs.
+pub(crate) mod ocr_metadata_keys;
+
 pub mod doctor;
 
 #[cfg(any(
@@ -212,14 +216,15 @@ pub use core::extract::{extract, extract_batch};
 pub use core::split::{SplitConfig, SplitSegment, SplitStrategy, split_and_extract};
 
 pub use core::config::{
-    AccelerationConfig, CallMode, CaptioningConfig, ChunkClassificationConfig, ChunkClassificationDefinition,
-    ChunkSizing, ChunkerType, ChunkingConfig, ContentFilterConfig, EmailConfig, EmbeddingConfig, EmbeddingModelType,
-    ExecutionProviderType, ExtractInput, ExtractInputKind, ExtractionConfig, ExtractionErrorItem, ExtractionResult,
-    ExtractionSummary, FileExtractionConfig, ImageExtractionConfig, JupyterCellRendering, LanguageDetectionConfig,
-    LlmConfig, MergeMode, NerBackendKind, NerConfig, OcrConfig, OutputFormat, PageClassificationConfig, PageConfig,
-    PostProcessorConfig, RedactionConfig, RedactionPattern, RedactionTerm, RerankerConfig, RerankerHead,
-    RerankerModelType, StructuredExtractionConfig, SummarizationConfig, TableChunkingMode, TokenReductionOptions,
-    TranslationConfig, UrlExtractionConfig, UrlExtractionMode,
+    AccelerationConfig, BedrockConfig, BreadcrumbTarget, CallMode, CaptioningConfig, ChunkClassificationConfig,
+    ChunkClassificationDefinition, ChunkSizing, ChunkerType, ChunkingConfig, ContentFilterConfig, CsvConfig,
+    EmailConfig, EmbeddingConfig, EmbeddingModelType, ExecutionProviderType, ExtractInput, ExtractInputKind,
+    ExtractionConfig, ExtractionErrorItem, ExtractionResult, ExtractionSummary, FileExtractionConfig,
+    ImageExtractionConfig, JupyterCellRendering, LanguageDetectionConfig, LlmConfig, MergeMode, NerBackendKind,
+    NerConfig, OcrConfig, OutputFormat, PageClassificationConfig, PageConfig, PostProcessorConfig, RedactionConfig,
+    RedactionPattern, RedactionTerm, RerankerConfig, RerankerHead, RerankerModelType, StructuredExtractionConfig,
+    SummarizationConfig, TableChunkingMode, TokenReductionOptions, TranslationConfig, UrlExtractionConfig,
+    UrlExtractionMode,
 };
 pub use core::config::{
     LateInteractionConfig, LateInteractionModelType, SparseEmbeddingConfig, SparseEmbeddingModelType,
@@ -420,9 +425,7 @@ pub use diff::{DiffHunk, DiffOptions, EmbeddedChanges, EmbeddedDiff, ExtractionD
 pub use core::config::{CodeContentMode, TreeSitterConfig, TreeSitterProcessConfig};
 #[cfg(feature = "tree-sitter")]
 pub use tree_sitter_language_pack::{
-    ChunkContext, CodeChunk, CommentInfo, CommentKind, Diagnostic, DiagnosticSeverity, DocstringFormat, DocstringInfo,
-    ExportInfo, ExportKind, FileMetrics, ImportInfo, ProcessConfig, ProcessResult, Span, StructureItem, StructureKind,
-    SymbolInfo, SymbolKind, process as process_code,
+    CommentKind, DiagnosticSeverity, ExportKind, FileMetrics, ProcessConfig, StructureKind,
 };
 
 pub use core::mime::{SupportedFormat, detect_mime_type_from_bytes, get_extensions_for_mime, list_supported_formats};

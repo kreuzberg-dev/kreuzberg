@@ -51,7 +51,7 @@ require_exact_input() {
 require_exact_cli_build() {
   local job="$1"
   local description="$2"
-  local expected="cargo build --locked --release -p xberg-cli --features all"
+  local expected="cargo build --locked --release -p xberg-cli --features all,xberg/sceptre-ocr-tract"
   local commands
   local command_count
 

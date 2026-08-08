@@ -4,10 +4,12 @@ use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::error::XbergError;
 use crate::extractors::iwork::{
-    IwaExpansionBudget, collect_iwa_paths, extract_metadata_from_zip, read_iwa_file, validate_iwork_zip,
+    IwaExpansionBudget, collect_iwa_paths, extract_metadata_from_zip, push_member_parse_warning, read_iwa_file,
+    validate_iwork_zip,
 };
 use crate::extractors::security::{SecurityBudget, SecurityLimits};
 use crate::plugins::{InternalDocumentExtractor, Plugin};
+use crate::types::ProcessingWarning;
 use crate::types::internal::InternalDocument;
 use crate::types::internal_builder::InternalDocumentBuilder;
 use async_trait::async_trait;
@@ -63,10 +65,14 @@ impl Plugin for NumbersExtractor {
 
 /// Parsed Numbers tables and optional metadata.
 struct NumbersData {
-    /// Tables from every document sheet, in display order.
-    tables: Vec<(String, Vec<Vec<String>>)>,
+    /// Tables from every document sheet, in display order. The sheet name is
+    /// `None` when no sheet context is available (e.g. the legacy text
+    /// fallback, which has no notion of sheets).
+    tables: Vec<(Option<String>, String, Vec<Vec<String>>)>,
     /// Metadata extracted from the ZIP archive.
     metadata: crate::types::metadata::Metadata,
+    /// Warnings for IWA members that failed to parse (#106).
+    warnings: Vec<ProcessingWarning>,
 }
 
 /// Parse a Numbers ZIP and extract all text from IWA files.
@@ -148,6 +154,7 @@ mod field {
     pub(super) const MESSAGE_LENGTH: u32 = 3;
     pub(super) const MESSAGE_BASE_INDEX: u32 = 7;
     pub(super) const DOCUMENT_SHEET: u32 = 1;
+    pub(super) const SHEET_NAME: u32 = 1;
     pub(super) const SHEET_DRAWABLE: u32 = 2;
     pub(super) const TABLE_INFO_MODEL: u32 = 2;
     pub(super) const TABLE_DATA_STORE: u32 = 4;
@@ -252,18 +259,30 @@ fn parse_numbers_structured(
     budget: &mut SecurityBudget,
     expansion: &mut IwaExpansionBudget,
 ) -> Result<NumbersData> {
-    let objects = read_iwa_objects(content, budget, expansion)?;
+    let mut warnings: Vec<ProcessingWarning> = Vec::new();
+    let objects = read_iwa_objects(content, budget, expansion, &mut warnings)?;
     let metadata = extract_metadata_from_zip(content);
 
-    let table_ids = document_table_ids(&objects, budget)?;
-    let mut tables = Vec::with_capacity(table_ids.len());
-    for table_id in table_ids {
-        if let Some(table) = parse_table(table_id, &objects, budget)? {
-            tables.push(table);
+    let sheets = document_sheets(&objects, budget, &mut warnings)?;
+    let mut tables = Vec::new();
+    for sheet in sheets {
+        // Numbers sheet names are otherwise dropped entirely (#111). Carry the sheet name
+        // alongside each table so rendering can surface it as its own heading, matching how
+        // the xlsx/ods path (`extraction/excel.rs`) headings a sheet separately from its
+        // table content rather than folding it into the table's title text.
+        let sheet_name = (!sheet.name.is_empty()).then_some(sheet.name);
+        for table_id in sheet.table_ids {
+            if let Some((table_name, cells)) = parse_table(table_id, &objects, budget, &mut warnings)? {
+                tables.push((sheet_name.clone(), table_name, cells));
+            }
         }
     }
 
-    Ok(NumbersData { tables, metadata })
+    Ok(NumbersData {
+        tables,
+        metadata,
+        warnings,
+    })
 }
 
 fn parse_numbers_legacy(
@@ -277,6 +296,7 @@ fn parse_numbers_legacy(
     let mut other_cells = Vec::new();
     let mut table_seen = std::collections::HashSet::new();
     let mut other_seen = std::collections::HashSet::new();
+    let mut warnings: Vec<ProcessingWarning> = Vec::new();
 
     for path in iwa_paths {
         budget.step()?;
@@ -285,6 +305,7 @@ fn parse_numbers_legacy(
             Err(error) if matches!(&error, XbergError::Security { .. }) => return Err(error),
             Err(error) => {
                 tracing::debug!(member = %path, %error, "skipping unreadable legacy iWork member");
+                push_member_parse_warning(&mut warnings, &path, &error);
                 continue;
             }
         };
@@ -298,12 +319,16 @@ fn parse_numbers_legacy(
 
     let mut tables = Vec::new();
     if !table_cells.is_empty() {
-        tables.push(("Sheet Data".to_string(), table_cells));
+        tables.push((None, "Sheet Data".to_string(), table_cells));
     }
     if !other_cells.is_empty() {
-        tables.push(("Document Info".to_string(), other_cells));
+        tables.push((None, "Document Info".to_string(), other_cells));
     }
-    Ok(NumbersData { tables, metadata })
+    Ok(NumbersData {
+        tables,
+        metadata,
+        warnings,
+    })
 }
 
 fn append_legacy_cells(
@@ -313,7 +338,9 @@ fn append_legacy_cells(
     budget: &mut SecurityBudget,
 ) -> Result<()> {
     for text in texts {
-        if text.len() < 2 || !text.chars().any(char::is_alphanumeric) || seen.contains(&text) {
+        // No byte-length floor: a single alphanumeric character can be real content
+        // (a numeric answer, a unit label) — dropping it here was #107.
+        if !text.chars().any(char::is_alphanumeric) || seen.contains(&text) {
             continue;
         }
         // Charge the cell before HashSet/row allocations so the limit prevents growth. ~keep
@@ -328,6 +355,7 @@ fn read_iwa_objects(
     content: &[u8],
     budget: &mut SecurityBudget,
     expansion: &mut IwaExpansionBudget,
+    warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<IwaObjects> {
     let mut objects: IwaObjects = HashMap::new();
     for path in collect_iwa_paths(content)? {
@@ -337,6 +365,7 @@ fn read_iwa_objects(
             Err(error) if matches!(&error, XbergError::Security { .. }) => return Err(error),
             Err(error) => {
                 tracing::debug!(member = %path, %error, "skipping unreadable iWork archive member");
+                push_member_parse_warning(warnings, &path, &error);
                 continue;
             }
         };
@@ -346,6 +375,7 @@ fn read_iwa_objects(
                 return Err(error);
             }
             tracing::debug!(member = %path, %error, "skipping malformed iWork archive member");
+            push_member_parse_warning(warnings, &path, &error);
             continue;
         }
         for (identifier, mut messages) in member_objects {
@@ -471,7 +501,26 @@ fn object_for_type(objects: &IwaObjects, identifier: u64, object_type: u32) -> O
         .find(|object| object.object_type == object_type && !object.is_merge_patch)
 }
 
-fn document_table_ids(objects: &IwaObjects, budget: &mut SecurityBudget) -> Result<Vec<u64>> {
+/// A document sheet's display name and the table archive ids drawn on it.
+struct SheetTableRefs {
+    name: String,
+    table_ids: Vec<u64>,
+}
+
+/// Walk every sheet referenced from the document archive, resolving each
+/// sheet's display name (#111) and the tables drawn on it.
+///
+/// A sheet's `SHEET_DRAWABLE` field lists every drawable placed on it — tables
+/// *and* non-table shapes (text boxes, images, charts). Only tables are
+/// resolved into structured data here; a drawable that resolves to some other
+/// archive type is named in a `ProcessingWarning` (#111) instead of vanishing
+/// silently, since xberg has no schema for reconstructing arbitrary iWork
+/// drawables.
+fn document_sheets(
+    objects: &IwaObjects,
+    budget: &mut SecurityBudget,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<Vec<SheetTableRefs>> {
     let document = objects
         .values()
         .find_map(|messages| {
@@ -482,7 +531,8 @@ fn document_table_ids(objects: &IwaObjects, budget: &mut SecurityBudget) -> Resu
         })
         .ok_or_else(|| numbers_parse_error("Numbers document archive is missing"))?;
     let document_fields = parse_proto_fields(&document.payload, budget)?;
-    let mut table_ids = Vec::new();
+    let mut sheets = Vec::new();
+    let mut has_table = false;
     for sheet_reference in field_bytes(&document_fields, field::DOCUMENT_SHEET) {
         let Some(sheet_id) = reference_identifier(sheet_reference) else {
             continue;
@@ -491,13 +541,35 @@ fn document_table_ids(objects: &IwaObjects, budget: &mut SecurityBudget) -> Resu
             continue;
         };
         let sheet_fields = parse_proto_fields(&sheet.payload, budget)?;
-        for drawable in field_bytes(&sheet_fields, field::SHEET_DRAWABLE) {
-            let Some(table_info_id) = reference_identifier(drawable) else {
-                continue;
-            };
-            let Some(table_info) = object_for_type(objects, table_info_id, TABLE_INFO_ARCHIVE_TYPE) else {
-                continue;
-            };
+        let sheet_name = parse_sheet_name(&sheet_fields, budget)?;
+        let (table_ids, skipped_types) = resolve_sheet_drawables(&sheet_fields, objects, budget)?;
+        has_table |= !table_ids.is_empty();
+        push_non_table_drawable_warning(warnings, &sheet_name, &skipped_types);
+        sheets.push(SheetTableRefs {
+            name: sheet_name,
+            table_ids,
+        });
+    }
+    if !has_table {
+        return Err(numbers_parse_error("Numbers document has no readable table references"));
+    }
+    Ok(sheets)
+}
+
+/// Resolve a sheet's `SHEET_DRAWABLE` references into table archive ids,
+/// collecting the archive type of every drawable that is not a table.
+fn resolve_sheet_drawables(
+    sheet_fields: &[ProtoField<'_>],
+    objects: &IwaObjects,
+    budget: &mut SecurityBudget,
+) -> Result<(Vec<u64>, Vec<u32>)> {
+    let mut table_ids = Vec::new();
+    let mut skipped_types = Vec::new();
+    for drawable in field_bytes(sheet_fields, field::SHEET_DRAWABLE) {
+        let Some(drawable_id) = reference_identifier(drawable) else {
+            continue;
+        };
+        if let Some(table_info) = object_for_type(objects, drawable_id, TABLE_INFO_ARCHIVE_TYPE) {
             let fields = parse_proto_fields(&table_info.payload, budget)?;
             if let Some(table_id) = field_bytes(&fields, field::TABLE_INFO_MODEL)
                 .next()
@@ -505,18 +577,56 @@ fn document_table_ids(objects: &IwaObjects, budget: &mut SecurityBudget) -> Resu
             {
                 table_ids.push(table_id);
             }
+            continue;
+        }
+        if let Some(candidates) = objects.get(&drawable_id) {
+            skipped_types.extend(
+                candidates
+                    .iter()
+                    .filter(|object| !object.is_merge_patch)
+                    .map(|object| object.object_type),
+            );
         }
     }
-    if table_ids.is_empty() {
-        return Err(numbers_parse_error("Numbers document has no readable table references"));
+    Ok((table_ids, skipped_types))
+}
+
+/// Record that a sheet placed one or more non-table drawables that xberg
+/// cannot reconstruct (#111). Naming the archive type keeps the warning
+/// actionable without inventing shape/image/text-box content xberg never
+/// parsed.
+fn push_non_table_drawable_warning(warnings: &mut Vec<ProcessingWarning>, sheet_name: &str, archive_types: &[u32]) {
+    if archive_types.is_empty() {
+        return;
     }
-    Ok(table_ids)
+    let types = archive_types.iter().map(u32::to_string).collect::<Vec<_>>().join(", ");
+    crate::core::diagnostics::push_warning(
+        warnings,
+        crate::extractors::iwork::IWORK_WARNING_SOURCE,
+        format!(
+            "Sheet '{sheet_name}' contains {} non-table drawable object(s) (archive type(s): {types}) that xberg \
+             does not extract; only tables are supported",
+            archive_types.len()
+        ),
+    );
+}
+
+fn parse_sheet_name(fields: &[ProtoField<'_>], budget: &mut SecurityBudget) -> Result<String> {
+    let name = field_bytes(fields, field::SHEET_NAME)
+        .next()
+        .and_then(|value| std::str::from_utf8(value).ok())
+        .unwrap_or("Sheet")
+        .to_string();
+    budget.check_entity(&name)?;
+    budget.account_text(name.len())?;
+    Ok(name)
 }
 
 fn parse_table(
     table_id: u64,
     objects: &IwaObjects,
     budget: &mut SecurityBudget,
+    warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<Option<(String, Vec<Vec<String>>)>> {
     let Some(model) = object_for_type(objects, table_id, TABLE_MODEL_ARCHIVE_TYPE) else {
         return Ok(None);
@@ -536,7 +646,14 @@ fn parse_table(
 
     let mut cells = vec![vec![String::new(); columns]; rows];
     if let Some(tile_storage) = field_bytes(&data_store_fields, field::DATA_STORE_TILES).next() {
-        fill_table_tiles(tile_storage, objects, &strings, &rich_strings, &mut cells, budget)?;
+        let mut context = TableFillContext {
+            strings: &strings,
+            rich_strings: &rich_strings,
+            budget,
+            table_name: &name,
+            warnings,
+        };
+        fill_table_tiles(tile_storage, objects, &mut cells, &mut context)?;
     }
     Ok(Some((name, cells)))
 }
@@ -660,18 +777,36 @@ fn parse_rich_text_table(
     Ok(strings)
 }
 
+/// Shared string dictionaries plus the mutable resource/diagnostic state threaded through
+/// the table → tile → row → cell filling chain (`fill_table_tiles` → `fill_tile` → `fill_row`
+/// → `parse_cell_value`).
+///
+/// Every function in that chain needs the same pieces of context alongside its own
+/// tile/row/cell-specific arguments; grouping them here keeps each function's own argument
+/// count small instead of repeating the same parameters at every level.
+struct TableFillContext<'a> {
+    /// Plain-text cell values from the table's string dictionary, keyed by `DATA_LIST_ENTRY_KEY`.
+    strings: &'a HashMap<i32, String>,
+    /// Rich-text cell values from the table's rich-text dictionary, keyed by `DATA_LIST_ENTRY_KEY`.
+    rich_strings: &'a HashMap<i32, String>,
+    /// Extraction resource budget, shared across the whole table parse.
+    budget: &'a mut SecurityBudget,
+    /// Display name of the table being parsed, used only in warning messages.
+    table_name: &'a str,
+    /// Non-fatal parse warnings collected across the whole table parse.
+    warnings: &'a mut Vec<ProcessingWarning>,
+}
+
 fn fill_table_tiles(
     tile_storage: &[u8],
     objects: &IwaObjects,
-    strings: &HashMap<i32, String>,
-    rich_strings: &HashMap<i32, String>,
     cells: &mut [Vec<String>],
-    budget: &mut SecurityBudget,
+    context: &mut TableFillContext<'_>,
 ) -> Result<()> {
-    let storage_fields = parse_proto_fields(tile_storage, budget)?;
+    let storage_fields = parse_proto_fields(tile_storage, context.budget)?;
     let tile_size = field_usize(&storage_fields, field::TILE_STORAGE_SIZE).unwrap_or(DEFAULT_TILE_SIZE);
     for tile_entry in field_bytes(&storage_fields, field::TILE_STORAGE_TILE) {
-        let tile_fields = parse_proto_fields(tile_entry, budget)?;
+        let tile_fields = parse_proto_fields(tile_entry, context.budget)?;
         let tile_index = field_usize(&tile_fields, field::TILE_INDEX).unwrap_or(0);
         let Some(tile_id) = field_bytes(&tile_fields, field::TILE_REFERENCE)
             .next()
@@ -685,7 +820,7 @@ fn fill_table_tiles(
         let row_offset = tile_index
             .checked_mul(tile_size)
             .ok_or_else(|| numbers_parse_error("Numbers tile row offset overflow"))?;
-        fill_tile(&tile.payload, row_offset, strings, rich_strings, cells, budget)?;
+        fill_tile(&tile.payload, row_offset, cells, context)?;
     }
     Ok(())
 }
@@ -693,14 +828,12 @@ fn fill_table_tiles(
 fn fill_tile(
     payload: &[u8],
     row_offset: usize,
-    strings: &HashMap<i32, String>,
-    rich_strings: &HashMap<i32, String>,
     cells: &mut [Vec<String>],
-    budget: &mut SecurityBudget,
+    context: &mut TableFillContext<'_>,
 ) -> Result<()> {
-    let fields = parse_proto_fields(payload, budget)?;
+    let fields = parse_proto_fields(payload, context.budget)?;
     for row_info in field_bytes(&fields, field::TILE_ROW_INFO) {
-        let row_fields = parse_proto_fields(row_info, budget)?;
+        let row_fields = parse_proto_fields(row_info, context.budget)?;
         let Some(row_index) =
             field_usize(&row_fields, field::ROW_INDEX).and_then(|index| row_offset.checked_add(index))
         else {
@@ -727,7 +860,7 @@ fn fill_tile(
                 false,
             ),
         };
-        fill_row(row, storage, offsets, wide_offsets, strings, rich_strings, budget)?;
+        fill_row(row, storage, offsets, wide_offsets, context)?;
     }
     Ok(())
 }
@@ -737,9 +870,7 @@ fn fill_row(
     storage: &[u8],
     offsets: &[u8],
     wide_offsets: bool,
-    strings: &HashMap<i32, String>,
-    rich_strings: &HashMap<i32, String>,
-    budget: &mut SecurityBudget,
+    context: &mut TableFillContext<'_>,
 ) -> Result<()> {
     let parsed_offsets = parse_cell_offsets(offsets, row.len(), wide_offsets)?;
 
@@ -756,8 +887,8 @@ fn fill_row(
         if start > end || end > storage.len() {
             return Err(numbers_parse_error("Numbers cell storage offset is out of bounds"));
         }
-        if let Some(value) = parse_cell_value(&storage[start..end], strings, rich_strings)? {
-            budget.account_text(value.len())?;
+        if let Some(value) = parse_cell_value(&storage[start..end], context)? {
+            context.budget.account_text(value.len())?;
             row[column] = value;
         }
     }
@@ -783,18 +914,20 @@ fn parse_cell_offsets(offsets: &[u8], column_count: usize, wide_offsets: bool) -
         .collect()
 }
 
-fn parse_cell_value(
-    storage: &[u8],
-    strings: &HashMap<i32, String>,
-    rich_strings: &HashMap<i32, String>,
-) -> Result<Option<String>> {
+fn parse_cell_value(storage: &[u8], context: &mut TableFillContext<'_>) -> Result<Option<String>> {
     let Some(version) = storage.first().copied() else {
         return Err(numbers_parse_error("Numbers cell storage is truncated"));
     };
     if version == CELL_STORAGE_VERSION {
-        parse_v5_cell(storage, strings, rich_strings)
+        parse_v5_cell(storage, context.strings, context.rich_strings)
     } else if version <= 4 {
-        parse_old_cell(storage, strings, rich_strings)
+        parse_old_cell(
+            storage,
+            context.strings,
+            context.rich_strings,
+            context.table_name,
+            context.warnings,
+        )
     } else {
         tracing::debug!(version, "skipping unsupported Numbers cell storage version");
         Ok(None)
@@ -839,6 +972,8 @@ fn parse_old_cell(
     storage: &[u8],
     strings: &HashMap<i32, String>,
     rich_strings: &HashMap<i32, String>,
+    table_name: &str,
+    warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<Option<String>> {
     let version = storage[0];
     let header_length = if version <= OLD_V1_MAX_VERSION {
@@ -866,6 +1001,11 @@ fn parse_old_cell(
         u32::from_le_bytes(bytes)
     };
     let fields = parse_old_cell_fields(storage, header_length, flags)?;
+    // A legacy formula/comment key is a flag bit only (#110): xberg has no schema
+    // for the pre-BNC formula token stream or comment thread payload behind that
+    // key, so the presence is surfaced via warning instead of guessing at text
+    // the parser cannot actually decode.
+    push_legacy_formula_comment_warning(warnings, table_name, &fields);
 
     // Source: https://oss.sheetjs.com/notes/iwa/ documents pre-BNC fields 3/4 and masks. ~keep
     Ok(match cell_type {
@@ -880,12 +1020,44 @@ fn parse_old_cell(
     })
 }
 
+/// Record that a legacy-format cell carries a formula and/or comment that
+/// xberg's wire-level cell parser does not decode (#110). One warning per
+/// table per kind: `push_warning` dedupes identical `(source, message)`
+/// pairs, so a table with many such cells still surfaces a single line.
+fn push_legacy_formula_comment_warning(
+    warnings: &mut Vec<ProcessingWarning>,
+    table_name: &str,
+    fields: &OldCellFields,
+) {
+    if fields.has_formula {
+        crate::core::diagnostics::push_warning(
+            warnings,
+            crate::extractors::iwork::IWORK_WARNING_SOURCE,
+            format!(
+                "Table '{table_name}' has a cell with a legacy-format formula; xberg extracts the cell's cached \
+                 value but does not reconstruct the formula source text"
+            ),
+        );
+    }
+    if fields.has_comment {
+        crate::core::diagnostics::push_warning(
+            warnings,
+            crate::extractors::iwork::IWORK_WARNING_SOURCE,
+            format!(
+                "Table '{table_name}' has a cell with a legacy-format comment; xberg does not extract cell comment text"
+            ),
+        );
+    }
+}
+
 #[derive(Default)]
 struct OldCellFields {
     string_key: Option<i32>,
     rich_key: Option<i32>,
     double: Option<f64>,
     seconds: Option<f64>,
+    has_formula: bool,
+    has_comment: bool,
 }
 
 fn parse_old_cell_fields(storage: &[u8], mut cursor: usize, flags: u32) -> Result<OldCellFields> {
@@ -922,6 +1094,8 @@ fn parse_old_cell_fields(storage: &[u8], mut cursor: usize, flags: u32) -> Resul
             OLD_RICH_TEXT_FLAG => fields.rich_key = Some(decode_i32(bytes)),
             OLD_DOUBLE_FLAG => fields.double = Some(decode_f64(bytes)),
             OLD_DATE_FLAG => fields.seconds = Some(decode_f64(bytes)),
+            OLD_FORMULA_FLAG => fields.has_formula = true,
+            OLD_COMMENT_FLAG => fields.has_comment = true,
             _ => {}
         }
     }
@@ -1184,6 +1358,9 @@ impl InternalDocumentExtractor for NumbersExtractor {
 
         let mut doc = build_numbers_internal_document(&data);
         doc.mime_type = mime_type.to_string();
+        for warning in data.warnings {
+            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
+        }
         Ok(doc)
     }
 
@@ -1207,12 +1384,26 @@ fn build_numbers_internal_document(data: &NumbersData) -> InternalDocument {
         builder.set_metadata(data.metadata.clone());
     }
 
-    for (table_name, cells) in &data.tables {
+    // Sheet names are their own heading, separate from the table heading beneath them —
+    // matching the xlsx/ods convention (see `extraction/excel.rs`) of headinging a sheet
+    // independently of its content rather than folding the sheet name into a table title.
+    let mut last_sheet_name: Option<&str> = None;
+    for (sheet_name, table_name, cells) in &data.tables {
         if cells.is_empty() {
             continue;
         }
 
-        builder.push_heading(1, table_name, None, None);
+        match sheet_name.as_deref() {
+            Some(name) if last_sheet_name != Some(name) => {
+                builder.push_heading(1, name, None, None);
+                last_sheet_name = Some(name);
+            }
+            Some(_) => {}
+            None => last_sheet_name = None,
+        }
+
+        let table_heading_level = if sheet_name.is_some() { 2 } else { 1 };
+        builder.push_heading(table_heading_level, table_name, None, None);
         builder.push_table_from_cells(cells, None, None);
     }
 
@@ -1236,6 +1427,72 @@ mod tests {
         let extractor = NumbersExtractor::new();
         let types = extractor.supported_mime_types();
         assert!(types.contains(&"application/x-iwork-numbers-sffnumbers"));
+    }
+
+    #[test]
+    fn should_warn_when_sheet_has_non_table_drawables() {
+        // #111: the only .numbers fixture has zero non-table drawables (verified: no
+        // shape/image/text-box archive types appear in its Document/Sheet objects), so this
+        // exercises the byte-level warning path directly rather than a real document. ~keep
+        let mut warnings = Vec::new();
+
+        push_non_table_drawable_warning(&mut warnings, "Sheet1", &[42, 7]);
+
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("Sheet1"));
+        assert!(warnings[0].message.contains("2 non-table drawable"));
+        assert!(warnings[0].message.contains("42, 7"));
+    }
+
+    #[test]
+    fn should_not_warn_when_sheet_has_no_non_table_drawables() {
+        let mut warnings = Vec::new();
+
+        push_non_table_drawable_warning(&mut warnings, "Sheet1", &[]);
+
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_warn_when_legacy_cell_has_formula_flag() {
+        // #110: the fixture corpus has no .numbers file with a real formula cell (verified by
+        // inspecting its IWA members), so this exercises the byte-level warning path directly. ~keep
+        let mut warnings = Vec::new();
+        let fields = OldCellFields {
+            has_formula: true,
+            ..Default::default()
+        };
+
+        push_legacy_formula_comment_warning(&mut warnings, "Sheet1", &fields);
+
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("legacy-format formula"));
+        assert!(warnings[0].message.contains("Sheet1"));
+    }
+
+    #[test]
+    fn should_warn_when_legacy_cell_has_comment_flag() {
+        // #110: no real fixture with a cell comment exists; see the formula test above. ~keep
+        let mut warnings = Vec::new();
+        let fields = OldCellFields {
+            has_comment: true,
+            ..Default::default()
+        };
+
+        push_legacy_formula_comment_warning(&mut warnings, "Sheet1", &fields);
+
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("legacy-format comment"));
+    }
+
+    #[test]
+    fn should_not_warn_when_legacy_cell_has_neither_formula_nor_comment() {
+        let mut warnings = Vec::new();
+        let fields = OldCellFields::default();
+
+        push_legacy_formula_comment_warning(&mut warnings, "Sheet1", &fields);
+
+        assert!(warnings.is_empty());
     }
 
     #[test]
@@ -1285,6 +1542,7 @@ mod tests {
         let mut budget = SecurityBudget::from_limits(&limits);
         let mut row = vec![String::new(), String::new()];
         let rich_strings = HashMap::new();
+        let mut warnings = Vec::new();
 
         assert!(matches!(
             fill_row(
@@ -1292,9 +1550,13 @@ mod tests {
                 &storage,
                 &offsets,
                 false,
-                &strings,
-                &rich_strings,
-                &mut budget
+                &mut TableFillContext {
+                    strings: &strings,
+                    rich_strings: &rich_strings,
+                    budget: &mut budget,
+                    table_name: "Table 1",
+                    warnings: &mut warnings,
+                },
             ),
             Err(XbergError::Security { .. })
         ));
@@ -1306,8 +1568,23 @@ mod tests {
         let mut cell = vec![0; CELL_HEADER_LENGTH];
         cell[0] = CELL_STORAGE_VERSION;
         cell[1] = u8::MAX;
+        let mut warnings = Vec::new();
+        let mut budget = SecurityBudget::for_iwork(&SecurityLimits::default());
 
-        assert_eq!(parse_cell_value(&cell, &strings, &HashMap::new()).unwrap(), None);
+        assert_eq!(
+            parse_cell_value(
+                &cell,
+                &mut TableFillContext {
+                    strings: &strings,
+                    rich_strings: &HashMap::new(),
+                    budget: &mut budget,
+                    table_name: "Table 1",
+                    warnings: &mut warnings,
+                },
+            )
+            .unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -1339,9 +1616,22 @@ mod tests {
             ),
         ];
 
+        let mut warnings = Vec::new();
+        let mut budget = SecurityBudget::for_iwork(&SecurityLimits::default());
         for (cell, expected) in cases {
             assert_eq!(
-                parse_cell_value(&cell, &strings, &rich_strings).unwrap().as_deref(),
+                parse_cell_value(
+                    &cell,
+                    &mut TableFillContext {
+                        strings: &strings,
+                        rich_strings: &rich_strings,
+                        budget: &mut budget,
+                        table_name: "Table 1",
+                        warnings: &mut warnings,
+                    },
+                )
+                .unwrap()
+                .as_deref(),
                 expected
             );
         }
@@ -1360,8 +1650,21 @@ mod tests {
         tile.extend(row_info);
         let mut cells = vec![vec![String::new()]];
         let mut budget = SecurityBudget::for_iwork(&SecurityLimits::default());
+        let mut warnings = Vec::new();
 
-        fill_tile(&tile, 0, &strings, &HashMap::new(), &mut cells, &mut budget).unwrap();
+        fill_tile(
+            &tile,
+            0,
+            &mut cells,
+            &mut TableFillContext {
+                strings: &strings,
+                rich_strings: &HashMap::new(),
+                budget: &mut budget,
+                table_name: "Table 1",
+                warnings: &mut warnings,
+            },
+        )
+        .unwrap();
 
         assert_eq!(cells, vec![vec!["legacy text".to_string()]]);
     }
@@ -1431,6 +1734,63 @@ mod tests {
         assert_eq!(cells, vec![vec!["first".to_string()]]);
     }
 
+    /// Regression for #107: legacy fallback text collection must keep a
+    /// single-character alphanumeric cell instead of discarding it.
+    #[test]
+    fn append_legacy_cells_keeps_single_character_alphanumeric_text() {
+        let mut seen = std::collections::HashSet::new();
+        let mut cells = Vec::new();
+        let mut budget = SecurityBudget::for_iwork(&SecurityLimits::default());
+
+        append_legacy_cells(vec!["5".to_string()], &mut seen, &mut cells, &mut budget).unwrap();
+
+        assert_eq!(cells, vec![vec!["5".to_string()]]);
+    }
+
+    #[test]
+    fn append_legacy_cells_drops_non_alphanumeric_noise() {
+        let mut seen = std::collections::HashSet::new();
+        let mut cells = Vec::new();
+        let mut budget = SecurityBudget::for_iwork(&SecurityLimits::default());
+
+        append_legacy_cells(vec!["--".to_string()], &mut seen, &mut cells, &mut budget).unwrap();
+
+        assert!(cells.is_empty());
+    }
+
+    /// Regression for #106: a malformed IWA member reached via the structured
+    /// parse path must surface a named `ProcessingWarning`, not vanish silently.
+    #[test]
+    fn read_iwa_objects_warns_on_malformed_member() {
+        let mut archive = Vec::new();
+        {
+            use std::io::Write;
+            let cursor = std::io::Cursor::new(&mut archive);
+            let mut zip = zip::ZipWriter::new(cursor);
+            let options = zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+            // Malformed IWA framing: a chunk type byte with no length/payload.
+            zip.start_file("Index/Broken.iwa", options).unwrap();
+            zip.write_all(&[1, 0, 0]).unwrap();
+            zip.finish().unwrap();
+        }
+
+        let limits = SecurityLimits::default();
+        let mut budget = SecurityBudget::for_iwork(&limits);
+        let mut expansion = IwaExpansionBudget::from_limits(&limits);
+        let mut warnings = Vec::new();
+
+        let objects = read_iwa_objects(&archive, &mut budget, &mut expansion, &mut warnings).unwrap();
+
+        assert!(objects.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].source, "iwork");
+        assert!(
+            warnings[0].message.contains("Index/Broken.iwa"),
+            "warning must name the failed member: {}",
+            warnings[0].message
+        );
+    }
+
     #[test]
     fn should_use_fresh_expansion_budget_for_parse_numbers_fallback() {
         let text = b"fresh fallback";
@@ -1448,8 +1808,9 @@ mod tests {
         let data = parse_numbers(&archive, &limits).unwrap();
 
         assert_eq!(data.tables.len(), 1);
-        assert_eq!(data.tables[0].0, "Sheet Data");
-        assert_eq!(data.tables[0].1, vec![vec!["fresh fallback".to_string()]]);
+        assert_eq!(data.tables[0].0, None);
+        assert_eq!(data.tables[0].1, "Sheet Data");
+        assert_eq!(data.tables[0].2, vec![vec!["fresh fallback".to_string()]]);
     }
 
     fn v5_cell(cell_type: u8, flag: u32, value: &[u8]) -> Vec<u8> {

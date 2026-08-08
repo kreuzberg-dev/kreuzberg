@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Configuration for the page-classification post-processor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct PageClassificationConfig {
     /// Minijinja prompt template. Receives `{{ labels }}` (joined list), `{{ page_text }}`
     /// and `{{ multi_label }}` variables. `None` lets the backend pick a sensible default.

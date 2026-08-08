@@ -220,7 +220,10 @@ const VALID_OUTPUT_FORMATS: &[&str] = &["plain", "text", "markdown", "md", "djot
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: exported `#[cfg(test)] pub(crate)` only (see the note in
+/// [`crate::core::config_validation`]), so it is unreachable from a downstream crate.
+///
+/// ```ignore
 /// use xberg::core::config_validation::validate_binarization_method;
 ///
 /// assert!(validate_binarization_method("otsu").is_ok());
@@ -374,7 +377,10 @@ pub(crate) fn validate_language_code(code: &str) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: exported `#[cfg(test)] pub(crate)` only (see the note in
+/// [`crate::core::config_validation`]), so it is unreachable from a downstream crate.
+///
+/// ```ignore
 /// use xberg::core::config_validation::validate_tesseract_psm;
 ///
 /// assert!(validate_tesseract_psm(3).is_ok());  // Fully automatic
@@ -409,7 +415,10 @@ pub(crate) fn validate_tesseract_psm(psm: i32) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: exported `#[cfg(test)] pub(crate)` only (see the note in
+/// [`crate::core::config_validation`]), so it is unreachable from a downstream crate.
+///
+/// ```ignore
 /// use xberg::core::config_validation::validate_tesseract_oem;
 ///
 /// assert!(validate_tesseract_oem(1).is_ok());  // Neural nets (LSTM)
@@ -450,7 +459,10 @@ pub(crate) fn validate_tesseract_oem(oem: i32) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: exported `#[cfg(test)] pub(crate)` only (see the note in
+/// [`crate::core::config_validation`]), so it is unreachable from a downstream crate.
+///
+/// ```ignore
 /// use xberg::core::config_validation::validate_output_format;
 ///
 /// assert!(validate_output_format("text").is_ok());
@@ -492,7 +504,7 @@ pub(crate) fn validate_output_format(format: &str) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// use xberg::core::config_validation::validate_confidence;
 ///
 /// assert!(validate_confidence(0.5).is_ok());
@@ -501,7 +513,6 @@ pub(crate) fn validate_output_format(format: &str) -> Result<()> {
 /// assert!(validate_confidence(1.5).is_err());
 /// assert!(validate_confidence(-0.1).is_err());
 /// ```
-#[cfg(test)]
 pub(crate) fn validate_confidence(confidence: f64) -> Result<()> {
     if (0.0..=1.0).contains(&confidence) {
         Ok(())
@@ -530,7 +541,7 @@ pub(crate) fn validate_confidence(confidence: f64) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// use xberg::core::config_validation::validate_dpi;
 ///
 /// assert!(validate_dpi(96).is_ok());
@@ -538,7 +549,6 @@ pub(crate) fn validate_confidence(confidence: f64) -> Result<()> {
 /// assert!(validate_dpi(0).is_err());
 /// assert!(validate_dpi(-1).is_err());
 /// ```
-#[cfg(test)]
 pub(crate) fn validate_dpi(dpi: i32) -> Result<()> {
     if dpi > 0 && dpi <= 2400 {
         Ok(())
@@ -556,6 +566,12 @@ pub(crate) fn validate_dpi(dpi: i32) -> Result<()> {
 /// Validate chunk size parameters.
 ///
 /// Checks that max_chars > 0 and max_overlap < max_chars.
+///
+/// Note: `ChunkingConfig::breadcrumb_target` (`BreadcrumbTarget`) needs no runtime
+/// validation function alongside this one — it is a genuine Rust enum
+/// (`content`/`metadata`/`both`), so an invalid value already fails config
+/// deserialization with a clear serde "unknown variant" error before `validate()`
+/// ever runs (#337).
 ///
 /// # Arguments
 ///
@@ -609,13 +625,12 @@ pub(crate) fn validate_chunking_params(max_chars: usize, max_overlap: usize) -> 
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// use xberg::core::config_validation::validate_llm_config_model;
 ///
 /// assert!(validate_llm_config_model("openai/gpt-4o").is_ok());
 /// assert!(validate_llm_config_model("").is_err());
 /// ```
-#[cfg(test)]
 pub(crate) fn validate_llm_config_model(model: &str) -> Result<()> {
     if model.trim().is_empty() {
         return Err(XbergError::Validation {
@@ -625,6 +640,44 @@ pub(crate) fn validate_llm_config_model(model: &str) -> Result<()> {
         });
     }
     Ok(())
+}
+
+/// Validate a CSV delimiter string.
+///
+/// The delimiter must be exactly one ASCII byte (e.g. `","`, `";"`, `"\t"`,
+/// `"|"`). An empty string or a value containing a multi-byte UTF-8
+/// character (e.g. `"é"` or a multi-character string) is rejected.
+///
+/// # Arguments
+///
+/// * `delimiter` - The delimiter string to validate
+///
+/// # Returns
+///
+/// `Ok(())` if the delimiter is a single ASCII byte, or a `ValidationError` otherwise.
+///
+/// # Examples
+///
+/// ```ignore
+/// use xberg::core::config_validation::validate_csv_delimiter;
+///
+/// assert!(validate_csv_delimiter(";").is_ok());
+/// assert!(validate_csv_delimiter("").is_err());
+/// assert!(validate_csv_delimiter(",,").is_err());
+/// assert!(validate_csv_delimiter("é").is_err());
+/// ```
+pub(crate) fn validate_csv_delimiter(delimiter: &str) -> Result<()> {
+    if delimiter.len() == 1 && delimiter.is_ascii() {
+        Ok(())
+    } else {
+        Err(XbergError::Validation {
+            message: format!(
+                "Invalid CSV delimiter '{}'. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|').",
+                delimiter
+            ),
+            source: None,
+        })
+    }
 }
 
 /// Validate that a VLM OCR backend has the required `vlm_config`.
@@ -644,7 +697,7 @@ pub(crate) fn validate_llm_config_model(model: &str) -> Result<()> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// use xberg::core::config_validation::validate_vlm_backend_config;
 /// use xberg::core::config::LlmConfig;
 ///
@@ -661,7 +714,6 @@ pub(crate) fn validate_llm_config_model(model: &str) -> Result<()> {
 /// assert!(validate_vlm_backend_config("vlm", Some(&config)).is_ok());
 /// assert!(validate_vlm_backend_config("vlm", None).is_err());
 /// ```
-#[cfg(test)]
 pub(crate) fn validate_vlm_backend_config(
     backend: &str,
     vlm_config: Option<&crate::core::config::LlmConfig>,

@@ -6,6 +6,23 @@ use super::resize::resize_rgb;
 
 const PDF_POINTS_PER_INCH: f64 = 72.0;
 
+/// Build the internal DPI/dimension config this module consumes from the public,
+/// user-facing `ImageExtractionConfig` (issue #209: `target_dpi`, `max_image_dimension`,
+/// `auto_adjust_dpi`, `min_dpi`, and `max_dpi` were parsed into `ImageExtractionConfig`
+/// but never read anywhere — every caller defaulted this struct instead of building it
+/// from the extraction config).
+impl From<&crate::core::config::ImageExtractionConfig> for ExtractionConfig {
+    fn from(config: &crate::core::config::ImageExtractionConfig) -> Self {
+        Self {
+            target_dpi: config.target_dpi,
+            max_image_dimension: config.max_image_dimension,
+            auto_adjust_dpi: config.auto_adjust_dpi,
+            min_dpi: config.min_dpi,
+            max_dpi: config.max_dpi,
+        }
+    }
+}
+
 /// Result of image normalization
 #[cfg_attr(alef, alef(skip))]
 pub struct NormalizeResult {
@@ -280,6 +297,26 @@ mod tests {
             data.push(0);
         }
         data
+    }
+
+    #[test]
+    fn test_image_dpi_config_from_image_extraction_config() {
+        let extraction_config = crate::core::config::ImageExtractionConfig {
+            target_dpi: 150,
+            max_image_dimension: 100,
+            auto_adjust_dpi: false,
+            min_dpi: 96,
+            max_dpi: 400,
+            ..Default::default()
+        };
+
+        let dpi_config = ExtractionConfig::from(&extraction_config);
+
+        assert_eq!(dpi_config.target_dpi, 150);
+        assert_eq!(dpi_config.max_image_dimension, 100);
+        assert!(!dpi_config.auto_adjust_dpi);
+        assert_eq!(dpi_config.min_dpi, 96);
+        assert_eq!(dpi_config.max_dpi, 400);
     }
 
     #[test]

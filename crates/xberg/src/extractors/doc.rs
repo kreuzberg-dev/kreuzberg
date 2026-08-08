@@ -95,6 +95,7 @@ impl InternalDocumentExtractor for DocExtractor {
 
         let mut doc = InternalDocument::new("doc");
         doc.mime_type = mime_type.to_string();
+        doc.processing_warnings.extend(result.processing_warnings);
 
         let mut metadata_map = AHashMap::new();
 

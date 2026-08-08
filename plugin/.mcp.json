@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "xberg": {
+      "command": "./scripts/mcp-launch.sh",
+      "args": [
+        "mcp",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

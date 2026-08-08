@@ -8,6 +8,7 @@ use crate::core::config::ExtractionConfig;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
 use crate::types::Metadata;
 use crate::types::internal::InternalDocument;
+use crate::types::internal::{RelationshipKind, RelationshipTarget};
 use crate::types::internal_builder::InternalDocumentBuilder;
 use crate::types::uri::{ExtractedUri, classify_uri};
 use async_trait::async_trait;
@@ -68,6 +69,15 @@ impl DjotExtractor {
         let mut table_row: Vec<String> = Vec::new();
         let mut table_cell = String::new();
         let mut in_table_cell = false;
+        let mut in_description_term = false;
+        let mut description_term_text = String::new();
+        let mut in_description_details = false;
+        let mut description_details_text = String::new();
+        // Index of the image element that is the sole leading content of the
+        // current paragraph, used to detect the djot "figure with caption"
+        // pattern: an image followed immediately (no blank line) by text.
+        let mut figure_image_index: Option<u32> = None;
+        let mut figure_disqualified = false;
 
         let mut annotation_starts: Vec<(u8, u32, Option<String>)> = Vec::new();
 
@@ -94,10 +104,14 @@ impl DjotExtractor {
                     heading_text.clear();
                     heading_annotations.clear();
                 }
-                Event::Start(Container::Paragraph, _) if !in_heading && !in_list_item => {
+                Event::Start(Container::Paragraph, _)
+                    if !in_heading && !in_list_item && !in_description_term && !in_description_details =>
+                {
                     paragraph_text.clear();
                     paragraph_annotations.clear();
                     in_paragraph = true;
+                    figure_image_index = None;
+                    figure_disqualified = false;
                 }
                 Event::End(Container::Paragraph) => {
                     if in_paragraph {
@@ -109,10 +123,21 @@ impl DjotExtractor {
                                 &paragraph_text,
                                 &text,
                             );
-                            b.push_paragraph(&text, annotations, None, None);
+                            let idx = b.push_paragraph(&text, annotations, None, None);
+                            if let Some(image_idx) = figure_image_index
+                                && !figure_disqualified
+                            {
+                                b.push_relationship(
+                                    idx,
+                                    RelationshipTarget::Index(image_idx),
+                                    RelationshipKind::Caption,
+                                );
+                            }
                         }
                         paragraph_text.clear();
                         paragraph_annotations.clear();
+                        figure_image_index = None;
+                        figure_disqualified = false;
                     } else if in_list_item {
                     }
                 }
@@ -327,6 +352,37 @@ impl DjotExtractor {
                 Event::End(Container::Blockquote) => {
                     b.push_quote_end();
                 }
+                Event::Start(Container::Div { class }, _) => {
+                    let label = if class.is_empty() { None } else { Some(class.as_ref()) };
+                    b.push_group_start(label, None);
+                }
+                Event::End(Container::Div { .. }) => {
+                    b.push_group_end();
+                }
+                Event::Start(Container::DescriptionTerm, _) => {
+                    in_description_term = true;
+                    description_term_text.clear();
+                }
+                Event::End(Container::DescriptionTerm) => {
+                    in_description_term = false;
+                    let text = description_term_text.trim().to_string();
+                    if !text.is_empty() {
+                        b.push_definition_term(&text, None);
+                    }
+                    description_term_text.clear();
+                }
+                Event::Start(Container::DescriptionDetails, _) => {
+                    in_description_details = true;
+                    description_details_text.clear();
+                }
+                Event::End(Container::DescriptionDetails) => {
+                    in_description_details = false;
+                    let text = description_details_text.trim().to_string();
+                    if !text.is_empty() {
+                        b.push_definition_description(&text, None);
+                    }
+                    description_details_text.clear();
+                }
                 Event::Start(Container::List { kind, .. }, _) => {
                     let ordered = matches!(kind, jotdown::ListKind::Ordered { .. });
                     b.push_list(ordered);
@@ -357,17 +413,41 @@ impl DjotExtractor {
                     list_item_text.clear();
                     list_item_annotations.clear();
                 }
-                Event::Start(Container::Math { display }, _) if *display => {
-                    in_math = true;
-                    math_text.clear();
-                }
-                Event::End(Container::Math { display }) if *display => {
-                    in_math = false;
-                    let text = math_text.trim().to_string();
-                    if !text.is_empty() {
-                        b.push_formula(&text, None, None);
+                Event::Start(Container::Math { display }, _) => {
+                    if *display {
+                        in_math = true;
+                        math_text.clear();
+                    } else if in_paragraph {
+                        paragraph_text.push('$');
+                    } else if in_heading {
+                        heading_text.push('$');
+                    } else if in_list_item {
+                        list_item_text.push('$');
+                    } else if in_description_term {
+                        description_term_text.push('$');
+                    } else if in_description_details {
+                        description_details_text.push('$');
                     }
-                    math_text.clear();
+                }
+                Event::End(Container::Math { display }) => {
+                    if *display {
+                        in_math = false;
+                        let text = math_text.trim().to_string();
+                        if !text.is_empty() {
+                            b.push_formula(&text, None, None);
+                        }
+                        math_text.clear();
+                    } else if in_paragraph {
+                        paragraph_text.push('$');
+                    } else if in_heading {
+                        heading_text.push('$');
+                    } else if in_list_item {
+                        list_item_text.push('$');
+                    } else if in_description_term {
+                        description_term_text.push('$');
+                    } else if in_description_details {
+                        description_details_text.push('$');
+                    }
                 }
                 Event::Start(Container::Image(..), _) => {
                     in_image = true;
@@ -380,7 +460,7 @@ impl DjotExtractor {
                     let alt = image_alt.trim().to_string();
                     let kind = ElementKind::Image { image_index: u32::MAX };
                     let id = InternalElementId::generate(kind.discriminant(), &alt, None, 0);
-                    b.push_element(InternalElement {
+                    let image_element_index = b.push_element(InternalElement {
                         id,
                         kind,
                         text: alt,
@@ -395,6 +475,16 @@ impl DjotExtractor {
                         ocr_confidence: None,
                         ocr_rotation: None,
                     });
+                    // Track djot's figure-with-caption pattern: an image that is the sole
+                    // leading content of a paragraph, optionally followed (no blank line)
+                    // by caption text handled when the paragraph ends.
+                    if in_paragraph {
+                        if figure_image_index.is_none() && !figure_disqualified && paragraph_text.trim().is_empty() {
+                            figure_image_index = Some(image_element_index);
+                        } else {
+                            figure_disqualified = true;
+                        }
+                    }
                     let src_str: &str = src.as_ref();
                     if !src_str.is_empty() {
                         let trimmed = image_alt.trim();
@@ -461,6 +551,10 @@ impl DjotExtractor {
                         heading_text.push_str(s);
                     } else if in_list_item {
                         list_item_text.push_str(s);
+                    } else if in_description_term {
+                        description_term_text.push_str(s);
+                    } else if in_description_details {
+                        description_details_text.push_str(s);
                     } else if in_paragraph {
                         paragraph_text.push_str(s);
                     }
@@ -472,6 +566,10 @@ impl DjotExtractor {
                         heading_text.push(' ');
                     } else if in_list_item {
                         list_item_text.push(' ');
+                    } else if in_description_term {
+                        description_term_text.push(' ');
+                    } else if in_description_details {
+                        description_details_text.push(' ');
                     } else if in_paragraph {
                         paragraph_text.push(' ');
                     }
@@ -545,7 +643,8 @@ impl InternalDocumentExtractor for DjotExtractor {
         let _ = config;
         let text = String::from_utf8_lossy(content).into_owned();
 
-        let (yaml, remaining_content) = crate::extractors::frontmatter_utils::extract_frontmatter(&text);
+        let (yaml, remaining_content, frontmatter_warning) =
+            crate::extractors::frontmatter_utils::extract_frontmatter_with_warning(&text);
 
         let mut metadata = if let Some(ref yaml_value) = yaml {
             crate::extractors::frontmatter_utils::extract_metadata_from_yaml(yaml_value)
@@ -565,6 +664,7 @@ impl InternalDocumentExtractor for DjotExtractor {
         let mut doc = Self::build_internal_document(&events);
         doc.mime_type = mime_type.to_string();
         doc.metadata = metadata;
+        doc.processing_warnings.extend(frontmatter_warning);
 
         Ok(doc)
     }

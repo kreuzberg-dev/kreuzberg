@@ -20,7 +20,6 @@ WASM target in `crates/xberg-wasm/`. Uses wasm-bindgen with sync-only internal A
 # NO tree-sitter — the 371-language grammar pack pushes the browser .wasm past
 # jsDelivr's 50 MB per-file cap, so code intelligence is unavailable in WASM.
 wasm-target = ["no-ort-target", "excel-wasm", "ocr-wasm", "layout-tract", "auto-rotate-tract"]
-wasm-threads = ["dep:wasm-bindgen-rayon"]  # Optional
 ```
 
 ## Critical Constraints

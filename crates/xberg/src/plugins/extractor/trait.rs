@@ -55,11 +55,13 @@ use crate::XbergError;
 ///     async fn extract(&self, input: ExtractInput, _config: &ExtractionConfig)
 ///         -> Result<ExtractedDocument> {
 ///         let bytes = input.bytes.unwrap_or_default();
-///         Ok(ExtractedDocument {
-///             content: String::from_utf8_lossy(&bytes).to_string(),
-///             mime_type: "text/plain".into(),
-///             ..Default::default()
-///         })
+///         // `ExtractedDocument` has private internal fields, so a struct literal with
+///         // `..Default::default()` does not compile outside the crate. Build a default
+///         // and assign the public fields instead.
+///         let mut document = ExtractedDocument::default();
+///         document.content = String::from_utf8_lossy(&bytes).to_string();
+///         document.mime_type = "text/plain".into();
+///         Ok(document)
 ///     }
 ///
 ///     fn supported_mime_types(&self) -> &[&str] {

@@ -308,6 +308,8 @@ impl InternalDocumentExtractor for PptxExtractor {
             .unwrap_or(true);
         let plain = matches!(config.output_format, crate::core::config::OutputFormat::Plain);
 
+        let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
+
         let pptx_result = {
             #[cfg(feature = "tokio-runtime")]
             {
@@ -324,12 +326,17 @@ impl InternalDocumentExtractor for PptxExtractor {
                         inject_placeholders,
                     };
                     let span = tracing::Span::current();
-                    tokio::task::spawn_blocking(move || {
+                    let (result, warnings) = tokio::task::spawn_blocking(move || {
                         let _guard = span.entered();
-                        crate::extraction::pptx::extract_pptx_from_bytes(&content_owned, &options)
+                        let mut warnings = Vec::new();
+                        let result =
+                            crate::extraction::pptx::extract_pptx_from_bytes(&content_owned, &options, &mut warnings);
+                        (result, warnings)
                     })
                     .await
-                    .map_err(|e| crate::error::XbergError::parsing(format!("PPTX extraction task failed: {}", e)))??
+                    .map_err(|e| crate::error::XbergError::parsing(format!("PPTX extraction task failed: {}", e)))?;
+                    pptx_warnings = warnings;
+                    result?
                 } else {
                     let options = crate::extraction::pptx::PptxExtractionOptions {
                         extract_images,
@@ -338,7 +345,7 @@ impl InternalDocumentExtractor for PptxExtractor {
                         include_structure: false,
                         inject_placeholders,
                     };
-                    crate::extraction::pptx::extract_pptx_from_bytes(content, &options)?
+                    crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
                 }
             }
 
@@ -351,12 +358,13 @@ impl InternalDocumentExtractor for PptxExtractor {
                     include_structure: false,
                     inject_placeholders,
                 };
-                crate::extraction::pptx::extract_pptx_from_bytes(content, &options)?
+                crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
             }
         };
 
         let mut budget = SecurityBudget::from_config(config);
         let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        doc.processing_warnings.extend(pptx_warnings);
 
         if config.max_archive_depth > 0 {
             let (children, embed_warnings) = crate::extraction::ooxml_embedded::extract_ooxml_embedded_objects(
@@ -406,10 +414,12 @@ impl InternalDocumentExtractor for PptxExtractor {
             include_structure: false,
             inject_placeholders,
         };
-        let pptx_result = crate::extraction::pptx::extract_pptx_from_path(path_str, &options)?;
+        let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
+        let pptx_result = crate::extraction::pptx::extract_pptx_from_path(path_str, &options, &mut pptx_warnings)?;
 
         let mut budget = SecurityBudget::from_config(config);
-        let doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        doc.processing_warnings.extend(pptx_warnings);
         Ok(doc)
     }
 

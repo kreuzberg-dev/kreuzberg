@@ -36,7 +36,11 @@ use crate::utils::xml_utils::EntityReader;
 
 use elements::extract_jats_all_in_one;
 use parser::extract_citation_text as jats_extract_citation;
+use parser::extract_fig_content as jats_extract_fig;
 use parser::extract_text_content as jats_extract_text;
+
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+const JATS_WARNING_SOURCE: &str = "jats";
 
 /// Extract text and inline annotations from a JATS `<p>` element.
 ///
@@ -189,6 +193,7 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
     let mut current_row: Vec<String> = Vec::new();
     let mut sec_depth: u32 = 0;
     let mut ref_list_opened = false;
+    let mut back_list_opened = false;
 
     loop {
         budget.step()?;
@@ -259,7 +264,32 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "fig" if in_body => {
-                        let _ = jats_extract_text(&mut reader, budget)?;
+                        let (label, caption, href) = jats_extract_fig(&mut reader, budget)?;
+                        let caption_full = match (&label, &caption) {
+                            (Some(l), Some(c)) => format!("{}: {}", l, c),
+                            (Some(l), None) => l.clone(),
+                            (None, Some(c)) => c.clone(),
+                            (None, None) => String::new(),
+                        };
+                        if !caption_full.is_empty() || href.is_some() {
+                            let display = match (&href, caption_full.is_empty()) {
+                                (Some(h), false) => format!("![{}]({})", caption_full, h),
+                                (Some(h), true) => format!("![]({})", h),
+                                (None, false) => caption_full.clone(),
+                                (None, true) => String::new(),
+                            };
+                            if !display.is_empty() {
+                                builder.push_paragraph(&display, Vec::new(), None, None);
+                            }
+                            if let Some(href) = &href {
+                                let label_opt = if caption_full.is_empty() {
+                                    None
+                                } else {
+                                    Some(caption_full.clone())
+                                };
+                                builder.push_uri(ExtractedUri::image(href, label_opt));
+                            }
+                        }
                         continue;
                     }
                     "disp-formula" | "inline-formula" if in_body => {
@@ -288,6 +318,24 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
                         if !text.is_empty() {
                             builder.push_paragraph(&text, annotations, None, None);
+                        }
+                        continue;
+                    }
+                    "term" if in_back && !in_ref_list => {
+                        let text = jats_extract_text(&mut reader, budget)?;
+                        if !text.is_empty() {
+                            builder.push_definition_term(&text, None);
+                        }
+                        continue;
+                    }
+                    "list-item" if in_back && !in_ref_list => {
+                        let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        if !text.is_empty() {
+                            if !back_list_opened {
+                                builder.push_list(false);
+                                back_list_opened = true;
+                            }
+                            builder.push_list_item(&text, false, annotations, None, None);
                         }
                         continue;
                     }
@@ -355,6 +403,10 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                     }
                     "back" => {
                         in_back = false;
+                    }
+                    "list" if back_list_opened => {
+                        builder.end_list();
+                        back_list_opened = false;
                     }
                     "ref-list" => {
                         if ref_list_opened {
@@ -453,9 +505,12 @@ impl InternalDocumentExtractor for JatsExtractor {
         config: &ExtractionConfig,
     ) -> Result<InternalDocument> {
         tracing::debug!(format = "jats", size_bytes = content.len(), "extraction starting");
-        let jats_content = utf8_validation::from_utf8(content)
-            .map(|s| s.to_string())
-            .unwrap_or_else(|_| String::from_utf8_lossy(content).to_string());
+        // Track the fallback: a non-UTF-8 article is decoded lossily and every byte the
+        // decoder could not read is already U+FFFD before parsing starts (#171).
+        let (jats_content, decoded_lossily) = match utf8_validation::from_utf8(content) {
+            Ok(valid) => (valid.to_string(), false),
+            Err(_) => (String::from_utf8_lossy(content).to_string(), true),
+        };
 
         let (jats_metadata, _extracted_content, _title, _tables) = extract_jats_all_in_one(&jats_content)?;
 
@@ -573,6 +628,14 @@ impl InternalDocumentExtractor for JatsExtractor {
         let mut doc = build_jats_internal_document(&jats_content, &mut budget)?;
         doc.mime_type = mime_type.to_string();
         doc.metadata = metadata;
+
+        if decoded_lossily {
+            crate::core::diagnostics::push_lossy_decode_warning(
+                &mut doc.processing_warnings,
+                JATS_WARNING_SOURCE,
+                "JATS source",
+            );
+        }
 
         if let Some(doi) = &jats_metadata.doi {
             doc.push_uri(ExtractedUri::citation(

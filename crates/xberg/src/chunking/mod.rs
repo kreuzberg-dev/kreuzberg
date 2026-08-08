@@ -65,10 +65,17 @@ mod text_splitter;
 #[cfg(feature = "chunking-tokenizers")]
 mod tokenizer_cache;
 pub mod validation;
+pub(crate) mod vectors;
 mod yaml_section;
 
+pub(crate) use builder::heading_path_from_context;
 pub use config::{ChunkSizing, ChunkerType, ChunkingConfig, ChunkingResult};
-pub use core::chunk_text;
+pub use core::{chunk_text, render_heading_breadcrumb};
+// Only used by `core::pipeline::features::try_code_chunks`, which is gated on
+// `tree-sitter` in addition to `chunking` — unused (and so `allow`ed) under other
+// feature combinations that enable `chunking` alone.
+#[allow(unused_imports)]
+pub(crate) use builder::resolve_token_counter;
 pub(crate) use core::chunk_text_with_heading_source;
 pub use processor::ChunkingProcessor;
 pub use rag::chunk_for_rag;

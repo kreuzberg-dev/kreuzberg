@@ -667,7 +667,8 @@ fn should_load_distinct_engines_when_the_backend_is_named_explicitly() {
         .init_model_on(InferenceBackend::Tract, as_str(&model), INFERENCE_THREADS)
         .expect("explicit tract load must succeed");
 
-    // visible proof of which engine a net actually holds.
+    // `Debug` on the nets reports the loaded backend's `name()`, which is the only externally
+    // visible proof of which engine a net actually holds. ~keep
     let ort_debug = format!("{ort:?}");
     let tract_debug = format!("{tract:?}");
     eprintln!("engine selection: ORT {ort_debug}, tract {tract_debug}");

@@ -29,15 +29,29 @@ mod dependencies;
 mod sections;
 
 pub(crate) use sections::{
-    validate_chunking_params, validate_language_code, validate_ocr_backend, validate_token_reduction_level,
+    validate_chunking_params, validate_confidence, validate_csv_delimiter, validate_dpi, validate_language_code,
+    validate_ocr_backend, validate_token_reduction_level, validate_vlm_backend_config,
 };
 
+// The remaining validators are exported under `#[cfg(test)]` only: every `ExtractionConfig`
+// field they would apply to lives outside `crates/xberg/src/core/config*/**`, so wiring them
+// into production requires editing those out-of-tree files (see issue #270 follow-up):
+//
+// - `validate_binarization_method`, `validate_tesseract_psm`, `validate_tesseract_oem`: their
+//   target fields (`ImagePreprocessingConfig::binarization_method`, `TesseractConfig::{psm,oem}`)
+//   live in `crate::types::formats`.
+// - `validate_output_format`: both `ExtractionConfig::output_format` and
+//   `OcrConfig::output_format` are already the strongly-typed `OutputFormat` enum, which
+//   rejects invalid values at deserialization time — there is no raw-string field left to
+//   validate with this function.
+// - `validate_cors_origin`, `validate_host`, `validate_port`, `validate_upload_size`: their
+//   target fields live on `ServerConfig` in `crate::core::server_config`, a separate module
+//   tree from `crate::core::config`.
 #[cfg(test)]
 pub(crate) use dependencies::{validate_cors_origin, validate_host, validate_port, validate_upload_size};
 #[cfg(test)]
 pub(crate) use sections::{
-    validate_binarization_method, validate_confidence, validate_dpi, validate_output_format, validate_tesseract_oem,
-    validate_tesseract_psm, validate_vlm_backend_config,
+    validate_binarization_method, validate_output_format, validate_tesseract_oem, validate_tesseract_psm,
 };
 
 #[cfg(test)]

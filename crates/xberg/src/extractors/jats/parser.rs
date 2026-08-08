@@ -81,6 +81,9 @@ pub(super) fn extract_citation_text(reader: &mut EntityReader<'_>, budget: &mut 
     let mut volume = String::new();
     let mut fpage = String::new();
     let mut lpage = String::new();
+    let mut doi = String::new();
+    let mut publisher_name = String::new();
+    let mut publisher_loc = String::new();
 
     let mut current_tag = String::new();
 
@@ -110,9 +113,24 @@ pub(super) fn extract_citation_text(reader: &mut EntityReader<'_>, budget: &mut 
                         current_given.clear();
                     }
                     "surname" | "given-names" | "article-title" | "source" | "year" | "volume" | "fpage" | "lpage"
+                    | "publisher-name" | "publisher-loc"
                         if in_element_citation =>
                     {
                         current_tag = tag;
+                    }
+                    "pub-id" | "article-id" if in_element_citation => {
+                        let mut id_type = String::new();
+                        for attr in e.attributes().flatten() {
+                            let key = String::from_utf8_lossy(attr.key.as_ref());
+                            let val = String::from_utf8_lossy(attr.value.as_ref());
+                            budget.check_attr(&key, &val)?;
+                            if key == "pub-id-type" {
+                                id_type = val.to_string();
+                            }
+                        }
+                        if id_type == "doi" {
+                            current_tag = "pub-id-doi".to_string();
+                        }
                     }
                     _ => {}
                 }
@@ -183,6 +201,9 @@ pub(super) fn extract_citation_text(reader: &mut EntityReader<'_>, budget: &mut 
                             "volume" => volume.push_str(trimmed),
                             "fpage" => fpage.push_str(trimmed),
                             "lpage" => lpage.push_str(trimmed),
+                            "pub-id-doi" => doi.push_str(trimmed),
+                            "publisher-name" => publisher_name.push_str(trimmed),
+                            "publisher-loc" => publisher_loc.push_str(trimmed),
                             _ => {}
                         }
                     }
@@ -237,5 +258,145 @@ pub(super) fn extract_citation_text(reader: &mut EntityReader<'_>, budget: &mut 
         citation.push('.');
     }
 
+    if !publisher_name.is_empty() || !publisher_loc.is_empty() {
+        if !citation.is_empty() {
+            citation.push(' ');
+        }
+        if !publisher_loc.is_empty() {
+            citation.push_str(&publisher_loc);
+        }
+        if !publisher_loc.is_empty() && !publisher_name.is_empty() {
+            citation.push_str(": ");
+        }
+        if !publisher_name.is_empty() {
+            citation.push_str(&publisher_name);
+        }
+        citation.push('.');
+    }
+
+    if !doi.is_empty() {
+        if !citation.is_empty() {
+            citation.push(' ');
+        }
+        citation.push_str("DOI: ");
+        citation.push_str(&doi);
+        citation.push('.');
+    }
+
     Ok(citation.trim().to_string())
+}
+
+/// Extract structured content from a JATS `<fig>` element.
+///
+/// Parses `<label>`, `<caption>` (with nested `<title>`/`<p>`), and
+/// `<graphic xlink:href="...">` so callers can associate the figure's caption
+/// text with its graphic reference instead of dropping or flattening them.
+///
+/// Returns `(label, caption_text, graphic_href)`.
+pub(super) fn extract_fig_content(
+    reader: &mut EntityReader<'_>,
+    budget: &mut SecurityBudget,
+) -> Result<(Option<String>, Option<String>, Option<String>)> {
+    let mut depth: u32 = 0;
+    let mut in_caption = false;
+    let mut current_tag = String::new();
+
+    let mut label = String::new();
+    let mut caption = String::new();
+    let mut href: Option<String> = None;
+
+    loop {
+        budget.step()?;
+        match reader.read_event() {
+            Ok(Event::Start(e)) => {
+                budget.enter()?;
+                depth += 1;
+                let name = e.name();
+                let tag = crate::utils::xml_tag_name(name.as_ref()).to_string();
+
+                match tag.as_str() {
+                    "caption" => in_caption = true,
+                    "label" | "title" | "p" => current_tag = tag.clone(),
+                    "graphic" => {
+                        for attr in e.attributes().flatten() {
+                            let key = String::from_utf8_lossy(attr.key.as_ref());
+                            let val = String::from_utf8_lossy(attr.value.as_ref());
+                            budget.check_attr(&key, &val)?;
+                            if key == "xlink:href" || key.ends_with(":href") || key == "href" {
+                                href = Some(val.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // `<graphic xlink:href="..."/>` is almost always self-closing, which quick-xml
+            // reports as a standalone `Empty` event (no matching `Start`/`End` pair), so it
+            // must be handled separately from `Event::Start` or the href is silently dropped.
+            Ok(Event::Empty(e)) => {
+                budget.enter()?;
+                budget.leave();
+                let name = e.name();
+                let tag = crate::utils::xml_tag_name(name.as_ref());
+                if tag.as_ref() == "graphic" {
+                    for attr in e.attributes().flatten() {
+                        let key = String::from_utf8_lossy(attr.key.as_ref());
+                        let val = String::from_utf8_lossy(attr.value.as_ref());
+                        budget.check_attr(&key, &val)?;
+                        if key == "xlink:href" || key.ends_with(":href") || key == "href" {
+                            href = Some(val.to_string());
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(e)) => {
+                budget.leave();
+                if depth == 0 {
+                    break;
+                }
+                let name = e.name();
+                let tag = crate::utils::xml_tag_name(name.as_ref());
+                if tag.as_ref() == "caption" {
+                    in_caption = false;
+                }
+                current_tag.clear();
+                depth -= 1;
+            }
+            Ok(Event::Text(t)) => {
+                let decoded = String::from_utf8_lossy(t.as_ref()).to_string();
+                let trimmed = decoded.trim();
+
+                if !trimmed.is_empty() {
+                    budget.check_entity(trimmed)?;
+                    budget.account_text(trimmed.len())?;
+                    match current_tag.as_str() {
+                        "label" => {
+                            if !label.is_empty() {
+                                label.push(' ');
+                            }
+                            label.push_str(trimmed);
+                        }
+                        "title" | "p" if in_caption => {
+                            if !caption.is_empty() {
+                                caption.push(' ');
+                            }
+                            caption.push_str(trimmed);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => {
+                return Err(crate::error::XbergError::parsing(format!("XML parsing error: {}", e)));
+            }
+            _ => {}
+        }
+    }
+
+    Ok((
+        if label.is_empty() { None } else { Some(label) },
+        if caption.is_empty() { None } else { Some(caption) },
+        href,
+    ))
 }

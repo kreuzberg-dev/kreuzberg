@@ -427,7 +427,7 @@ pub(crate) fn extract_keywords_yake(text: &str, config: &KeywordConfig) -> Resul
             } else {
                 1.0
             };
-            Keyword::new(item.keyword, normalized_score as f32, KeywordAlgorithm::Yake)
+            Keyword::with_positions(item.keyword, normalized_score as f32, KeywordAlgorithm::Yake, text)
         })
         .collect();
 
@@ -470,6 +470,22 @@ mod tests {
         for keyword in &keywords {
             assert_eq!(keyword.algorithm, KeywordAlgorithm::Yake);
         }
+    }
+
+    #[test]
+    fn test_yake_extraction_populates_positions() {
+        let text = "Rust is a systems programming language. \
+                    Rust provides memory safety and performance.";
+
+        let config = KeywordConfig::yake();
+        let keywords = extract_keywords_yake(text, &config).unwrap();
+
+        assert!(!keywords.is_empty(), "Should extract keywords");
+        let rust_keyword = keywords
+            .iter()
+            .find(|k| k.text.eq_ignore_ascii_case("rust"))
+            .expect("'rust' should be an extracted keyword");
+        assert_eq!(rust_keyword.positions, Some(vec![0, 40]));
     }
 
     #[test]

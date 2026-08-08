@@ -5,8 +5,10 @@ points at a source document and its ground truth (GT). Documents fall into two r
 classes, decided per-document by `scripts/build_corpus.py` and recorded in
 `test_documents/ground_truth/corpus_manifest.json` (`redistribute`):
 
-- **vendor (73)** — redistributable (permissive/PD sources). PDF + GT are committed to the
-  `test_documents` submodule under `pdf/` and `ground_truth/pdf/`. PDFs are Git LFS objects.
+- **vendor (73)** — redistributable (permissive/PD sources). GT is committed to the
+  `test_documents` submodule under `ground_truth/pdf/`; the PDFs themselves are not in git at all.
+  They are served from the public bucket `gs://xberg-test-documents`, content-addressed by sha256
+  and pinned by `test_documents/corpus.lock.json`.
 - **reference (92)** — license-restricted (arXiv via ReaDoc, ParseBench). The bytes are **never
   committed**. Their fixtures point into the gitignored cache
   `test_documents/.corpus-cache/{pdf,ground_truth/pdf}/`, which is materialized on demand.
@@ -20,7 +22,8 @@ non-redistributable bytes ever entering the public repo.
    `python tools/benchmark-harness/scripts/build_corpus.py --stage materialize`
    — or restore it from the private bucket (needs GCS access):
    `task benchmark:corpus:cache:restore`
-2. Ensure vendor LFS objects are present: `git -C test_documents lfs pull`
+2. Ensure the vendor PDFs are present:
+   `python3 test_documents/scripts/fetch_corpus.py --include 'pdf/**'`
 3. Run a benchmark, e.g. `task benchmark:local`.
 
 Verify the corpus resolves before a run:
@@ -48,8 +51,8 @@ cargo run -p benchmark-harness -- run \
 
 The `setup` job authenticates to GCS via Workload Identity Federation, restores `.corpus-cache` for
 the checked-out reference manifest, runs the strict GT gate, and uploads the cache as the
-`benchmark-corpus-cache` artifact. Every extraction job downloads that artifact and runs
-`git -C test_documents lfs pull` for the vendor PDFs. Auth uses org secrets
+`benchmark-corpus-cache` artifact. Every extraction job downloads that artifact and fetches the
+vendor PDFs with the `xberg-io/actions/fetch-test-documents` action. Auth uses org secrets
 `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_BENCHMARK_SA`, `GCP_BENCHMARK_BUCKET`; the WIF principal is
 read-only and scoped to `xberg-io/xberg` and `xberg-io/xberg-enterprise` (provisioned in
 `infra/terraform/staging`).

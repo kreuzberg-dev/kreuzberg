@@ -18,6 +18,58 @@
 //! of heading hierarchy, so `heading_path` will always be `[]` for every chunk
 //! produced by a `Yaml`-typed config.
 //!
+//! # Breadcrumb placement: render at index time, don't mutate (#1393)
+//!
+//! `chunk.content` is **always** exactly the `[byte_start, byte_end)` span of the
+//! source document — the chunker never prepends a heading breadcrumb into it, and
+//! the deprecated `prepend_heading_context`/`breadcrumb_target` config fields have
+//! no effect on `content` any more (kept only so existing callers keep compiling).
+//! `heading_context`/`heading_path` (which `chunk_for_rag` always populates) are
+//! the source of truth for the breadcrumb; rendering it into a chunk's text — e.g.
+//! `"# Guide > ## Setup\n\n"` prepended ahead of the body — is a step a *consumer*
+//! applies at index time via [`render_heading_breadcrumb`], not something the
+//! chunker decides once for every downstream retrieval arm.
+//!
+//! This matters because three retrieval consumers want three different views of
+//! the same chunk, and a single config flag on the chunker forces one answer for
+//! all three:
+//!
+//! * **Dense/embedding retrieval** benefits from the breadcrumb inline — a
+//!   self-contained passage that carries its own structural context embeds
+//!   better. Call [`render_heading_breadcrumb`] on the chunk's `content` and
+//!   `heading_context` before embedding.
+//! * **Lexical retrieval (BM25/TF-IDF)** is actively harmed by it: every chunk
+//!   under the same section would repeat the same heading tokens, so a heading
+//!   word's document frequency approaches the number of chunks in that section
+//!   and its IDF collapses toward zero — the heading text can dominate, or drown
+//!   out, real match signal. Intra-section queries, the common case, lose exactly
+//!   the discrimination that made the term useful in the first place. Index
+//!   `chunk.content` as-is (or use `heading_path` for a separate, down-weighted
+//!   field) — no stripping required, because it was never prepended.
+//! * **Sparse learned retrieval (SPLADE) is worse off than BM25, not merely a
+//!   softer version of the same problem.** BM25's IDF is computed over the
+//!   caller's own collection, so a repeated heading term is at least visible in
+//!   the statistics: the damage is bounded to the literal breadcrumb tokens, and
+//!   it partly self-corrects. SPLADE's term weights instead come from an encoder
+//!   trained on a *general* corpus; it has no way to learn that a term is
+//!   uninformative in *this* collection, because it never sees collection
+//!   statistics at inference time. Worse, SPLADE's term *expansion* means a
+//!   prepended heading does not just add its own literal tokens — it pulls in the
+//!   heading's whole learned neighbourhood (e.g. `"Authentication"` expands toward
+//!   `auth`, `login`, `credential`, `oauth`, …) and injects that neighbourhood into
+//!   every chunk in the section. Discrimination degrades across a whole semantic
+//!   region rather than one token, and **re-indexing cannot fix it** — the
+//!   expansion is a property of the pretrained encoder, not of the collection.
+//!   Never feed it the breadcrumb; index `chunk.content` as-is.
+//!
+//! Because `content` stays clean by construction, BM25 and SPLADE need no special
+//! handling at all — they simply index the chunk as returned. Only the dense arm
+//! needs an extra step, and it is explicit:
+//! [`render_heading_breadcrumb`](crate::chunking::render_heading_breadcrumb) takes
+//! a chunk's `content` and `heading_context` and returns the breadcrumb-prefixed
+//! text for that one retrieval arm, without a second chunking pass, a chunker-level
+//! flag, or hand-rolling the format string.
+//!
 //! # Design
 //!
 //! - Delegates all splitting to [`super::core::chunk_text`] with

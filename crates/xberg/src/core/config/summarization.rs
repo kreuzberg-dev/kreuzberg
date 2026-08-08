@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Configuration for the summarisation post-processor.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct SummarizationConfig {
     /// Summarisation strategy.
     #[serde(default)]

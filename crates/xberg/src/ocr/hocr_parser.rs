@@ -236,7 +236,20 @@ struct HocrWordInfo {
     x1: u32,
     y1: u32,
     confidence: Option<f64>,
+    /// Font size in points, from the word's `x_fsize` hOCR property.
+    font_size: Option<u32>,
+    /// Text rotation angle in degrees, from the word's `textangle` hOCR property.
+    text_angle: Option<f64>,
 }
+
+/// Attribute key holding the paragraph's average word font size (points, as a
+/// decimal string). Consumed by markdown assembly to promote large-font
+/// paragraphs to headings (#185).
+pub(crate) const HOCR_FONT_SIZE_ATTRIBUTE: &str = "x_fsize";
+
+/// Attribute key holding the paragraph's average word text-rotation angle in
+/// degrees (as a decimal string), when any word reported a non-zero angle.
+pub(crate) const HOCR_TEXT_ANGLE_ATTRIBUTE: &str = "textangle";
 
 /// Parse a single `<p class="ocr_par">` (or `<span class="ocr_par">`) and all nested
 /// content up to the matching closing tag.
@@ -324,6 +337,8 @@ fn parse_paragraph(
                     x1,
                     y1,
                     confidence: props.x_wconf,
+                    font_size: props.x_fsize,
+                    text_angle: props.textangle,
                 });
             }
             continue;
@@ -351,6 +366,10 @@ fn parse_paragraph(
     let mut max_y1 = 0u32;
     let mut conf_sum = 0.0f64;
     let mut conf_count = 0u32;
+    let mut font_size_sum = 0u32;
+    let mut font_size_count = 0u32;
+    let mut angle_sum = 0.0f64;
+    let mut angle_count = 0u32;
 
     for word in &all_words {
         if word.x1 > 0 || word.y1 > 0 {
@@ -362,6 +381,14 @@ fn parse_paragraph(
         if let Some(c) = word.confidence {
             conf_sum += c;
             conf_count += 1;
+        }
+        if let Some(fs) = word.font_size {
+            font_size_sum += fs;
+            font_size_count += 1;
+        }
+        if let Some(angle) = word.text_angle {
+            angle_sum += angle;
+            angle_count += 1;
         }
     }
 
@@ -416,6 +443,21 @@ fn parse_paragraph(
     elem.bbox = bbox;
     elem.ocr_geometry = ocr_geometry;
     elem.ocr_confidence = ocr_confidence;
+
+    if font_size_count > 0 {
+        let avg_font_size = font_size_sum as f64 / font_size_count as f64;
+        elem.attributes
+            .get_or_insert_with(Default::default)
+            .insert(HOCR_FONT_SIZE_ATTRIBUTE.to_string(), avg_font_size.to_string());
+    }
+    if angle_count > 0 {
+        let avg_angle = angle_sum / angle_count as f64;
+        if avg_angle.abs() > 0.0 {
+            elem.attributes
+                .get_or_insert_with(Default::default)
+                .insert(HOCR_TEXT_ANGLE_ATTRIBUTE.to_string(), avg_angle.to_string());
+        }
+    }
 
     (Some(elem), pos)
 }
@@ -716,6 +758,56 @@ mod tests {
     fn test_extract_title_attr() {
         let title = extract_title_attr(r#"div class="ocr_page" title="bbox 0 0 100 200; ppageno 0""#);
         assert_eq!(title, "bbox 0 0 100 200; ppageno 0");
+    }
+
+    #[test]
+    fn test_paragraph_stores_average_font_size_attribute() {
+        let hocr = r#"<div class="ocr_page" title="ppageno 0">
+            <p class="ocr_par">
+                <span class="ocr_line">
+                    <span class="ocrx_word" title="bbox 10 10 50 30; x_wconf 90; x_fsize 24">BIG</span>
+                    <span class="ocrx_word" title="bbox 60 10 100 30; x_wconf 90; x_fsize 20">Title</span>
+                </span>
+            </p>
+        </div>"#;
+
+        let doc = parse_hocr_to_internal_document(hocr);
+        let attrs = doc.elements[0].attributes.as_ref().expect("attributes present");
+        assert_eq!(attrs.get(HOCR_FONT_SIZE_ATTRIBUTE), Some(&"22".to_string()));
+    }
+
+    #[test]
+    fn test_paragraph_without_font_size_has_no_attribute() {
+        let hocr = r#"<div class="ocr_page" title="ppageno 0">
+            <p class="ocr_par">
+                <span class="ocrx_word" title="bbox 10 10 50 30; x_wconf 90">NoFontSize</span>
+            </p>
+        </div>"#;
+
+        let doc = parse_hocr_to_internal_document(hocr);
+        let has_font_size = doc.elements[0]
+            .attributes
+            .as_ref()
+            .is_some_and(|attrs| attrs.contains_key(HOCR_FONT_SIZE_ATTRIBUTE));
+        assert!(
+            !has_font_size,
+            "should not synthesize a font size when hOCR provides none"
+        );
+    }
+
+    #[test]
+    fn test_paragraph_stores_average_text_angle_attribute() {
+        let hocr = r#"<div class="ocr_page" title="ppageno 0">
+            <p class="ocr_par">
+                <span class="ocr_line">
+                    <span class="ocrx_word" title="bbox 10 10 50 30; x_wconf 90; textangle 90">Rotated</span>
+                </span>
+            </p>
+        </div>"#;
+
+        let doc = parse_hocr_to_internal_document(hocr);
+        let attrs = doc.elements[0].attributes.as_ref().expect("attributes present");
+        assert_eq!(attrs.get(HOCR_TEXT_ANGLE_ATTRIBUTE), Some(&"90".to_string()));
     }
 
     #[test]

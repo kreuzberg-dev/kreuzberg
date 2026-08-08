@@ -35,6 +35,14 @@ exclude = [
   "**/*.diff",
   "**/*.patch",
   "**/frb_generated.rs",
+  # Sibling outputs of the same flutter_rust_bridge run as `frb_generated.rs` above, plus
+  # the cbindgen headers. All are generator-owned: `cargo build` re-emits the headers and
+  # `flutter_rust_bridge_codegen` re-emits the dart, both unformatted. Committing a
+  # poly-formatted copy is an unstable equilibrium -- the next local build reverts it and
+  # the Format check goes red again. Let the generator's output be authoritative. ~keep
+  "**/xberg_bridge_generated/**",
+  "crates/xberg-ffi/include/*.h",
+  "packages/go/include/*.h",
   "charts/**",
   "plugin/.claude-plugin/**",
   "plugin/.codex-plugin/**",
@@ -124,11 +132,13 @@ ignore = ["strict-assertions", "use-specific-assertions", "no-redundant-variable
 php_version = "8.2"
 
 [lint.typos.extend_words]
-Availabilty = "Availabilty"
 acn = "acn"
 ake = "ake"
 algoritmos = "algoritmos"
+alikes = "alikes"               # part of "look-alikes" (cache/namespace.rs); the checker splits the hyphen
+als = "als"                     # Dutch fixture text in pdf/structure/paragraphs.rs
 arange = "arange"
+Availabilty = "Availabilty"
 bre = "bre"
 caf = "caf"
 charater = "charater"
@@ -137,6 +147,7 @@ cliper = "cliper"
 cursos = "cursos"
 delocate = "delocate"
 docling = "docling"
+dokument = "dokument"           # German fixture text in core/split.rs
 edn = "edn"
 ein = "ein"
 excepcional = "excepcional"
@@ -146,10 +157,13 @@ faiure = "faiure"
 fith = "fith"
 flate = "flate"
 formated = "formated"
+fpt = "fpt"                     # .fpt is the FoxPro/dBase memo-file extension, not a typo of ftp
+fre = "fre"                     # ISO 639-2/B code for French
 headerr = "headerr"
 helo = "helo"
 hocr = "hocr"
 hom = "hom"
+ine = "ine"                     # deliberate word fragment ("Eng" + "ine") in a reading_order.rs split test
 inh = "inh"
 internacional = "internacional"
 ist = "ist"
@@ -157,6 +171,7 @@ kreuzberg = "kreuzberg"
 layrnorm = "layrnorm"
 legt = "legt"
 loca = "loca"
+markdwon = "markdwon"           # deliberately misspelled format name asserted on in derive.rs / pipeline/format.rs
 markitdown = "markitdown"
 ment = "ment"
 mis = "mis"
@@ -171,6 +186,7 @@ ove = "ove"
 ower = "ower"
 pard = "pard"
 portait = "portait"
+proces = "proces"               # Dutch fixture text in pdf/structure/paragraphs.rs
 programa = "programa"
 pymupdf = "pymupdf"
 relatie = "relatie"
@@ -181,6 +197,7 @@ similarily = "similarily"
 siz = "siz"
 specifing = "specifing"
 splitted = "splitted"
+stap = "stap"                   # Dutch fixture text in pdf/structure/paragraphs.rs
 substract = "substract"
 surrealdb = "surrealdb"
 tbe = "tbe"
@@ -196,6 +213,7 @@ tre = "tre"
 unparseable = "unparseable"
 utiliza = "utiliza"
 webui = "webui"
+wel = "wel"                     # ISO 639-2/B code for Welsh
 yor = "yor"
 
 [lint.typos.extend_identifiers]
@@ -216,6 +234,10 @@ preserve_patterns = ["SAFETY", "SPDX", "Copyright", "License", "licensed under",
 
 [tools.clang-format]
 enabled = true
+
+[tools.mix]
+enabled = true
+root = "packages/elixir"
 
 [per-file-ignores]
 "**/api.py" = ["F401", "I001", "TC006", "UP035"]
@@ -366,6 +388,11 @@ enabled = true
 "e2e/**/*.py" = ["A001", "N801"]
 "packages/**" = ["comment", "doc-comment"]
 "packages/python/**/api.py" = ["RET504"]
+# `ProbeStatus.pass_ = "pass"` -- `pass` is a Python keyword, so alef emits the
+# trailing-underscore form for the enum variant. S105 reads the `"pass"` value as a
+# hardcoded password. It is a false positive, and the file is alef-generated, so it
+# cannot carry a `noqa` that would survive the next regen. ~keep
+"packages/python/**/options.py" = ["S105"]
 "packages/python/build.py" = ["INP001"]
 "scripts/**/*.py" = [
   "B023",
@@ -383,6 +410,10 @@ enabled = true
   "PLR0915",
   "PLW2901",
   "PT018",
+  # These are genuine `unittest.TestCase` modules run via `unittest.main()`, not pytest
+  # tests -- `assertRaisesRegex` is the correct API for them and pytest is not a
+  # dependency of the CI scripts. Same rationale as PT018 above. ~keep
+  "PT027",
   "PTH108",
   "PTH123",
   "S101",

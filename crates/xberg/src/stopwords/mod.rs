@@ -25,7 +25,12 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! `get_stopwords` / `get_stopwords_with_fallback` are `pub(crate)`, so this example is
+//! not run as a doctest — it documents the normalization behaviour for crate-internal
+//! callers. Downstream crates use the [`STOPWORDS`] static shown under
+//! [Direct Access](#direct-access-advanced) below.
+//!
+//! ```ignore
 //! use xberg::stopwords::{get_stopwords, get_stopwords_with_fallback};
 //!
 //! // Get English stopwords with normalization
@@ -168,7 +173,10 @@ fn apply_stopword_whitelist(map: &mut AHashMap<String, AHashSet<String>>) {
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: this function is `pub(crate)`. Downstream crates use the
+/// [`STOPWORDS`] static directly (case-sensitive, no normalization).
+///
+/// ```ignore
 /// use xberg::stopwords::get_stopwords;
 ///
 /// // Simple language codes
@@ -247,7 +255,10 @@ pub(crate) fn get_stopwords(lang: &str) -> Option<&'static AHashSet<String>> {
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: this function is `pub(crate)`. Downstream crates use the
+/// [`STOPWORDS`] static directly (case-sensitive, no normalization).
+///
+/// ```ignore
 /// use xberg::stopwords::get_stopwords_with_fallback;
 ///
 /// // Detected language is Esperanto, fallback to English
@@ -272,7 +283,7 @@ pub(crate) fn get_stopwords(lang: &str) -> Option<&'static AHashSet<String>> {
 ///
 /// # Common Patterns
 ///
-/// ```rust
+/// ```ignore
 /// use xberg::stopwords::get_stopwords_with_fallback;
 ///
 /// // English fallback for unknown languages

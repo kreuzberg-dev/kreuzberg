@@ -15,6 +15,7 @@ mod validator;
 
 pub use embedding::EmbeddingBackendRegistry;
 pub use extractor::DocumentExtractorRegistry;
+pub(crate) use extractor::RegisteredDocumentExtractor;
 pub use ocr::OcrBackendRegistry;
 pub use processor::PostProcessorRegistry;
 pub use renderer::RendererRegistry;
@@ -154,8 +155,25 @@ pub(crate) mod test_support {
     /// Defines a guard type that serializes access to one global registry and leaves it empty on
     /// both entry and exit.
     ///
-    /// Each registry gets its own lock, so tests for unrelated plugin types still run in
-    /// parallel with each other.
+    /// Each registry gets its own lock, so this only serializes tests that explicitly acquire
+    /// the *same* guard type against each other; tests for a different plugin type acquire a
+    /// different lock and are unaffected. Critically, this lock is *not* held by, and does not
+    /// serialize against, code paths that read the same global registry without acquiring this
+    /// guard at all — for example a self-healing consumer that repopulates a registry only when
+    /// it observes the registry as completely empty (see `extractors::ensure_initialized`), or
+    /// one that checks for its own specific entry by name instead of emptiness (see
+    /// `keywords::ensure_initialized`, #317: a `OnceCell`-guarded registrar that never re-runs
+    /// once initialized would otherwise leave its plugin permanently missing after any later
+    /// `PostProcessorRegistryGuard` cycle). A by-name check is more robust than an
+    /// emptiness check when the registry is shared by unrelated registrants (post-processors
+    /// include built-ins, the keyword extractor, etc.): a guard holding only foreign entries
+    /// still reads as "my entry is missing" and self-heals correctly. An emptiness check does
+    /// not have this property — while a guard is held with only mock/foreign entries
+    /// registered, the registry is non-empty, so such a self-heal is skipped; any concurrently
+    /// running, non-guarded consumer that expects the real registrations to be present can then
+    /// fail. Either way, guard holders must therefore either register everything a concurrent
+    /// unguarded consumer could need, or (better) avoid mutating the global registry at all and
+    /// use a local `DocumentExtractorRegistry::new()` (or equivalent) instead.
     macro_rules! registry_guard {
         ($guard:ident, $lock:ident, $clear:path, $what:literal) => {
             /// Holds this registry's lock for the lifetime of a test and leaves the registry
@@ -224,11 +242,16 @@ pub(crate) mod test_support {
         let mut registry = registry.write();
         registry.reset_to_defaults()
     }
+    // `DocumentExtractorRegistryGuard` (which serialized tests via
+    // `crate::plugins::clear_document_extractors`) was removed: it had no remaining callers
+    // after the document-extractor tests were rewritten to use local
+    // `DocumentExtractorRegistry` instances instead of mutating the global registry (see
+    // `core::extractor::file::issue_217_fallback_tests` and `plugins::extractor::tests`).
     registry_guard!(
-        DocumentExtractorRegistryGuard,
-        DOCUMENT_EXTRACTOR_REGISTRY_LOCK,
-        crate::plugins::clear_document_extractors,
-        "document extractor"
+        PostProcessorRegistryGuard,
+        POST_PROCESSOR_REGISTRY_LOCK,
+        crate::plugins::clear_post_processors,
+        "post-processor"
     );
 }
 

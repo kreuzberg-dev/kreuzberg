@@ -84,11 +84,30 @@ fn run_rake_with_stopwords(
         })
         .collect();
 
+    finalize_rake_keywords(filtered_results, config, text)
+}
+
+/// Normalise raw RAKE scores, populate positions, apply `min_score`
+/// filtering, sort, and truncate to `max_keywords`.
+///
+/// Scores are scaled relative to the strongest candidate in `filtered_results`
+/// (`raw_score / max_score`), so the top keyword lands at ~1.0. Deliberately
+/// NOT min-max normalisation: rescaling against both the min and max forces
+/// the single lowest-ranked keyword's score to exactly 0.0, which any
+/// positive `config.min_score` threshold then unconditionally deletes
+/// regardless of how relevant that keyword actually was (#266). RAKE scores
+/// are always positive (each word contributes at least 1.0 of
+/// degree/frequency), so `max_score` is always > 0.0 for a non-empty
+/// `filtered_results`.
+fn finalize_rake_keywords(
+    filtered_results: Vec<(String, f64)>,
+    config: &KeywordConfig,
+    source_text: &str,
+) -> Vec<Keyword> {
     if filtered_results.is_empty() {
         return Vec::new();
     }
 
-    let min_score = filtered_results.iter().map(|(_, s)| *s).fold(f64::INFINITY, f64::min);
     let max_score = filtered_results
         .iter()
         .map(|(_, s)| *s)
@@ -97,13 +116,13 @@ fn run_rake_with_stopwords(
     let mut keywords: Vec<_> = filtered_results
         .into_iter()
         .map(|(keyword, raw_score)| {
-            let normalized_score = if max_score > min_score {
-                ((raw_score - min_score) / (max_score - min_score)).clamp(0.0, 1.0)
+            let normalized_score = if max_score > 0.0 {
+                (raw_score / max_score).clamp(0.0, 1.0)
             } else {
-                1.0
+                0.0
             };
 
-            Keyword::new(keyword, normalized_score as f32, KeywordAlgorithm::Rake)
+            Keyword::with_positions(keyword, normalized_score as f32, KeywordAlgorithm::Rake, source_text)
         })
         .collect();
 
@@ -133,6 +152,75 @@ fn normalize_language_code(lang: &str) -> String {
 mod tests {
     use super::*;
     use crate::keywords::config::RakeParams;
+
+    #[test]
+    fn finalize_rake_keywords_normalizes_relative_to_the_max_score() {
+        let filtered = vec![
+            ("alpha".to_string(), 10.0),
+            ("beta".to_string(), 9.0),
+            ("gamma".to_string(), 8.0),
+        ];
+        let config = KeywordConfig::rake();
+
+        let keywords = finalize_rake_keywords(filtered, &config, "alpha beta gamma");
+
+        assert_eq!(keywords.len(), 3);
+        assert_eq!(keywords[0].text, "alpha");
+        assert_eq!(keywords[0].score, 1.0);
+        assert_eq!(keywords[1].text, "beta");
+        assert_eq!(keywords[1].score, 0.9);
+        assert_eq!(keywords[2].text, "gamma");
+        assert_eq!(keywords[2].score, 0.8);
+    }
+
+    #[test]
+    fn finalize_rake_keywords_does_not_annihilate_the_lowest_ranked_keyword() {
+        // Before the fix, min-max normalisation forced the lowest-ranked
+        // keyword's score to exactly 0.0 regardless of how close its raw
+        // score was to the top pick, so any positive `min_score` always
+        // deleted it. Here "gamma" (raw 8.0) is 80% as strong as "alpha"
+        // (raw 10.0) and must survive a 0.3 threshold (#266).
+        let filtered = vec![
+            ("alpha".to_string(), 10.0),
+            ("beta".to_string(), 9.0),
+            ("gamma".to_string(), 8.0),
+        ];
+        let config = KeywordConfig::rake().with_min_score(0.3);
+
+        let keywords = finalize_rake_keywords(filtered, &config, "alpha beta gamma");
+
+        let texts: Vec<&str> = keywords.iter().map(|k| k.text.as_str()).collect();
+        assert_eq!(texts, vec!["alpha", "beta", "gamma"], "gamma must not be annihilated");
+        assert_eq!(keywords[2].score, 0.8);
+    }
+
+    #[test]
+    fn finalize_rake_keywords_still_filters_genuinely_weak_keywords() {
+        let filtered = vec![("alpha".to_string(), 10.0), ("weak".to_string(), 1.0)];
+        let config = KeywordConfig::rake().with_min_score(0.5);
+
+        let keywords = finalize_rake_keywords(filtered, &config, "alpha weak");
+
+        assert_eq!(keywords.len(), 1);
+        assert_eq!(keywords[0].text, "alpha");
+    }
+
+    #[test]
+    fn finalize_rake_keywords_populates_positions_from_source_text() {
+        let filtered = vec![("learning".to_string(), 4.0)];
+        let config = KeywordConfig::rake();
+
+        let keywords = finalize_rake_keywords(filtered, &config, "machine learning is great");
+
+        assert_eq!(keywords.len(), 1);
+        assert_eq!(keywords[0].positions, Some(vec![8]));
+    }
+
+    #[test]
+    fn finalize_rake_keywords_returns_empty_for_empty_input() {
+        let config = KeywordConfig::rake();
+        assert!(finalize_rake_keywords(Vec::new(), &config, "irrelevant").is_empty());
+    }
 
     #[test]
     fn test_rake_extraction_basic() {

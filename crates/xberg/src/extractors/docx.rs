@@ -40,6 +40,23 @@ impl Default for DocxExtractor {
     }
 }
 
+/// Resolve a drawing's alt text: `wp:docPr/@descr`, falling back to `@name` (#81).
+///
+/// Word writes `@descr` only when the author fills in the description field, but always
+/// writes `@name`. Without the fallback an image the author named but never described
+/// reaches output carrying no alt text at all.
+///
+/// Shared by the placeholder element path and the `ExtractedImage` path so the two
+/// cannot disagree about what a given image is called.
+fn drawing_alt_text(drawing: &crate::extraction::docx::drawing::Drawing) -> Option<String> {
+    let properties = drawing.doc_properties.as_ref()?;
+    properties
+        .description
+        .clone()
+        .filter(|description| !description.is_empty())
+        .or_else(|| properties.name.clone().filter(|name| !name.is_empty()))
+}
+
 /// Build an `InternalDocument` from parsed DOCX data.
 ///
 /// Creates a flat element list with headings, paragraphs, lists, tables, images,
@@ -217,6 +234,27 @@ fn build_internal_document(
                             break;
                         }
                     }
+
+                    // Comment reference markers (#82, #300). Structurally a comment is
+                    // the same shape as a footnote (a marker in the body, a definition
+                    // elsewhere), sourced from `word/comments.xml` instead of
+                    // `word/footnotes.xml`, but it is routed through the dedicated
+                    // `CommentRef`/`NodeContent::Comment` machinery so a consumer can
+                    // tell a reviewer comment apart from an authored footnote.
+                    let mut search_start = 0;
+                    while let Some(start) = text[search_start..].find("[cmt:") {
+                        let abs_start = search_start + start;
+                        if let Some(end) = text[abs_start..].find(']') {
+                            let comment_id = &text[abs_start + 5..abs_start + end];
+                            if !comment_id.is_empty() {
+                                let key = format!("cmt{}", comment_id);
+                                builder.push_comment_ref(comment_id, &key, None);
+                            }
+                            search_start = abs_start + end + 1;
+                        } else {
+                            break;
+                        }
+                    }
                 }
             }
             crate::extraction::docx::parser::DocumentElement::Table(idx) => {
@@ -274,6 +312,16 @@ fn build_internal_document(
             crate::extraction::docx::parser::DocumentElement::Drawing(idx) => {
                 let drawing = &doc.drawings[*idx];
 
+                if let Some(ref textbox_text) = drawing.text_box_content
+                    && !textbox_text.trim().is_empty()
+                {
+                    if current_list_numbering_id.is_some() {
+                        builder.end_list();
+                        current_list_numbering_id = None;
+                    }
+                    builder.push_paragraph(textbox_text, vec![], None, None);
+                }
+
                 if drawing.image_ref.is_none() {
                     continue;
                 }
@@ -286,7 +334,7 @@ fn build_internal_document(
                     builder.end_list();
                     current_list_numbering_id = None;
                 }
-                let description = drawing.doc_properties.as_ref().and_then(|dp| dp.description.clone());
+                let description = drawing_alt_text(drawing);
 
                 let bbox = match &drawing.drawing_type {
                     crate::extraction::docx::drawing::DrawingType::Anchored(anchor) => {
@@ -316,11 +364,19 @@ fn build_internal_document(
                 let elem = if let Some(b) = bbox { elem.with_bbox(b) } else { elem };
                 let img_elem_idx = builder.push_element(elem);
 
+                let mut attrs = AHashMap::new();
                 if let Some(ref rid) = drawing.image_ref
                     && let Some(path) = doc.image_relationships.get(rid)
                 {
-                    let mut attrs = AHashMap::new();
                     attrs.insert("image_uri".to_string(), path.clone());
+                }
+                // Wire the drawing's physical size (#81) into output attributes so
+                // consumers can lay out the image without re-deriving it from EMUs.
+                if let Some(ref extent) = drawing.extent {
+                    attrs.insert("width_inches".to_string(), format!("{:.2}", extent.width_inches()));
+                    attrs.insert("height_inches".to_string(), format!("{:.2}", extent.height_inches()));
+                }
+                if !attrs.is_empty() {
                     builder.set_attributes(img_elem_idx, attrs);
                 }
             }
@@ -335,28 +391,10 @@ fn build_internal_document(
     }
 
     for hf in &doc.headers {
-        let text: String = hf
-            .paragraphs
-            .iter()
-            .map(|p| p.runs_to_markdown())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !text.is_empty() {
-            let idx = builder.push_paragraph(&text, vec![], None, None);
-            builder.set_layer(idx, ContentLayer::Header);
-        }
+        push_header_footer_content(&mut builder, hf, ContentLayer::Header);
     }
     for hf in &doc.footers {
-        let text: String = hf
-            .paragraphs
-            .iter()
-            .map(|p| p.runs_to_markdown())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !text.is_empty() {
-            let idx = builder.push_paragraph(&text, vec![], None, None);
-            builder.set_layer(idx, ContentLayer::Footer);
-        }
+        push_header_footer_content(&mut builder, hf, ContentLayer::Footer);
     }
 
     for note in doc.footnotes.iter().chain(doc.endnotes.iter()) {
@@ -373,7 +411,66 @@ fn build_internal_document(
         }
     }
 
+    // Comment definitions (#82, #300) — see the comment-reference scan above.
+    for comment in &doc.comments {
+        let text: String = comment
+            .paragraphs
+            .iter()
+            .map(|p| p.runs_to_markdown())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !text.is_empty() {
+            let key = format!("cmt{}", comment.id);
+            let idx = builder.push_comment_definition(&text, &key, None);
+            builder.set_layer(idx, ContentLayer::Footnote);
+        }
+    }
+
     builder.build()
+}
+
+/// Push a header's or footer's paragraphs and tables (#85 — headers/footers now
+/// parse tables via the shared body element loop, where they previously couldn't).
+fn push_header_footer_content(
+    builder: &mut InternalDocumentBuilder,
+    hf: &crate::extraction::docx::parser::HeaderFooter,
+    layer: crate::types::document_structure::ContentLayer,
+) {
+    let text: String = hf
+        .paragraphs
+        .iter()
+        .map(|p| p.runs_to_markdown())
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !text.is_empty() {
+        let idx = builder.push_paragraph(&text, vec![], None, None);
+        builder.set_layer(idx, layer);
+    }
+
+    for table in &hf.tables {
+        let cells: Vec<Vec<String>> = table
+            .rows
+            .iter()
+            .map(|row| {
+                row.cells
+                    .iter()
+                    .map(|cell| {
+                        cell.paragraphs
+                            .iter()
+                            .map(|p| p.runs_to_markdown())
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .trim()
+                            .to_string()
+                    })
+                    .collect()
+            })
+            .collect();
+        if !cells.is_empty() {
+            let idx = builder.push_table_from_cells(&cells, None, None);
+            builder.set_layer(idx, layer);
+        }
+    }
 }
 
 /// Collect plain text, annotations, and math formulas from a slice of Runs.
@@ -591,6 +688,11 @@ fn parse_docx_core(
     let mut internal_doc = build_internal_document(&doc, inject_placeholders);
     if !doc.revisions.is_empty() {
         internal_doc.revisions = Some(std::mem::take(&mut doc.revisions));
+    }
+    if !doc.warnings.is_empty() {
+        internal_doc
+            .processing_warnings
+            .extend(std::mem::take(&mut doc.warnings));
     }
     let drawings = std::mem::take(&mut doc.drawings);
     let image_rels = std::mem::take(&mut doc.image_relationships);
@@ -858,6 +960,20 @@ impl InternalDocumentExtractor for DocxExtractor {
                     serde_json::Value::String(application.clone()),
                 );
             }
+            // #230: DocSecurity was parsed into `app.doc_security` and then only ever
+            // reachable as an opaque integer buried in the format-specific metadata.
+            // Surface both the raw value and the decoded ECMA-376 flags so a consumer
+            // can tell a read-only-recommended or password-protected document apart
+            // without knowing the bit layout.
+            if let Some(raw) = app.doc_security {
+                metadata_map.insert(
+                    Cow::Borrowed(office_metadata::app_properties::DOC_SECURITY_KEY),
+                    serde_json::Value::Number(raw.into()),
+                );
+                for (key, value) in office_metadata::app_properties::decode_doc_security_flags(raw) {
+                    metadata_map.insert(Cow::Borrowed(key), serde_json::Value::Bool(value));
+                }
+            }
             docx_app_properties = Some(app);
         }
 
@@ -896,7 +1012,7 @@ impl InternalDocumentExtractor for DocxExtractor {
         let extract_image_data = config.needs_image_data();
         let mut extracted_images = Vec::with_capacity(drawings.len());
         for (idx, drawing) in drawings.iter().enumerate() {
-            let description = drawing.doc_properties.as_ref().and_then(|dp| dp.description.clone());
+            let description = drawing_alt_text(drawing);
             let source_path = drawing.image_ref.as_ref().and_then(|rid| image_rels.get(rid)).cloned();
 
             let mut image_data = None;
@@ -1302,6 +1418,38 @@ mod tests {
         if let Some(rels) = rels_xml {
             zip.start_file("word/_rels/document.xml.rels", options).unwrap();
             zip.write_all(rels.as_bytes()).unwrap();
+        }
+
+        zip.finish().unwrap().into_inner()
+    }
+
+    /// Helper: build a DOCX ZIP from `word/document.xml` plus an arbitrary list of
+    /// additional package parts (path, content). Unlike [`build_test_docx_with_parts`],
+    /// this isn't limited to one header/footer/rels part — used for synthetic
+    /// fixtures needing several header/footer parts (#83), `word/comments.xml`
+    /// (#82), or a custom `word/_rels/document.xml.rels`.
+    fn build_test_docx_with_files(document_xml: &str, extra_files: &[(&str, &str)]) -> Vec<u8> {
+        use std::io::Write;
+        let buf = Vec::new();
+        let cursor = std::io::Cursor::new(buf);
+        let mut zip = zip::ZipWriter::new(cursor);
+        let options: zip::write::FileOptions<()> = zip::write::FileOptions::default();
+
+        let content_types = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>"#;
+        zip.start_file("[Content_Types].xml", options).unwrap();
+        zip.write_all(content_types.as_bytes()).unwrap();
+
+        zip.start_file("word/document.xml", options).unwrap();
+        zip.write_all(document_xml.as_bytes()).unwrap();
+
+        for (path, xml) in extra_files {
+            zip.start_file(*path, options).unwrap();
+            zip.write_all(xml.as_bytes()).unwrap();
         }
 
         zip.finish().unwrap().into_inner()
@@ -2137,6 +2285,7 @@ mod tests {
                 description: Some("A test image".to_string()),
             }),
             image_ref: Some("rId1".to_string()),
+            text_box_content: None,
         };
         let d_idx = doc.drawings.len();
         doc.drawings.push(drawing);
@@ -2614,6 +2763,744 @@ mod tests {
         assert!(
             result.revisions.is_none(),
             "revisions should be None for a document without track-changes markup"
+        );
+    }
+
+    // --- Issue #81: text-box text, drawing alt-text fallback, and drawing dimensions ---
+
+    #[tokio::test]
+    async fn test_issue_81_textbox_alt_text_fallback_and_dimensions() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+            xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:drawing>
+      <wp:inline>
+        <wp:extent cx="914400" cy="457200"/>
+        <wp:docPr id="1" name="My Picture"/>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic><pic:blipFill><a:blip r:embed="rId5"/></pic:blipFill></pic:pic>
+        </a:graphicData></a:graphic>
+      </wp:inline>
+    </w:drawing></w:r></w:p>
+    <w:p><w:r><w:drawing>
+      <wp:inline>
+        <wp:extent cx="100000" cy="100000"/>
+        <wp:docPr id="2" name="Text Box 1"/>
+        <a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+          <wps:wsp><wps:txbx><w:txbxContent>
+            <w:p><w:r><w:t>Textbox message here.</w:t></w:r></w:p>
+          </w:txbxContent></wps:txbx></wps:wsp>
+        </a:graphicData></a:graphic>
+      </wp:inline>
+    </w:drawing></w:r></w:p>
+  </w:body>
+</w:document>"#;
+
+        let rels_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+</Relationships>"#;
+
+        let data = build_test_docx_with_parts(document_xml, None, None, None, None, None, Some(rels_xml));
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            images: Some(ImageExtractionConfig {
+                extract_images: false,
+                inject_placeholders: true,
+                ..Default::default()
+            }),
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+
+        let image_node = doc
+            .nodes
+            .iter()
+            .find(|n| matches!(&n.content, NodeContent::Image { .. }))
+            .expect("Image node should be present");
+        match &image_node.content {
+            NodeContent::Image { description, .. } => {
+                assert_eq!(
+                    description.as_deref(),
+                    Some("My Picture"),
+                    "alt text should fall back to docPr/@name when @descr is absent"
+                );
+            }
+            _ => unreachable!(),
+        }
+        let attrs = image_node
+            .attributes
+            .as_ref()
+            .expect("image node should carry attributes");
+        assert_eq!(attrs.get("width_inches").map(String::as_str), Some("1.00"));
+        assert_eq!(attrs.get("height_inches").map(String::as_str), Some("0.50"));
+
+        let has_textbox_paragraph = doc
+            .nodes
+            .iter()
+            .any(|n| matches!(&n.content, NodeContent::Paragraph { text } if text == "Textbox message here."));
+        assert!(
+            has_textbox_paragraph,
+            "w:txbxContent text should be extracted as a paragraph; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_81_vml_textbox_fallback_not_duplicated_with_choice() {
+        // mc:Choice carries the DrawingML text box; mc:Fallback carries the VML
+        // equivalent for older readers. Both must not surface the text twice.
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+            xmlns:v="urn:schemas-microsoft-com:vml">
+  <w:body>
+    <w:p><w:r>
+      <mc:AlternateContent>
+        <mc:Choice Requires="wps">
+          <w:drawing><wps:wsp><wps:txbx><w:txbxContent>
+            <w:p><w:r><w:t>Shared text box body.</w:t></w:r></w:p>
+          </w:txbxContent></wps:txbx></wps:wsp></w:drawing>
+        </mc:Choice>
+        <mc:Fallback>
+          <w:pict><v:shape><v:textbox><w:txbxContent>
+            <w:p><w:r><w:t>Shared text box body.</w:t></w:r></w:p>
+          </w:txbxContent></v:textbox></v:shape></w:pict>
+        </mc:Fallback>
+      </mc:AlternateContent>
+    </w:r></w:p>
+    <w:p><w:r>
+      <w:pict><v:shape><v:textbox><w:txbxContent>
+        <w:p><w:r><w:t>Standalone VML text box.</w:t></w:r></w:p>
+      </w:txbxContent></v:textbox></v:shape></w:pict>
+    </w:r></w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig::default();
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            false,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        let occurrences = result.content.matches("Shared text box body.").count();
+        assert_eq!(
+            occurrences, 1,
+            "mc:Choice and mc:Fallback must not both surface the same text box text; content: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Standalone VML text box."),
+            "a bare (non-AlternateContent) VML text box should still be extracted; content: {}",
+            result.content
+        );
+    }
+
+    // --- Issue #82: DOCX comments ---
+
+    #[tokio::test]
+    async fn test_issue_82_comment_extracted_and_joined_to_reference() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:commentRangeStart w:id="0"/>
+      <w:r><w:t>flagged text</w:t></w:r>
+      <w:commentRangeEnd w:id="0"/>
+      <w:r><w:commentReference w:id="0"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+        let comments_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="0" w:author="Alice"><w:p><w:r><w:t>This needs revision.</w:t></w:r></w:p></w:comment>
+</w:comments>"#;
+
+        let data = build_test_docx_with_files(document_xml, &[("word/comments.xml", comments_xml)]);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        assert!(
+            internal_doc.processing_warnings.is_empty(),
+            "a resolvable comment reference should not produce a warning: {:?}",
+            internal_doc.processing_warnings
+        );
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        assert!(
+            result.content.contains("flagged text"),
+            "body text should still be present: {}",
+            result.content
+        );
+
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+        let has_comment_definition = doc
+            .nodes
+            .iter()
+            .any(|n| matches!(&n.content, NodeContent::Comment { text } if text.contains("This needs revision.")));
+        assert!(
+            has_comment_definition,
+            "comment body should be joined to the reference; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    /// Regression for #300: a DOCX reviewer comment must produce
+    /// `NodeContent::Comment`, not `NodeContent::Footnote` — the two share the same
+    /// marker/definition machinery internally, but a consumer needs to be able to
+    /// tell them apart. This also proves the fix does not over-fire: a real
+    /// footnote in the same document must still surface as `NodeContent::Footnote`.
+    #[tokio::test]
+    async fn test_issue_300_docx_comment_produces_comment_not_footnote_node() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:commentRangeStart w:id="0"/>
+      <w:r><w:t>flagged text</w:t></w:r>
+      <w:commentRangeEnd w:id="0"/>
+      <w:r><w:commentReference w:id="0"/></w:r>
+    </w:p>
+    <w:p><w:r><w:t>See note</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>
+  </w:body>
+</w:document>"#;
+        let comments_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="0" w:author="Alice"><w:p><w:r><w:t>This needs revision.</w:t></w:r></w:p></w:comment>
+</w:comments>"#;
+        let footnotes_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="0"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:r><w:t>continuation</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="2"><w:p><w:r><w:t>This is a real footnote.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>"#;
+
+        let data = build_test_docx_with_files(
+            document_xml,
+            &[
+                ("word/comments.xml", comments_xml),
+                ("word/footnotes.xml", footnotes_xml),
+            ],
+        );
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+
+        let comment_node = doc
+            .nodes
+            .iter()
+            .find(|n| matches!(&n.content, NodeContent::Comment { text } if text.contains("This needs revision.")));
+        assert_eq!(
+            comment_node.map(|n| &n.content),
+            Some(&NodeContent::Comment {
+                text: "This needs revision.".to_string()
+            }),
+            "a DOCX reviewer comment must produce NodeContent::Comment; nodes: {:?}",
+            doc.nodes
+        );
+
+        let footnote_node = doc.nodes.iter().find(
+            |n| matches!(&n.content, NodeContent::Footnote { text } if text.contains("This is a real footnote.")),
+        );
+        assert_eq!(
+            footnote_node.map(|n| &n.content),
+            Some(&NodeContent::Footnote {
+                text: "This is a real footnote.".to_string()
+            }),
+            "a real footnote must still produce NodeContent::Footnote (no over-fire); nodes: {:?}",
+            doc.nodes
+        );
+
+        assert!(
+            !doc.nodes
+                .iter()
+                .any(|n| matches!(&n.content, NodeContent::Footnote { text } if text.contains("This needs revision."))),
+            "the comment body must not also surface as a Footnote node; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_82_dangling_comment_reference_warns() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>text</w:t></w:r><w:r><w:commentReference w:id="7"/></w:r></w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig::default();
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed even with a dangling comment reference");
+
+        assert!(
+            internal_doc
+                .processing_warnings
+                .iter()
+                .any(|w| w.source == "docx" && w.message.contains('7')),
+            "a comment reference with no matching comments.xml entry should warn: {:?}",
+            internal_doc.processing_warnings
+        );
+    }
+
+    // --- Issue #83: headers/footers beyond the old hardcoded 1..=3 range ---
+
+    #[tokio::test]
+    async fn test_issue_83_fourth_header_and_footer_discovered_via_relationships() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Body content.</w:t></w:r></w:p></w:body>
+</w:document>"#;
+
+        let rels_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header3.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header4.xml"/>
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer4.xml"/>
+</Relationships>"#;
+
+        fn hdr(text: &str) -> String {
+            format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>{}</w:t></w:r></w:p></w:hdr>"#,
+                text
+            )
+        }
+        fn ftr(text: &str) -> String {
+            format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>{}</w:t></w:r></w:p></w:ftr>"#,
+                text
+            )
+        }
+
+        let h1 = hdr("Header 1 text");
+        let h2 = hdr("Header 2 text");
+        let h3 = hdr("Header 3 text");
+        let h4 = hdr("Header 4 text");
+        let f4 = ftr("Footer 4 text");
+
+        let data = build_test_docx_with_files(
+            document_xml,
+            &[
+                ("word/_rels/document.xml.rels", rels_xml),
+                ("word/header1.xml", &h1),
+                ("word/header2.xml", &h2),
+                ("word/header3.xml", &h3),
+                ("word/header4.xml", &h4),
+                ("word/footer4.xml", &f4),
+            ],
+        );
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+
+        for expected in ["Header 1 text", "Header 2 text", "Header 3 text", "Header 4 text"] {
+            assert!(
+                doc.nodes.iter().any(|n| {
+                    n.content_layer == crate::types::ContentLayer::Header
+                        && matches!(&n.content, NodeContent::Paragraph { text } if text.contains(expected))
+                }),
+                "missing header layer node for {:?}; nodes: {:?}",
+                expected,
+                doc.nodes
+            );
+        }
+        assert!(
+            doc.nodes.iter().any(|n| {
+                n.content_layer == crate::types::ContentLayer::Footer
+                    && matches!(&n.content, NodeContent::Paragraph { text } if text.contains("Footer 4 text"))
+            }),
+            "missing footer layer node for the 4th footer; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    // --- Issue #85: headers/footers/notes converge on the shared body element loop ---
+
+    #[tokio::test]
+    async fn test_issue_85_header_table_extracted_via_shared_loop() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Body.</w:t></w:r></w:p></w:body>
+</w:document>"#;
+        let header_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+</w:hdr>"#;
+
+        let data = build_test_docx_with_parts(document_xml, None, None, None, Some(header_xml), None, None);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+
+        let header_table = doc.nodes.iter().find(|n| {
+            n.content_layer == crate::types::ContentLayer::Header && matches!(&n.content, NodeContent::Table { .. })
+        });
+        assert!(
+            header_table.is_some(),
+            "a table inside a header must now be extracted (was previously dropped entirely); nodes: {:?}",
+            doc.nodes
+        );
+        if let Some(NodeContent::Table { grid }) = header_table.map(|n| &n.content) {
+            assert_eq!(grid.cells.first().map(|c| c.content.as_str()), Some("Cell A"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_issue_85_footnote_table_flattened_via_shared_loop() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Text with note</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>
+  </w:body>
+</w:document>"#;
+        let footnotes_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="0"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="1"><w:p><w:r><w:t>continuation</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="2">
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Note cell text</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+  </w:footnote>
+</w:footnotes>"#;
+
+        let data = build_test_docx_with_parts(document_xml, None, Some(footnotes_xml), None, None, None, None);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+
+        assert!(
+            doc.nodes
+                .iter()
+                .any(|n| { matches!(&n.content, NodeContent::Footnote { text } if text.contains("Note cell text")) }),
+            "a table inside a footnote must be flattened into its text (was previously dropped entirely); nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    // --- Issues #88 / #239: field-code hyperlinks and general field parsing ---
+
+    #[tokio::test]
+    async fn test_issue_88_fldchar_hyperlink_url_recovered() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> HYPERLINK "https://example.com/page" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Example Link</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        assert!(
+            result.content.contains("Example Link"),
+            "visible result text should be kept: {}",
+            result.content
+        );
+        assert!(
+            !result.content.contains("HYPERLINK"),
+            "field instruction text must not leak into output: {}",
+            result.content
+        );
+
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+        let has_url_annotation = doc.nodes.iter().any(|n| {
+            n.annotations.iter().any(|a| {
+                matches!(&a.kind, crate::types::document_structure::AnnotationKind::Link { url, .. } if url == "https://example.com/page")
+            })
+        });
+        assert!(
+            has_url_annotation,
+            "the HYPERLINK field's URL should be recovered onto the result run; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_239_fldsimple_hyperlink_and_generic_field() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:fldSimple w:instr="HYPERLINK &quot;https://example.org/simple&quot;">
+      <w:r><w:t>Simple Link</w:t></w:r>
+    </w:fldSimple></w:p>
+    <w:p><w:fldSimple w:instr="PAGE">
+      <w:r><w:t>1</w:t></w:r>
+    </w:fldSimple></w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig {
+            include_document_structure: true,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction of w:fldSimple fields should not crash");
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        assert_eq!(
+            result.content.matches('1').count(),
+            1,
+            "the PAGE field's cached result text must appear exactly once, not be duplicated: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Simple Link"),
+            "the HYPERLINK fldSimple's visible text should be kept: {}",
+            result.content
+        );
+
+        let doc = result.document.as_ref().expect("DocumentStructure should be present");
+        let has_url_annotation = doc.nodes.iter().any(|n| {
+            n.annotations.iter().any(|a| {
+                matches!(&a.kind, crate::types::document_structure::AnnotationKind::Link { url, .. } if url == "https://example.org/simple")
+            })
+        });
+        assert!(
+            has_url_annotation,
+            "the fldSimple HYPERLINK's URL should be recovered; nodes: {:?}",
+            doc.nodes
+        );
+    }
+
+    // --- Issue #224: w:sym, w:noBreakHyphen, and w:br (column/textWrapping) ---
+
+    #[tokio::test]
+    async fn test_issue_224_symbol_and_nobreakhyphen_and_column_break() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t>Value:</w:t></w:r>
+      <w:r><w:sym w:font="Wingdings" w:char="F0E0"/></w:r>
+      <w:r><w:noBreakHyphen/></w:r>
+      <w:r><w:t>after</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>Col1</w:t></w:r>
+      <w:r><w:br w:type="column"/></w:r>
+      <w:r><w:t>Col2</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig::default();
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("extraction should succeed");
+        assert!(
+            internal_doc.processing_warnings.is_empty(),
+            "a well-formed w:sym char code should not produce a warning: {:?}",
+            internal_doc.processing_warnings
+        );
+        let result = crate::extraction::derive::derive_extraction_result(
+            internal_doc,
+            false,
+            crate::core::config::OutputFormat::Plain,
+        );
+
+        let expected = "Value:\u{F0E0}\u{2011}after";
+        assert!(
+            result.content.contains(expected),
+            "w:sym should map to its Unicode scalar and w:noBreakHyphen to U+2011: {}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Col1\nCol2"),
+            "a non-page w:br (column/textWrapping) should insert a newline: {}",
+            result.content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_issue_224_unmappable_symbol_warns_and_inserts_placeholder() {
+        let document_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:sym w:font="Wingdings" w:char="ZZZZ"/></w:r></w:p>
+  </w:body>
+</w:document>"#;
+
+        let data = build_test_docx(document_xml);
+        let extractor = DocxExtractor::new();
+        let config = ExtractionConfig::default();
+        let internal_doc = extractor
+            .extract_content(
+                &data,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                &config,
+            )
+            .await
+            .expect("an unmappable w:sym must degrade gracefully, not fail extraction");
+
+        assert!(
+            internal_doc
+                .processing_warnings
+                .iter()
+                .any(|w| w.source == "docx" && w.message.contains("ZZZZ")),
+            "an unmappable w:sym char code should produce a ProcessingWarning: {:?}",
+            internal_doc.processing_warnings
         );
     }
 }

@@ -20,11 +20,14 @@ pub mod doctor;
 #[cfg(feature = "embeddings")]
 pub mod embed;
 pub mod extract;
+pub mod formats;
 #[cfg(feature = "ner-onnx")]
 pub mod ner;
 pub mod overrides;
 #[cfg(any(feature = "api", feature = "mcp"))]
 pub mod server;
+#[cfg(feature = "tree-sitter")]
+pub mod tree_sitter;
 
 #[cfg(any(
     feature = "embeddings",
@@ -44,10 +47,13 @@ pub use embed::embed_command;
 pub use extract::{
     BatchInputFormat, ExtractInputSource, batch_command, extract_command, load_batch_input_manifest, uri_to_local_path,
 };
+pub use formats::compiled_in_formats;
 #[cfg(feature = "api")]
 pub use server::serve_command;
 #[cfg(feature = "mcp")]
 pub use server::{mcp_command, resolve_mcp_allowed_hosts};
+#[cfg(feature = "tree-sitter")]
+pub use tree_sitter::{cache_dir_command, clean_command, download_command, list_command};
 
 /// Validates that a directory exists and is accessible.
 ///

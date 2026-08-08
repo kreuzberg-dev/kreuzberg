@@ -20,6 +20,8 @@ use tower_http::{
 
 use crate::{ExtractionConfig, core::ServerConfig, service::ExtractionServiceBuilder};
 
+#[cfg(feature = "prometheus")]
+use super::handlers::metrics_handler;
 use super::{
     handlers::{
         cache_clear_handler, cache_manifest_handler, cache_stats_handler, cache_warm_handler, cancel_job_handler,
@@ -154,6 +156,16 @@ pub(crate) fn create_router_with_limits_and_server_config(
     limits: ApiSizeLimits,
     server_config: ServerConfig,
 ) -> Router {
+    // Fallback for embedders that only ever use this built-in router: install the
+    // Prometheus-backed meter provider before the extraction service (and therefore the
+    // `telemetry::metrics::get_metrics()` `OnceLock`) is built below. Callers who construct
+    // their own extraction pipeline outside this router must call
+    // `xberg::telemetry::init_prometheus()` themselves, before their first extraction —
+    // see that function's doc comment. This call is idempotent, so calling it again here
+    // after an embedder's own explicit call is harmless.
+    #[cfg(feature = "prometheus")]
+    let prometheus_registry = crate::telemetry::init_prometheus();
+
     let extraction_service = ExtractionServiceBuilder::new().with_tracing().with_metrics().build();
 
     let state = ApiState {
@@ -161,6 +173,8 @@ pub(crate) fn create_router_with_limits_and_server_config(
         extraction_service: Arc::new(std::sync::Mutex::new(extraction_service)),
         #[cfg(feature = "api")]
         job_store: Arc::new(super::jobs::JobStore::new()),
+        #[cfg(feature = "prometheus")]
+        prometheus_registry,
     };
 
     let cors_layer = if server_config.cors_allows_all() {
@@ -212,6 +226,11 @@ pub(crate) fn create_router_with_limits_and_server_config(
     #[cfg(feature = "api")]
     {
         router = router.route("/openapi.json", get(openapi_schema_handler));
+    }
+
+    #[cfg(feature = "prometheus")]
+    {
+        router = router.route("/metrics", get(metrics_handler));
     }
 
     let router = router

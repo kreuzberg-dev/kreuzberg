@@ -3,7 +3,10 @@
 //! Uses a fixed JSON-schema prompt to coax any chat model into producing
 //! `[{text, category, start, end}]` arrays. The output is reconciled with the
 //! source text — entities whose `text` field is not actually a substring of
-//! the input are dropped so the caller never gets phantom offsets.
+//! the input are dropped so the caller never gets phantom offsets, and every
+//! occurrence of a mention is reported, not just the first.
+
+use std::collections::HashSet;
 
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -14,6 +17,19 @@ use crate::core::config::llm::LlmConfig;
 use crate::types::entity::{Entity, EntityCategory};
 
 use super::backend::NerBackend;
+use super::offsets;
+
+/// Word-token budget for one NER request.
+///
+/// A whole document in a single prompt either overruns the model's context
+/// window or gets its tail quietly ignored; either way the entities in the tail
+/// are never detected and the PII they cover is never redacted
+/// (xberg-io/xberg#262). Long input is windowed instead.
+const LLM_WINDOW_TOKENS: usize = 2_000;
+
+/// Token overlap between adjacent request windows, so a mention sitting on a
+/// window boundary is still seen whole by one of them.
+const LLM_WINDOW_OVERLAP_TOKENS: usize = 128;
 
 /// liter-llm-backed NER backend.
 #[derive(Debug, Clone)]
@@ -48,37 +64,61 @@ impl NerBackend for LlmBackend {
         self.detect_with_custom(text, categories, &[]).await
     }
 
+    /// Detect entities, windowing long input and reporting every occurrence.
+    ///
+    /// Two fixes live in this loop:
+    ///
+    /// - Each mention the model reports is resolved against the **whole**
+    ///   source, not just its window, and every occurrence becomes an entity.
+    ///   Resolving only the first hit meant the second and third copy of the
+    ///   same name stayed in the redacted output (xberg-io/xberg#200).
+    /// - The source is windowed so a long document does not lose its tail
+    ///   (xberg-io/xberg#262).
+    ///
+    /// A failed window aborts the whole call: a partial entity stream would
+    /// under-redact silently, which is worse than a surfaced error.
     async fn detect_with_custom(
         &self,
         text: &str,
         categories: &[EntityCategory],
         custom_labels: &[String],
     ) -> Result<Vec<Entity>> {
-        let (value, _usage) = complete_with_json_schema(&self.config, text, categories, custom_labels).await?;
-
-        let wire: EntityListWire = serde_json::from_value(value)
-            .map_err(|e| crate::XbergError::parsing(format!("LLM NER backend returned malformed JSON: {e}")))?;
+        let windows = offsets::split_into_windows(text, LLM_WINDOW_TOKENS, LLM_WINDOW_OVERLAP_TOKENS);
+        if windows.is_empty() {
+            return Ok(Vec::new());
+        }
 
         let label_lookup: std::collections::HashMap<String, String> = custom_labels
             .iter()
             .map(|l| (l.to_ascii_lowercase(), l.clone()))
             .collect();
 
-        let mut out = Vec::with_capacity(wire.entities.len());
-        for ent in wire.entities {
-            let category = parse_category(&ent.category, &label_lookup);
-            if let Some(start) = text.find(&ent.text) {
-                let end = start + ent.text.len();
-                out.push(Entity {
+        let mut resolved: HashSet<(EntityCategory, String)> = HashSet::new();
+        let mut out: Vec<Entity> = Vec::new();
+
+        for window in &windows {
+            let (value, _usage) =
+                complete_with_json_schema(&self.config, &window.text, categories, custom_labels).await?;
+
+            let wire: EntityListWire = serde_json::from_value(value)
+                .map_err(|e| crate::XbergError::parsing(format!("LLM NER backend returned malformed JSON: {e}")))?;
+
+            for ent in wire.entities {
+                let category = parse_category(&ent.category, &label_lookup);
+                if !resolved.insert((category.clone(), ent.text.clone())) {
+                    continue;
+                }
+                out.extend(offsets::entities_for_every_occurrence(
+                    text,
+                    &ent.text,
                     category,
-                    text: ent.text,
-                    start: start as u32,
-                    end: end as u32,
-                    confidence: ent.confidence,
-                });
+                    ent.confidence,
+                ));
             }
         }
-        out.sort_by_key(|e| e.start);
+
+        out.sort_by_key(|e| (e.start, e.end));
+        out.dedup_by(|a, b| a.start == b.start && a.end == b.end && a.category == b.category);
         Ok(out)
     }
 }
@@ -172,6 +212,8 @@ async fn complete_with_json_schema(
         })],
         temperature: config.temperature,
         max_tokens: config.max_tokens,
+        reasoning_effort: crate::llm::client::parse_reasoning_effort(config)?,
+        extra_body: config.extra_body.clone(),
         response_format: Some(liter_llm::ResponseFormat::JsonSchema {
             json_schema: liter_llm::JsonSchemaFormat {
                 name: "entity_list".to_string(),

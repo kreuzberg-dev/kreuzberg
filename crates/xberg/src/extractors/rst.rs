@@ -39,6 +39,10 @@ use async_trait::async_trait;
 #[cfg(feature = "office")]
 use std::borrow::Cow;
 
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+#[cfg(feature = "office")]
+const RST_WARNING_SOURCE: &str = "rst";
+
 /// Native Rust reStructuredText extractor.
 ///
 /// Parses RST documents using document tree parsing and extracts:
@@ -592,6 +596,124 @@ impl RstExtractor {
         opts
     }
 
+    /// Push an image (or figure) URI and, if configured, a placeholder paragraph for it.
+    ///
+    /// Shared by the `.. image::` and `.. figure::` directive handlers so figures build on the
+    /// same image-emission logic instead of duplicating it.
+    fn push_image_directive(
+        b: &mut InternalDocumentBuilder,
+        uri: &str,
+        opts: &AHashMap<String, String>,
+        inject_placeholders: bool,
+    ) {
+        let alt = opts.get("alt").cloned();
+        let desc = alt.as_deref().unwrap_or(uri);
+        if !uri.is_empty() {
+            b.push_uri(ExtractedUri::image(uri, alt.clone()));
+        }
+        if inject_placeholders {
+            let idx = b.push_paragraph(&format!("[image: {}]", desc), vec![], None, None);
+            if !uri.is_empty() {
+                let mut attrs = ahash::AHashMap::new();
+                attrs.insert("src".to_string(), uri.to_string());
+                b.set_attributes(idx, attrs);
+            }
+        }
+    }
+
+    /// Parse the row/cell structure of a `.. list-table::` directive body.
+    ///
+    /// A list-table row is a top-level bullet item (`* - <cell>`), and each additional cell in
+    /// that row is a nested bullet item (`- <cell>`) indented deeper than the row marker:
+    ///
+    /// ```rst
+    /// * - Name
+    ///   - Age
+    /// * - Alice
+    ///   - 30
+    /// ```
+    fn parse_list_table_rows(lines: &[&str], start: &mut usize) -> Vec<Vec<String>> {
+        let mut rows: Vec<Vec<String>> = Vec::new();
+        while *start < lines.len() {
+            let line = lines[*start];
+            if line.trim().is_empty() {
+                break;
+            }
+            let leading = line.len() - line.trim_start().len();
+            let trimmed = line.trim_start();
+            let Some(after_star) = trimmed.strip_prefix("* ") else {
+                break;
+            };
+            let Some(cell_text) = after_star.strip_prefix("- ") else {
+                break;
+            };
+            let mut row = vec![cell_text.trim().to_string()];
+            *start += 1;
+            while *start < lines.len() {
+                let cell_line = lines[*start];
+                if cell_line.trim().is_empty() {
+                    break;
+                }
+                let cell_leading = cell_line.len() - cell_line.trim_start().len();
+                let cell_trimmed = cell_line.trim_start();
+                if cell_leading > leading && cell_trimmed.starts_with("- ") {
+                    row.push(cell_trimmed[2..].trim().to_string());
+                    *start += 1;
+                } else {
+                    break;
+                }
+            }
+            rows.push(row);
+        }
+        rows
+    }
+
+    /// Parse a single CSV-formatted line into fields, honoring double-quoted fields with
+    /// embedded commas and `""`-escaped quotes (RFC 4180-style), as used by `.. csv-table::`.
+    fn parse_csv_line(line: &str) -> Vec<String> {
+        let mut fields = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let chars: Vec<char> = line.chars().collect();
+        let mut idx = 0;
+
+        while idx < chars.len() {
+            let ch = chars[idx];
+            if in_quotes {
+                if ch == '"' {
+                    if idx + 1 < chars.len() && chars[idx + 1] == '"' {
+                        current.push('"');
+                        idx += 2;
+                        continue;
+                    }
+                    in_quotes = false;
+                    idx += 1;
+                    continue;
+                }
+                current.push(ch);
+                idx += 1;
+                continue;
+            }
+            match ch {
+                '"' => {
+                    in_quotes = true;
+                    idx += 1;
+                }
+                ',' => {
+                    fields.push(current.trim().to_string());
+                    current = String::new();
+                    idx += 1;
+                }
+                _ => {
+                    current.push(ch);
+                    idx += 1;
+                }
+            }
+        }
+        fields.push(current.trim().to_string());
+        fields
+    }
+
     /// Build an `InternalDocument` from RST content.
     ///
     /// Handles sections, paragraphs, code blocks, tables, footnotes, citations,
@@ -720,18 +842,81 @@ impl RstExtractor {
                 let uri = trimmed.strip_prefix(".. image::").unwrap_or("").trim();
                 i += 1;
                 let opts = Self::parse_image_options(&lines, &mut i);
-                let alt = opts.get("alt").cloned();
-                let desc = alt.as_deref().unwrap_or(uri);
-                if !uri.is_empty() {
-                    b.push_uri(ExtractedUri::image(uri, alt.clone()));
-                }
-                if inject_placeholders {
-                    let idx = b.push_paragraph(&format!("[image: {}]", desc), vec![], None, None);
-                    if !uri.is_empty() {
-                        let mut attrs = ahash::AHashMap::new();
-                        attrs.insert("src".to_string(), uri.to_string());
-                        b.set_attributes(idx, attrs);
+                Self::push_image_directive(&mut b, uri, &opts, inject_placeholders);
+                continue;
+            }
+
+            if trimmed.starts_with(".. figure::") {
+                let uri = trimmed.strip_prefix(".. figure::").unwrap_or("").trim().to_string();
+                i += 1;
+                let opts = Self::parse_image_options(&lines, &mut i);
+                Self::push_image_directive(&mut b, &uri, &opts, inject_placeholders);
+
+                // The figure body (an indented paragraph following the option block) is the
+                // figure's caption. Collect it and emit it as a regular paragraph so the
+                // caption text is preserved instead of being dropped.
+                let mut caption_text = String::new();
+                while i < lines.len() {
+                    if lines[i].is_empty() {
+                        if !caption_text.is_empty() {
+                            break;
+                        }
+                        i += 1;
+                        continue;
                     }
+                    if !(lines[i].starts_with("   ") || lines[i].starts_with("\t")) {
+                        break;
+                    }
+                    if !caption_text.is_empty() {
+                        caption_text.push(' ');
+                    }
+                    caption_text.push_str(lines[i].trim());
+                    i += 1;
+                }
+                if !caption_text.is_empty() {
+                    let (stripped, annotations) = Self::parse_inline_markup(&caption_text);
+                    b.push_paragraph(&stripped, annotations, None, None);
+                }
+                continue;
+            }
+
+            if trimmed.starts_with(".. list-table::") {
+                i += 1;
+                let opts = Self::parse_image_options(&lines, &mut i);
+                let _header_rows: usize = opts.get("header-rows").and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+                // `parse_image_options` only consumes the blank line that separates the option
+                // block from the body when options were actually present; skip any that remain
+                // so the row parser doesn't see a leading blank line and bail out immediately.
+                while i < lines.len() && lines[i].trim().is_empty() {
+                    i += 1;
+                }
+                let cells = Self::parse_list_table_rows(&lines, &mut i);
+                if !cells.is_empty() {
+                    b.push_table_from_cells(&cells, None, None);
+                }
+                continue;
+            }
+
+            if trimmed.starts_with(".. csv-table::") {
+                i += 1;
+                let opts = Self::parse_image_options(&lines, &mut i);
+                while i < lines.len() && lines[i].trim().is_empty() {
+                    i += 1;
+                }
+                let mut cells: Vec<Vec<String>> = Vec::new();
+                if let Some(header_line) = opts.get("header") {
+                    cells.push(Self::parse_csv_line(header_line));
+                }
+                while i < lines.len() {
+                    let l = lines[i];
+                    if l.trim().is_empty() || !(l.starts_with("   ") || l.starts_with("\t")) {
+                        break;
+                    }
+                    cells.push(Self::parse_csv_line(l.trim()));
+                    i += 1;
+                }
+                if !cells.is_empty() {
+                    b.push_table_from_cells(&cells, None, None);
                 }
                 continue;
             }
@@ -835,6 +1020,28 @@ impl RstExtractor {
                 continue;
             }
 
+            // `.. include:: path` inlines another file's rendered content at this
+            // point in the source. This parser works on a single in-memory
+            // document and never resolves the reference, so unlike a generic
+            // unhandled directive (whose *own* body is still captured by the
+            // fallback below) the referenced file's content is always missing
+            // from the extracted text (#171).
+            if trimmed.starts_with(".. include::") {
+                let target = trimmed.strip_prefix(".. include::").unwrap_or("").trim();
+                b.add_warning(crate::core::diagnostics::warning(
+                    RST_WARNING_SOURCE,
+                    format!(
+                        "'.. include:: {target}' references an external file that was not read; \
+                         its content is missing from the extracted text"
+                    ),
+                ));
+                i += 1;
+                while i < lines.len() && (lines[i].starts_with("   ") || lines[i].is_empty()) {
+                    i += 1;
+                }
+                continue;
+            }
+
             if trimmed.starts_with(".. contents::") {
                 let title = trimmed.strip_prefix(".. contents::").unwrap_or("").trim();
                 if !title.is_empty() {
@@ -848,11 +1055,43 @@ impl RstExtractor {
             }
 
             if trimmed.starts_with(".. ") || trimmed == ".." {
+                // Distinguish an actual (but otherwise unhandled) directive, `.. name:: args`,
+                // from a plain RST comment, `.. some comment text`. Directive names are a single
+                // word (no whitespace) immediately followed by `::`; comments are not, and their
+                // body must stay dropped rather than surfacing as document text.
+                let after_dots = trimmed.strip_prefix(".. ").unwrap_or("");
+                let is_directive = trimmed != ".."
+                    && after_dots
+                        .find("::")
+                        .map(|pos| {
+                            let name = &after_dots[..pos];
+                            !name.is_empty() && !name.contains(' ') && !name.contains('\t')
+                        })
+                        .unwrap_or(false);
+
                 i += 1;
-                while i < lines.len()
-                    && (lines[i].starts_with("   ") || lines[i].starts_with("\t") || lines[i].is_empty())
-                {
+                let mut body_text = String::new();
+                while i < lines.len() {
+                    let l = lines[i];
+                    if l.is_empty() {
+                        if !body_text.is_empty() {
+                            break;
+                        }
+                        i += 1;
+                        continue;
+                    }
+                    if !(l.starts_with("   ") || l.starts_with("\t")) {
+                        break;
+                    }
+                    if !body_text.is_empty() {
+                        body_text.push(' ');
+                    }
+                    body_text.push_str(l.trim());
                     i += 1;
+                }
+                if is_directive && !body_text.is_empty() {
+                    let (stripped, annotations) = Self::parse_inline_markup(&body_text);
+                    b.push_paragraph(&stripped, annotations, None, None);
                 }
                 continue;
             }
@@ -1411,6 +1650,42 @@ Second paragraph.
         assert!(
             !has_image,
             "expected no image placeholder with inject_placeholders=false"
+        );
+    }
+
+    fn rst_warnings(doc: &crate::types::internal::InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == RST_WARNING_SOURCE)
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #171: `.. include:: path` inlines another file's rendered content, which
+    /// this single-file, line-based parser has no way to read.
+    #[test]
+    fn should_warn_when_rst_include_directive_is_skipped() {
+        let rst = "Intro text\n\n.. include:: chapter1.rst\n\nMore text\n";
+        let doc = RstExtractor::build_internal_document(rst, true);
+
+        let warnings = rst_warnings(&doc);
+        assert_eq!(warnings.len(), 1, "expected exactly one rst warning, got {warnings:?}");
+        assert!(
+            warnings[0].contains("chapter1.rst") && warnings[0].contains("was not read"),
+            "warning must name the skipped include target, got {warnings:?}"
+        );
+    }
+
+    /// A document with no `include` directive must not warn.
+    #[test]
+    fn should_not_warn_for_rst_document_without_include() {
+        let rst = "Intro text\n\n.. note::\n   A note body.\n\nMore text\n";
+        let doc = RstExtractor::build_internal_document(rst, true);
+
+        assert!(
+            rst_warnings(&doc).is_empty(),
+            "a document without .. include:: must not warn, got {:?}",
+            rst_warnings(&doc)
         );
     }
 }

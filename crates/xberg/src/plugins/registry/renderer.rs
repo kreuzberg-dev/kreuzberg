@@ -1,7 +1,6 @@
 //! Renderer registry.
 
 use crate::plugins::{InternalRenderer, Plugin, Renderer};
-use crate::types::ExtractedDocument;
 use crate::types::internal::InternalDocument;
 use crate::{Result, XbergError};
 use ahash::AHashMap;
@@ -36,7 +35,20 @@ impl RegisteredRenderer {
             return internal.render(doc);
         }
 
-        let result = ExtractedDocument::from(doc.clone());
+        // Public renderers only ever see `ExtractedDocument`. The plain `From` conversion
+        // derives without document structure and never fills in `elements`, which strips
+        // every layout signal a renderer needs. Derive the structure tree explicitly and
+        // attach both the element list and the source document so a foreign renderer can
+        // do layout-aware rendering.
+        let mut result = crate::extraction::derive::derive_extraction_result(
+            doc.clone(),
+            true,
+            crate::core::config::OutputFormat::Plain,
+        );
+        result.internal_document = Some(doc.clone());
+        result.elements = Some(crate::extraction::transform::transform_extraction_result_to_elements(
+            &result,
+        ));
         self.renderer.render_result(&result)
     }
 }

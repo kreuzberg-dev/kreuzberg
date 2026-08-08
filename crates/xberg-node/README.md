@@ -212,15 +212,36 @@ for (const result of output.results) {
 For non-blocking document processing:
 
 ```typescript title="TypeScript"
-import { ExtractInputKind, extract } from "@xberg-io/xberg";
+import { readFileSync } from "fs";
 
-const output = await extract({
-  kind: "uri",
-  uri: "document.pdf",
-});
+async function extractViaClient() {
+  const formData = new FormData();
+  const fileData = readFileSync("document.pdf");
+  formData.append("files", new Blob([fileData]), "document.pdf");
 
-console.log(output.results[0].content);
-console.log(`Results: ${output.summary.results}`);
+  try {
+    const response = await fetch("http://localhost:8000/extract", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error(`Error: ${error.error_type}: ${error.message}`);
+      return;
+    }
+
+    const results = await response.json();
+    console.log(`Extracted ${results.length} document(s)`);
+    console.log(results[0].content);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Request failed: ${error.message}`);
+    }
+  }
+}
+
+extractViaClient();
 ```
 
 #### Configuration Discovery
@@ -376,6 +397,8 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 
 - **Paddleocr**
 
+- **Sceptre**
+
 ### OCR Configuration Example
 
 ```typescript title="TypeScript"
@@ -407,15 +430,36 @@ console.log(output.results[0].content);
 This binding provides full async/await support for non-blocking document processing:
 
 ```typescript title="TypeScript"
-import { ExtractInputKind, extract } from "@xberg-io/xberg";
+import { readFileSync } from "fs";
 
-const output = await extract({
-  kind: "uri",
-  uri: "document.pdf",
-});
+async function extractViaClient() {
+  const formData = new FormData();
+  const fileData = readFileSync("document.pdf");
+  formData.append("files", new Blob([fileData]), "document.pdf");
 
-console.log(output.results[0].content);
-console.log(`Results: ${output.summary.results}`);
+  try {
+    const response = await fetch("http://localhost:8000/extract", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error(`Error: ${error.error_type}: ${error.message}`);
+      return;
+    }
+
+    const results = await response.json();
+    console.log(`Extracted ${results.length} document(s)`);
+    console.log(results[0].content);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Request failed: ${error.message}`);
+    }
+  }
+}
+
+extractViaClient();
 ```
 
 ## Plugin System

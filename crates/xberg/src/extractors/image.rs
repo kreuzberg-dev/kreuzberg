@@ -236,13 +236,13 @@ fn whole_image_ocr_coordinate_transform(
     {
         let additional = &doc.metadata.additional;
         let processed_width = additional
-            .get(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY)
+            .get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY)
             .and_then(serde_json::Value::as_u64);
         let processed_height = additional
-            .get(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY)
+            .get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY)
             .and_then(serde_json::Value::as_u64);
         let auto_rotated = additional
-            .get(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY)
+            .get(crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY)
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
         let (processed_width, processed_height) = (processed_width?, processed_height?);
@@ -513,6 +513,15 @@ fn push_cached_layout_region(
                 cells: recognized.cells.clone(),
                 markdown: recognized.markdown.clone(),
                 page_number: 1,
+                bounding_box: Some(crate::types::BoundingBox {
+                    x0: recognized.detection_bbox.x1 as f64,
+                    y0: recognized.detection_bbox.y1 as f64,
+                    x1: recognized.detection_bbox.x2 as f64,
+                    y1: recognized.detection_bbox.y2 as f64,
+                }),
+                // `table_id`/`columns` are assigned once, in document push order, by
+                // `finish_cached_layout_document` after all regions for this image have
+                // been pushed — see that function for the deterministic scheme.
                 ..Default::default()
             },
             Some(1),
@@ -550,6 +559,15 @@ fn finish_cached_layout_document(
     image_height: u32,
 ) -> InternalDocument {
     let mut assembled = builder.build();
+    // Deterministic id: `"table-N"` where N is this table's 1-based position among
+    // this image's tables, in document (push) order — never randomness/wall-clock.
+    // See `crate::types::Table::table_id` for the shared scheme doc.
+    for (index, table) in assembled.tables.iter_mut().enumerate() {
+        table.table_id = Some(format!("table-{}", index + 1));
+        if table.columns.is_none() {
+            table.columns = table.cells.first().cloned();
+        }
+    }
     assembled.metadata = whole_image_doc.metadata.clone();
     assembled.processing_warnings = whole_image_doc.processing_warnings.clone();
     assembled.prebuilt_ocr_elements = whole_image_doc.prebuilt_ocr_elements.clone();
@@ -1186,6 +1204,59 @@ fn sparse_image_ocr_fallback_config(
     fallback_config
 }
 
+/// Resize/re-DPI raw image bytes for OCR using `ExtractionConfig::images`
+/// (`ImageExtractionConfig`) before handing them to an OCR backend.
+///
+/// OCR backends only ever see `OcrConfig` (via the `OcrBackend` trait), and
+/// `OcrConfig` has no field that traces back to `ExtractionConfig::images` — so
+/// `target_dpi`, `max_image_dimension`, `auto_adjust_dpi`, `min_dpi`, and
+/// `max_dpi` were parsed into config but silently dropped before reaching any
+/// backend (issue #209). Normalizing the bytes once, here, at the extractor
+/// boundary makes the setting effective for every backend without touching the
+/// backend trait or its config types.
+///
+/// Falls back to the original bytes unchanged if decoding or normalization
+/// fails; OCR should still be attempted on the original image rather than
+/// aborting the extraction.
+#[cfg(feature = "ocr")]
+fn normalize_image_bytes_for_ocr(
+    content: &[u8],
+    images_config: &crate::core::config::ImageExtractionConfig,
+) -> Vec<u8> {
+    let Ok(decoded) = image::load_from_memory(content) else {
+        return content.to_vec();
+    };
+    let rgb = decoded.into_rgb8();
+    let (width, height) = rgb.dimensions();
+    let dpi_config = crate::types::ImageDpiConfig::from(images_config);
+
+    match crate::image::preprocessing::normalize_image_dpi_owned(
+        rgb.into_raw(),
+        width as usize,
+        height as usize,
+        &dpi_config,
+        None,
+    ) {
+        Ok(result) => {
+            let (new_width, new_height) = result.dimensions;
+            encode_rgb_as_png(&result.rgb_data, new_width as u32, new_height as u32)
+                .unwrap_or_else(|_| content.to_vec())
+        }
+        Err(_) => content.to_vec(),
+    }
+}
+
+#[cfg(feature = "ocr")]
+fn encode_rgb_as_png(rgb_data: &[u8], width: u32, height: u32) -> Result<Vec<u8>> {
+    use image::ImageEncoder;
+
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(rgb_data, width, height, image::ExtendedColorType::Rgb8)
+        .map_err(|error| crate::XbergError::Other(format!("Failed to encode normalized image as PNG: {error}")))?;
+    Ok(png.into_inner())
+}
+
 #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn uses_tatr_image_table_recognition(table_model: crate::core::config::layout::TableModel) -> bool {
     use crate::core::config::layout::TableModel;
@@ -1366,13 +1437,27 @@ impl ImageExtractor {
             enable_image_ocr_elements(&mut ocr_config_with_format, true);
         }
 
-        let ocr_result = backend.process_image(content, &ocr_config_with_format).await?;
+        // OCR backends only see `OcrConfig`, which has no route back to
+        // `ExtractionConfig::images`, so DPI/dimension normalization from
+        // `ImageExtractionConfig` has to happen here, once, before any backend
+        // ever sees the bytes (issue #209).
+        #[cfg(feature = "ocr")]
+        let normalized_ocr_bytes = config
+            .images
+            .as_ref()
+            .map(|images_config| normalize_image_bytes_for_ocr(content, images_config));
+        #[cfg(feature = "ocr")]
+        let ocr_input: &[u8] = normalized_ocr_bytes.as_deref().unwrap_or(content);
+        #[cfg(not(feature = "ocr"))]
+        let ocr_input: &[u8] = content;
+
+        let ocr_result = backend.process_image(ocr_input, &ocr_config_with_format).await?;
         #[cfg(not(target_arch = "wasm32"))]
         let ocr_result = {
             let mut ocr_result = ocr_result;
             if should_retry_sparse_image_ocr(ocr_config, &ocr_result) {
                 let fallback_config = sparse_image_ocr_fallback_config(&ocr_config_with_format);
-                match backend.process_image(content, &fallback_config).await {
+                match backend.process_image(ocr_input, &fallback_config).await {
                     Ok(mut fallback_result) if has_robust_word_confidence_distribution(&fallback_result) => {
                         let mut processing_warnings = ocr_result.processing_warnings.clone();
                         processing_warnings.append(&mut fallback_result.processing_warnings);
@@ -1720,6 +1805,9 @@ impl InternalDocumentExtractor for ImageExtractor {
     ) -> Result<InternalDocument> {
         tracing::debug!(format = "image", size_bytes = content.len(), "extraction starting");
         let extraction_metadata = extract_image_metadata(content)?;
+        // Computed against the original bytes (before any HEIC->PNG rebinding
+        // below) so it reflects the same input `extract_image_metadata` saw.
+        let exif_warning = crate::extraction::exif::extract_exif_warning(content);
 
         #[cfg(feature = "heic")]
         let owned_png;
@@ -1783,6 +1871,9 @@ impl InternalDocumentExtractor for ImageExtractor {
                 ..Default::default()
             };
             doc.mime_type = mime_type.to_string();
+            if let Some(warning) = exif_warning.clone() {
+                doc.processing_warnings.push(warning);
+            }
             tracing::debug!(
                 format = "image",
                 "OCR disabled via disable_ocr, returning metadata only"
@@ -1806,6 +1897,9 @@ impl InternalDocumentExtractor for ImageExtractor {
                 if config.needs_image_data() {
                     doc.images.push(extracted_image);
                 }
+                if let Some(warning) = exif_warning.clone() {
+                    doc.processing_warnings.push(warning);
+                }
                 return Ok(doc);
             }
 
@@ -1821,6 +1915,9 @@ impl InternalDocumentExtractor for ImageExtractor {
                 if config.needs_image_data() {
                     doc.images.push(extracted_image);
                 }
+                if let Some(warning) = exif_warning.clone() {
+                    doc.processing_warnings.push(warning);
+                }
                 return Ok(doc);
             }
         }
@@ -1833,6 +1930,9 @@ impl InternalDocumentExtractor for ImageExtractor {
                 ..Default::default()
             };
             doc.mime_type = mime_type.to_string();
+            if let Some(warning) = exif_warning.clone() {
+                doc.processing_warnings.push(warning);
+            }
 
             tracing::debug!(
                 element_count = doc.elements.len(),
@@ -2167,11 +2267,11 @@ mod tests {
             sheet_name: None,
         }]);
         doc.metadata.additional.insert(
-            std::borrow::Cow::Borrowed(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
+            std::borrow::Cow::Borrowed(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
             serde_json::json!(width),
         );
         doc.metadata.additional.insert(
-            std::borrow::Cow::Borrowed(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
+            std::borrow::Cow::Borrowed(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
             serde_json::json!(height),
         );
         doc
@@ -2681,6 +2781,54 @@ mod tests {
             serde_json::to_value(&whole.prebuilt_ocr_elements).unwrap()
         );
         assert_eq!(assembled.prebuilt_pages.as_ref().unwrap()[0].tables.len(), 1);
+    }
+
+    /// Issue #181: a TATR-recognized table assembled from cached layout must carry
+    /// a deterministic `table_id`, `columns`, and `bounding_box` derived from the
+    /// detection's `detection_bbox` — not `..Default::default()` blanks.
+    #[cfg(all(feature = "layout-detection", feature = "ocr"))]
+    #[test]
+    fn recognized_table_gets_table_id_columns_and_bounding_box() {
+        let table_bbox = crate::layout::BBox::new(0.0, 0.0, 100.0, 100.0);
+        let detections = vec![
+            crate::layout::LayoutDetection::new(crate::layout::LayoutClass::Table, 0.98, table_bbox),
+            crate::layout::LayoutDetection::new(
+                crate::layout::LayoutClass::Text,
+                0.95,
+                crate::layout::BBox::new(100.0, 0.0, 200.0, 100.0),
+            ),
+        ];
+        let elements = vec![
+            positioned_word_box("Header", 90, 10, 20, 20),
+            positioned_word_box("Value", 50, 10, 30, 20),
+            positioned_word_box("Total", 120, 10, 40, 20),
+        ];
+        let whole = whole_image_doc_with_elements("Header Value Total", elements, 200, 100);
+        let recognized = vec![crate::RecognizedTable {
+            detection_bbox: table_bbox,
+            cells: vec![
+                vec!["Header".to_string(), "Value".to_string()],
+                vec!["A".to_string(), "1".to_string()],
+            ],
+            markdown: "| Header | Value |\n| --- | --- |\n| A | 1 |".to_string(),
+        }];
+
+        let assembled = try_assemble_cached_layout_document(&whole, &detections, &recognized, 200, 100)
+            .expect("successful recognition must assemble a structured image table");
+
+        assert_eq!(assembled.tables.len(), 1);
+        assert_eq!(assembled.tables[0].table_id.as_deref(), Some("table-1"));
+        assert_eq!(
+            assembled.tables[0].columns,
+            Some(vec!["Header".to_string(), "Value".to_string()])
+        );
+        let bbox = assembled.tables[0]
+            .bounding_box
+            .expect("bounding box must be populated from detection_bbox");
+        assert_eq!(bbox.x0, 0.0);
+        assert_eq!(bbox.y0, 0.0);
+        assert_eq!(bbox.x1, 100.0);
+        assert_eq!(bbox.y1, 100.0);
     }
 
     #[cfg(all(feature = "layout-detection", feature = "ocr"))]

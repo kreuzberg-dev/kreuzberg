@@ -189,6 +189,31 @@ pub struct ChunkingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<EmbeddingConfig>,
 
+    /// Optional sparse (SPLADE) embedding configuration for chunk embeddings.
+    ///
+    /// When set, sparse vectors are generated for each chunk's content and attached
+    /// via [`crate::types::Chunk::sparse_embedding`]. Requires the `sparse-embeddings`
+    /// feature; without it, a warning is emitted and no sparse vectors are attached.
+    ///
+    /// Config-file only: like [`super::reranker::RerankerConfig`] and the local-ONNX branch of
+    /// `embedding`, this has no CLI flag and no environment variable. Only the secret/identity
+    /// fields of LLM-routed configs (model, API key, base URL) get that reach. ~keep
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub sparse_embedding: Option<super::sparse_embedding::SparseEmbeddingConfig>,
+
+    /// Optional late-interaction (ColBERT) embedding configuration for chunk embeddings.
+    ///
+    /// When set, multi-vector embeddings are generated for each chunk's content and
+    /// attached via [`crate::types::Chunk::late_interaction`]. Requires the
+    /// `late-interaction` feature; without it, a warning is emitted and no
+    /// late-interaction vectors are attached.
+    ///
+    /// Config-file only, for the same reason as `sparse_embedding` above. ~keep
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub late_interaction: Option<super::late_interaction::LateInteractionConfig>,
+
     /// Use a preset configuration (overrides individual settings if provided).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset: Option<String>,
@@ -200,11 +225,24 @@ pub struct ChunkingConfig {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub sizing: ChunkSizing,
 
-    /// When `true` and `chunker_type` is `Markdown`, prepend the heading hierarchy
-    /// path (e.g. `"# Title > ## Section\n\n"`) to each chunk's content string.
+    /// **Deprecated and inert** (#1393): no longer prepends anything into
+    /// `content`. Setting this field has no observable effect on chunking output
+    /// any more.
     ///
-    /// This is useful for RAG pipelines where each chunk needs self-contained
-    /// context about its position in the document structure.
+    /// Previously, when `true` and `chunker_type` was `Markdown`, this prepended
+    /// the heading hierarchy path (e.g. `"# Title > ## Section\n\n"`) directly
+    /// into each chunk's `content` string. `content` now always equals the exact
+    /// `[byte_start, byte_end)` source span regardless of this flag — see
+    /// [`BreadcrumbTarget`](crate::core::config::extraction::BreadcrumbTarget) for
+    /// the full rationale. `heading_context`/`heading_path` on `ChunkMetadata` are
+    /// populated independently of this flag, so callers lose no information —
+    /// only the in-place mutation is gone.
+    ///
+    /// Call [`render_heading_breadcrumb`](crate::chunking::render_heading_breadcrumb)
+    /// explicitly at index time instead, for the retrieval consumer that wants the
+    /// breadcrumb inline.
+    ///
+    /// Kept only so existing callers keep compiling.
     ///
     /// Default: `false`
     #[serde(default)]
@@ -232,6 +270,18 @@ pub struct ChunkingConfig {
     /// Default: `Split`
     #[serde(default)]
     pub table_chunking: TableChunkingMode,
+
+    /// **Deprecated and inert** (#1393): see
+    /// [`BreadcrumbTarget`](crate::core::config::extraction::BreadcrumbTarget) for
+    /// the full explanation. Neither variant has any effect on `content` any
+    /// more — call
+    /// [`render_heading_breadcrumb`](crate::chunking::render_heading_breadcrumb)
+    /// explicitly at index time instead. Kept only for backward compatibility.
+    ///
+    /// Default: `Content`.
+    #[serde(default)]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub breadcrumb_target: crate::core::config::extraction::BreadcrumbTarget,
 }
 
 impl ChunkingConfig {
@@ -286,6 +336,8 @@ impl ChunkingConfig {
             max_characters: preset.chunk_size,
             overlap: preset.overlap,
             embedding,
+            sparse_embedding: self.sparse_embedding.clone(),
+            late_interaction: self.late_interaction.clone(),
             trim: self.trim,
             chunker_type: self.chunker_type,
             preset: self.preset.clone(),
@@ -293,6 +345,7 @@ impl ChunkingConfig {
             prepend_heading_context: self.prepend_heading_context,
             topic_threshold: self.topic_threshold,
             table_chunking: self.table_chunking,
+            breadcrumb_target: self.breadcrumb_target,
         }
     }
 
@@ -314,11 +367,14 @@ impl Default for ChunkingConfig {
             trim: true,
             chunker_type: ChunkerType::Text,
             embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
             preset: None,
             sizing: ChunkSizing::default(),
             prepend_heading_context: false,
             topic_threshold: None,
             table_chunking: TableChunkingMode::Split,
+            breadcrumb_target: crate::core::config::extraction::BreadcrumbTarget::Content,
         }
     }
 }
@@ -341,7 +397,13 @@ pub struct EmbeddingConfig {
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
 
-    /// Show model download progress
+    /// Show model download progress.
+    ///
+    /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+    /// `info` level on the `xberg::model_download` target while they download (#279). Covers both
+    /// local backends (ONNX and static/model2vec). A warm Hugging Face cache transfers nothing and
+    /// so reports nothing. Ignored by [`EmbeddingModelType::Llm`] and
+    /// [`EmbeddingModelType::Plugin`], which download no model.
     #[serde(default)]
     pub show_download_progress: bool,
 
@@ -431,7 +493,11 @@ pub enum EmbeddingModelType {
     /// `"openai/text-embedding-3-small"`).
     Llm {
         /// LLM provider configuration specifying the model and API credentials.
-        llm: super::llm::LlmConfig,
+        ///
+        /// Boxed because `LlmConfig` carries liter-llm's full configuration surface and is
+        /// an order of magnitude larger than the other variants, which would otherwise make
+        /// every `Preset`/`Custom` value pay for it. ~keep
+        llm: Box<super::llm::LlmConfig>,
     },
 
     /// In-process embedding backend registered via the plugin system.
@@ -446,7 +512,7 @@ pub enum EmbeddingModelType {
     /// apply: `normalize` (post-call L2 normalization) and `max_embed_duration_secs`
     /// (dispatcher timeout). Model-loading fields (`batch_size`, `cache_dir`,
     /// `show_download_progress`, `acceleration`) are ignored — the host owns the
-    /// model lifecycle.
+    /// model lifecycle, so there is no download to report progress for.
     ///
     /// Semantic chunking falls back to [`ChunkingConfig::max_characters`] when this variant
     /// is used, since there is no preset to look a chunk-size ceiling up against — size your
@@ -758,10 +824,10 @@ mod tests {
     #[test]
     fn test_embedding_model_type_llm_roundtrip() {
         let model_type = EmbeddingModelType::Llm {
-            llm: crate::core::config::llm::LlmConfig {
+            llm: Box::new(crate::core::config::llm::LlmConfig {
                 model: "openai/text-embedding-3-small".to_string(),
                 ..Default::default()
-            },
+            }),
         };
         let json = serde_json::to_string(&model_type).unwrap();
         assert!(json.contains("\"type\":\"llm\""));
@@ -906,5 +972,61 @@ mod tests {
     fn table_chunking_mode_defaults_to_split_when_field_absent() {
         let c: ChunkingConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(c.table_chunking, TableChunkingMode::Split);
+    }
+
+    /// Regression guard for #268: a `ChunkingConfig` JSON payload written before
+    /// `sparse_embedding`/`late_interaction` existed (i.e. missing both keys) must still
+    /// deserialize, with both fields defaulting to `None`. `ChunkingConfig` is nested inside
+    /// `ExtractionConfig`, which is `#[serde(deny_unknown_fields)]` — this guards the other
+    /// direction of that contract: old payloads must not become invalid just because the
+    /// schema grew new optional fields.
+    #[test]
+    fn sparse_and_late_interaction_configs_default_to_none_when_absent_from_json() {
+        let c: ChunkingConfig = serde_json::from_str("{}").unwrap();
+        assert!(c.sparse_embedding.is_none());
+        assert!(c.late_interaction.is_none());
+    }
+
+    /// `ChunkingConfig::default()` must leave both new vector configs unset (#268) — no
+    /// behaviour change for existing callers who never opt in.
+    #[test]
+    fn chunking_config_default_has_no_sparse_or_late_interaction_config() {
+        let config = ChunkingConfig::default();
+        assert!(config.sparse_embedding.is_none());
+        assert!(config.late_interaction.is_none());
+    }
+
+    /// `resolve_preset()` must carry an explicitly-set `sparse_embedding`/`late_interaction`
+    /// config through unchanged (#268), the same way it already preserves `embedding`.
+    #[cfg(any(feature = "embeddings", feature = "chunking"))]
+    #[test]
+    fn resolve_preset_preserves_explicit_sparse_and_late_interaction_configs() {
+        let config = ChunkingConfig {
+            preset: Some("balanced".to_string()),
+            sparse_embedding: Some(crate::core::config::SparseEmbeddingConfig {
+                batch_size: 4,
+                ..Default::default()
+            }),
+            late_interaction: Some(crate::core::config::LateInteractionConfig {
+                batch_size: 8,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let resolved = config.resolve_preset();
+        assert_eq!(
+            resolved
+                .sparse_embedding
+                .expect("sparse_embedding must survive resolve_preset")
+                .batch_size,
+            4
+        );
+        assert_eq!(
+            resolved
+                .late_interaction
+                .expect("late_interaction must survive resolve_preset")
+                .batch_size,
+            8
+        );
     }
 }

@@ -99,7 +99,7 @@ Add to your `mix.exs` dependencies:
 ```elixir
 def deps do
   [
-    {:xberg, "~> 1.0.13"}
+    {:xberg, "~> 1.1.0"}
   ]
 end
 ```
@@ -146,7 +146,21 @@ Most use cases benefit from configuration to control extraction behavior:
 
 **With OCR (for scanned documents):**
 
-<!-- snippet not found: ocr/tesseract_basic.exs -->
+```elixir title="Elixir"
+alias Xberg.ExtractionConfig
+
+config = %ExtractionConfig{
+  ocr: %{"enabled" => true, "backend" => "tesseract"}
+}
+
+{:ok, output} = Xberg.extract(input: %Xberg.ExtractInput{kind: :uri, uri: "scanned_document.pdf"}, config: config)
+
+result = List.first(output.results)
+content = result.content
+IO.puts("OCR Extracted content:")
+IO.puts(content)
+IO.puts("Metadata: #{inspect(result.metadata)}")
+```
 
 #### Table Extraction
 
@@ -154,13 +168,35 @@ See [Configuration Guide](https://docs.xberg.io/guides/configuration/) for table
 
 #### Processing Multiple Files
 
-<!-- snippet not found: core/extract_batch.exs -->
+```elixir title="Elixir"
+inputs = [
+  %Xberg.ExtractInput{kind: :uri, uri: "document.pdf"},
+  %Xberg.ExtractInput{
+    kind: :bytes,
+    bytes: "Hello from memory",
+    mime_type: "text/plain",
+    filename: "note.txt"
+  }
+]
+
+{:ok, output} = Xberg.extract_batch(inputs: inputs, config: nil)
+
+Enum.each(output.results, fn result ->
+  IO.puts(result.content)
+end)
+```
 
 #### Async Processing
 
 For non-blocking document processing:
 
-<!-- snippet not found: getting-started/extract.exs -->
+```elixir title="Elixir"
+input = %Xberg.ExtractInput{kind: :uri, uri: "document.pdf"}
+
+{:ok, output} = Xberg.extract(input: input, config: nil)
+
+IO.inspect(output.summary)
+```
 
 ### Next Steps
 
@@ -268,15 +304,37 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 
 - **Paddleocr**
 
+- **Sceptre**
+
 ### OCR Configuration Example
 
-<!-- snippet not found: ocr/tesseract_basic.exs -->
+```elixir title="Elixir"
+alias Xberg.ExtractionConfig
+
+config = %ExtractionConfig{
+  ocr: %{"enabled" => true, "backend" => "tesseract"}
+}
+
+{:ok, output} = Xberg.extract(input: %Xberg.ExtractInput{kind: :uri, uri: "scanned_document.pdf"}, config: config)
+
+result = List.first(output.results)
+content = result.content
+IO.puts("OCR Extracted content:")
+IO.puts(content)
+IO.puts("Metadata: #{inspect(result.metadata)}")
+```
 
 ## Async Support
 
 This binding provides full async/await support for non-blocking document processing:
 
-<!-- snippet not found: getting-started/extract.exs -->
+```elixir title="Elixir"
+input = %Xberg.ExtractInput{kind: :uri, uri: "document.pdf"}
+
+{:ok, output} = Xberg.extract(input: input, config: nil)
+
+IO.inspect(output.summary)
+```
 
 ## Plugin System
 
@@ -374,7 +432,23 @@ Generate vector embeddings for extracted text using the built-in ONNX Runtime su
 
 Process multiple documents efficiently:
 
-<!-- snippet not found: core/extract_batch.exs -->
+```elixir title="Elixir"
+inputs = [
+  %Xberg.ExtractInput{kind: :uri, uri: "document.pdf"},
+  %Xberg.ExtractInput{
+    kind: :bytes,
+    bytes: "Hello from memory",
+    mime_type: "text/plain",
+    filename: "note.txt"
+  }
+]
+
+{:ok, output} = Xberg.extract_batch(inputs: inputs, config: nil)
+
+Enum.each(output.results, fn result ->
+  IO.puts(result.content)
+end)
+```
 
 ## Configuration
 

@@ -83,7 +83,9 @@ async fn test_extract_jsonl_content_contains_all_objects() {
         .await
         .expect("JSONL extraction should succeed");
 
-    assert!(result.content.contains("\"a\": 1"));
-    assert!(result.content.contains("\"b\": 2"));
-    assert!(result.content.contains("\"c\": 3"));
+    // JSONL renders structured headings/fields per record rather than a raw JSON code
+    // block (xberg-io/xberg#155), so each record's field renders as `key: value`.
+    assert!(result.content.contains("a: 1"));
+    assert!(result.content.contains("b: 2"));
+    assert!(result.content.contains("c: 3"));
 }

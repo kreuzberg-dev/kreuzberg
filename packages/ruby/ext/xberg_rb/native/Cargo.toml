@@ -17,7 +17,7 @@ path = "../src/lib.rs"
 crate-type = ["cdylib"]
 
 [features]
-default = ["api", "api-types", "auto-rotate-types", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction", "late-interaction-presets", "layout-types", "liter-llm", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker", "reranker-presets", "sparse-embedding-presets", "sparse-embeddings", "svg", "tokio-runtime", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"]
+default = ["api", "api-types", "auto-rotate-types", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction", "late-interaction-presets", "layout-types", "liter-llm", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker", "reranker-presets", "sparse-embedding-presets", "sparse-embeddings", "svg", "tokio-runtime", "transcription", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"]
 api = ["xberg/api"]
 api-types = ["xberg/api-types"]
 auto-rotate-types = ["xberg/auto-rotate-types"]
@@ -48,6 +48,7 @@ sparse-embedding-presets = ["xberg/sparse-embedding-presets"]
 sparse-embeddings = ["xberg/sparse-embeddings"]
 svg = ["xberg/svg"]
 tokio-runtime = ["xberg/tokio-runtime"]
+transcription = ["xberg/transcription"]
 transcription-types = ["xberg/transcription-types"]
 tree-sitter = ["xberg/tree-sitter"]
 url-config-types = ["xberg/url-config-types"]
@@ -56,7 +57,7 @@ xml = ["xberg/xml"]
 
 [dependencies]
 async-trait = "0.1"
-crawlberg = { default-features = false, version = "1.1.3" }
+crawlberg = { default-features = false, version = "1.1.4" }
 html-to-markdown-rs = { default-features = false, version = "3.10" }
 magnus = "0.8"
 rb-sys = ">=0.9, <0.9.128"
@@ -64,11 +65,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 tracing = "0.1"
+[target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
+xberg = { version = "1.1.0", path = "../../../../../crates/xberg", features = ["macos-intel-target"] }
+
 [target.'cfg(not(any(target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
 xberg = { version = "1.1.0", path = "../../../../../crates/xberg", features = ["full", "pdf", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "chunking", "keywords-yake", "keywords-rake", "language-detection", "html", "tree-sitter", "office", "email", "archives", "stopwords", "auto-rotate", "auto-rotate-types", "tokio-runtime", "api", "api-types", "mcp", "liter-llm", "quality", "svg", "transcription", "transcription-types", "classification", "captioning", "ner-onnx", "ner-llm", "diff", "markdown-footnotes", "redaction", "enrichment", "heuristics", "presets", "structured", "url-ingestion"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 xberg = { version = "1.1.0", path = "../../../../../crates/xberg", features = ["windows-target"] }
-
-[target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
-xberg = { version = "1.1.0", path = "../../../../../crates/xberg", features = ["macos-intel-target"] }

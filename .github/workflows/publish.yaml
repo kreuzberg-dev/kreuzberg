@@ -256,7 +256,6 @@ jobs:
       libheif_exists: ${{ steps.check.outputs.libheif_exists }}
       gliner_exists: ${{ steps.check.outputs.gliner_exists }}
       libwpd_exists: ${{ steps.check.outputs.libwpd_exists }}
-      ttfparser_exists: ${{ steps.check.outputs.ttfparser_exists }}
       cli_exists: ${{ steps.check.outputs.cli_exists }}
       all_exist: ${{ steps.derive.outputs.all_exist }}
     steps:
@@ -273,7 +272,6 @@ jobs:
             libheif_exists=xberg-libheif
             gliner_exists=xberg-gliner
             libwpd_exists=xberg-libwpd
-            ttfparser_exists=xberg-ttf-parser
             cli_exists=xberg-cli
 
       - id: derive
@@ -285,7 +283,6 @@ jobs:
             && "${{ steps.check.outputs.libheif_exists }}" == "true" \
             && "${{ steps.check.outputs.gliner_exists }}" == "true" \
             && "${{ steps.check.outputs.libwpd_exists }}" == "true" \
-            && "${{ steps.check.outputs.ttfparser_exists }}" == "true" \
             && "${{ steps.check.outputs.cli_exists }}" == "true" ]]; then
             echo "all_exist=true" >> "$GITHUB_OUTPUT"
           else
@@ -512,6 +509,42 @@ jobs:
         with:
           name: python-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
+          retention-days: 14
+
+  python-wheels-musl:
+    name: Build Python wheels (musl-${{ matrix.arch }})
+    needs: [prepare, check-pypi]
+    if: ${{ needs.prepare.outputs.release_python == 'true' && (needs.check-pypi.outputs.exists != 'true' || needs.prepare.outputs.force_republish == 'true') }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, arch: x86_64, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-24.04-arm, arch: aarch64, target: aarch64-unknown-linux-musl }
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+          fetch-depth: 0
+          submodules: false
+
+      - name: Build Python wheel via Alpine Docker
+        run: |
+          docker build -f docker/Dockerfile.musl-python \
+            --build-arg TARGET=${{ matrix.target }} \
+            --output type=local,dest=./build-output .
+
+      - name: Verify musl wheel produced
+        run: |
+          test -n "$(find build-output -name '*.whl')" || {
+            echo "::error::no wheel produced by musl build for ${{ matrix.target }}"; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-wheels-musl-${{ matrix.arch }}
+          path: build-output/*.whl
+          if-no-files-found: error
           retention-days: 14
 
   python-sdist:
@@ -806,6 +839,11 @@ jobs:
     if: ${{ needs.prepare.outputs.release_wasm == 'true' && (needs.check-npm.outputs.wasm_exists != 'true' || needs.prepare.outputs.force_republish == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    # The WASM package is a best-effort publish gate, not part of the core release: a WASM
+    # build failure must not block publishing the crate/PyPI/npm/Maven/etc. artifacts that
+    # depend only on `prepare`. downstream `publish-wasm` requires
+    # needs.wasm-bindings.result == 'success', so a failure here still correctly skips
+    # publishing a broken WASM package -- it just doesn't fail the whole run. ~keep
     continue-on-error: true
     env:
       CARGO_BUILD_JOBS: 1
@@ -890,6 +928,7 @@ jobs:
           - { os: ubuntu-latest, label: linux-x86_64 }
           - { os: ubuntu-24.04-arm, label: linux-aarch64 }
           - { os: macos-15, label: macos-arm64 }
+          - { os: windows-latest, label: windows-x86_64 }
     steps:
       - uses: actions/checkout@v6
         with:
@@ -897,7 +936,20 @@ jobs:
           fetch-depth: 0
 
           submodules: false
+      # RubyInstaller's Windows Ruby is built against the UCRT/MinGW ABI (gem
+      # platform `x64-mingw-ucrt`, already declared in packages/ruby/Rakefile's
+      # CROSS_PLATFORMS), not MSVC — unlike the Python/Node/PHP/C# Windows legs
+      # in this workflow, which all target genuine MSVC binaries. rb_sys's
+      # create_rust_makefile detects the host Ruby's platform and asks cargo to
+      # build for the matching Rust target, so the host Rust toolchain itself
+      # must be the GNU one; a MSVC-hosted rustc cross-building that target
+      # would need a mingw sysroot dance rb_sys does not set up. Selecting it
+      # through setup-rust's own `toolchain` input (rather than a later
+      # `rustup default`) keeps the action's verify-install step checking the
+      # toolchain we actually build with.
       - uses: xberg-io/actions/setup-rust@v1
+        with:
+          toolchain: ${{ runner.os == 'Windows' && 'stable-x86_64-pc-windows-gnu' || '' }}
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -927,7 +979,7 @@ jobs:
           for f in packages/ruby/pkg/*.gem; do
             base="$(basename "$f")"
             case "$base" in
-              *-x86_64-linux.gem|*-aarch64-linux.gem|*-arm64-darwin.gem|*-x86_64-darwin.gem) ;;
+              *-x86_64-linux.gem|*-aarch64-linux.gem|*-arm64-darwin.gem|*-x86_64-darwin.gem|*-x64-mingw-ucrt.gem) ;;
               *) echo "Removing non-canonical source gem $base"; rm -f "$f" ;;
             esac
           done
@@ -2520,13 +2572,13 @@ jobs:
 
       - uses: xberg-io/actions/publish-crates@v1
         with:
-          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg-ttf-parser xberg xberg-cli
+          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg xberg-cli
           version: ${{ needs.prepare.outputs.version }}
           dry-run: ${{ needs.prepare.outputs.dry_run }}
 
   publish-pypi:
     name: Publish to PyPI
-    needs: [prepare, python-wheels, python-sdist, check-pypi, publish-crates]
+    needs: [prepare, python-wheels, python-wheels-musl, python-sdist, check-pypi, publish-crates]
     if: ${{ needs.publish-crates.result != 'failure' && needs.prepare.outputs.release_python == 'true' && needs.prepare.outputs.is_tag == 'true' && (needs.check-pypi.outputs.exists != 'true' || needs.prepare.outputs.force_republish == 'true') }}
     runs-on: ubuntu-latest
     environment: pypi

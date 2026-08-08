@@ -9,7 +9,7 @@
 //! # Examples
 //!
 //! ```ignore
-//! # use xberg::markdown_footnotes::{find_footnote_anchors, parse_footnote_definitions};
+//! # use xberg::text::markdown_footnotes::{find_footnote_anchors, parse_footnote_definitions};
 //! let markdown = r#"
 //! This is text with a footnote.[^1]
 //!
@@ -43,7 +43,7 @@ pub use types::{Citation, FootnoteAnchor, FootnoteDefinition};
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::find_footnote_anchors;
+/// # use xberg::text::markdown_footnotes::find_footnote_anchors;
 /// let text = "Text[^src1] more text[^src2].";
 /// let anchors = find_footnote_anchors(text);
 /// assert_eq!(anchors.len(), 2);
@@ -70,7 +70,7 @@ pub fn find_footnote_anchors(markdown: &str) -> Vec<FootnoteAnchor> {
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::parse_footnote_definitions;
+/// # use xberg::text::markdown_footnotes::parse_footnote_definitions;
 /// let text = r#"[^1]: First footnote.
 /// [^2]: Second footnote.
 ///   Continued line."#;
@@ -96,7 +96,7 @@ pub fn parse_footnote_definitions(markdown: &str) -> Vec<FootnoteDefinition> {
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::find_inference_markers;
+/// # use xberg::text::markdown_footnotes::find_inference_markers;
 /// let text = "A claim [*inference*] with inference marker.";
 /// let offsets = find_inference_markers(text);
 /// assert_eq!(offsets.len(), 1);
@@ -125,7 +125,7 @@ pub fn find_inference_markers(markdown: &str) -> Vec<usize> {
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::find_unmarked_claims;
+/// # use xberg::text::markdown_footnotes::find_unmarked_claims;
 /// let text = r#"This is a claim without citation.
 /// Another claim with citation.[^1]
 /// This is a claim with inference.[*inference*]
@@ -158,7 +158,7 @@ pub fn find_unmarked_claims(markdown: &str) -> Vec<String> {
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::parse_citations;
+/// # use xberg::text::markdown_footnotes::parse_citations;
 /// let text = r#"Body text.
 ///
 /// ---
@@ -192,7 +192,7 @@ pub fn parse_citations(markdown: &str) -> Vec<Citation> {
 /// # Examples
 ///
 /// ```rust
-/// # use xberg::markdown_footnotes::verify_excerpt;
+/// # use xberg::text::markdown_footnotes::verify_excerpt;
 /// let source = "The document states: Exact quoted text.";
 /// let excerpt = "Exact quoted text";
 /// assert!(verify_excerpt(excerpt, source));

@@ -18,6 +18,7 @@
 //! [`locate_page_boundaries`](crate::core::pipeline::features) already uses to align raw page
 //! text with rendered content — rather than a byte-exact intersection.
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use crate::types::document_structure::{ContentLayer, DocumentNode, DocumentStructure, NodeContent};
@@ -136,22 +137,28 @@ fn dedup_preserve_order(ids: Vec<&str>) -> Vec<String> {
         .collect()
 }
 
-/// Check whether `node`'s matchable text (see [`node_text_for_matching`]) appears verbatim in
-/// `chunk_content`, after trimming and enforcing [`MIN_NODE_TEXT_MATCH_LEN`].
+/// Check whether any of `node`'s matchable text fragments (see [`node_text_for_matching`])
+/// appear verbatim in `chunk_content`, after trimming and enforcing [`MIN_NODE_TEXT_MATCH_LEN`].
 fn node_text_matches_chunk(node: &DocumentNode, chunk_content: &str) -> bool {
-    let Some(text) = node_text_for_matching(&node.content) else {
-        return false;
-    };
-    let trimmed = text.trim();
-    trimmed.len() >= MIN_NODE_TEXT_MATCH_LEN && chunk_content.contains(trimmed)
+    node_text_for_matching(&node.content).into_iter().any(|text| {
+        let trimmed = text.trim();
+        trimmed.len() >= MIN_NODE_TEXT_MATCH_LEN && chunk_content.contains(trimmed)
+    })
 }
 
-/// Extract the primary text content of a node for chunk-containment matching, if any.
+/// Extract the text fragment(s) of a node usable for chunk-containment matching.
 ///
-/// Only variants that carry a single, directly comparable text string are handled — container
-/// nodes (`List`, `Group`, `Quote`, …), tables, and images have no single text span to match
-/// against rendered chunk content.
-fn node_text_for_matching(content: &NodeContent) -> Option<&str> {
+/// Most node kinds carry a single, directly comparable text string. `Table` instead yields
+/// one fragment per cell: a table's rendered form (pipe-delimited rows with separators) never
+/// appears as a single contiguous run of its cell text, so matching per-cell lets a table-only
+/// chunk still contribute a bbox/node_id when at least one of its cells appears verbatim in the
+/// chunk (#212). `DefinitionItem` yields its term and definition as separate fragments for the
+/// same reason — the rendered form is unlikely to place them contiguously.
+///
+/// Pure container nodes (`List`, `Quote`, `DefinitionList`, `PageBreak`, `RawBlock`,
+/// `MetadataBlock`) have no comparable text of their own and yield nothing; their children
+/// (which are matched individually) carry the text.
+fn node_text_for_matching(content: &NodeContent) -> Vec<Cow<'_, str>> {
     match content {
         NodeContent::Title { text }
         | NodeContent::Heading { text, .. }
@@ -159,9 +166,21 @@ fn node_text_for_matching(content: &NodeContent) -> Option<&str> {
         | NodeContent::ListItem { text }
         | NodeContent::Code { text, .. }
         | NodeContent::Formula { text }
-        | NodeContent::Footnote { text }
-        | NodeContent::Citation { text, .. } => Some(text.as_str()),
-        _ => None,
+        | NodeContent::Footnote { text } => vec![Cow::Borrowed(text.as_str())],
+        NodeContent::Citation { text, .. } => vec![Cow::Borrowed(text.as_str())],
+        NodeContent::Image { description, .. } => description.as_deref().map(Cow::Borrowed).into_iter().collect(),
+        NodeContent::Group { heading_text, .. } => heading_text.as_deref().map(Cow::Borrowed).into_iter().collect(),
+        NodeContent::Slide { title, .. } => title.as_deref().map(Cow::Borrowed).into_iter().collect(),
+        NodeContent::DefinitionItem { term, definition } => {
+            vec![Cow::Borrowed(term.as_str()), Cow::Borrowed(definition.as_str())]
+        }
+        NodeContent::Admonition { title, .. } => title.as_deref().map(Cow::Borrowed).into_iter().collect(),
+        NodeContent::Table { grid } => grid
+            .cells
+            .iter()
+            .map(|cell| Cow::Borrowed(cell.content.as_str()))
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -223,6 +242,8 @@ mod tests {
             content: content.to_string(),
             chunk_type: ChunkType::default(),
             embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
             metadata: ChunkMetadata {
                 byte_start: 0,
                 byte_end: content.len(),
@@ -609,5 +630,317 @@ mod tests {
 
         assert_eq!(chunks[0].metadata.page_spans[0].bbox, None);
         assert_eq!(chunks[0].metadata.node_ids, vec!["node-no-bbox".to_string()]);
+    }
+
+    fn node_with_content(id: &str, content: NodeContent, page: u32, bbox: Option<BoundingBox>) -> DocumentNode {
+        DocumentNode {
+            id: id.to_string(),
+            content,
+            parent: None,
+            children: Vec::new(),
+            content_layer: ContentLayer::Body,
+            page: Some(page),
+            page_end: None,
+            bbox,
+            annotations: Vec::new(),
+            attributes: None,
+        }
+    }
+
+    /// Regression test for #212: `Table { grid }` never contributed a bbox/node_id
+    /// because `node_text_for_matching` had no arm for it — matching per-cell now lets
+    /// a table-only chunk pick up its structure backlink and viewer highlight.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_table_node_via_cell_text() {
+        use crate::types::document_structure::{GridCell, TableGrid};
+
+        let grid = TableGrid {
+            rows: 1,
+            cols: 2,
+            cells: vec![
+                GridCell {
+                    content: "Revenue by region".to_string(),
+                    row: 0,
+                    col: 0,
+                    row_span: 1,
+                    col_span: 1,
+                    is_header: true,
+                    bbox: None,
+                },
+                GridCell {
+                    content: "Q3".to_string(),
+                    row: 0,
+                    col: 1,
+                    row_span: 1,
+                    col_span: 1,
+                    is_header: true,
+                    bbox: None,
+                },
+            ],
+        };
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "table-1",
+                NodeContent::Table { grid },
+                1,
+                Some(bbox(1.0, 1.0, 50.0, 50.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "| Revenue by region | Q3 |\n|---|---|\n",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, Some(bbox(1.0, 1.0, 50.0, 50.0)));
+        assert_eq!(chunks[0].metadata.node_ids, vec!["table-1".to_string()]);
+    }
+
+    /// A table whose cell text does not appear in the chunk must not match.
+    #[test]
+    fn should_not_match_table_node_when_no_cell_text_found_in_chunk() {
+        use crate::types::document_structure::{GridCell, TableGrid};
+
+        let grid = TableGrid {
+            rows: 1,
+            cols: 1,
+            cells: vec![GridCell {
+                content: "Completely unrelated cell content".to_string(),
+                row: 0,
+                col: 0,
+                row_span: 1,
+                col_span: 1,
+                is_header: false,
+                bbox: None,
+            }],
+        };
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "table-2",
+                NodeContent::Table { grid },
+                1,
+                Some(bbox(1.0, 1.0, 2.0, 2.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "Some other paragraph entirely.",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, None);
+        assert!(chunks[0].metadata.node_ids.is_empty());
+    }
+
+    /// Regression test for #212: `Image { description }` never contributed a bbox/node_id.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_image_node_via_description() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "image-1",
+                NodeContent::Image {
+                    description: Some("Diagram of the quarterly revenue funnel".to_string()),
+                    image_index: Some(0),
+                    src: None,
+                },
+                2,
+                Some(bbox(4.0, 4.0, 40.0, 40.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "![Diagram of the quarterly revenue funnel](img.png)",
+            vec![PageSpan { page: 2, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, Some(bbox(4.0, 4.0, 40.0, 40.0)));
+        assert_eq!(chunks[0].metadata.node_ids, vec!["image-1".to_string()]);
+    }
+
+    /// An `Image` with no `description` has nothing to match against and must not
+    /// contribute a bbox/node_id (there is no fragment to search for).
+    #[test]
+    fn should_not_match_image_node_without_description() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "image-2",
+                NodeContent::Image {
+                    description: None,
+                    image_index: Some(0),
+                    src: None,
+                },
+                1,
+                Some(bbox(1.0, 1.0, 2.0, 2.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "Any content at all.",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, None);
+        assert!(chunks[0].metadata.node_ids.is_empty());
+    }
+
+    /// Regression test for #212: `Group { heading_text }` never contributed a bbox/node_id.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_group_node_via_heading_text() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "group-1",
+                NodeContent::Group {
+                    label: None,
+                    heading_level: Some(2),
+                    heading_text: Some("Key-value configuration section".to_string()),
+                },
+                1,
+                Some(bbox(1.0, 1.0, 20.0, 20.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "## Key-value configuration section\n\nSetting: value",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, Some(bbox(1.0, 1.0, 20.0, 20.0)));
+        assert_eq!(chunks[0].metadata.node_ids, vec!["group-1".to_string()]);
+    }
+
+    /// Regression test for #212: `Slide { title }` never contributed a bbox/node_id.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_slide_node_via_title() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "slide-1",
+                NodeContent::Slide {
+                    number: 3,
+                    title: Some("Roadmap for next quarter".to_string()),
+                },
+                3,
+                Some(bbox(0.0, 0.0, 100.0, 100.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "# Roadmap for next quarter\n\nSlide body text.",
+            vec![PageSpan { page: 3, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(
+            chunks[0].metadata.page_spans[0].bbox,
+            Some(bbox(0.0, 0.0, 100.0, 100.0))
+        );
+        assert_eq!(chunks[0].metadata.node_ids, vec!["slide-1".to_string()]);
+    }
+
+    /// Regression test for #212: `DefinitionItem { term, definition }` never contributed
+    /// a bbox/node_id; both the term and the definition are checked as independent
+    /// candidate fragments since the rendered form rarely places them contiguously.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_definition_item_via_term_or_definition() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "def-1",
+                NodeContent::DefinitionItem {
+                    term: "Throughput".to_string(),
+                    definition: "The number of requests processed per second".to_string(),
+                },
+                1,
+                Some(bbox(2.0, 2.0, 30.0, 30.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        // Chunk contains only the definition, not the term verbatim next to it.
+        let mut chunks = vec![chunk_with_spans(
+            "The number of requests processed per second is a key metric.",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, Some(bbox(2.0, 2.0, 30.0, 30.0)));
+        assert_eq!(chunks[0].metadata.node_ids, vec!["def-1".to_string()]);
+    }
+
+    /// Regression test for #212: `Admonition { title }` never contributed a bbox/node_id.
+    #[test]
+    fn should_populate_bbox_and_node_id_for_admonition_node_via_title() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "admonition-1",
+                NodeContent::Admonition {
+                    kind: "warning".to_string(),
+                    title: Some("Deprecated configuration option".to_string()),
+                },
+                1,
+                Some(bbox(3.0, 3.0, 33.0, 33.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "> **Deprecated configuration option**\n>\n> Use the new flag instead.",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, Some(bbox(3.0, 3.0, 33.0, 33.0)));
+        assert_eq!(chunks[0].metadata.node_ids, vec!["admonition-1".to_string()]);
+    }
+
+    /// A pure container node with no directly comparable text (`Quote`) must not match
+    /// anything, confirming the `_ => Vec::new()` fallback arm.
+    #[test]
+    fn should_not_match_pure_container_node_with_no_text() {
+        let structure = DocumentStructure {
+            nodes: vec![node_with_content(
+                "quote-1",
+                NodeContent::Quote,
+                1,
+                Some(bbox(1.0, 1.0, 2.0, 2.0)),
+            )],
+            source_format: None,
+            relationships: Vec::new(),
+            node_types: Vec::new(),
+        };
+        let mut chunks = vec![chunk_with_spans(
+            "> Some quoted text that a Quote container cannot match on its own.",
+            vec![PageSpan { page: 1, bbox: None }],
+        )];
+
+        populate_page_span_bboxes(&mut chunks, &structure);
+
+        assert_eq!(chunks[0].metadata.page_spans[0].bbox, None);
+        assert!(chunks[0].metadata.node_ids.is_empty());
     }
 }

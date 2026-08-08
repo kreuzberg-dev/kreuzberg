@@ -292,6 +292,47 @@ fn wrap_output(task: GlmOcrTask, content: &str) -> String {
     }
 }
 
+/// Whether a detected layout region is a table, i.e. its bounding box must be
+/// carried through to the corresponding `Table` entry in
+/// `ExtractedDocument::tables` (issue #187).
+#[cfg(feature = "layout-detection")]
+fn is_table_region(class: crate::layout::LayoutClass) -> bool {
+    class == crate::layout::LayoutClass::Table
+}
+
+/// Attach detection-time bounding boxes to the `Table` entries `extract_gfm_tables`
+/// parsed out of the assembled markdown, correlating purely by position: the Nth
+/// `Table`-class detection with non-empty OCR output corresponds to the Nth GFM
+/// table block that appears in `content`, since `process_paired` appends region
+/// output to `content` in the same reading order it iterates detections. Extra
+/// entries on either side (a table detection whose output failed to parse as GFM,
+/// or vice versa) are left without a match rather than mis-attributed.
+#[cfg(feature = "layout-detection")]
+fn merge_table_bounding_boxes(
+    tables: &mut [crate::types::Table],
+    detection_bboxes: &[crate::types::extraction::BoundingBox],
+) {
+    for (table, bbox) in tables.iter_mut().zip(detection_bboxes.iter()) {
+        table.bounding_box = Some(*bbox);
+    }
+}
+
+/// Canonical markdown checkbox marker for a checkbox-class layout detection.
+///
+/// OCR cannot reliably recover checked-vs-unchecked state from glyph
+/// recognition on a tiny checkbox crop (issue #190) — the layout detector has
+/// already computed the state, so it is emitted directly instead of routing
+/// the crop through the model. Returns `None` for every other layout class.
+#[cfg(feature = "layout-detection")]
+fn checkbox_marker_for_class(class: crate::layout::LayoutClass) -> Option<&'static str> {
+    use crate::layout::LayoutClass;
+    match class {
+        LayoutClass::CheckboxSelected => Some("[x]"),
+        LayoutClass::CheckboxUnselected => Some("[ ]"),
+        _ => None,
+    }
+}
+
 /// GLM-OCR backend using candle transformers.
 ///
 /// A compact vision-language model (0.9 B) for full-page document parsing.
@@ -438,24 +479,23 @@ impl OcrBackend for GlmOcrBackend {
             });
         }
 
-        let image_bytes = image_bytes.to_vec();
+        let image_bytes_owned = image_bytes.to_vec();
         let dtype = self.dtype;
         let cache_dir = opts.cache_dir.unwrap_or_else(hf_hub::resolve_cache_dir);
         let revision = opts.hf_revision.unwrap_or_else(|| GlmOcrEngine::revision().to_string());
 
-        let (content, formulas) = match opts.layout_mode {
+        let (content, formulas, table_bboxes) = match opts.layout_mode {
             LayoutMode::WholePage => {
                 let task = opts.task;
                 let device = opts.device;
                 let content = tokio::task::spawn_blocking(move || {
                     let engine = get_or_init_engine(device, dtype, cache_dir, revision)?;
-                    let output =
-                        engine
-                            .process_image_with_task(&image_bytes, task)
-                            .map_err(|e| crate::XbergError::Ocr {
-                                message: format!("GLM-OCR inference failed: {e}"),
-                                source: Some(Box::new(e)),
-                            })?;
+                    let output = engine.process_image_with_task(&image_bytes_owned, task).map_err(|e| {
+                        crate::XbergError::Ocr {
+                            message: format!("GLM-OCR inference failed: {e}"),
+                            source: Some(Box::new(e)),
+                        }
+                    })?;
                     Ok::<String, crate::XbergError>(output.content)
                 })
                 .await
@@ -463,14 +503,14 @@ impl OcrBackend for GlmOcrBackend {
                     message: format!("GLM-OCR task execution failed: {e}"),
                     source: None,
                 })??;
-                (content, Vec::new())
+                (content, Vec::new(), Vec::new())
             }
 
             #[cfg(feature = "layout-detection")]
             LayoutMode::Paired => {
                 let enable_chart_understanding = opts.enable_chart_understanding;
                 process_paired(
-                    image_bytes,
+                    image_bytes_owned,
                     opts.device,
                     dtype,
                     enable_chart_understanding,
@@ -481,12 +521,18 @@ impl OcrBackend for GlmOcrBackend {
             }
         };
 
-        Ok(ExtractedDocument {
+        let mut document = super::ocr_result::build_ocr_document(
             content,
             formulas,
-            mime_type: Cow::Borrowed("text/markdown"),
-            ..Default::default()
-        })
+            Cow::Borrowed("text/markdown"),
+            image_bytes,
+            config,
+        );
+        #[cfg(feature = "layout-detection")]
+        merge_table_bounding_boxes(&mut document.tables, &table_bboxes);
+        #[cfg(not(feature = "layout-detection"))]
+        let _ = table_bboxes;
+        Ok(document)
     }
 
     async fn process_image_file(&self, path: &Path, config: &OcrConfig) -> Result<ExtractedDocument> {
@@ -532,7 +578,11 @@ async fn process_paired(
     enable_chart_understanding: bool,
     cache_dir: PathBuf,
     revision: String,
-) -> crate::Result<(String, Vec<crate::types::Formula>)> {
+) -> crate::Result<(
+    String,
+    Vec<crate::types::Formula>,
+    Vec<crate::types::extraction::BoundingBox>,
+)> {
     use crate::layout::LayoutModelManager;
     use crate::layout::models::LayoutModel;
 
@@ -575,7 +625,14 @@ async fn process_paired(
                     message: format!("GLM-OCR paired (fallback): whole-page inference failed: {e}"),
                     source: Some(Box::new(e)),
                 })?;
-            return Ok::<(String, Vec<crate::types::Formula>), crate::XbergError>((output.content, Vec::new()));
+            return Ok::<
+                (
+                    String,
+                    Vec<crate::types::Formula>,
+                    Vec<crate::types::extraction::BoundingBox>,
+                ),
+                crate::XbergError,
+            >((output.content, Vec::new(), Vec::new()));
         }
 
         let img_width = img.width();
@@ -583,9 +640,24 @@ async fn process_paired(
 
         let mut parts: Vec<String> = Vec::with_capacity(sorted.len());
         let mut formulas: Vec<crate::types::Formula> = Vec::new();
+        let mut table_bboxes: Vec<crate::types::extraction::BoundingBox> = Vec::new();
 
         for detection in &sorted {
             let bbox = &detection.bbox;
+            let region_bbox = crate::types::extraction::BoundingBox {
+                x0: bbox.x1 as f64,
+                y0: bbox.y1 as f64,
+                x1: bbox.x2 as f64,
+                y1: bbox.y2 as f64,
+            };
+
+            // Checkbox state is decided by the layout detector, not the OCR model —
+            // glyph OCR on a tiny checkbox crop cannot reliably recover the state bit
+            // (#190). Emit the canonical marker directly and skip the model call.
+            if let Some(marker) = checkbox_marker_for_class(detection.class_name) {
+                parts.push(marker.to_string());
+                continue;
+            }
 
             let x = (bbox.x1.max(0.0) as u32).min(img_width.saturating_sub(1));
             let y = (bbox.y1.max(0.0) as u32).min(img_height.saturating_sub(1));
@@ -633,20 +705,24 @@ async fn process_paired(
             if detection.class_name == crate::layout::LayoutClass::Formula && !latex_clean.is_empty() {
                 formulas.push(crate::types::Formula {
                     latex: latex_clean,
-                    bbox: crate::types::extraction::BoundingBox {
-                        x0: bbox.x1 as f64,
-                        y0: bbox.y1 as f64,
-                        x1: bbox.x2 as f64,
-                        y1: bbox.y2 as f64,
-                    },
+                    bbox: region_bbox,
                     page: 1,
                 });
+            } else if is_table_region(detection.class_name) && !output.content.trim().is_empty() {
+                table_bboxes.push(region_bbox);
             }
 
             parts.push(wrapped);
         }
 
-        Ok::<(String, Vec<crate::types::Formula>), crate::XbergError>((parts.join("\n\n"), formulas))
+        Ok::<
+            (
+                String,
+                Vec<crate::types::Formula>,
+                Vec<crate::types::extraction::BoundingBox>,
+            ),
+            crate::XbergError,
+        >((parts.join("\n\n"), formulas, table_bboxes))
     })
     .await
     .map_err(|e| crate::XbergError::Ocr {
@@ -976,5 +1052,160 @@ mod tests {
     #[test]
     fn test_glm_ocr_zero_regions_fallback_guard() {
         assert_eq!(GlmOcrTask::Ocr, GlmOcrTask::default());
+    }
+
+    // --- issue #187: paired-mode table bounding boxes must survive re-parsing ---
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_is_table_region_true_for_table_class() {
+        use crate::layout::LayoutClass;
+        assert!(is_table_region(LayoutClass::Table));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_is_table_region_false_for_text_class() {
+        use crate::layout::LayoutClass;
+        assert!(!is_table_region(LayoutClass::Text));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_merge_table_bounding_boxes_attaches_bbox_matching_detection_order() {
+        use crate::types::Table;
+        use crate::types::extraction::BoundingBox;
+
+        // Simulates two Table-class GFM tables parsed out of `content` by
+        // `extract_gfm_tables`, in the same order the source detections appeared.
+        let mut tables = vec![
+            Table {
+                cells: vec![vec!["A".to_string()]],
+                markdown: "| A |\n|---|".to_string(),
+                page_number: 1,
+                ..Default::default()
+            },
+            Table {
+                cells: vec![vec!["B".to_string()]],
+                markdown: "| B |\n|---|".to_string(),
+                page_number: 1,
+                ..Default::default()
+            },
+        ];
+
+        let bboxes = vec![
+            BoundingBox {
+                x0: 10.0,
+                y0: 20.0,
+                x1: 100.0,
+                y1: 200.0,
+            },
+            BoundingBox {
+                x0: 5.0,
+                y0: 6.0,
+                x1: 7.0,
+                y1: 8.0,
+            },
+        ];
+
+        merge_table_bounding_boxes(&mut tables, &bboxes);
+
+        assert_eq!(tables.len(), 2, "table count must be unchanged by the merge");
+        assert_eq!(
+            tables[0].bounding_box,
+            Some(BoundingBox {
+                x0: 10.0,
+                y0: 20.0,
+                x1: 100.0,
+                y1: 200.0
+            })
+        );
+        assert_eq!(
+            tables[1].bounding_box,
+            Some(BoundingBox {
+                x0: 5.0,
+                y0: 6.0,
+                x1: 7.0,
+                y1: 8.0
+            })
+        );
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_process_paired_table_detection_yields_exactly_one_table_with_source_bbox() {
+        use crate::core::config::OcrConfig;
+        use crate::layout::LayoutClass;
+        use crate::types::extraction::BoundingBox;
+
+        // Synthetic fixture standing in for `sorted` detections in `process_paired`:
+        // one Table-class region (should become a structured Table entry with its
+        // detection bbox attached) and one Text-class region (must NOT show up in
+        // `result.tables`). Mirrors the per-detection loop body without needing the
+        // GLM model or PP-DocLayout-V3.
+        let table_bbox = BoundingBox {
+            x0: 12.0,
+            y0: 34.0,
+            x1: 512.0,
+            y1: 734.0,
+        };
+        let table_output = "| Name | Age |\n|------|-----|\n| Alice | 30 |";
+        let text_output = "Just some plain OCR'd prose.";
+
+        let regions: Vec<(LayoutClass, BoundingBox, &str)> = vec![
+            (LayoutClass::Table, table_bbox, table_output),
+            (LayoutClass::Text, BoundingBox::default(), text_output),
+        ];
+
+        let mut parts: Vec<String> = Vec::with_capacity(regions.len());
+        let mut table_bboxes: Vec<BoundingBox> = Vec::new();
+        for (class, bbox, output) in &regions {
+            if is_table_region(*class) && !output.trim().is_empty() {
+                table_bboxes.push(*bbox);
+            }
+            parts.push(output.to_string());
+        }
+        let content = parts.join("\n\n");
+
+        let config = OcrConfig::default();
+        let mut doc = super::super::ocr_result::build_ocr_document(
+            content,
+            Vec::new(),
+            std::borrow::Cow::Borrowed("text/markdown"),
+            &[],
+            &config,
+        );
+        merge_table_bounding_boxes(&mut doc.tables, &table_bboxes);
+
+        assert_eq!(
+            doc.tables.len(),
+            1,
+            "the Text-class region must not produce a table entry"
+        );
+        assert_eq!(doc.tables[0].bounding_box, Some(table_bbox));
+    }
+
+    // --- issue #190: checkbox selected/unselected state must not be lost to OCR ---
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_checkbox_marker_for_class_selected_is_x_marker() {
+        use crate::layout::LayoutClass;
+        assert_eq!(checkbox_marker_for_class(LayoutClass::CheckboxSelected), Some("[x]"));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_checkbox_marker_for_class_unselected_is_empty_marker() {
+        use crate::layout::LayoutClass;
+        assert_eq!(checkbox_marker_for_class(LayoutClass::CheckboxUnselected), Some("[ ]"));
+    }
+
+    #[cfg(feature = "layout-detection")]
+    #[test]
+    fn test_checkbox_marker_for_class_none_for_non_checkbox_class() {
+        use crate::layout::LayoutClass;
+        assert_eq!(checkbox_marker_for_class(LayoutClass::Text), None);
+        assert_eq!(checkbox_marker_for_class(LayoutClass::Table), None);
     }
 }

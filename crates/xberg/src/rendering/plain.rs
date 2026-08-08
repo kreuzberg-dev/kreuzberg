@@ -1,12 +1,19 @@
 //! Render an `InternalDocument` to plain text.
 //!
 //! Emits text only, with no formatting. Double newlines separate blocks.
-//! Annotations are stripped. Tables are rendered as space-separated columns.
+//! Inline text annotations (bold/italic/links) are stripped. Tables are
+//! rendered as space-separated columns. Document-level PDF annotations
+//! (issue #63), when present, are appended as a trailing "Annotations:"
+//! section.
 
+use crate::types::annotations::PdfAnnotation;
 use crate::types::document_structure::ContentLayer;
 use crate::types::internal::{ElementKind, InternalDocument};
 
-use super::common::{get_admonition_kind, get_admonition_title, parse_metadata_entries, render_table_plain};
+use super::common::{
+    annotation_display_text, annotation_type_label, get_admonition_kind, get_admonition_title, parse_metadata_entries,
+    render_table_plain,
+};
 
 /// Render an `InternalDocument` to plain text.
 pub(crate) fn render_plain(doc: &InternalDocument) -> String {
@@ -120,6 +127,8 @@ pub(crate) fn render_plain(doc: &InternalDocument) -> String {
             }
             ElementKind::FootnoteRef => {}
             ElementKind::FootnoteDefinition => {}
+            ElementKind::CommentRef => {}
+            ElementKind::CommentDefinition => {}
             ElementKind::Citation => {
                 if !elem.text.is_empty() {
                     out.push_str(&elem.text);
@@ -210,7 +219,65 @@ pub(crate) fn render_plain(doc: &InternalDocument) -> String {
         }
     }
 
+    // Comment definitions (#300) are furniture, not body flow, just like footnote
+    // definitions — surface them the same way so the comment body is not silently
+    // dropped now that it no longer shares `ElementKind::FootnoteDefinition`.
+    let has_comments = doc
+        .elements
+        .iter()
+        .any(|e| e.kind == ElementKind::CommentDefinition && e.layer == ContentLayer::Footnote);
+    if has_comments {
+        out.push('\n');
+        for elem in &doc.elements {
+            if elem.kind == ElementKind::CommentDefinition && elem.layer == ContentLayer::Footnote {
+                out.push_str(&elem.text);
+                out.push_str("\n\n");
+            }
+        }
+    }
+
+    if let Some(annotations) = doc.annotations.as_deref() {
+        let block = render_annotations_plain(annotations);
+        if !block.is_empty() {
+            if !out.trim_end().is_empty() {
+                out.push_str("\n\n");
+            }
+            out.push_str(&block);
+        }
+    }
+
     out.truncate(out.trim_end().len());
+    out
+}
+
+/// Render the document-level PDF annotations (issue #63) as a plain-text
+/// section: an "Annotations:" header followed by one line per annotation.
+///
+/// Returns an empty string when `annotations` is empty.
+fn render_annotations_plain(annotations: &[PdfAnnotation]) -> String {
+    if annotations.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from("Annotations:\n");
+    for annotation in annotations {
+        out.push_str(annotation_type_label(annotation.annotation_type));
+        out.push_str(" (page ");
+        out.push_str(&annotation.page_number.to_string());
+        out.push(')');
+
+        if let Some(author) = annotation.author.as_deref().filter(|s| !s.is_empty()) {
+            out.push_str(" by ");
+            out.push_str(author);
+        }
+
+        if let Some(text) = annotation_display_text(annotation) {
+            out.push_str(": ");
+            out.push_str(text);
+        }
+
+        out.push('\n');
+    }
     out
 }
 

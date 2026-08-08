@@ -103,6 +103,29 @@ pub(crate) fn parse_xml_int(node: Node, name: &str) -> Option<i32> {
         .and_then(|s| s.trim().parse::<i32>().ok())
 }
 
+/// Parse text content from every XML element matching a tag name, joined with `separator`.
+///
+/// Unlike [`parse_xml_text`] (which returns only the first match via `.find()`), this
+/// collects every matching descendant's non-empty trimmed text. Used for fields such as
+/// `dc:creator` that Dublin Core / OOXML permit to repeat (e.g. co-authored documents),
+/// where keeping only the first entry would silently drop the rest.
+pub(crate) fn parse_xml_text_joined(node: Node, name: &str, separator: &str) -> Option<String> {
+    let values: Vec<String> = node
+        .descendants()
+        .filter(|n| n.has_tag_name(name))
+        .filter_map(|n| n.text())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    if values.is_empty() {
+        None
+    } else {
+        Some(values.join(separator))
+    }
+}
+
 /// Parse boolean content from an XML element by tag name
 ///
 /// Handles "true"/"false" string values and converts to boolean.
@@ -139,6 +162,27 @@ mod tests {
         let root = doc.root_element();
 
         assert_eq!(parse_xml_text(root, "title"), None);
+    }
+
+    #[test]
+    fn test_parse_xml_text_joined_multiple() {
+        let xml = r#"<root><creator>Alice</creator><creator>Bob</creator></root>"#;
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        let root = doc.root_element();
+
+        assert_eq!(
+            parse_xml_text_joined(root, "creator", "; "),
+            Some("Alice; Bob".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_xml_text_joined_missing() {
+        let xml = r#"<root></root>"#;
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        let root = doc.root_element();
+
+        assert_eq!(parse_xml_text_joined(root, "creator", "; "), None);
     }
 
     #[test]

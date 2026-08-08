@@ -105,9 +105,14 @@ pub struct TesseractConfig {
 
     /// Enable automatic page rotation based on orientation detection.
     ///
-    /// When enabled, uses Tesseract's `DetectOrientationScript()` to detect
-    /// page orientation (0/90/180/270 degrees) before OCR. If the page is
-    /// rotated with high confidence, the image is corrected before recognition.
+    /// When enabled (and the `auto-rotate` build feature is compiled in), page
+    /// orientation (0/90/180/270 degrees) is detected with an ONNX PP-LCNet
+    /// document-orientation classifier — NOT Tesseract's own
+    /// `DetectOrientationScript()`/OSD, which this crate does not call. The
+    /// classifier reports only a rotation angle and confidence; it has no
+    /// script-detection capability, so no script name is produced. If the page
+    /// is rotated with high confidence, the image is corrected before
+    /// recognition.
     pub auto_rotate: bool,
 
     /// Highest-priority override for the tessdata directory.

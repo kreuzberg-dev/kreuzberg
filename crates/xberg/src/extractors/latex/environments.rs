@@ -4,7 +4,8 @@
 //! tabular, and table environments.
 
 use super::commands::process_line;
-use super::utilities::{clean_text, collect_environment, extract_braced, extract_env_name};
+use super::utilities::{clean_text, collect_environment, extract_braced, extract_env_name, is_table_structural_line};
+use crate::rendering::common::render_table_markdown;
 use crate::types::Table;
 
 /// Processes a list environment (itemize, enumerate, or description).
@@ -74,20 +75,22 @@ pub(crate) fn process_list(content: &str, list_type: &str, output: &mut String) 
     output.push('\n');
 }
 
-/// Processes a tabular environment.
+/// Processes a `tabular`, `longtable`, `tabularx`, or `tabulary` environment.
 ///
-/// Converts LaTeX tables into markdown tables and creates Table structures.
+/// All four share the same `&`-separated cell / `\\`-terminated row grid; the
+/// column-spec argument syntax that differs between them is already stripped
+/// out by [`collect_environment`], and `longtable`'s page-break markers
+/// (`\endhead`, `\endfoot`, ...) are skipped via [`is_table_structural_line`].
+///
+/// Converts LaTeX tables into markdown tables (via the crate's canonical
+/// [`render_table_markdown`]) and creates `Table` structures.
 pub(crate) fn process_table(content: &str, output: &mut String, tables: &mut Vec<Table>) {
     let lines: Vec<&str> = content.lines().collect();
     let mut rows: Vec<Vec<String>> = Vec::new();
 
     for line in lines {
         let trimmed = line.trim();
-        if trimmed.starts_with("\\hline")
-            || trimmed.is_empty()
-            || trimmed.contains("\\begin{tabular}")
-            || trimmed.contains("\\end{tabular}")
-        {
+        if is_table_structural_line(trimmed) {
             continue;
         }
 
@@ -104,23 +107,7 @@ pub(crate) fn process_table(content: &str, output: &mut String, tables: &mut Vec
     }
 
     if !rows.is_empty() {
-        let mut markdown = String::new();
-        for (i, row) in rows.iter().enumerate() {
-            markdown.push('|');
-            for cell in row {
-                markdown.push_str(&format!(" {} |", cell));
-            }
-            markdown.push('\n');
-
-            if i == 0 && rows.len() > 1 {
-                markdown.push('|');
-                for _ in row {
-                    markdown.push_str(" --- |");
-                }
-                markdown.push('\n');
-            }
-        }
-
+        let markdown = render_table_markdown(&rows);
         output.push_str(&markdown);
 
         let table = Table {

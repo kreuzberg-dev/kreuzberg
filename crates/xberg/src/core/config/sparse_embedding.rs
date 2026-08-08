@@ -34,6 +34,11 @@ pub struct SparseEmbeddingConfig {
     pub max_length: usize,
 
     /// Show model download progress (local ONNX path only).
+    ///
+    /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+    /// `info` level on the `xberg::model_download` target while they download (#279). A warm
+    /// Hugging Face cache transfers nothing and so reports nothing. Ignored by
+    /// [`SparseEmbeddingModelType::Plugin`], which downloads no model.
     #[serde(default)]
     pub show_download_progress: bool,
 

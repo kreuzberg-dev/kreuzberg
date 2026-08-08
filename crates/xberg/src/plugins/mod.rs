@@ -92,12 +92,14 @@
 //!         let mut metadata = Metadata::default();
 //!         metadata.additional.insert("extracted_fields".to_string().into(), serde_json::json!(true));
 //!
-//!         Ok(ExtractedDocument {
-//!             content: extracted_text,
-//!             mime_type: std::borrow::Cow::Borrowed("application/json"),
-//!             metadata,
-//!             ..Default::default()
-//!         })
+//!         // `ExtractedDocument` has private internal fields, so a struct literal with
+//!         // `..Default::default()` does not compile outside the crate. Build a default
+//!         // and assign the public fields instead.
+//!         let mut document = ExtractedDocument::default();
+//!         document.content = extracted_text;
+//!         document.mime_type = std::borrow::Cow::Borrowed("application/json");
+//!         document.metadata = metadata;
+//!         Ok(document)
 //!     }
 //!
 //!     fn supported_mime_types(&self) -> &[&str] {

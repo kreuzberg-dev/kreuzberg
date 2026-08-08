@@ -3,6 +3,8 @@
 //! This module defines the internal data structures used to represent
 //! slide elements, formatting, and text runs during XML parsing.
 
+use ahash::AHashMap;
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct ElementPosition {
     pub(super) x: i64,
@@ -30,14 +32,33 @@ pub(super) struct Run {
     pub(super) formatting: Formatting,
     /// Relationship ID for a hyperlink attached to this run (`a:hlinkClick r:id`).
     pub(super) hyperlink_id: Option<String>,
+    /// LaTeX rendering of an OMML `m:oMath`/`m:oMathPara` element and whether it
+    /// was display math (`m:oMathPara`, `true`) or inline math (`m:oMath`, `false`).
+    /// When `Some`, `text` is empty and rendering must use `math_latex` instead.
+    pub(super) math_latex: Option<(String, bool)>,
 }
 
 impl Run {
     pub(super) fn extract(&self) -> String {
-        self.text.clone()
+        if let Some((ref latex, _)) = self.math_latex {
+            latex.clone()
+        } else {
+            self.text.clone()
+        }
     }
 
     pub(super) fn render_as_md(&self) -> String {
+        if let Some((ref latex, is_display)) = self.math_latex {
+            if latex.is_empty() {
+                return String::new();
+            }
+            return if is_display {
+                format!("$${}$$", latex)
+            } else {
+                format!("${}$", latex)
+            };
+        }
+
         let mut result = self.text.clone();
 
         if self.formatting.bold {
@@ -109,12 +130,39 @@ pub(super) struct HyperlinkReference {
     pub(super) url: String,
 }
 
+/// A `<c:chart>` graphic frame reference (`p:graphicFrame` with a chart
+/// `graphicData` payload). The chart part itself lives in a separate ZIP
+/// entry (e.g. `ppt/charts/chart1.xml`) resolved via `rel_id` against the
+/// slide's relationships.
+#[derive(Debug, Clone)]
+pub(super) struct ChartReference {
+    pub(super) rel_id: String,
+    /// Text recovered from the chart part (title, category and series
+    /// labels, data point values). `None` until resolved, or if resolution
+    /// failed or produced no text.
+    pub(super) resolved_text: Option<String>,
+}
+
+/// A `<dgm:relIds>` SmartArt/diagram graphic frame reference. The diagram
+/// data model lives in a separate ZIP entry (e.g. `ppt/diagrams/data1.xml`)
+/// resolved via `rel_id` (the `r:dm` relationship) against the slide's
+/// relationships.
+#[derive(Debug, Clone)]
+pub(super) struct DiagramReference {
+    pub(super) rel_id: String,
+    /// Text recovered from the diagram data part (one line per node).
+    /// `None` until resolved, or if resolution failed or produced no text.
+    pub(super) resolved_text: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub(super) enum SlideElement {
     Text(TextElement, ElementPosition),
     Table(TableElement, ElementPosition),
     Image(ImageReference, ElementPosition),
     List(ListElement, ElementPosition),
+    Chart(ChartReference, ElementPosition),
+    SmartArt(DiagramReference, ElementPosition),
     Unknown,
 }
 
@@ -124,7 +172,9 @@ impl SlideElement {
             SlideElement::Text(_, pos)
             | SlideElement::Table(_, pos)
             | SlideElement::Image(_, pos)
-            | SlideElement::List(_, pos) => *pos,
+            | SlideElement::List(_, pos)
+            | SlideElement::Chart(_, pos)
+            | SlideElement::SmartArt(_, pos) => *pos,
             SlideElement::Unknown => ElementPosition::default(),
         }
     }
@@ -137,6 +187,10 @@ pub(super) struct Slide {
     pub(super) images: Vec<ImageReference>,
     /// Hyperlink relationships resolved from the slide rels file.
     pub(super) hyperlinks: Vec<HyperlinkReference>,
+    /// All relationship IDs from the slide rels file mapped to their target,
+    /// regardless of relationship type. Used to resolve chart/SmartArt
+    /// `graphicData` references, which are not images or hyperlinks.
+    pub(super) rel_targets: AHashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]

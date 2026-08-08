@@ -21,13 +21,18 @@
 //! * [`citations`] and [`prompts`] are pure (`serde_json` + heuristics types).
 //! * [`rasterize`] and [`chunk`] require the `pdf` feature (PDF rendering + the
 //!   `image` crate).
-//! * [`schema`] requires the `presets` feature (which activates `jsonschema`).
+//! * [`schema`] and [`finalize`] require the `presets` feature (which activates
+//!   `jsonschema`); [`finalize`] composes [`schema::validate_and_merge`] with
+//!   [`citations::fuse`] into the schema-driven finalization step of the
+//!   structured-extraction path.
 
 pub mod citations;
 pub mod prompts;
 
 #[cfg(feature = "pdf")]
 pub mod chunk;
+#[cfg(feature = "presets")]
+pub mod finalize;
 #[cfg(feature = "pdf")]
 pub mod rasterize;
 #[cfg(feature = "presets")]

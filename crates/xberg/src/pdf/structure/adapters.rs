@@ -76,9 +76,15 @@ fn merge_ocr_block_paragraph(current: &mut types::PdfParagraph, next: types::Pdf
 }
 
 /// Convert unstructured OCR text into page paragraphs without inventing geometry.
+///
+/// Line endings are normalized first: OCR page text is not guaranteed to be LF-only.
+/// The VLM backend returns the model's markdown verbatim out of an HTTP JSON body
+/// (`crate::llm::vlm_ocr`), which routinely carries `\r\n`, and nothing on the way
+/// here rewrites it. Splitting raw would fold a whole page into one paragraph (#316).
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 pub(crate) fn ocr_text_to_paragraphs(text: &str) -> Vec<types::PdfParagraph> {
-    text.split("\n\n")
+    crate::extraction::transform::normalize_line_endings(text)
+        .split("\n\n")
         .map(str::trim)
         .filter(|paragraph| !paragraph.is_empty())
         .map(|paragraph| make_ocr_paragraph(paragraph.to_string(), Vec::new(), None))

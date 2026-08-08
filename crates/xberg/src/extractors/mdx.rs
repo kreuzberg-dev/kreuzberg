@@ -6,24 +6,19 @@
 //!
 //! Requires the `mdx` feature (which includes `pulldown-cmark`).
 
-use super::annotation_utils::adjust_annotations_for_trim;
-use super::frontmatter_utils::{extract_frontmatter, extract_metadata_from_yaml, extract_title_from_content};
+use super::frontmatter_utils::{
+    extract_frontmatter_with_warning, extract_metadata_from_yaml, extract_title_from_content,
+};
+use super::markdown::{MarkdownExtractor, markdown_options};
 use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
+use crate::types::Metadata;
 use crate::types::internal::InternalDocument;
-use crate::types::internal_builder::InternalDocumentBuilder;
-use crate::types::uri::{ExtractedUri, UriKind};
-use crate::types::{Metadata, Table};
 use async_trait::async_trait;
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, Parser};
 use regex::Regex;
 use std::sync::LazyLock;
-
-/// Annotation tracking entry: (kind_tag, byte_start, optional link data).
-///
-/// kind_tag: 0=bold, 1=italic, 2=strikethrough, 3=code, 4=link
-type AnnotationEntry = (u8, u32, Option<(String, Option<String>)>);
 
 /// Regex matching JSX component tags (capitalized tag names).
 /// Matches opening tags like `<Component prop="value">`, closing tags like `</Component>`,
@@ -36,6 +31,12 @@ static JSX_EXPR_LINE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\{.
 
 /// Regex matching inline JSX comments like `{/* ... */}`.
 static JSX_INLINE_COMMENT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s*\{/\*.*?\*/\}").unwrap());
+
+/// Regex matching inline JSX expressions embedded in prose, e.g. `The count is {count}
+/// today.` or a self-closing component's props left dangling after tag stripping. Must
+/// start with a JS-identifier character so it does not swallow Pandoc/Quarto heading-
+/// attribute or fenced-div syntax such as `{#id}` or `{.class}`. See issue #142.
+static INLINE_JSX_EXPR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{[A-Za-z_$][^{}]*\}").unwrap());
 
 /// MDX extractor with JSX stripping and Markdown processing.
 ///
@@ -114,503 +115,56 @@ impl MdxExtractor {
                 continue;
             }
 
+            // A standalone `{expression}` line is recorded as a raw JSX block before being
+            // dropped, rather than silently discarded. See #142.
+            //
+            // A JSX *comment* is excluded: it carries no document content, and recording it
+            // puts `{/* ... */}` straight back into the rendered output through the raw-block
+            // element — which is precisely what stripping exists to prevent.
             if JSX_EXPR_LINE_RE.is_match(trimmed) {
+                if let Some(ref mut blocks) = jsx_blocks
+                    && !JSX_INLINE_COMMENT_RE.replace_all(trimmed, "").trim().is_empty()
+                {
+                    blocks.push(trimmed.to_string());
+                }
                 continue;
             }
 
             let without_comments = JSX_INLINE_COMMENT_RE.replace_all(line, "");
 
+            // Component tags (with their props) are recorded as raw JSX blocks at match
+            // time, not only when stripping empties the whole line — an inline component
+            // such as `See <Chart data={data} type="line" /> below.` used to lose its props
+            // entirely because the surrounding prose kept the line non-empty. See #142.
+            if let Some(ref mut blocks) = jsx_blocks {
+                for m in JSX_TAG_RE.find_iter(&without_comments) {
+                    blocks.push(m.as_str().to_string());
+                }
+            }
+
             let processed = JSX_TAG_RE.replace_all(&without_comments, "");
             let processed_trimmed = processed.trim();
 
             if processed_trimmed.is_empty() && !trimmed.is_empty() {
-                if let Some(ref mut blocks) = jsx_blocks {
-                    let tags: Vec<String> = JSX_TAG_RE
-                        .find_iter(&without_comments)
-                        .map(|m| m.as_str().to_string())
-                        .collect();
-                    for tag in tags {
-                        blocks.push(tag);
-                    }
-                }
                 continue;
             }
+
+            // Inline JSX expressions left over in prose after tag/comment stripping (e.g.
+            // `The count is {count} today.`) are likewise recorded rather than dropped.
+            let processed = if let Some(ref mut blocks) = jsx_blocks {
+                for m in INLINE_JSX_EXPR_RE.find_iter(&processed) {
+                    blocks.push(m.as_str().to_string());
+                }
+                INLINE_JSX_EXPR_RE.replace_all(&processed, "")
+            } else {
+                processed
+            };
 
             result.push_str(&processed);
             result.push('\n');
         }
 
         result
-    }
-
-    /// Build an `InternalDocument` from pulldown-cmark events after JSX stripping.
-    ///
-    /// JSX blocks that were stripped are recorded as raw blocks in the internal document.
-    pub fn build_internal_document(
-        events: &[Event],
-        yaml: &Option<serde_yaml_ng::Value>,
-        raw_jsx_blocks: &[String],
-    ) -> InternalDocument {
-        use crate::types::builder;
-        use crate::types::document_structure::TextAnnotation;
-
-        let mut b = InternalDocumentBuilder::new("mdx");
-
-        if let Some(serde_yaml_ng::Value::Mapping(map)) = yaml {
-            let entries: Vec<(String, String)> = map
-                .iter()
-                .filter_map(|(k, v)| {
-                    let key = k.as_str()?.to_string();
-                    let val = match v {
-                        serde_yaml_ng::Value::String(s) => s.clone(),
-                        other => format!("{other:?}"),
-                    };
-                    Some((key, val))
-                })
-                .collect();
-            if !entries.is_empty() {
-                b.push_metadata_block(&entries, None);
-            }
-        }
-
-        for jsx in raw_jsx_blocks {
-            if !jsx.trim().is_empty() {
-                b.push_raw_block("jsx", jsx, None);
-            }
-        }
-
-        let mut paragraph_text = String::new();
-        let mut paragraph_annotations: Vec<TextAnnotation> = Vec::new();
-        let mut in_paragraph = false;
-        let mut heading_text = String::new();
-        let mut heading_annotations: Vec<TextAnnotation> = Vec::new();
-        let mut heading_level: u8 = 0;
-        let mut in_heading = false;
-        let mut code_text = String::new();
-        let mut code_lang: Option<String> = None;
-        let mut in_code_block = false;
-        let mut table_rows: Vec<Vec<String>> = Vec::new();
-        let mut current_row: Vec<String> = Vec::new();
-        let mut current_cell = String::new();
-        let mut in_table_cell = false;
-        let mut list_stack: Vec<bool> = Vec::new();
-        let mut list_item_text = String::new();
-        let mut list_item_annotations: Vec<TextAnnotation> = Vec::new();
-        let mut in_list_item = false;
-        let mut in_image = false;
-        let mut image_alt = String::new();
-        let mut image_url: Option<String> = None;
-        let mut image_counter: u32 = 0;
-        let mut footnote_def_label: Option<String> = None;
-        let mut footnote_def_text = String::new();
-
-        let mut annotation_starts: Vec<AnnotationEntry> = Vec::new();
-
-        /// Get the current length of the active text buffer as u32.
-        fn active_text_offset(buf: &str) -> u32 {
-            buf.len() as u32
-        }
-
-        for event in events {
-            match event {
-                Event::Start(Tag::Heading { level, .. }) => {
-                    heading_text.clear();
-                    heading_annotations.clear();
-                    annotation_starts.clear();
-                    heading_level = match *level {
-                        pulldown_cmark::HeadingLevel::H1 => 1,
-                        pulldown_cmark::HeadingLevel::H2 => 2,
-                        pulldown_cmark::HeadingLevel::H3 => 3,
-                        pulldown_cmark::HeadingLevel::H4 => 4,
-                        pulldown_cmark::HeadingLevel::H5 => 5,
-                        pulldown_cmark::HeadingLevel::H6 => 6,
-                    };
-                    in_heading = true;
-                }
-                Event::End(TagEnd::Heading(_)) => {
-                    in_heading = false;
-                    let trimmed = heading_text.trim();
-                    if !trimmed.is_empty() {
-                        let annotations = adjust_annotations_for_trim(
-                            std::mem::take(&mut heading_annotations),
-                            &heading_text,
-                            trimmed,
-                        );
-                        let idx = b.push_heading(heading_level, trimmed, None, None);
-                        if !annotations.is_empty() {
-                            b.set_annotations(idx, annotations);
-                        }
-                    }
-                    heading_text.clear();
-                    heading_annotations.clear();
-                }
-                Event::Start(Tag::Paragraph) if !in_heading && !in_list_item && footnote_def_label.is_none() => {
-                    paragraph_text.clear();
-                    paragraph_annotations.clear();
-                    in_paragraph = true;
-                }
-                Event::End(TagEnd::Paragraph) if in_paragraph => {
-                    in_paragraph = false;
-                    let trimmed = paragraph_text.trim();
-                    if !trimmed.is_empty() {
-                        let annotations = adjust_annotations_for_trim(
-                            std::mem::take(&mut paragraph_annotations),
-                            &paragraph_text,
-                            trimmed,
-                        );
-                        b.push_paragraph(trimmed, annotations, None, None);
-                    }
-                    paragraph_text.clear();
-                    paragraph_annotations.clear();
-                }
-                Event::Start(Tag::Strong) => {
-                    if in_paragraph {
-                        annotation_starts.push((0, active_text_offset(&paragraph_text), None));
-                    } else if in_heading {
-                        annotation_starts.push((0, active_text_offset(&heading_text), None));
-                    } else if in_list_item {
-                        annotation_starts.push((0, active_text_offset(&list_item_text), None));
-                    }
-                }
-                Event::End(TagEnd::Strong) => {
-                    if let Some(i) = annotation_starts.iter().rposition(|(k, _, _)| *k == 0) {
-                        let (_, start, _) = annotation_starts.remove(i);
-                        if in_paragraph {
-                            let end = active_text_offset(&paragraph_text);
-                            if start < end {
-                                paragraph_annotations.push(builder::bold(start, end));
-                            }
-                        } else if in_heading {
-                            let end = active_text_offset(&heading_text);
-                            if start < end {
-                                heading_annotations.push(builder::bold(start, end));
-                            }
-                        } else if in_list_item {
-                            let end = active_text_offset(&list_item_text);
-                            if start < end {
-                                list_item_annotations.push(builder::bold(start, end));
-                            }
-                        }
-                    }
-                }
-                Event::Start(Tag::Emphasis) => {
-                    if in_paragraph {
-                        annotation_starts.push((1, active_text_offset(&paragraph_text), None));
-                    } else if in_heading {
-                        annotation_starts.push((1, active_text_offset(&heading_text), None));
-                    } else if in_list_item {
-                        annotation_starts.push((1, active_text_offset(&list_item_text), None));
-                    }
-                }
-                Event::End(TagEnd::Emphasis) => {
-                    if let Some(i) = annotation_starts.iter().rposition(|(k, _, _)| *k == 1) {
-                        let (_, start, _) = annotation_starts.remove(i);
-                        if in_paragraph {
-                            let end = active_text_offset(&paragraph_text);
-                            if start < end {
-                                paragraph_annotations.push(builder::italic(start, end));
-                            }
-                        } else if in_heading {
-                            let end = active_text_offset(&heading_text);
-                            if start < end {
-                                heading_annotations.push(builder::italic(start, end));
-                            }
-                        } else if in_list_item {
-                            let end = active_text_offset(&list_item_text);
-                            if start < end {
-                                list_item_annotations.push(builder::italic(start, end));
-                            }
-                        }
-                    }
-                }
-                Event::Start(Tag::Strikethrough) => {
-                    if in_paragraph {
-                        annotation_starts.push((2, active_text_offset(&paragraph_text), None));
-                    } else if in_heading {
-                        annotation_starts.push((2, active_text_offset(&heading_text), None));
-                    } else if in_list_item {
-                        annotation_starts.push((2, active_text_offset(&list_item_text), None));
-                    }
-                }
-                Event::End(TagEnd::Strikethrough) => {
-                    if let Some(i) = annotation_starts.iter().rposition(|(k, _, _)| *k == 2) {
-                        let (_, start, _) = annotation_starts.remove(i);
-                        if in_paragraph {
-                            let end = active_text_offset(&paragraph_text);
-                            if start < end {
-                                paragraph_annotations.push(builder::strikethrough(start, end));
-                            }
-                        } else if in_heading {
-                            let end = active_text_offset(&heading_text);
-                            if start < end {
-                                heading_annotations.push(builder::strikethrough(start, end));
-                            }
-                        } else if in_list_item {
-                            let end = active_text_offset(&list_item_text);
-                            if start < end {
-                                list_item_annotations.push(builder::strikethrough(start, end));
-                            }
-                        }
-                    }
-                }
-                Event::Start(Tag::Link { dest_url, title, .. }) => {
-                    let url = dest_url.to_string();
-                    let title_opt = if title.is_empty() {
-                        None
-                    } else {
-                        Some(title.to_string())
-                    };
-                    if in_paragraph {
-                        annotation_starts.push((4, active_text_offset(&paragraph_text), Some((url, title_opt))));
-                    } else if in_heading {
-                        annotation_starts.push((4, active_text_offset(&heading_text), Some((url, title_opt))));
-                    } else if in_list_item {
-                        annotation_starts.push((4, active_text_offset(&list_item_text), Some((url, title_opt))));
-                    }
-                }
-                Event::End(TagEnd::Link) => {
-                    if let Some(i) = annotation_starts.iter().rposition(|(k, _, _)| *k == 4) {
-                        let (_, start, link_data) = annotation_starts.remove(i);
-                        if let Some((url, title)) = link_data {
-                            if in_paragraph {
-                                let end = active_text_offset(&paragraph_text);
-                                if start < end {
-                                    paragraph_annotations.push(builder::link(start, end, &url, title.as_deref()));
-                                }
-                            } else if in_heading {
-                                let end = active_text_offset(&heading_text);
-                                if start < end {
-                                    heading_annotations.push(builder::link(start, end, &url, title.as_deref()));
-                                }
-                            } else if in_list_item {
-                                let end = active_text_offset(&list_item_text);
-                                if start < end {
-                                    list_item_annotations.push(builder::link(start, end, &url, title.as_deref()));
-                                }
-                            }
-                            if !url.is_empty() {
-                                b.push_uri(ExtractedUri::hyperlink(&url, title));
-                            }
-                        }
-                    }
-                }
-                Event::Start(Tag::CodeBlock(pulldown_cmark::CodeBlockKind::Fenced(lang))) => {
-                    code_text.clear();
-                    code_lang = if lang.is_empty() { None } else { Some(lang.to_string()) };
-                    in_code_block = true;
-                }
-                Event::Start(Tag::CodeBlock(_)) => {
-                    code_text.clear();
-                    code_lang = None;
-                    in_code_block = true;
-                }
-                Event::End(TagEnd::CodeBlock) => {
-                    in_code_block = false;
-                    let trimmed = code_text.trim_end();
-                    if !trimmed.is_empty() {
-                        b.push_code(trimmed, code_lang.as_deref(), None, None);
-                    }
-                    code_text.clear();
-                    code_lang = None;
-                }
-                Event::Start(Tag::BlockQuote(_)) => {
-                    b.push_quote_start();
-                }
-                Event::End(TagEnd::BlockQuote(_)) => {
-                    b.push_quote_end();
-                }
-                Event::Start(Tag::List(start)) => {
-                    let ordered = start.is_some();
-                    b.push_list(ordered);
-                    list_stack.push(ordered);
-                }
-                Event::End(TagEnd::List(_)) if list_stack.pop().is_some() => {
-                    b.end_list();
-                }
-                Event::Start(Tag::Item) => {
-                    list_item_text.clear();
-                    list_item_annotations.clear();
-                    annotation_starts.clear();
-                    in_list_item = true;
-                }
-                Event::End(TagEnd::Item) => {
-                    in_list_item = false;
-                    let trimmed = list_item_text.trim();
-                    if let Some(ordered) = list_stack.last().copied()
-                        && !trimmed.is_empty()
-                    {
-                        let annotations = adjust_annotations_for_trim(
-                            std::mem::take(&mut list_item_annotations),
-                            &list_item_text,
-                            trimmed,
-                        );
-                        b.push_list_item(trimmed, ordered, annotations, None, None);
-                    }
-                    list_item_text.clear();
-                    list_item_annotations.clear();
-                }
-                Event::Start(Tag::Table(_)) => {
-                    table_rows.clear();
-                }
-                Event::End(TagEnd::Table) => {
-                    if !table_rows.is_empty() {
-                        let markdown = super::frontmatter_utils::cells_to_markdown(&table_rows);
-                        let table = Table {
-                            cells: std::mem::take(&mut table_rows),
-                            markdown,
-                            page_number: 1,
-                            bounding_box: None,
-                            ..Default::default()
-                        };
-                        b.push_table(table, None, None);
-                    }
-                    table_rows.clear();
-                }
-                Event::Start(Tag::TableHead | Tag::TableRow) => {
-                    current_row.clear();
-                }
-                Event::End(TagEnd::TableHead | TagEnd::TableRow) if !current_row.is_empty() => {
-                    table_rows.push(std::mem::take(&mut current_row));
-                }
-                Event::Start(Tag::TableCell) => {
-                    current_cell.clear();
-                    in_table_cell = true;
-                }
-                Event::End(TagEnd::TableCell) => {
-                    in_table_cell = false;
-                    current_row.push(current_cell.trim().to_string());
-                    current_cell.clear();
-                }
-                Event::Start(Tag::Image { dest_url, .. }) => {
-                    in_image = true;
-                    image_alt.clear();
-                    image_url = Some(dest_url.to_string());
-                }
-                Event::End(TagEnd::Image) => {
-                    in_image = false;
-                    let trimmed = image_alt.trim();
-                    let desc = if trimmed.is_empty() { None } else { Some(trimmed) };
-
-                    let url = image_url.take().filter(|u| !u.is_empty());
-                    let decoded_image = url
-                        .as_deref()
-                        .filter(|u| u.starts_with("data:image/"))
-                        .and_then(|u| crate::extractors::markdown_utils::decode_data_uri_image(u, image_counter));
-
-                    // Data-URI images are decoded here so the builder can emit an
-                    // `ElementKind::Image` whose `image_index` actually resolves in `doc.images`.
-                    // Plain-URL images have no bytes to attach, and a placeholder element with an
-                    // unresolvable index is silently dropped by every renderer, so their
-                    // reference is preserved as visible text instead. ~keep
-                    if let Some(mut image) = decoded_image {
-                        image_counter += 1;
-                        image.description = desc.map(str::to_string);
-                        b.push_image(desc, image, None, None);
-                    } else {
-                        let display = match (&url, desc) {
-                            (Some(u), Some(d)) => format!("[Image: {d} ({u})]"),
-                            (Some(u), None) => format!("[Image: {u}]"),
-                            (None, Some(d)) => format!("[Image: {d}]"),
-                            (None, None) => String::new(),
-                        };
-                        if !display.is_empty() {
-                            b.push_paragraph(&display, vec![], None, None);
-                        }
-                    }
-
-                    if let Some(url) = url {
-                        b.push_uri(ExtractedUri {
-                            url,
-                            label: desc.map(str::to_string),
-                            page: None,
-                            kind: UriKind::Image,
-                        });
-                    }
-                    image_alt.clear();
-                }
-                Event::Start(Tag::FootnoteDefinition(label)) => {
-                    footnote_def_label = Some(label.to_string());
-                    footnote_def_text.clear();
-                }
-                Event::End(TagEnd::FootnoteDefinition) => {
-                    if let Some(label) = footnote_def_label.take() {
-                        let text = footnote_def_text.trim().to_string();
-                        if !text.is_empty() {
-                            b.push_footnote_definition(&text, &label, None);
-                        }
-                    }
-                    footnote_def_text.clear();
-                }
-                Event::Code(s) => {
-                    if in_code_block {
-                        code_text.push_str(s);
-                    } else if in_heading {
-                        heading_text.push_str(s);
-                    } else if in_image {
-                        image_alt.push_str(s);
-                    } else if in_table_cell {
-                        current_cell.push_str(s);
-                    } else if in_list_item {
-                        list_item_text.push_str(s);
-                    } else if footnote_def_label.is_some() {
-                        footnote_def_text.push_str(s);
-                    } else if in_paragraph {
-                        let start = paragraph_text.len() as u32;
-                        paragraph_text.push_str(s);
-                        let end = paragraph_text.len() as u32;
-                        if start < end {
-                            paragraph_annotations.push(builder::code(start, end));
-                        }
-                    }
-                }
-                Event::Text(s) => {
-                    if in_code_block {
-                        code_text.push_str(s);
-                    } else if in_heading {
-                        heading_text.push_str(s);
-                    } else if in_image {
-                        image_alt.push_str(s);
-                    } else if in_table_cell {
-                        current_cell.push_str(s);
-                    } else if in_list_item {
-                        list_item_text.push_str(s);
-                    } else if footnote_def_label.is_some() {
-                        footnote_def_text.push_str(s);
-                    } else if in_paragraph {
-                        paragraph_text.push_str(s);
-                    }
-                }
-                Event::SoftBreak | Event::HardBreak => {
-                    if in_code_block {
-                        code_text.push('\n');
-                    } else if in_heading {
-                        heading_text.push(' ');
-                    } else if in_list_item {
-                        list_item_text.push(' ');
-                    } else if footnote_def_label.is_some() {
-                        footnote_def_text.push(' ');
-                    } else if in_paragraph {
-                        paragraph_text.push(' ');
-                    }
-                }
-                Event::FootnoteReference(name) => {
-                    b.push_footnote_ref(name, name, None);
-                }
-                Event::Html(s) => {
-                    if footnote_def_label.is_some() {
-                        footnote_def_text.push_str(s);
-                    } else if in_paragraph {
-                        paragraph_text.push_str(s);
-                    }
-                }
-                Event::TaskListMarker(checked) if in_list_item => {
-                    list_item_text.push_str(if *checked { "[x] " } else { "[ ] " });
-                }
-                _ => {}
-            }
-        }
-
-        b.build()
     }
 }
 
@@ -671,7 +225,7 @@ impl InternalDocumentExtractor for MdxExtractor {
         let _ = config;
         let text = String::from_utf8_lossy(content).into_owned();
 
-        let (yaml, remaining_content) = extract_frontmatter(&text);
+        let (yaml, remaining_content, frontmatter_warning) = extract_frontmatter_with_warning(&text);
 
         let mut metadata = if let Some(ref yaml_value) = yaml {
             extract_metadata_from_yaml(yaml_value)
@@ -688,19 +242,23 @@ impl InternalDocumentExtractor for MdxExtractor {
             metadata.title = Some(title);
         }
 
-        let mut options = Options::ENABLE_TABLES;
-        options |= Options::ENABLE_STRIKETHROUGH | Options::ENABLE_FOOTNOTES;
-        let parser = Parser::new_ext(&clean_markdown, options);
+        // Use the same full pulldown-cmark option set as the Markdown extractor (issue
+        // #123) — previously MDX enabled only tables/strikethrough/footnotes, so math, GFM
+        // alerts, definition lists, task lists, super/subscript, heading attributes, smart
+        // punctuation, and wikilinks were all silently unsupported in `.mdx` files.
+        let parser = Parser::new_ext(&clean_markdown, markdown_options());
         let events: Vec<Event> = parser.collect();
 
         let raw_jsx = jsx_blocks_buf.unwrap_or_default();
 
-        // Images (including data-URI decoding) are handled in-line inside
-        // `build_internal_document`, which pushes a correctly-indexed image element for each
-        // one, so no separate extraction/push pass is needed here.
-        let mut doc = Self::build_internal_document(&events, &yaml, &raw_jsx);
+        // Images (including data-URI decoding) and every other event kind are handled by the
+        // single shared builder also used by the Markdown extractor (issue #273) — this used
+        // to be a ~470-line copy-paste fork that had drifted and silently dropped math,
+        // inline HTML, superscript/subscript, and definition lists in `.mdx` files.
+        let mut doc = MarkdownExtractor::build_internal_document_with_jsx(&events, &yaml, &raw_jsx);
         doc.mime_type = mime_type.to_string();
         doc.metadata = metadata;
+        doc.processing_warnings.extend(frontmatter_warning);
 
         Ok(doc)
     }

@@ -16,6 +16,7 @@
 //! - `DELETE /cache/clear` - Clear all cached files
 //! - `PUT /process` - OpenWebUI "External" engine compatibility
 //! - `POST /v1/convert/file` - OpenWebUI "Docling" engine compatibility (docling-serve drop-in)
+//! - `GET /metrics` - Prometheus text-format extraction metrics (requires the `prometheus` feature)
 //!
 //! # Examples
 //!

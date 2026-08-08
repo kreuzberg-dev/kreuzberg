@@ -15,6 +15,12 @@ mod types;
 
 pub use types::{ListItemMetadata, ListType};
 
+/// Re-exported for extractors that build an `InternalDocument` themselves and so never
+/// reach this module's paragraph splitter — they still have to normalize line endings
+/// before splitting on `"\n\n"`, and must use this exact algorithm to stay consistent
+/// with the transform path (#227).
+pub(crate) use elements::normalize_line_endings;
+
 use crate::types::internal::{ElementKind, InternalDocument};
 use crate::types::{Element, ExtractedDocument};
 use content::{

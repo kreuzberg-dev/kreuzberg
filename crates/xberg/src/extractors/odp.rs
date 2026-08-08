@@ -14,16 +14,23 @@
 //! [`pre_extract_formulas`], [`extract_table_cells`]). Only the outer
 //! slide → frame traversal and slide markers are ODP-specific.
 //!
+//! A slide's drawing content can also be a `draw:custom-shape` (and other
+//! shape kinds) or a `draw:g` group holding further frames/shapes nested to
+//! arbitrary depth — [`process_page_object`] recurses through all of that.
+//!
 //! Speaker notes (`presentation:notes`, a sibling of the drawing frames inside
-//! each `draw:page`) are intentionally excluded from slide body text: the
-//! traversal walks the page's *direct-child* `draw:frame` elements only, never
-//! `descendants()`, so notes text boxes are not folded into the slide content.
+//! each `draw:page`) are extracted separately from slide body text: the main
+//! traversal walks the page's *direct-child* `draw:frame`/`draw:g` elements
+//! only, never `descendants()`, so notes are never folded into slide content;
+//! [`extract_odp_notes_text`] handles the `presentation:notes` sibling on its
+//! own and the result lands as a distinct raw block.
 
 use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::extraction::office_metadata;
 use crate::extractors::odt::{
-    build_internal_elements, build_style_map, extract_table_cells, pre_extract_formulas, pre_extract_images,
+    build_internal_elements, build_list_style_map, build_style_map, extract_table_cells, pre_extract_formulas,
+    pre_extract_images,
 };
 use crate::extractors::security::SecurityBudget;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
@@ -106,7 +113,13 @@ fn build_internal_document(
                 .map_err(|e| crate::error::XbergError::parsing(format!("Failed to read content.xml: {}", e)))?;
         }
         Err(_) => {
-            return Ok(InternalDocumentBuilder::new("odp").build());
+            // Same defect as ODT's (#112), in the sibling extractor: a ZIP without
+            // content.xml is not an ODF document at all, so returning `Ok` with an
+            // empty document tells the caller "this is the presentation" for
+            // something that isn't one. Fail loudly instead.
+            return Err(crate::error::XbergError::parsing(
+                "ODP archive is missing content.xml; this is not a valid OpenDocument Presentation file",
+            ));
         }
     }
 
@@ -115,6 +128,7 @@ fn build_internal_document(
 
     let root = doc.root_element();
     let style_map = build_style_map(root);
+    let list_style_map = build_list_style_map(root);
     let mut builder = InternalDocumentBuilder::new("odp");
 
     // Presentations carry no tracked changes; feed the shared ODT walker empty
@@ -134,43 +148,195 @@ fn build_internal_document(
                     .or_else(|| page.attribute("draw:name"));
                 builder.push_slide(slide_number, slide_name, None);
 
-                // Direct-child frames only — never descendants — so the sibling
-                // `presentation:notes` frames are not pulled into slide text. ~keep
-                for frame in page.children().filter(|n| n.tag_name().name() == "frame") {
-                    for object in frame.children() {
-                        match object.tag_name().name() {
-                            "text-box" => {
-                                build_internal_elements(
-                                    object,
-                                    &mut builder,
-                                    &style_map,
-                                    &image_data,
-                                    &formula_data,
-                                    budget,
-                                    &empty_changes,
-                                    &mut revisions,
-                                )?;
-                            }
-                            "table" => {
-                                let cells = extract_table_cells(object);
-                                if !cells.is_empty() {
-                                    let cell_count: usize = cells.iter().map(|row| row.len()).sum();
-                                    budget.add_cells(cell_count)?;
-                                    builder.push_table_from_cells(&cells, None, None);
-                                }
-                            }
-                            "image" => {
-                                push_frame_image(object, &image_data, &mut builder);
-                            }
-                            _ => {}
-                        }
+                // Direct-child frames/groups only — never descendants — so the
+                // sibling `presentation:notes` element is not pulled into
+                // slide text; `process_page_object` recurses into `draw:g`
+                // (and nested frames within it) on its own (#116). ~keep
+                for page_child in page.children() {
+                    if matches!(page_child.tag_name().name(), "frame" | "g") {
+                        process_page_object(
+                            page_child,
+                            &mut builder,
+                            &style_map,
+                            &list_style_map,
+                            &image_data,
+                            &formula_data,
+                            budget,
+                            &empty_changes,
+                            &mut revisions,
+                        )?;
                     }
+                }
+
+                // Speaker notes (`presentation:notes`, #95): a sibling of the
+                // slide's drawing frames, deliberately not visited by the loop
+                // above. Flattened to a raw block (rather than folded into
+                // slide body text) so it stays distinguishable from what's
+                // actually shown on the slide.
+                if let Some(notes_text) = page
+                    .children()
+                    .find(|n| n.tag_name().name() == "notes")
+                    .and_then(extract_odp_notes_text)
+                {
+                    builder.push_raw_block("odp-speaker-notes", &notes_text, Some(slide_number));
                 }
             }
         }
     }
 
+    extract_odp_master_page_text(archive, &mut builder);
+
     Ok(builder.build())
+}
+
+/// Process one drawing object reached from a slide page: a `draw:frame`
+/// (unwrapped to its content), a `draw:g` group (recursed into, arbitrarily
+/// nested, #116), or a bare shape/table/image/object.
+///
+/// Shapes other than `draw:frame > draw:text-box` (custom shapes, rectangles,
+/// ellipses, lines, connectors, ...) can carry their own `text:p` content
+/// directly and were previously invisible to this walker entirely (#116).
+#[allow(clippy::too_many_arguments)]
+fn process_page_object(
+    node: roxmltree::Node,
+    builder: &mut InternalDocumentBuilder,
+    style_map: &AHashMap<String, crate::extractors::odt::OdtStyleProps>,
+    list_style_map: &AHashMap<String, bool>,
+    image_data: &AHashMap<String, (Vec<u8>, String)>,
+    formula_data: &AHashMap<String, String>,
+    budget: &mut SecurityBudget,
+    empty_changes: &AHashMap<String, crate::extractors::odt::OdtChangeRegion>,
+    revisions: &mut Vec<crate::types::revisions::DocumentRevision>,
+) -> crate::error::Result<()> {
+    match node.tag_name().name() {
+        "frame" | "g" => {
+            for child in node.children() {
+                process_page_object(
+                    child,
+                    builder,
+                    style_map,
+                    list_style_map,
+                    image_data,
+                    formula_data,
+                    budget,
+                    empty_changes,
+                    revisions,
+                )?;
+            }
+        }
+        "text-box" | "custom-shape" | "rect" | "ellipse" | "circle" | "line" | "polygon" | "polyline" | "path"
+        | "connector" | "regular-polygon" | "measure" => {
+            build_internal_elements(
+                node,
+                builder,
+                style_map,
+                list_style_map,
+                image_data,
+                formula_data,
+                budget,
+                empty_changes,
+                revisions,
+            )?;
+        }
+        "table" => {
+            let cells = extract_table_cells(node);
+            if !cells.is_empty() {
+                let cell_count: usize = cells.iter().map(|row| row.len()).sum();
+                budget.add_cells(cell_count)?;
+                builder.push_table_from_cells(&cells, None, None);
+            }
+        }
+        "image" => {
+            push_frame_image(node, image_data, builder);
+        }
+        "object" | "object-ole" => {
+            // An embedded object (#116): a MathML formula resolves through
+            // the same lookup ODT uses; anything else (e.g. an embedded
+            // spreadsheet) cannot be turned into text by this extractor, so
+            // its loss must be surfaced rather than silently dropped, per
+            // the extractor-warning convention in `core::diagnostics`.
+            let href = node
+                .attribute((XLINK_NS, "href"))
+                .or_else(|| node.attribute("xlink:href"));
+            let resolved = href.and_then(|h| formula_data.get(h.trim_start_matches("./")));
+            if let Some(formula_text) = resolved {
+                builder.push_formula(formula_text, None, None);
+            } else {
+                let message = match href {
+                    Some(h) => format!("Embedded object '{h}' is not a formula and could not be extracted as text"),
+                    None => "An embedded object could not be extracted as text".to_string(),
+                };
+                builder.add_warning(crate::core::diagnostics::warning("odp", message));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Flatten a `presentation:notes` element's slide-like body into plain text
+/// for a raw block (#95). Notes share the same `draw:page`-style shape
+/// (`draw:frame > draw:text-box > text:p`) as the slide itself.
+fn extract_odp_notes_text(notes: roxmltree::Node) -> Option<String> {
+    let mut paragraphs = Vec::new();
+    for frame in notes.descendants().filter(|n| n.tag_name().name() == "frame") {
+        for text_box in frame.children().filter(|n| n.tag_name().name() == "text-box") {
+            for p in text_box.children().filter(|n| matches!(n.tag_name().name(), "p" | "h")) {
+                if let Some(text) = crate::extractors::odt::extract_node_text(p) {
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        paragraphs.push(trimmed.to_string());
+                    }
+                }
+            }
+        }
+    }
+    if paragraphs.is_empty() {
+        None
+    } else {
+        Some(paragraphs.join("\n"))
+    }
+}
+
+/// Extract any static text from `styles.xml`'s `style:master-page` elements
+/// (#116) — slide masters commonly carry footer/placeholder text applied to
+/// every slide that uses them, which was previously never visited by this
+/// extractor.
+fn extract_odp_master_page_text(archive: &mut zip::ZipArchive<Cursor<Vec<u8>>>, builder: &mut InternalDocumentBuilder) {
+    use std::io::Read;
+
+    let mut styles_xml = String::new();
+    let Ok(mut file) = archive.by_name("styles.xml") else {
+        return;
+    };
+    if file.read_to_string(&mut styles_xml).is_err() {
+        return;
+    }
+    let Ok(doc) = Document::parse(&styles_xml) else {
+        return;
+    };
+
+    for master_page in doc
+        .root_element()
+        .descendants()
+        .filter(|n| n.tag_name().name() == "master-page")
+    {
+        let mut paragraphs = Vec::new();
+        for p in master_page
+            .descendants()
+            .filter(|n| matches!(n.tag_name().name(), "p" | "h"))
+        {
+            if let Some(text) = crate::extractors::odt::extract_node_text(p) {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    paragraphs.push(trimmed.to_string());
+                }
+            }
+        }
+        if !paragraphs.is_empty() {
+            builder.push_raw_block("odp-master-page", &paragraphs.join("\n"), None);
+        }
+    }
 }
 
 /// Resolve a `draw:image`'s referenced bytes from the pre-extracted image map

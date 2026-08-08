@@ -80,40 +80,64 @@ fn extract_vt_value(node: roxmltree::Node) -> Option<Value> {
     for child in node.children().filter(|n| n.is_element()) {
         let tag = child.tag_name().name();
 
-        match tag {
-            "lpwstr" | "lpstr" => {
-                return child.text().map(|s| Value::String(s.to_string()));
-            }
-            "i4" => {
-                return child
-                    .text()
-                    .and_then(|s| s.trim().parse::<i64>().ok().map(|n| Value::Number(n.into())));
-            }
-            "r8" => {
-                return child.text().and_then(|s| {
-                    s.trim()
-                        .parse::<f64>()
-                        .ok()
-                        .and_then(|f| serde_json::Number::from_f64(f).map(Value::Number))
-                });
-            }
-            "bool" => {
-                return child.text().and_then(|s| match s.trim().to_lowercase().as_str() {
-                    "true" | "1" => Some(Value::Bool(true)),
-                    "false" | "0" => Some(Value::Bool(false)),
-                    _ => None,
-                });
-            }
-            "filetime" => {
-                return child.text().map(|s| Value::String(s.to_string()));
-            }
-            _ => {
-                continue;
-            }
+        if tag == "vector" {
+            return Some(extract_vt_vector_value(child));
+        }
+
+        if let Some(value) = convert_vt_scalar(tag, child) {
+            return Some(value);
         }
     }
 
     None
+}
+
+/// Convert a single scalar VT element (`tag` is its local name, e.g. `"i4"`) to a JSON value.
+///
+/// Returns `None` for unrecognized tags or unparsable text, letting the caller decide how
+/// to treat that (fall through to the next child, or skip the vector element).
+fn convert_vt_scalar(tag: &str, child: roxmltree::Node) -> Option<Value> {
+    match tag {
+        "lpwstr" | "lpstr" => child.text().map(|s| Value::String(s.to_string())),
+        "i4" | "i8" | "i1" | "i2" | "int" => child
+            .text()
+            .and_then(|s| s.trim().parse::<i64>().ok())
+            .map(|n| Value::Number(n.into())),
+        "ui1" | "ui2" | "ui4" | "ui8" | "uint" => child
+            .text()
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .map(|n| Value::Number(n.into())),
+        "r4" | "r8" | "decimal" | "cy" => child.text().and_then(|s| {
+            s.trim()
+                .parse::<f64>()
+                .ok()
+                .and_then(|f| serde_json::Number::from_f64(f).map(Value::Number))
+        }),
+        "bool" => child.text().and_then(|s| match s.trim().to_lowercase().as_str() {
+            "true" | "1" => Some(Value::Bool(true)),
+            "false" | "0" => Some(Value::Bool(false)),
+            _ => None,
+        }),
+        // filetime/date/clsid/error/bstr are represented as opaque strings: filetime and
+        // date are ISO 8601 timestamps, clsid is a GUID, error is a numeric HRESULT string.
+        "filetime" | "date" | "clsid" | "error" | "bstr" => child.text().map(|s| Value::String(s.to_string())),
+        _ => None,
+    }
+}
+
+/// Extract a `vt:vector` element into a JSON array.
+///
+/// Each child of the vector carries its own VT type tag (per the OOXML docPropsVTypes
+/// schema); unrecognized or unparsable entries are omitted rather than aborting the
+/// whole vector.
+fn extract_vt_vector_value(vector_node: roxmltree::Node) -> Value {
+    let values: Vec<Value> = vector_node
+        .children()
+        .filter(|n| n.is_element())
+        .filter_map(|item| convert_vt_scalar(item.tag_name().name(), item))
+        .collect();
+
+    Value::Array(values)
 }
 
 #[cfg(test)]

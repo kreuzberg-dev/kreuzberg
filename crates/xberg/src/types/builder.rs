@@ -6,7 +6,11 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! Not run as a doctest: the builder's constructor and `push_*` / `build` methods are
+//! `pub(crate)` — it is the in-crate API extractors build trees with. Downstream crates
+//! consume the finished [`super::document_structure::DocumentStructure`] instead.
+//!
+//! ```ignore
 //! use xberg::types::builder::DocumentStructureBuilder;
 //!
 //! let mut b = DocumentStructureBuilder::new();

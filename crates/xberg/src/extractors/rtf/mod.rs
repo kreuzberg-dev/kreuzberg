@@ -33,6 +33,9 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use std::borrow::Cow;
 
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+const RTF_WARNING_SOURCE: &str = "rtf";
+
 /// Native Rust RTF extractor.
 ///
 /// Extracts text content, metadata, and structure from RTF documents
@@ -323,6 +326,17 @@ impl InternalDocumentExtractor for RtfExtractor {
             .and_then(|v| v.as_str().map(|s| s.to_string()));
 
         let mut doc = Self::build_internal_document(&rtf_content, plain);
+
+        // `from_utf8_lossy` above already replaced every undecodable byte with U+FFFD.
+        // RTF producers routinely emit raw 8-bit bytes instead of `\'hh` escapes, so this
+        // is a real and common way for characters to disappear without any error (#171).
+        if std::str::from_utf8(content).is_err() {
+            crate::core::diagnostics::push_lossy_decode_warning(
+                &mut doc.processing_warnings,
+                RTF_WARNING_SOURCE,
+                "RTF source",
+            );
+        }
 
         if let Some(ref filter) = config.content_filter {
             use crate::types::document_structure::ContentLayer;

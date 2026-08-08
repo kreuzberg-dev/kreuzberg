@@ -15,6 +15,11 @@
 //!   `crate::model_download`.
 //! - [`llm::LlmBackend`] under `#[cfg(feature = "ner-llm")]` — liter-llm with a
 //!   structured-output schema. Used when categories outstrip the ONNX taxonomy.
+//!
+//! Every backend has a bounded input length, so both bundled backends window
+//! long input through [`offsets::split_into_windows`] rather than letting the
+//! model silently truncate — an undetected entity is PII that never gets
+//! redacted (xberg-io/xberg#262).
 
 #![cfg(feature = "ner")]
 
@@ -25,6 +30,7 @@ pub mod candle;
 pub mod gline;
 #[cfg(all(feature = "ner-llm", not(all(target_os = "android", target_arch = "x86_64"))))]
 pub mod llm;
+pub mod offsets;
 
 pub use backend::NerBackend;
 
@@ -99,8 +105,9 @@ pub fn manifest() -> Vec<gline::GlinerManifestEntry> {
 ///
 /// ```rust,no_run
 /// use xberg::types::entity::EntityCategory;
-/// use xberg::text::ner::{detect_entities, LlmBackend};
+/// use xberg::text::ner::detect_entities;
 /// use xberg::core::config::LlmConfig;
+/// use xberg::LlmBackend;
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let backend = LlmBackend::new(LlmConfig::default());

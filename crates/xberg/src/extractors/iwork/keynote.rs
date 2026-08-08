@@ -3,11 +3,12 @@
 use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::extractors::iwork::{
-    IwaExpansionBudget, dedup_text, extract_metadata_from_zip, extract_text_from_proto, read_iwa_file,
-    validate_iwork_zip,
+    IwaExpansionBudget, dedup_text, extract_metadata_from_zip, extract_text_from_proto, push_member_parse_warning,
+    read_iwa_file, validate_iwork_zip,
 };
 use crate::extractors::security::{SecurityBudget, SecurityLimits};
 use crate::plugins::{InternalDocumentExtractor, Plugin};
+use crate::types::ProcessingWarning;
 use crate::types::internal::InternalDocument;
 use crate::types::internal_builder::InternalDocumentBuilder;
 use async_trait::async_trait;
@@ -67,6 +68,8 @@ struct KeynoteData {
     other_texts: Vec<String>,
     /// Metadata extracted from the ZIP archive.
     metadata: crate::types::metadata::Metadata,
+    /// Warnings for IWA members that failed to parse (#106).
+    warnings: Vec<ProcessingWarning>,
 }
 
 /// Parse a Keynote ZIP and extract all text from IWA files.
@@ -103,24 +106,33 @@ fn parse_keynote(content: &[u8], limits: &SecurityLimits) -> Result<KeynoteData>
         })
         .collect();
 
+    let mut warnings: Vec<ProcessingWarning> = Vec::new();
     let mut slide_texts: Vec<Vec<String>> = Vec::new();
-    let mut seen_global = std::collections::HashSet::new();
 
+    // Each slide keeps its own text, deduped only within itself (#101): a
+    // footer or title legitimately repeated across slides must survive on
+    // every slide it appears on, not just the first.
     for path in &slide_paths {
         match read_iwa_file(content, path, &mut expansion) {
             Ok(decompressed) => {
                 let texts = extract_text_from_proto(&decompressed, &mut budget)?;
-                let unique: Vec<String> = texts.into_iter().filter(|t| seen_global.insert(t.clone())).collect();
-                if !unique.is_empty() {
-                    slide_texts.push(unique);
+                let deduped = dedup_text(texts);
+                if !deduped.is_empty() {
+                    slide_texts.push(deduped);
                 }
             }
             Err(error) if matches!(&error, crate::error::XbergError::Security { .. }) => return Err(error),
             Err(error) => {
                 tracing::debug!(%error, "Skipping IWA file (decompression failed): {path}");
+                push_member_parse_warning(&mut warnings, path, &error);
             }
         }
     }
+
+    // Text already shown on a slide is only worth repeating in "Additional
+    // Content" if it says something new; text unique to a slide's own repeats
+    // was already preserved above.
+    let mut seen_in_slides: std::collections::HashSet<String> = slide_texts.iter().flatten().cloned().collect();
 
     let mut other_raw: Vec<String> = Vec::new();
     for path in &other_paths {
@@ -132,19 +144,21 @@ fn parse_keynote(content: &[u8], limits: &SecurityLimits) -> Result<KeynoteData>
             Err(error) if matches!(&error, crate::error::XbergError::Security { .. }) => return Err(error),
             Err(error) => {
                 tracing::debug!(%error, "Skipping IWA file (decompression failed): {path}");
+                push_member_parse_warning(&mut warnings, path, &error);
             }
         }
     }
 
     let other_texts: Vec<String> = dedup_text(other_raw)
         .into_iter()
-        .filter(|t| seen_global.insert(t.clone()))
+        .filter(|t| seen_in_slides.insert(t.clone()))
         .collect();
 
     Ok(KeynoteData {
         slide_texts,
         other_texts,
         metadata,
+        warnings,
     })
 }
 
@@ -189,6 +203,9 @@ impl InternalDocumentExtractor for KeynoteExtractor {
 
         let mut doc = build_keynote_internal_document(&data);
         doc.mime_type = mime_type.to_string();
+        for warning in data.warnings {
+            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
+        }
         Ok(doc)
     }
 
@@ -265,12 +282,89 @@ mod tests {
         assert!(types.contains(&"application/x-iwork-keynote-sffkey"));
     }
 
+    /// Build an uncompressed (chunk type 0x01) IWA byte stream wrapping a
+    /// single length-delimited protobuf text field.
+    fn iwa_text_frame(text: &str) -> Vec<u8> {
+        let mut payload = vec![0x1A, text.len() as u8];
+        payload.extend_from_slice(text.as_bytes());
+        let mut frame = vec![1, 0, 0, 0];
+        let length = payload.len();
+        frame[1] = (length & 0xff) as u8;
+        frame[2] = ((length >> 8) & 0xff) as u8;
+        frame[3] = ((length >> 16) & 0xff) as u8;
+        frame.extend_from_slice(&payload);
+        frame
+    }
+
+    fn keynote_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+
+        let mut buf = Vec::new();
+        {
+            let cursor = std::io::Cursor::new(&mut buf);
+            let mut zip = zip::ZipWriter::new(cursor);
+            let options = zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+            for (name, data) in entries {
+                zip.start_file(*name, options).unwrap();
+                zip.write_all(data).unwrap();
+            }
+            zip.finish().unwrap();
+        }
+        buf
+    }
+
+    /// Regression for #101: the same repeated text ("Confidential") on two
+    /// different slides must appear on *both* slides, not just the first.
+    #[test]
+    fn should_keep_text_repeated_across_different_slides() {
+        let slide1 = iwa_text_frame("Confidential");
+        let slide2 = iwa_text_frame("Confidential");
+        let archive = keynote_zip(&[("Index/Slide-1.iwa", &slide1), ("Index/Slide-2.iwa", &slide2)]);
+
+        let data = parse_keynote(&archive, &SecurityLimits::default()).unwrap();
+
+        assert_eq!(
+            data.slide_texts.len(),
+            2,
+            "both slides must be kept: {:?}",
+            data.slide_texts
+        );
+        assert_eq!(data.slide_texts[0], vec!["Confidential".to_string()]);
+        assert_eq!(
+            data.slide_texts[1],
+            vec!["Confidential".to_string()],
+            "repeated content on the second slide must not be dropped"
+        );
+    }
+
+    /// Regression for #106: a member that fails to decompress must surface a
+    /// named `ProcessingWarning`, not vanish silently.
+    #[test]
+    fn should_warn_when_an_iwa_member_fails_to_parse() {
+        let good_slide = iwa_text_frame("Body");
+        // Malformed IWA framing: a chunk type byte with no length/payload.
+        let broken_slide: Vec<u8> = vec![1, 0, 0];
+        let archive = keynote_zip(&[("Index/Slide-1.iwa", &good_slide), ("Index/Slide-2.iwa", &broken_slide)]);
+
+        let data = parse_keynote(&archive, &SecurityLimits::default()).unwrap();
+
+        assert_eq!(data.slide_texts, vec![vec!["Body".to_string()]]);
+        assert_eq!(data.warnings.len(), 1, "the broken member must be named in a warning");
+        assert_eq!(data.warnings[0].source, "iwork");
+        assert!(
+            data.warnings[0].message.contains("Index/Slide-2.iwa"),
+            "warning must name the failed member: {}",
+            data.warnings[0].message
+        );
+    }
+
     #[test]
     fn should_preserve_slide_element_semantics() {
         let data = KeynoteData {
             slide_texts: vec![vec!["Title".to_string(), "Body".to_string()]],
             other_texts: Vec::new(),
             metadata: crate::types::metadata::Metadata::default(),
+            warnings: Vec::new(),
         };
 
         let document = build_keynote_internal_document(&data);

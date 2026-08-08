@@ -129,6 +129,10 @@ pub struct TatrResult {
     pub headers: Vec<TatrDetection>,
     /// Detected spanning cells.
     pub spanning: Vec<TatrDetection>,
+    /// The model's own detected `Table` bbox (highest-confidence one), in
+    /// crop-pixel coordinates. `None` if the model produced no `Table`
+    /// detection above threshold (xberg-io/xberg#193).
+    pub table_bbox: Option<[f32; 4]>,
 }
 /// A cell bounding box within the reconstructed table grid (pixel coordinates in the crop).
 #[cfg_attr(alef, alef(skip))]
@@ -247,6 +251,7 @@ impl TatrModel {
                 columns: Vec::new(),
                 headers: Vec::new(),
                 spanning: Vec::new(),
+                table_bbox: None,
             });
         }
 
@@ -254,6 +259,8 @@ impl TatrModel {
         let mut columns = Vec::new();
         let mut headers = Vec::new();
         let mut spanning = Vec::new();
+        let mut table_bbox: Option<[f32; 4]> = None;
+        let mut table_confidence = 0.0f32;
 
         for q in 0..num_queries {
             let logit_offset = q * num_classes;
@@ -305,7 +312,16 @@ impl TatrModel {
                     headers.push(detection);
                 }
                 TatrClass::SpanningCell => spanning.push(detection),
-                TatrClass::Table => {}
+                // Previously dropped: the model's own Table bbox is a more
+                // precise localization of the table within the crop than the
+                // full crop extent, and callers had no way to widen columns
+                // to it (xberg-io/xberg#193). Keep the highest-confidence one.
+                TatrClass::Table => {
+                    if detection.confidence > table_confidence {
+                        table_confidence = detection.confidence;
+                        table_bbox = Some(detection.bbox);
+                    }
+                }
             }
         }
 
@@ -317,6 +333,7 @@ impl TatrModel {
             columns,
             headers,
             spanning,
+            table_bbox,
         })
     }
 }
@@ -473,8 +490,36 @@ fn iob(a: [f32; 4], b: [f32; 4]) -> f32 {
 ///
 /// If `table_bbox` is provided, it is used to clip the row widening bounds.
 pub(crate) fn build_cell_grid(result: &TatrResult, table_bbox: Option<[f32; 4]>) -> Vec<Vec<CellBBox>> {
+    build_cell_grid_with_structure(result, table_bbox).0
+}
+
+/// Header-row and merged-span metadata for a cell grid, derived from TATR's
+/// `headers`/`spanning` detections (xberg-io/xberg#176).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct TableStructure {
+    /// Number of leading grid rows that overlap a TATR header detection
+    /// (`ColumnHeader` or `ProjectedRowHeader`). `0` means TATR detected no
+    /// header rows at all; callers should fall back to their own default.
+    pub(crate) header_row_count: usize,
+    /// Grid-index ranges `(row_start, row_end_exclusive, col_start,
+    /// col_end_exclusive)` covered by a single TATR spanning-cell detection.
+    pub(crate) spans: Vec<(usize, usize, usize, usize)>,
+}
+
+/// IoB threshold for associating a grid row/column with a header or spanning
+/// detection: more than half the row/column must be covered.
+const STRUCTURE_IOB_THRESHOLD: f32 = 0.5;
+
+/// Same as [`build_cell_grid`], but also returns the [`TableStructure`]
+/// (header rows + merged spans) derived from `result.headers` and
+/// `result.spanning` against the same row/column bands used to build the
+/// grid.
+pub(crate) fn build_cell_grid_with_structure(
+    result: &TatrResult,
+    table_bbox: Option<[f32; 4]>,
+) -> (Vec<Vec<CellBBox>>, TableStructure) {
     if result.rows.is_empty() || result.columns.is_empty() {
-        return Vec::new();
+        return (Vec::new(), TableStructure::default());
     }
 
     let (table_x1, table_x2) = if let Some(tb) = table_bbox {
@@ -515,7 +560,87 @@ pub(crate) fn build_cell_grid(result: &TatrResult, table_bbox: Option<[f32; 4]>)
         grid.push(row_cells);
     }
 
-    grid
+    let structure = TableStructure {
+        header_row_count: compute_header_row_count(&result.headers, &nms_rows),
+        spans: compute_spans(&result.spanning, &nms_rows, &nms_cols),
+    };
+
+    (grid, structure)
+}
+
+/// Fraction of the `[lo, hi]` extent covered by `[other_lo, other_hi]`.
+///
+/// Row bands are widened to the full table width and column bands to the
+/// full table height, but the perpendicular axis is *not* normalized that
+/// way — a header or spanning-cell detection typically covers only part of
+/// a column's height (or a row's width). Projecting onto the single
+/// perpendicular axis of each band, rather than computing 2D IoB against the
+/// detection's whole box, avoids that axis's mismatch swamping the overlap
+/// fraction.
+fn axis_overlap_fraction(lo: f32, hi: f32, other_lo: f32, other_hi: f32) -> f32 {
+    let extent = hi - lo;
+    if extent <= 0.0 {
+        return 0.0;
+    }
+    let overlap = (hi.min(other_hi) - lo.max(other_lo)).max(0.0);
+    overlap / extent
+}
+
+/// Count the leading grid rows that overlap a header detection, stopping at
+/// the first row that does not — TATR's header rows are always the topmost
+/// rows of the table, so a single leading run is the correct interpretation
+/// even for multi-row headers.
+fn compute_header_row_count(headers: &[TatrDetection], rows: &[[f32; 4]]) -> usize {
+    let mut count = 0;
+    for row in rows {
+        let is_header = headers
+            .iter()
+            .any(|h| axis_overlap_fraction(row[1], row[3], h.bbox[1], h.bbox[3]) > STRUCTURE_IOB_THRESHOLD);
+        if !is_header {
+            break;
+        }
+        count += 1;
+    }
+    count
+}
+
+/// Map each TATR spanning-cell detection onto the grid-index rectangle it
+/// covers, based on axis overlap with the row/column bands used to build the
+/// grid. Detections that resolve to a single cell (no actual merge) are
+/// skipped.
+fn compute_spans(
+    spanning: &[TatrDetection],
+    rows: &[[f32; 4]],
+    cols: &[[f32; 4]],
+) -> Vec<(usize, usize, usize, usize)> {
+    let mut spans = Vec::new();
+    for span in spanning {
+        let row_indices: Vec<usize> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| axis_overlap_fraction(r[1], r[3], span.bbox[1], span.bbox[3]) > STRUCTURE_IOB_THRESHOLD)
+            .map(|(i, _)| i)
+            .collect();
+        let col_indices: Vec<usize> = cols
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| axis_overlap_fraction(c[0], c[2], span.bbox[0], span.bbox[2]) > STRUCTURE_IOB_THRESHOLD)
+            .map(|(i, _)| i)
+            .collect();
+
+        if row_indices.len() * col_indices.len() <= 1 {
+            continue;
+        }
+
+        let (Some(&row_start), Some(&row_last)) = (row_indices.first(), row_indices.last()) else {
+            continue;
+        };
+        let (Some(&col_start), Some(&col_last)) = (col_indices.first(), col_indices.last()) else {
+            continue;
+        };
+        spans.push((row_start, row_last + 1, col_start, col_last + 1));
+    }
+    spans
 }
 
 /// Apply NMS using IoB (Intersection over Box) metric.
@@ -765,6 +890,7 @@ mod tests {
             ],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, None);
@@ -791,6 +917,7 @@ mod tests {
             columns: Vec::new(),
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
         let grid = build_cell_grid(&result, None);
         assert!(grid.is_empty());
@@ -811,6 +938,7 @@ mod tests {
             }],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, Some([0.0, 0.0, 100.0, 30.0]));
@@ -855,6 +983,7 @@ mod tests {
             }],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, None);
@@ -889,6 +1018,7 @@ mod tests {
             ],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, None);
@@ -990,6 +1120,7 @@ mod tests {
             ],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, Some([0.0, 0.0, 100.0, 20.0]));
@@ -1022,6 +1153,7 @@ mod tests {
             }],
             headers: Vec::new(),
             spanning: Vec::new(),
+            table_bbox: None,
         };
 
         let grid = build_cell_grid(&result, None);
@@ -1030,5 +1162,111 @@ mod tests {
             2,
             "rows with 0.4 IoB should both survive row NMS (threshold 0.5)"
         );
+    }
+
+    fn header_detection(bbox: [f32; 4]) -> TatrDetection {
+        TatrDetection {
+            bbox,
+            confidence: 0.9,
+            class_name: TatrClass::ColumnHeader,
+        }
+    }
+
+    fn spanning_detection(bbox: [f32; 4]) -> TatrDetection {
+        TatrDetection {
+            bbox,
+            confidence: 0.9,
+            class_name: TatrClass::SpanningCell,
+        }
+    }
+
+    #[test]
+    fn test_compute_header_row_count_single_header_row() {
+        let rows = [[0.0, 0.0, 100.0, 20.0], [0.0, 20.0, 100.0, 40.0]];
+        let headers = [header_detection([0.0, 0.0, 100.0, 20.0])];
+        assert_eq!(compute_header_row_count(&headers, &rows), 1);
+    }
+
+    #[test]
+    fn test_compute_header_row_count_multi_row_header() {
+        let rows = [
+            [0.0, 0.0, 100.0, 20.0],
+            [0.0, 20.0, 100.0, 40.0],
+            [0.0, 40.0, 100.0, 60.0],
+        ];
+        let headers = [header_detection([0.0, 0.0, 100.0, 40.0])];
+        assert_eq!(
+            compute_header_row_count(&headers, &rows),
+            2,
+            "a header detection spanning two row bands must mark both as header rows"
+        );
+    }
+
+    #[test]
+    fn test_compute_header_row_count_no_headers_returns_zero() {
+        let rows = [[0.0, 0.0, 100.0, 20.0]];
+        assert_eq!(
+            compute_header_row_count(&[], &rows),
+            0,
+            "absence of TATR header detections must not be conflated with an explicit single header row"
+        );
+    }
+
+    #[test]
+    fn test_compute_spans_merges_two_columns() {
+        let rows = [[0.0, 0.0, 100.0, 20.0]];
+        let cols = [[0.0, 0.0, 50.0, 20.0], [50.0, 0.0, 100.0, 20.0]];
+        let spanning = [spanning_detection([0.0, 0.0, 100.0, 20.0])];
+        let spans = compute_spans(&spanning, &rows, &cols);
+        assert_eq!(spans, vec![(0, 1, 0, 2)]);
+    }
+
+    #[test]
+    fn test_compute_spans_skips_single_cell_overlap() {
+        let rows = [[0.0, 0.0, 100.0, 20.0]];
+        let cols = [[0.0, 0.0, 50.0, 20.0], [50.0, 0.0, 100.0, 20.0]];
+        // Covers only the first column: not an actual merge.
+        let spanning = [spanning_detection([0.0, 0.0, 50.0, 20.0])];
+        let spans = compute_spans(&spanning, &rows, &cols);
+        assert!(spans.is_empty(), "a detection covering a single cell is not a span");
+    }
+
+    #[test]
+    fn test_build_cell_grid_with_structure_reports_header_and_span() {
+        let result = TatrResult {
+            rows: vec![
+                TatrDetection {
+                    bbox: [0.0, 0.0, 100.0, 20.0],
+                    confidence: 0.9,
+                    class_name: TatrClass::Row,
+                },
+                TatrDetection {
+                    bbox: [0.0, 20.0, 100.0, 40.0],
+                    confidence: 0.9,
+                    class_name: TatrClass::Row,
+                },
+            ],
+            columns: vec![
+                TatrDetection {
+                    bbox: [0.0, 0.0, 50.0, 40.0],
+                    confidence: 0.9,
+                    class_name: TatrClass::Column,
+                },
+                TatrDetection {
+                    bbox: [50.0, 0.0, 100.0, 40.0],
+                    confidence: 0.9,
+                    class_name: TatrClass::Column,
+                },
+            ],
+            headers: vec![header_detection([0.0, 0.0, 100.0, 20.0])],
+            spanning: vec![spanning_detection([0.0, 0.0, 100.0, 20.0])],
+            table_bbox: Some([0.0, 0.0, 100.0, 40.0]),
+        };
+
+        let (grid, structure) = build_cell_grid_with_structure(&result, result.table_bbox);
+        assert_eq!(grid.len(), 2, "grid shape must be unaffected by structure metadata");
+        assert_eq!(grid[0].len(), 2);
+        assert_eq!(structure.header_row_count, 1);
+        assert_eq!(structure.spans, vec![(0, 1, 0, 2)]);
     }
 }

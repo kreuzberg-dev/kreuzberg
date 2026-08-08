@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChunkClassificationEnrichmentConfig`, `DocumentExtractorDartCallbacks`, `EmbeddingBackendDartCallbacks`, `OcrBackendDartCallbacks`, `PostProcessorDartCallbacks`, `RendererDartCallbacks`, `RerankerBackendDartCallbacks`, `TokenizerBackendDartCallbacks`, `ValidatorDartCallbacks`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `backend_type`, `can_handle`, `count_tokens`, `dimensions`, `embed`, `emits_structured_markdown`, `estimated_duration_ms`, `extract`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `priority`, `priority`, `priority`, `process_document`, `process_image_file`, `process_image`, `process`, `processing_stage`, `render_result`, `rerank`, `should_process`, `should_validate`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `supported_languages`, `supported_mime_types`, `supports_document_processing`, `supports_language`, `supports_table_detection`, `validate`, `version`, `version`, `version`, `version`, `version`, `version`, `version`, `version`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `backend_type`, `can_handle`, `count_tokens`, `dimensions`, `embed`, `emits_structured_markdown`, `estimated_duration_ms`, `extract`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `priority`, `priority`, `priority`, `process_document`, `process_image_file`, `process_image`, `process`, `processing_stage`, `render_result`, `rerank`, `should_process`, `should_validate`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `supported_languages`, `supported_mime_types`, `supports_document_processing`, `supports_language`, `supports_table_detection`, `validate`, `version`, `version`, `version`, `version`, `version`, `version`, `version`, `version`
 
 /// Extract content from a single bytes or URI input.
 Future<ExtractionResult> extract({
@@ -48,24 +48,46 @@ Future<MapResult> mapUrl({
 /// Formats that have no registered file extension (such as source code,
 /// which is detected dynamically) are not included.
 ///
+/// The static `EXT_TO_MIME` table lists every format the *codebase* knows how
+/// to describe, regardless of which Cargo features were compiled in. Advertising
+/// that table directly would claim support for extractors that may not exist in
+/// this build (see GH#1387). To keep the advertised catalogue honest, the table
+/// is intersected with the document extractor registry: an extension is only
+/// included if some registered extractor actually claims its MIME type in this
+/// build. This can never drift from reality and automatically covers
+/// third-party extractors registered at runtime.
+///
 /// The list is sorted alphabetically by file extension.
 ///
 /// **Returns:**
 ///
-/// A vector of `SupportedFormat` entries sorted by extension.
+/// A vector of `SupportedFormat` entries sorted by extension, limited to
+/// formats with a registered extractor in this build.
 Future<List<SupportedFormat>> listSupportedFormats() =>
-RustLib.instance.api.crateListSupportedFormats();
+    RustLib.instance.api.crateListSupportedFormats();
+
+/// Ensure built-in extractors are registered.
+///
+/// This function is called automatically on first extraction operation.
+/// It's safe to call multiple times - registration only happens once,
+/// unless the registry was cleared, in which case extractors are re-registered.
+///
+/// Public so a caller that wants to *inspect* the registry — rather than extract —
+/// can populate it directly. Without this the only way to trigger registration is to
+/// run a real extraction, which `xberg formats` would otherwise have to fake (#233).
+Future<void> ensureInitialized() =>
+    RustLib.instance.api.crateEnsureInitialized();
 
 /// List the names of all registered embedding backends.
 ///
 /// Used by `xberg-cli`, the api/mcp endpoints, and generated language
 /// bindings.
 Future<List<String>> listEmbeddingBackends() =>
-RustLib.instance.api.crateListEmbeddingBackends();
+    RustLib.instance.api.crateListEmbeddingBackends();
 
 /// List names of all registered document extractors.
 Future<List<String>> listDocumentExtractors() =>
-RustLib.instance.api.crateListDocumentExtractors();
+    RustLib.instance.api.crateListDocumentExtractors();
 
 /// List all registered OCR backends.
 ///
@@ -75,7 +97,7 @@ RustLib.instance.api.crateListDocumentExtractors();
 ///
 /// A vector of OCR backend names.
 Future<List<String>> listOcrBackends() =>
-RustLib.instance.api.crateListOcrBackends();
+    RustLib.instance.api.crateListOcrBackends();
 
 /// List all registered post-processor names.
 ///
@@ -87,7 +109,7 @@ RustLib.instance.api.crateListOcrBackends();
 /// - `Ok(List<String>)` - Vector of post-processor names
 /// - `Err(...)` if the registry lock is poisoned
 Future<List<String>> listPostProcessors() =>
-RustLib.instance.api.crateListPostProcessors();
+    RustLib.instance.api.crateListPostProcessors();
 
 /// List names of all registered renderers.
 ///
@@ -95,7 +117,7 @@ RustLib.instance.api.crateListPostProcessors();
 ///
 /// Returns an error if the registry lock is poisoned.
 Future<List<String>> listRenderers() =>
-RustLib.instance.api.crateListRenderers();
+    RustLib.instance.api.crateListRenderers();
 
 /// List the names of all registered reranker backends.
 ///
@@ -104,18 +126,18 @@ RustLib.instance.api.crateListRenderers();
 ///
 /// Since v5.0.
 Future<List<String>> listRerankerBackends() =>
-RustLib.instance.api.crateListRerankerBackends();
+    RustLib.instance.api.crateListRerankerBackends();
 
 /// List the names of all registered tokenizer backends.
 ///
 /// Used by `xberg-cli`, the api/mcp endpoints, and generated language
 /// bindings.
 Future<List<String>> listTokenizerBackends() =>
-RustLib.instance.api.crateListTokenizerBackends();
+    RustLib.instance.api.crateListTokenizerBackends();
 
 /// List names of all registered validators.
 Future<List<String>> listValidators() =>
-RustLib.instance.api.crateListValidators();
+    RustLib.instance.api.crateListValidators();
 
 /// Run chunk classification against an extraction result.
 ///
@@ -131,9 +153,8 @@ RustLib.instance.api.crateListValidators();
 /// Returns `Validation` when `config.definitions` is empty.
 /// Returns the first batch error encountered when rendering the prompt or
 /// calling the LLM fails for every batch; partial failures on a subset of
-/// batches are recorded as `ProcessingWarning`s by the caller instead of
-/// aborting the whole run (see
-/// `chunk_classification`).
+/// batches are recorded here as a `ProcessingWarning` on `result` instead of
+/// aborting the whole run.
 Future<void> classifyChunks({
   required ExtractedDocument result,
   required ChunkClassificationConfig config,
@@ -152,7 +173,7 @@ Future<void> classifyChunks({
 ///
 /// A vector of trimmed line text strings for unmarked claims.
 Future<List<String>> findUnmarkedClaims({required String markdown}) =>
-RustLib.instance.api.crateFindUnmarkedClaims(markdown: markdown);
+    RustLib.instance.api.crateFindUnmarkedClaims(markdown: markdown);
 
 /// Verify that an excerpt appears verbatim in source text.
 ///
@@ -207,10 +228,106 @@ Future<List<LateInteractionMatch>> maxSimRank({
 /// Runs no downloads and no billable API calls. Backends that are not compiled
 /// in or whose models are not cached report `Skip` rather than failing.
 Future<DoctorReport> doctor({required ExtractionConfig config}) =>
-RustLib.instance.api.crateDoctor(config: config);
+    RustLib.instance.api.crateDoctor(config: config);
+
+/// Install `PdfOxideWarningCapture` as the process-wide `log` backend,
+/// exactly once.
+///
+/// If another component already installed a `log.Log` implementation (an
+/// application wiring `env_logger`, for instance), `log.set_boxed_logger`
+/// fails and this is a no-op: we do not fight over ownership of the global
+/// logger slot, and we do not touch `log.set_max_level` unless our install
+/// won, so we never silently raise or lower a level someone else configured.
+/// In that case `pdf_oxide`'s glyph-drop records go wherever that other
+/// logger sends them instead of into `take_pdf_oxide_render_warnings`.
+/// **Opt-in.** Nothing calls this automatically, and that is deliberate: xberg
+/// is a library, and `log` has exactly one global backend slot per process. A
+/// library that claims it on its own behalf breaks its embedder — a host that
+/// later calls `env_logger.init()` panics, and until this returns, every
+/// `log` record in the process is routed here rather than wherever the host
+/// intended. That decision belongs to the application, so it is exposed as a
+/// call an application makes knowingly.
+///
+/// Returns `true` if this call (or an earlier one) installed the capture, and
+/// `false` if some other component already owns the `log` backend — in which
+/// case `pdf_oxide`'s glyph-drop records go to that logger and
+/// `take_pdf_oxide_render_warnings` stays empty.
+///
+/// Without this call the #1364 warnings are not produced. The glyph drop
+/// itself is decided inside `pdf_oxide`, which reports it only through
+/// `log.warn!`; there is no return-value channel to read instead.
+Future<bool> installPdfRenderDiagnostics() =>
+    RustLib.instance.api.crateInstallPdfRenderDiagnostics();
+
+/// Drain the glyph-drop `ProcessingWarning`s accumulated on this thread by
+/// render calls since the last call to this function.
+///
+/// Callers that render pages as part of extraction should call this after
+/// their render pass and merge the result into
+/// `InternalDocument.processing_warnings` (see the module-level convention
+/// in `crate.core.diagnostics`) so a page with missing glyphs is never
+/// returned to the user without a signal. Warnings are already deduped
+/// per-thread across all pages rendered before this call.
+///
+/// `pub` (rather than `pub(crate)`) so both in-tree render-consumers and the
+/// regression test for #1364 can observe capture without depending on any
+/// one extractor's internal state.
+///
+/// As of #340, `crate.extractors.pdf.mod` drains this unconditionally right
+/// after assembling a document's `processing_warnings`, so every PDF
+/// extraction that renders at least one page picks up any captured
+/// glyph-drop warnings for free. ~keep: that drain only ever observes
+/// warnings from render calls that happened on the *same OS thread* before it
+/// ran, because `PDF_OXIDE_PENDING_WARNINGS` is thread-local. OCR page
+/// rendering runs inline on the extracting task's thread, so it is covered.
+/// Layout-detection rasterization runs inside `tokio.task.spawn_blocking`,
+/// which always executes on a different OS thread, so this function alone
+/// would never see those warnings. As of #353,
+/// `extractors.pdf.layout_runner.run_layout_for_pdf_pages_async` drains
+/// this function itself from inside its `spawn_blocking` closure — the only
+/// place that can observe the blocking-pool thread's thread-local buffer —
+/// and threads the drained warnings back through its return value for the
+/// caller in `extractors.pdf.mod` to merge, so layout-path glyph drops are
+/// no longer silently lost.
+Future<List<ProcessingWarning>> takePdfOxideRenderWarnings() =>
+    RustLib.instance.api.crateTakePdfOxideRenderWarnings();
+
+/// Build the four (or three) token Whisper decoder prompt.
+///
+/// The canonical Whisper prompt is
+/// `[<|startoftranscript|>, <|{lang}|>, <|transcribe|>, <|notimestamps|>]`.
+/// When `timestamps` is `true`, the trailing `no_timestamps` token is omitted
+/// so the model is free to emit `<|x.xx|>` timestamp tokens in its output
+/// instead of being forced to suppress them.
+Future<Int64List> buildDecoderPromptTokens({
+  required PlatformInt64 startOfTranscript,
+  required PlatformInt64 langId,
+  required PlatformInt64 transcribe,
+  required PlatformInt64 noTimestamps,
+  required bool timestamps,
+}) => RustLib.instance.api.crateBuildDecoderPromptTokens(
+  startOfTranscript: startOfTranscript,
+  langId: langId,
+  transcribe: transcribe,
+  noTimestamps: noTimestamps,
+  timestamps: timestamps,
+);
+
+/// Convert a raw Whisper timestamp token ID to a millisecond offset from the
+/// start of the 30-second chunk it was decoded in.
+///
+/// `token_id` must be `>= timestamp_begin_id`; IDs below that are ordinary
+/// vocabulary tokens, not timestamps.
+Future<PlatformInt64> timestampTokenToMs({
+  required PlatformInt64 tokenId,
+  required PlatformInt64 timestampBeginId,
+}) => RustLib.instance.api.crateTimestampTokenToMs(
+  tokenId: tokenId,
+  timestampBeginId: timestampBeginId,
+);
 
 Future<CacheStats> createCacheStatsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCacheStatsFromJson(json: json);
+    RustLib.instance.api.crateCreateCacheStatsFromJson(json: json);
 
 Future<AccelerationConfig> createAccelerationConfigFromJson({
   required String json,
@@ -222,9 +339,9 @@ Future<CaptioningConfig> createCaptioningConfigFromJson({
 
 Future<ChunkClassificationDefinition>
 createChunkClassificationDefinitionFromJson({required String json}) => RustLib
-.instance
-.api
-.crateCreateChunkClassificationDefinitionFromJson(json: json);
+    .instance
+    .api
+    .crateCreateChunkClassificationDefinitionFromJson(json: json);
 
 Future<ChunkClassificationConfig> createChunkClassificationConfigFromJson({
   required String json,
@@ -242,8 +359,11 @@ Future<ContentFilterConfig> createContentFilterConfigFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateContentFilterConfigFromJson(json: json);
 
+Future<CsvConfig> createCsvConfigFromJson({required String json}) =>
+    RustLib.instance.api.crateCreateCsvConfigFromJson(json: json);
+
 Future<EmailConfig> createEmailConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmailConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateEmailConfigFromJson(json: json);
 
 Future<ExtractionConfig> createExtractionConfigFromJson({
   required String json,
@@ -254,10 +374,10 @@ Future<FileExtractionConfig> createFileExtractionConfigFromJson({
 }) => RustLib.instance.api.crateCreateFileExtractionConfigFromJson(json: json);
 
 Future<SvgOptions> createSvgOptionsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSvgOptionsFromJson(json: json);
+    RustLib.instance.api.crateCreateSvgOptionsFromJson(json: json);
 
 Future<ExtractInput> createExtractInputFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExtractInputFromJson(json: json);
+    RustLib.instance.api.crateCreateExtractInputFromJson(json: json);
 
 Future<ExtractionErrorItem> createExtractionErrorItemFromJson({
   required String json,
@@ -286,7 +406,7 @@ Future<TokenReductionOptions> createTokenReductionOptionsFromJson({
 Future<LanguageDetectionConfig> createLanguageDetectionConfigFromJson({
   required String json,
 }) =>
-RustLib.instance.api.crateCreateLanguageDetectionConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateLanguageDetectionConfigFromJson(json: json);
 
 Future<HtmlOutputConfig> createHtmlOutputConfigFromJson({
   required String json,
@@ -301,7 +421,24 @@ Future<LayoutDetectionConfig> createLayoutDetectionConfigFromJson({
 }) => RustLib.instance.api.crateCreateLayoutDetectionConfigFromJson(json: json);
 
 Future<LlmConfig> createLlmConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateLlmConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateLlmConfigFromJson(json: json);
+
+Future<LlmProviderConfig> createLlmProviderConfigFromJson({
+  required String json,
+}) => RustLib.instance.api.crateCreateLlmProviderConfigFromJson(json: json);
+
+Future<LlmCacheConfig> createLlmCacheConfigFromJson({required String json}) =>
+    RustLib.instance.api.crateCreateLlmCacheConfigFromJson(json: json);
+
+Future<LlmBudgetConfig> createLlmBudgetConfigFromJson({required String json}) =>
+    RustLib.instance.api.crateCreateLlmBudgetConfigFromJson(json: json);
+
+Future<LlmRateLimitConfig> createLlmRateLimitConfigFromJson({
+  required String json,
+}) => RustLib.instance.api.crateCreateLlmRateLimitConfigFromJson(json: json);
+
+Future<BedrockConfig> createBedrockConfigFromJson({required String json}) =>
+    RustLib.instance.api.crateCreateBedrockConfigFromJson(json: json);
 
 Future<StructuredExtractionConfig> createStructuredExtractionConfigFromJson({
   required String json,
@@ -310,7 +447,7 @@ Future<StructuredExtractionConfig> createStructuredExtractionConfigFromJson({
 );
 
 Future<NerConfig> createNerConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateNerConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateNerConfigFromJson(json: json);
 
 Future<OcrQualityThresholds> createOcrQualityThresholdsFromJson({
   required String json,
@@ -325,39 +462,39 @@ Future<OcrPipelineConfig> createOcrPipelineConfigFromJson({
 }) => RustLib.instance.api.crateCreateOcrPipelineConfigFromJson(json: json);
 
 Future<OcrConfig> createOcrConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrConfigFromJson(json: json);
 
 Future<PageConfig> createPageConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageConfigFromJson(json: json);
+    RustLib.instance.api.crateCreatePageConfigFromJson(json: json);
 
 Future<PdfConfig> createPdfConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePdfConfigFromJson(json: json);
+    RustLib.instance.api.crateCreatePdfConfigFromJson(json: json);
 
 Future<HierarchyConfig> createHierarchyConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateHierarchyConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateHierarchyConfigFromJson(json: json);
 
 Future<PostProcessorConfig> createPostProcessorConfigFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreatePostProcessorConfigFromJson(json: json);
 
 Future<ChunkingConfig> createChunkingConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateChunkingConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateChunkingConfigFromJson(json: json);
 
 Future<EmbeddingConfig> createEmbeddingConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmbeddingConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateEmbeddingConfigFromJson(json: json);
 
 Future<RedactionConfig> createRedactionConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRedactionConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateRedactionConfigFromJson(json: json);
 
 Future<RedactionTerm> createRedactionTermFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRedactionTermFromJson(json: json);
+    RustLib.instance.api.crateCreateRedactionTermFromJson(json: json);
 
 Future<RedactionPattern> createRedactionPatternFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateRedactionPatternFromJson(json: json);
 
 Future<RerankerConfig> createRerankerConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRerankerConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateRerankerConfigFromJson(json: json);
 
 Future<SparseEmbeddingConfig> createSparseEmbeddingConfigFromJson({
   required String json,
@@ -382,13 +519,13 @@ Future<TreeSitterConfig> createTreeSitterConfigFromJson({
 Future<TreeSitterProcessConfig> createTreeSitterProcessConfigFromJson({
   required String json,
 }) =>
-RustLib.instance.api.crateCreateTreeSitterProcessConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateTreeSitterProcessConfigFromJson(json: json);
 
 Future<SupportedFormat> createSupportedFormatFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSupportedFormatFromJson(json: json);
+    RustLib.instance.api.crateCreateSupportedFormatFromJson(json: json);
 
 Future<ServerConfig> createServerConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateServerConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateServerConfigFromJson(json: json);
 
 Future<StructuredDataResult> createStructuredDataResultFromJson({
   required String json,
@@ -407,33 +544,33 @@ Future<PptxAppProperties> createPptxAppPropertiesFromJson({
 }) => RustLib.instance.api.crateCreatePptxAppPropertiesFromJson(json: json);
 
 Future<CoreProperties> createCorePropertiesFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCorePropertiesFromJson(json: json);
+    RustLib.instance.api.crateCreateCorePropertiesFromJson(json: json);
 
 Future<SecurityLimits> createSecurityLimitsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSecurityLimitsFromJson(json: json);
+    RustLib.instance.api.crateCreateSecurityLimitsFromJson(json: json);
 
 Future<TokenReductionConfig> createTokenReductionConfigFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateTokenReductionConfigFromJson(json: json);
 
 Future<PatternMatch> createPatternMatchFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePatternMatchFromJson(json: json);
+    RustLib.instance.api.crateCreatePatternMatchFromJson(json: json);
 
 Future<FootnoteConfig> createFootnoteConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateFootnoteConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateFootnoteConfigFromJson(json: json);
 
 Future<FootnoteAnchor> createFootnoteAnchorFromJson({required String json}) =>
-RustLib.instance.api.crateCreateFootnoteAnchorFromJson(json: json);
+    RustLib.instance.api.crateCreateFootnoteAnchorFromJson(json: json);
 
 Future<FootnoteDefinition> createFootnoteDefinitionFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateFootnoteDefinitionFromJson(json: json);
 
 Future<Citation> createCitationFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCitationFromJson(json: json);
+    RustLib.instance.api.crateCreateCitationFromJson(json: json);
 
 Future<PdfAnnotation> createPdfAnnotationFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePdfAnnotationFromJson(json: json);
+    RustLib.instance.api.crateCreatePdfAnnotationFromJson(json: json);
 
 Future<PageClassification> createPageClassificationFromJson({
   required String json,
@@ -444,22 +581,22 @@ Future<ClassificationLabel> createClassificationLabelFromJson({
 }) => RustLib.instance.api.crateCreateClassificationLabelFromJson(json: json);
 
 Future<DjotContent> createDjotContentFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDjotContentFromJson(json: json);
+    RustLib.instance.api.crateCreateDjotContentFromJson(json: json);
 
 Future<FormattedBlock> createFormattedBlockFromJson({required String json}) =>
-RustLib.instance.api.crateCreateFormattedBlockFromJson(json: json);
+    RustLib.instance.api.crateCreateFormattedBlockFromJson(json: json);
 
 Future<InlineElement> createInlineElementFromJson({required String json}) =>
-RustLib.instance.api.crateCreateInlineElementFromJson(json: json);
+    RustLib.instance.api.crateCreateInlineElementFromJson(json: json);
 
 Future<DjotImage> createDjotImageFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDjotImageFromJson(json: json);
+    RustLib.instance.api.crateCreateDjotImageFromJson(json: json);
 
 Future<DjotLink> createDjotLinkFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDjotLinkFromJson(json: json);
+    RustLib.instance.api.crateCreateDjotLinkFromJson(json: json);
 
 Future<Footnote> createFootnoteFromJson({required String json}) =>
-RustLib.instance.api.crateCreateFootnoteFromJson(json: json);
+    RustLib.instance.api.crateCreateFootnoteFromJson(json: json);
 
 Future<DocumentStructure> createDocumentStructureFromJson({
   required String json,
@@ -470,72 +607,76 @@ Future<DocumentRelationship> createDocumentRelationshipFromJson({
 }) => RustLib.instance.api.crateCreateDocumentRelationshipFromJson(json: json);
 
 Future<DocumentNode> createDocumentNodeFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDocumentNodeFromJson(json: json);
+    RustLib.instance.api.crateCreateDocumentNodeFromJson(json: json);
 
 Future<TableGrid> createTableGridFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTableGridFromJson(json: json);
+    RustLib.instance.api.crateCreateTableGridFromJson(json: json);
 
 Future<GridCell> createGridCellFromJson({required String json}) =>
-RustLib.instance.api.crateCreateGridCellFromJson(json: json);
+    RustLib.instance.api.crateCreateGridCellFromJson(json: json);
 
 Future<TextAnnotation> createTextAnnotationFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTextAnnotationFromJson(json: json);
+    RustLib.instance.api.crateCreateTextAnnotationFromJson(json: json);
 
 Future<Entity> createEntityFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEntityFromJson(json: json);
+    RustLib.instance.api.crateCreateEntityFromJson(json: json);
 
 Future<DocumentCounts> createDocumentCountsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDocumentCountsFromJson(json: json);
+    RustLib.instance.api.crateCreateDocumentCountsFromJson(json: json);
+
+Future<LanguageConfidence> createLanguageConfidenceFromJson({
+  required String json,
+}) => RustLib.instance.api.crateCreateLanguageConfidenceFromJson(json: json);
 
 Future<ExtractedDocument> createExtractedDocumentFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateExtractedDocumentFromJson(json: json);
 
 Future<ArchiveEntry> createArchiveEntryFromJson({required String json}) =>
-RustLib.instance.api.crateCreateArchiveEntryFromJson(json: json);
+    RustLib.instance.api.crateCreateArchiveEntryFromJson(json: json);
 
 Future<ProcessingWarning> createProcessingWarningFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateProcessingWarningFromJson(json: json);
 
 Future<LlmUsage> createLlmUsageFromJson({required String json}) =>
-RustLib.instance.api.crateCreateLlmUsageFromJson(json: json);
+    RustLib.instance.api.crateCreateLlmUsageFromJson(json: json);
 
 Future<Chunk> createChunkFromJson({required String json}) =>
-RustLib.instance.api.crateCreateChunkFromJson(json: json);
+    RustLib.instance.api.crateCreateChunkFromJson(json: json);
 
 Future<HeadingContext> createHeadingContextFromJson({required String json}) =>
-RustLib.instance.api.crateCreateHeadingContextFromJson(json: json);
+    RustLib.instance.api.crateCreateHeadingContextFromJson(json: json);
 
 Future<HeadingLevel> createHeadingLevelFromJson({required String json}) =>
-RustLib.instance.api.crateCreateHeadingLevelFromJson(json: json);
+    RustLib.instance.api.crateCreateHeadingLevelFromJson(json: json);
 
 Future<ChunkMetadata> createChunkMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateChunkMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateChunkMetadataFromJson(json: json);
 
 Future<PageSpan> createPageSpanFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageSpanFromJson(json: json);
+    RustLib.instance.api.crateCreatePageSpanFromJson(json: json);
 
 Future<ExtractedImage> createExtractedImageFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExtractedImageFromJson(json: json);
+    RustLib.instance.api.crateCreateExtractedImageFromJson(json: json);
 
 Future<BoundingBox> createBoundingBoxFromJson({required String json}) =>
-RustLib.instance.api.crateCreateBoundingBoxFromJson(json: json);
+    RustLib.instance.api.crateCreateBoundingBoxFromJson(json: json);
 
 Future<ElementMetadata> createElementMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateElementMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateElementMetadataFromJson(json: json);
 
 Future<Element> createElementFromJson({required String json}) =>
-RustLib.instance.api.crateCreateElementFromJson(json: json);
+    RustLib.instance.api.crateCreateElementFromJson(json: json);
 
 Future<PdfFormField> createPdfFormFieldFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePdfFormFieldFromJson(json: json);
+    RustLib.instance.api.crateCreatePdfFormFieldFromJson(json: json);
 
 Future<ExcelWorkbook> createExcelWorkbookFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExcelWorkbookFromJson(json: json);
+    RustLib.instance.api.crateCreateExcelWorkbookFromJson(json: json);
 
 Future<ExcelSheet> createExcelSheetFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExcelSheetFromJson(json: json);
+    RustLib.instance.api.crateCreateExcelSheetFromJson(json: json);
 
 Future<XmlExtractionResult> createXmlExtractionResultFromJson({
   required String json,
@@ -554,14 +695,14 @@ Future<EmailExtractionResult> createEmailExtractionResultFromJson({
 }) => RustLib.instance.api.crateCreateEmailExtractionResultFromJson(json: json);
 
 Future<EmailAttachment> createEmailAttachmentFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmailAttachmentFromJson(json: json);
+    RustLib.instance.api.crateCreateEmailAttachmentFromJson(json: json);
 
 Future<OcrExtractionResult> createOcrExtractionResultFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateOcrExtractionResultFromJson(json: json);
 
 Future<OcrTable> createOcrTableFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrTableFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrTableFromJson(json: json);
 
 Future<OcrTableBoundingBox> createOcrTableBoundingBoxFromJson({
   required String json,
@@ -574,7 +715,7 @@ Future<ImagePreprocessingConfig> createImagePreprocessingConfigFromJson({
 );
 
 Future<TesseractConfig> createTesseractConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTesseractConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateTesseractConfigFromJson(json: json);
 
 Future<ImagePreprocessingMetadata> createImagePreprocessingMetadataFromJson({
   required String json,
@@ -583,211 +724,211 @@ Future<ImagePreprocessingMetadata> createImagePreprocessingMetadataFromJson({
 );
 
 Future<Formula> createFormulaFromJson({required String json}) =>
-RustLib.instance.api.crateCreateFormulaFromJson(json: json);
+    RustLib.instance.api.crateCreateFormulaFromJson(json: json);
 
 Future<CodeMetadata> createCodeMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCodeMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateCodeMetadataFromJson(json: json);
 
 Future<CodeChunkInfo> createCodeChunkInfoFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCodeChunkInfoFromJson(json: json);
+    RustLib.instance.api.crateCreateCodeChunkInfoFromJson(json: json);
 
 Future<CodeDataAttribute> createCodeDataAttributeFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateCodeDataAttributeFromJson(json: json);
 
 Future<CodeDataNode> createCodeDataNodeFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCodeDataNodeFromJson(json: json);
+    RustLib.instance.api.crateCreateCodeDataNodeFromJson(json: json);
 
 Future<Metadata> createMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateMetadataFromJson(json: json);
 
 Future<ExcelMetadata> createExcelMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExcelMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateExcelMetadataFromJson(json: json);
 
 Future<EmailMetadata> createEmailMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmailMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateEmailMetadataFromJson(json: json);
 
 Future<ArchiveMetadata> createArchiveMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateArchiveMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateArchiveMetadataFromJson(json: json);
 
 Future<ImageMetadata> createImageMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateImageMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateImageMetadataFromJson(json: json);
 
 Future<XmlMetadata> createXmlMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateXmlMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateXmlMetadataFromJson(json: json);
 
 Future<TextMetadata> createTextMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTextMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateTextMetadataFromJson(json: json);
 
 Future<HeaderMetadata> createHeaderMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateHeaderMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateHeaderMetadataFromJson(json: json);
 
 Future<LinkMetadata> createLinkMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateLinkMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateLinkMetadataFromJson(json: json);
 
 Future<ImageMetadataType> createImageMetadataTypeFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateImageMetadataTypeFromJson(json: json);
 
 Future<StructuredData> createStructuredDataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateStructuredDataFromJson(json: json);
+    RustLib.instance.api.crateCreateStructuredDataFromJson(json: json);
 
 Future<HtmlMetadata> createHtmlMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateHtmlMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateHtmlMetadataFromJson(json: json);
 
 Future<OcrMetadata> createOcrMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrMetadataFromJson(json: json);
 
 Future<ErrorMetadata> createErrorMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateErrorMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateErrorMetadataFromJson(json: json);
 
 Future<PptxMetadata> createPptxMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePptxMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreatePptxMetadataFromJson(json: json);
 
 Future<DocxMetadata> createDocxMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDocxMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateDocxMetadataFromJson(json: json);
 
 Future<CsvMetadata> createCsvMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCsvMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateCsvMetadataFromJson(json: json);
 
 Future<BibtexMetadata> createBibtexMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateBibtexMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateBibtexMetadataFromJson(json: json);
 
 Future<CitationMetadata> createCitationMetadataFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateCitationMetadataFromJson(json: json);
 
 Future<YearRange> createYearRangeFromJson({required String json}) =>
-RustLib.instance.api.crateCreateYearRangeFromJson(json: json);
+    RustLib.instance.api.crateCreateYearRangeFromJson(json: json);
 
 Future<FictionBookMetadata> createFictionBookMetadataFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateFictionBookMetadataFromJson(json: json);
 
 Future<DbfMetadata> createDbfMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDbfMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateDbfMetadataFromJson(json: json);
 
 Future<DbfFieldInfo> createDbfFieldInfoFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDbfFieldInfoFromJson(json: json);
+    RustLib.instance.api.crateCreateDbfFieldInfoFromJson(json: json);
 
 Future<JatsMetadata> createJatsMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateJatsMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateJatsMetadataFromJson(json: json);
 
 Future<ContributorRole> createContributorRoleFromJson({required String json}) =>
-RustLib.instance.api.crateCreateContributorRoleFromJson(json: json);
+    RustLib.instance.api.crateCreateContributorRoleFromJson(json: json);
 
 Future<EpubMetadata> createEpubMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEpubMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateEpubMetadataFromJson(json: json);
 
 Future<PstMetadata> createPstMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePstMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreatePstMetadataFromJson(json: json);
 
 Future<AudioMetadata> createAudioMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreateAudioMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreateAudioMetadataFromJson(json: json);
 
 Future<OcrConfidence> createOcrConfidenceFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrConfidenceFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrConfidenceFromJson(json: json);
 
 Future<OcrRotation> createOcrRotationFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrRotationFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrRotationFromJson(json: json);
 
 Future<OcrElement> createOcrElementFromJson({required String json}) =>
-RustLib.instance.api.crateCreateOcrElementFromJson(json: json);
+    RustLib.instance.api.crateCreateOcrElementFromJson(json: json);
 
 Future<OcrElementConfig> createOcrElementConfigFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateOcrElementConfigFromJson(json: json);
 
 Future<PageStructure> createPageStructureFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageStructureFromJson(json: json);
+    RustLib.instance.api.crateCreatePageStructureFromJson(json: json);
 
 Future<PageBoundary> createPageBoundaryFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageBoundaryFromJson(json: json);
+    RustLib.instance.api.crateCreatePageBoundaryFromJson(json: json);
 
 Future<PageInfo> createPageInfoFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageInfoFromJson(json: json);
+    RustLib.instance.api.crateCreatePageInfoFromJson(json: json);
 
 Future<PageContent> createPageContentFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageContentFromJson(json: json);
+    RustLib.instance.api.crateCreatePageContentFromJson(json: json);
 
 Future<LayoutRegion> createLayoutRegionFromJson({required String json}) =>
-RustLib.instance.api.crateCreateLayoutRegionFromJson(json: json);
+    RustLib.instance.api.crateCreateLayoutRegionFromJson(json: json);
 
 Future<PageHierarchy> createPageHierarchyFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageHierarchyFromJson(json: json);
+    RustLib.instance.api.crateCreatePageHierarchyFromJson(json: json);
 
 Future<HierarchicalBlock> createHierarchicalBlockFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateHierarchicalBlockFromJson(json: json);
 
 Future<QrCode> createQrCodeFromJson({required String json}) =>
-RustLib.instance.api.crateCreateQrCodeFromJson(json: json);
+    RustLib.instance.api.crateCreateQrCodeFromJson(json: json);
 
 Future<QrBoundingBox> createQrBoundingBoxFromJson({required String json}) =>
-RustLib.instance.api.crateCreateQrBoundingBoxFromJson(json: json);
+    RustLib.instance.api.crateCreateQrBoundingBoxFromJson(json: json);
 
 Future<RedactionReport> createRedactionReportFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRedactionReportFromJson(json: json);
+    RustLib.instance.api.crateCreateRedactionReportFromJson(json: json);
 
 Future<RedactionFinding> createRedactionFindingFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateRedactionFindingFromJson(json: json);
 
 Future<CellChange> createCellChangeFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCellChangeFromJson(json: json);
+    RustLib.instance.api.crateCreateCellChangeFromJson(json: json);
 
 Future<PropertyChange> createPropertyChangeFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePropertyChangeFromJson(json: json);
+    RustLib.instance.api.crateCreatePropertyChangeFromJson(json: json);
 
 Future<DocumentRevision> createDocumentRevisionFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateDocumentRevisionFromJson(json: json);
 
 Future<RevisionDelta> createRevisionDeltaFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRevisionDeltaFromJson(json: json);
+    RustLib.instance.api.crateCreateRevisionDeltaFromJson(json: json);
 
 Future<DocumentSummary> createDocumentSummaryFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDocumentSummaryFromJson(json: json);
+    RustLib.instance.api.crateCreateDocumentSummaryFromJson(json: json);
 
 Future<Table> createTableFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTableFromJson(json: json);
+    RustLib.instance.api.crateCreateTableFromJson(json: json);
 
 Future<TableCell> createTableCellFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTableCellFromJson(json: json);
+    RustLib.instance.api.crateCreateTableCellFromJson(json: json);
 
 Future<Translation> createTranslationFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTranslationFromJson(json: json);
+    RustLib.instance.api.crateCreateTranslationFromJson(json: json);
 
 Future<ExtractedUri> createExtractedUriFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExtractedUriFromJson(json: json);
+    RustLib.instance.api.crateCreateExtractedUriFromJson(json: json);
 
 Future<DetectResponse> createDetectResponseFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDetectResponseFromJson(json: json);
+    RustLib.instance.api.crateCreateDetectResponseFromJson(json: json);
 
 Future<DiffOptions> createDiffOptionsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDiffOptionsFromJson(json: json);
+    RustLib.instance.api.crateCreateDiffOptionsFromJson(json: json);
 
 Future<ExtractionDiff> createExtractionDiffFromJson({required String json}) =>
-RustLib.instance.api.crateCreateExtractionDiffFromJson(json: json);
+    RustLib.instance.api.crateCreateExtractionDiffFromJson(json: json);
 
 Future<DiffHunk> createDiffHunkFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDiffHunkFromJson(json: json);
+    RustLib.instance.api.crateCreateDiffHunkFromJson(json: json);
 
 Future<TableDiff> createTableDiffFromJson({required String json}) =>
-RustLib.instance.api.crateCreateTableDiffFromJson(json: json);
+    RustLib.instance.api.crateCreateTableDiffFromJson(json: json);
 
 Future<EmbeddedChanges> createEmbeddedChangesFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmbeddedChangesFromJson(json: json);
+    RustLib.instance.api.crateCreateEmbeddedChangesFromJson(json: json);
 
 Future<EmbeddedDiff> createEmbeddedDiffFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmbeddedDiffFromJson(json: json);
+    RustLib.instance.api.crateCreateEmbeddedDiffFromJson(json: json);
 
 Future<RerankedDocument> createRerankedDocumentFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateRerankedDocumentFromJson(json: json);
 
 Future<SparseEmbedding> createSparseEmbeddingFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSparseEmbeddingFromJson(json: json);
+    RustLib.instance.api.crateCreateSparseEmbeddingFromJson(json: json);
 
 Future<SparseEmbeddingPreset> createSparseEmbeddingPresetFromJson({
   required String json,
@@ -806,23 +947,23 @@ Future<LateInteractionMatch> createLateInteractionMatchFromJson({
 }) => RustLib.instance.api.crateCreateLateInteractionMatchFromJson(json: json);
 
 Future<YakeParams> createYakeParamsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateYakeParamsFromJson(json: json);
+    RustLib.instance.api.crateCreateYakeParamsFromJson(json: json);
 
 Future<RakeParams> createRakeParamsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRakeParamsFromJson(json: json);
+    RustLib.instance.api.crateCreateRakeParamsFromJson(json: json);
 
 Future<KeywordConfig> createKeywordConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateKeywordConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateKeywordConfigFromJson(json: json);
 
 Future<Keyword> createKeywordFromJson({required String json}) =>
-RustLib.instance.api.crateCreateKeywordFromJson(json: json);
+    RustLib.instance.api.crateCreateKeywordFromJson(json: json);
 
 Future<DocumentMetadata> createDocumentMetadataFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateDocumentMetadataFromJson(json: json);
 
 Future<UserChunkConfig> createUserChunkConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateUserChunkConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateUserChunkConfigFromJson(json: json);
 
 Future<ExtractionConfidence> createExtractionConfidenceFromJson({
   required String json,
@@ -833,16 +974,16 @@ Future<HeuristicsConfig> createHeuristicsConfigFromJson({
 }) => RustLib.instance.api.crateCreateHeuristicsConfigFromJson(json: json);
 
 Future<ChunkInfo> createChunkInfoFromJson({required String json}) =>
-RustLib.instance.api.crateCreateChunkInfoFromJson(json: json);
+    RustLib.instance.api.crateCreateChunkInfoFromJson(json: json);
 
 Future<PageRange> createPageRangeFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageRangeFromJson(json: json);
+    RustLib.instance.api.crateCreatePageRangeFromJson(json: json);
 
 Future<MultidocInput> createMultidocInputFromJson({required String json}) =>
-RustLib.instance.api.crateCreateMultidocInputFromJson(json: json);
+    RustLib.instance.api.crateCreateMultidocInputFromJson(json: json);
 
 Future<PageSignals> createPageSignalsFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePageSignalsFromJson(json: json);
+    RustLib.instance.api.crateCreatePageSignalsFromJson(json: json);
 
 Future<DocumentBoundary> createDocumentBoundaryFromJson({
   required String json,
@@ -853,71 +994,71 @@ Future<MultidocThresholds> createMultidocThresholdsFromJson({
 }) => RustLib.instance.api.crateCreateMultidocThresholdsFromJson(json: json);
 
 Future<ResolvedPreset> createResolvedPresetFromJson({required String json}) =>
-RustLib.instance.api.crateCreateResolvedPresetFromJson(json: json);
+    RustLib.instance.api.crateCreateResolvedPresetFromJson(json: json);
 
 Future<PresetSample> createPresetSampleFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePresetSampleFromJson(json: json);
+    RustLib.instance.api.crateCreatePresetSampleFromJson(json: json);
 
 Future<Preset> createPresetFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePresetFromJson(json: json);
+    RustLib.instance.api.crateCreatePresetFromJson(json: json);
 
 Future<PresetSummary> createPresetSummaryFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePresetSummaryFromJson(json: json);
+    RustLib.instance.api.crateCreatePresetSummaryFromJson(json: json);
 
 Future<DoctorCheck> createDoctorCheckFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDoctorCheckFromJson(json: json);
+    RustLib.instance.api.crateCreateDoctorCheckFromJson(json: json);
 
 Future<DoctorReport> createDoctorReportFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDoctorReportFromJson(json: json);
+    RustLib.instance.api.crateCreateDoctorReportFromJson(json: json);
 
 Future<PaddleOcrConfig> createPaddleOcrConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePaddleOcrConfigFromJson(json: json);
+    RustLib.instance.api.crateCreatePaddleOcrConfigFromJson(json: json);
 
 Future<ModelPaths> createModelPathsFromJson({required String json}) =>
-RustLib.instance.api.crateCreateModelPathsFromJson(json: json);
+    RustLib.instance.api.crateCreateModelPathsFromJson(json: json);
 
 Future<OrientationResult> createOrientationResultFromJson({
   required String json,
 }) => RustLib.instance.api.crateCreateOrientationResultFromJson(json: json);
 
 Future<BBox> createBBoxFromJson({required String json}) =>
-RustLib.instance.api.crateCreateBBoxFromJson(json: json);
+    RustLib.instance.api.crateCreateBBoxFromJson(json: json);
 
 Future<LayoutDetection> createLayoutDetectionFromJson({required String json}) =>
-RustLib.instance.api.crateCreateLayoutDetectionFromJson(json: json);
+    RustLib.instance.api.crateCreateLayoutDetectionFromJson(json: json);
 
 Future<RecognizedTable> createRecognizedTableFromJson({required String json}) =>
-RustLib.instance.api.crateCreateRecognizedTableFromJson(json: json);
+    RustLib.instance.api.crateCreateRecognizedTableFromJson(json: json);
 
 Future<DetectionResult> createDetectionResultFromJson({required String json}) =>
-RustLib.instance.api.crateCreateDetectionResultFromJson(json: json);
+    RustLib.instance.api.crateCreateDetectionResultFromJson(json: json);
 
 Future<EmbeddedFile> createEmbeddedFileFromJson({required String json}) =>
-RustLib.instance.api.crateCreateEmbeddedFileFromJson(json: json);
+    RustLib.instance.api.crateCreateEmbeddedFileFromJson(json: json);
 
 Future<PdfMetadata> createPdfMetadataFromJson({required String json}) =>
-RustLib.instance.api.crateCreatePdfMetadataFromJson(json: json);
+    RustLib.instance.api.crateCreatePdfMetadataFromJson(json: json);
 
 Future<ProxyConfig> createProxyConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateProxyConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateProxyConfigFromJson(json: json);
 
 Future<ContentConfig> createContentConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateContentConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateContentConfigFromJson(json: json);
 
 Future<BrowserConfig> createBrowserConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateBrowserConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateBrowserConfigFromJson(json: json);
 
 Future<CrawlConfig> createCrawlConfigFromJson({required String json}) =>
-RustLib.instance.api.crateCreateCrawlConfigFromJson(json: json);
+    RustLib.instance.api.crateCreateCrawlConfigFromJson(json: json);
 
 Future<SitemapUrl> createSitemapUrlFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSitemapUrlFromJson(json: json);
+    RustLib.instance.api.crateCreateSitemapUrlFromJson(json: json);
 
 Future<MapResult> createMapResultFromJson({required String json}) =>
-RustLib.instance.api.crateCreateMapResultFromJson(json: json);
+    RustLib.instance.api.crateCreateMapResultFromJson(json: json);
 
 Future<SsrfPolicy> createSsrfPolicyFromJson({required String json}) =>
-RustLib.instance.api.crateCreateSsrfPolicyFromJson(json: json);
+    RustLib.instance.api.crateCreateSsrfPolicyFromJson(json: json);
 
 Future<ConversionOptions> createConversionOptionsFromJson({
   required String json,
@@ -970,12 +1111,12 @@ Future<OcrBackendDartImpl> createOcrBackendDartImpl({
 /// `xberg::plugins::registry::get_ocr_backend_registry()`. Errors from the host registry are stringified
 /// for FRB transport.
 Future<void> registerOcrBackend({required OcrBackendDartImpl impl}) =>
-RustLib.instance.api.crateRegisterOcrBackend(impl: impl);
+    RustLib.instance.api.crateRegisterOcrBackend(impl: impl);
 
 /// Unregister a previously-registered `OcrBackend` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_ocr_backend_registry()` and stringifies any host error.
 Future<void> unregisterOcrBackend({required String name}) =>
-RustLib.instance.api.crateUnregisterOcrBackend(name: name);
+    RustLib.instance.api.crateUnregisterOcrBackend(name: name);
 
 /// Clear all registered `OcrBackend` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_ocr_backend_registry()` and stringifies any host error.
@@ -1015,17 +1156,17 @@ Future<PostProcessorDartImpl> createPostProcessorDartImpl({
 /// `xberg::plugins::registry::get_post_processor_registry()`. Errors from the host registry are stringified
 /// for FRB transport.
 Future<void> registerPostProcessor({required PostProcessorDartImpl impl}) =>
-RustLib.instance.api.crateRegisterPostProcessor(impl: impl);
+    RustLib.instance.api.crateRegisterPostProcessor(impl: impl);
 
 /// Unregister a previously-registered `PostProcessor` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_post_processor_registry()` and stringifies any host error.
 Future<void> unregisterPostProcessor({required String name}) =>
-RustLib.instance.api.crateUnregisterPostProcessor(name: name);
+    RustLib.instance.api.crateUnregisterPostProcessor(name: name);
 
 /// Clear all registered `PostProcessor` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_post_processor_registry()` and stringifies any host error.
 Future<void> clearPostProcessors() =>
-RustLib.instance.api.crateClearPostProcessors();
+    RustLib.instance.api.crateClearPostProcessors();
 
 /// Construct a `ValidatorDartImpl` from Dart callback closures.
 /// FRB synthesises a Dart-callable function type for each closure parameter,
@@ -1057,12 +1198,12 @@ Future<ValidatorDartImpl> createValidatorDartImpl({
 /// `xberg::plugins::registry::get_validator_registry()`. Errors from the host registry are stringified
 /// for FRB transport.
 Future<void> registerValidator({required ValidatorDartImpl impl}) =>
-RustLib.instance.api.crateRegisterValidator(impl: impl);
+    RustLib.instance.api.crateRegisterValidator(impl: impl);
 
 /// Unregister a previously-registered `Validator` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_validator_registry()` and stringifies any host error.
 Future<void> unregisterValidator({required String name}) =>
-RustLib.instance.api.crateUnregisterValidator(name: name);
+    RustLib.instance.api.crateUnregisterValidator(name: name);
 
 /// Clear all registered `Validator` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_validator_registry()` and stringifies any host error.
@@ -1105,12 +1246,12 @@ Future<void> registerDocumentExtractor({
 /// Unregister a previously-registered `DocumentExtractor` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_document_extractor_registry()` and stringifies any host error.
 Future<void> unregisterDocumentExtractor({required String name}) =>
-RustLib.instance.api.crateUnregisterDocumentExtractor(name: name);
+    RustLib.instance.api.crateUnregisterDocumentExtractor(name: name);
 
 /// Clear all registered `DocumentExtractor` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_document_extractor_registry()` and stringifies any host error.
 Future<void> clearDocumentExtractors() =>
-RustLib.instance.api.crateClearDocumentExtractors();
+    RustLib.instance.api.crateClearDocumentExtractors();
 
 /// Construct a `EmbeddingBackendDartImpl` from Dart callback closures.
 /// FRB synthesises a Dart-callable function type for each closure parameter,
@@ -1144,12 +1285,12 @@ Future<void> registerEmbeddingBackend({
 /// Unregister a previously-registered `EmbeddingBackend` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_embedding_backend_registry()` and stringifies any host error.
 Future<void> unregisterEmbeddingBackend({required String name}) =>
-RustLib.instance.api.crateUnregisterEmbeddingBackend(name: name);
+    RustLib.instance.api.crateUnregisterEmbeddingBackend(name: name);
 
 /// Clear all registered `EmbeddingBackend` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_embedding_backend_registry()` and stringifies any host error.
 Future<void> clearEmbeddingBackends() =>
-RustLib.instance.api.crateClearEmbeddingBackends();
+    RustLib.instance.api.crateClearEmbeddingBackends();
 
 /// Construct a `RendererDartImpl` from Dart callback closures.
 /// FRB synthesises a Dart-callable function type for each closure parameter,
@@ -1175,12 +1316,12 @@ Future<RendererDartImpl> createRendererDartImpl({
 /// `xberg::plugins::registry::get_renderer_registry()`. Errors from the host registry are stringified
 /// for FRB transport.
 Future<void> registerRenderer({required RendererDartImpl impl}) =>
-RustLib.instance.api.crateRegisterRenderer(impl: impl);
+    RustLib.instance.api.crateRegisterRenderer(impl: impl);
 
 /// Unregister a previously-registered `Renderer` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_renderer_registry()` and stringifies any host error.
 Future<void> unregisterRenderer({required String name}) =>
-RustLib.instance.api.crateUnregisterRenderer(name: name);
+    RustLib.instance.api.crateUnregisterRenderer(name: name);
 
 /// Clear all registered `Renderer` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_renderer_registry()` and stringifies any host error.
@@ -1210,17 +1351,17 @@ Future<RerankerBackendDartImpl> createRerankerBackendDartImpl({
 /// `xberg::plugins::registry::get_reranker_backend_registry()`. Errors from the host registry are stringified
 /// for FRB transport.
 Future<void> registerRerankerBackend({required RerankerBackendDartImpl impl}) =>
-RustLib.instance.api.crateRegisterRerankerBackend(impl: impl);
+    RustLib.instance.api.crateRegisterRerankerBackend(impl: impl);
 
 /// Unregister a previously-registered `RerankerBackend` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_reranker_backend_registry()` and stringifies any host error.
 Future<void> unregisterRerankerBackend({required String name}) =>
-RustLib.instance.api.crateUnregisterRerankerBackend(name: name);
+    RustLib.instance.api.crateUnregisterRerankerBackend(name: name);
 
 /// Clear all registered `RerankerBackend` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_reranker_backend_registry()` and stringifies any host error.
 Future<void> clearRerankerBackends() =>
-RustLib.instance.api.crateClearRerankerBackends();
+    RustLib.instance.api.crateClearRerankerBackends();
 
 /// Construct a `TokenizerBackendDartImpl` from Dart callback closures.
 /// FRB synthesises a Dart-callable function type for each closure parameter,
@@ -1252,12 +1393,12 @@ Future<void> registerTokenizerBackend({
 /// Unregister a previously-registered `TokenizerBackend` plugin by name.
 /// Removes the plugin from `xberg::plugins::registry::get_tokenizer_backend_registry()` and stringifies any host error.
 Future<void> unregisterTokenizerBackend({required String name}) =>
-RustLib.instance.api.crateUnregisterTokenizerBackend(name: name);
+    RustLib.instance.api.crateUnregisterTokenizerBackend(name: name);
 
 /// Clear all registered `TokenizerBackend` plugins.
 /// Removes every plugin from `xberg::plugins::registry::get_tokenizer_backend_registry()` and stringifies any host error.
 Future<void> clearTokenizerBackends() =>
-RustLib.instance.api.crateClearTokenizerBackends();
+    RustLib.instance.api.crateClearTokenizerBackends();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Arc < dyn DocumentExtractor + Send + Sync >>>
 abstract class ArcDocumentExtractor implements RustOpaqueInterface {}
@@ -1300,9 +1441,9 @@ abstract class EmbeddingBackendDartImpl implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MetaSchema>>
 abstract class MetaSchema implements RustOpaqueInterface {
   static Future<MetaSchema> compile({required String metaSchemaJson}) => RustLib
-  .instance
-  .api
-  .crateMetaSchemaCompile(metaSchemaJson: metaSchemaJson);
+      .instance
+      .api
+      .crateMetaSchemaCompile(metaSchemaJson: metaSchemaJson);
 
   Future<Preset> parsePreset({required String path, required List<int> raw});
 }
@@ -1328,14 +1469,14 @@ abstract class Registry implements RustOpaqueInterface {
   Future<Preset?> get_({required String id});
 
   static Future<Registry> global() =>
-  RustLib.instance.api.crateRegistryGlobal();
+      RustLib.instance.api.crateRegistryGlobal();
 
   Future<bool> isEmpty();
 
   Future<PlatformInt64> len();
 
   static Future<Registry> loadEmbedded() =>
-  RustLib.instance.api.crateRegistryLoadEmbedded();
+      RustLib.instance.api.crateRegistryLoadEmbedded();
 
   Future<Uint8List?> sampleBytes({
     required String presetId,
@@ -1363,7 +1504,7 @@ abstract class RerankerBackendDartImpl implements RustOpaqueInterface {
 abstract class TokenCounter implements RustOpaqueInterface {
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
   static Future<TokenCounter> newInstance() =>
-  RustLib.instance.api.crateTokenCounterNew();
+      RustLib.instance.api.crateTokenCounterNew();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TokenizerBackendDartImpl>>
@@ -1413,11 +1554,11 @@ class AccelerationConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is AccelerationConfig &&
-  runtimeType == other.runtimeType &&
-  provider == other.provider &&
-  deviceId == other.deviceId;
+      identical(this, other) ||
+      other is AccelerationConfig &&
+          runtimeType == other.runtimeType &&
+          provider == other.provider &&
+          deviceId == other.deviceId;
 }
 
 @freezed
@@ -1504,12 +1645,12 @@ class ArchiveEntry {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ArchiveEntry &&
-  runtimeType == other.runtimeType &&
-  path == other.path &&
-  mimeType == other.mimeType &&
-  result == other.result;
+      identical(this, other) ||
+      other is ArchiveEntry &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          mimeType == other.mimeType &&
+          result == other.result;
 }
 
 /// Archive (ZIP/TAR/7Z) metadata.
@@ -1541,22 +1682,22 @@ class ArchiveMetadata {
 
   @override
   int get hashCode =>
-  format.hashCode ^
-  fileCount.hashCode ^
-  fileList.hashCode ^
-  totalSize.hashCode ^
-  compressedSize.hashCode;
+      format.hashCode ^
+      fileCount.hashCode ^
+      fileList.hashCode ^
+      totalSize.hashCode ^
+      compressedSize.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ArchiveMetadata &&
-  runtimeType == other.runtimeType &&
-  format == other.format &&
-  fileCount == other.fileCount &&
-  fileList == other.fileList &&
-  totalSize == other.totalSize &&
-  compressedSize == other.compressedSize;
+      identical(this, other) ||
+      other is ArchiveMetadata &&
+          runtimeType == other.runtimeType &&
+          format == other.format &&
+          fileCount == other.fileCount &&
+          fileList == other.fileList &&
+          totalSize == other.totalSize &&
+          compressedSize == other.compressedSize;
 }
 
 /// The category of a downloaded asset.
@@ -1626,24 +1767,24 @@ class AudioMetadata {
 
   @override
   int get hashCode =>
-  durationMs.hashCode ^
-  codec.hashCode ^
-  container.hashCode ^
-  sampleRateHz.hashCode ^
-  channels.hashCode ^
-  bitrate.hashCode;
+      durationMs.hashCode ^
+      codec.hashCode ^
+      container.hashCode ^
+      sampleRateHz.hashCode ^
+      channels.hashCode ^
+      bitrate.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is AudioMetadata &&
-  runtimeType == other.runtimeType &&
-  durationMs == other.durationMs &&
-  codec == other.codec &&
-  container == other.container &&
-  sampleRateHz == other.sampleRateHz &&
-  channels == other.channels &&
-  bitrate == other.bitrate;
+      identical(this, other) ||
+      other is AudioMetadata &&
+          runtimeType == other.runtimeType &&
+          durationMs == other.durationMs &&
+          codec == other.codec &&
+          container == other.container &&
+          sampleRateHz == other.sampleRateHz &&
+          channels == other.channels &&
+          bitrate == other.bitrate;
 }
 
 @freezed
@@ -1701,13 +1842,78 @@ class BBox {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is BBox &&
-  runtimeType == other.runtimeType &&
-  x1 == other.x1 &&
-  y1 == other.y1 &&
-  x2 == other.x2 &&
-  y2 == other.y2;
+      identical(this, other) ||
+      other is BBox &&
+          runtimeType == other.runtimeType &&
+          x1 == other.x1 &&
+          y1 == other.y1 &&
+          x2 == other.x2 &&
+          y2 == other.y2;
+}
+
+/// AWS Bedrock configuration for `bedrock/`-prefixed models.
+///
+/// Mirrors liter-llm's `BedrockConfig`. Every field is optional: anything left
+/// unset falls back to the standard AWS environment variables
+/// (`AWS_DEFAULT_REGION` / `AWS_REGION`, `AWS_ACCESS_KEY_ID`,
+/// `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `BEDROCK_CROSS_REGION`) and the
+/// default AWS credential chain. Leave the credential fields unset unless you
+/// have an explicit reason to pin them.
+///
+/// # Example
+///
+/// ```toml
+/// [ocr.vlm_config]
+/// model = "bedrock/anthropic.claude-3-sonnet-20240229-v1:0"
+///
+/// [ocr.vlm_config.bedrock]
+/// region = "eu-central-1"
+/// cross_region_prefix = "eu"
+/// ```
+///
+/// `Debug` is implemented by hand so the three credential fields are never printed.
+class BedrockConfig {
+  /// AWS region (e.g. `"us-east-1"`).
+  final String? region;
+
+  /// Cross-region inference profile prefix (e.g. `"us"`).
+  final String? crossRegionPrefix;
+
+  /// Explicit AWS access key ID. Secret — never logged.
+  final String? accessKeyId;
+
+  /// Explicit AWS secret access key. Secret — never logged.
+  final String? secretAccessKey;
+
+  /// Explicit AWS session token for temporary credentials. Secret — never logged.
+  final String? sessionToken;
+
+  const BedrockConfig({
+    this.region,
+    this.crossRegionPrefix,
+    this.accessKeyId,
+    this.secretAccessKey,
+    this.sessionToken,
+  });
+
+  @override
+  int get hashCode =>
+      region.hashCode ^
+      crossRegionPrefix.hashCode ^
+      accessKeyId.hashCode ^
+      secretAccessKey.hashCode ^
+      sessionToken.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BedrockConfig &&
+          runtimeType == other.runtimeType &&
+          region == other.region &&
+          crossRegionPrefix == other.crossRegionPrefix &&
+          accessKeyId == other.accessKeyId &&
+          secretAccessKey == other.secretAccessKey &&
+          sessionToken == other.sessionToken;
 }
 
 /// BibTeX bibliography metadata.
@@ -1737,22 +1943,22 @@ class BibtexMetadata {
 
   @override
   int get hashCode =>
-  entryCount.hashCode ^
-  citationKeys.hashCode ^
-  authors.hashCode ^
-  yearRange.hashCode ^
-  entryTypes.hashCode;
+      entryCount.hashCode ^
+      citationKeys.hashCode ^
+      authors.hashCode ^
+      yearRange.hashCode ^
+      entryTypes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is BibtexMetadata &&
-  runtimeType == other.runtimeType &&
-  entryCount == other.entryCount &&
-  citationKeys == other.citationKeys &&
-  authors == other.authors &&
-  yearRange == other.yearRange &&
-  entryTypes == other.entryTypes;
+      identical(this, other) ||
+      other is BibtexMetadata &&
+          runtimeType == other.runtimeType &&
+          entryCount == other.entryCount &&
+          citationKeys == other.citationKeys &&
+          authors == other.authors &&
+          yearRange == other.yearRange &&
+          entryTypes == other.entryTypes;
 }
 
 /// Types of block-level elements in Djot.
@@ -1850,13 +2056,46 @@ class BoundingBox {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is BoundingBox &&
-  runtimeType == other.runtimeType &&
-  x0 == other.x0 &&
-  y0 == other.y0 &&
-  x1 == other.x1 &&
-  y1 == other.y1;
+      identical(this, other) ||
+      other is BoundingBox &&
+          runtimeType == other.runtimeType &&
+          x0 == other.x0 &&
+          y0 == other.y0 &&
+          x1 == other.x1 &&
+          y1 == other.y1;
+}
+
+/// Where the heading-path breadcrumb is written when
+/// [`ChunkingConfig::prepend_heading_context`](super::super::processing::ChunkingConfig::prepend_heading_context)
+/// is enabled for a `Markdown`-chunked document.
+///
+/// Prepending the breadcrumb into a chunk's `content` (the default, `Content`) helps
+/// dense/embedding retrieval: each chunk becomes a self-contained passage that carries
+/// its own structural context. It actively harms lexical retrieval (BM25/TF-IDF),
+/// though — every chunk under the same section repeats the same heading tokens, so a
+/// heading word's document frequency approaches the number of chunks in that section
+/// and its IDF collapses toward zero, drowning out real match signal.
+///
+/// `Metadata` keeps `content` free of the breadcrumb and relies solely on
+/// [`ChunkMetadata::heading_path`](crate::types::ChunkMetadata::heading_path) (already
+/// populated for every chunk under a heading by
+/// [`chunk_for_rag`](crate::chunking::chunk_for_rag)), which downstream lexical/hybrid
+/// pipelines can use to exclude or down-weight heading tokens directly — instead of the
+/// fragile pattern of string-stripping a breadcrumb prefix back out of `content`.
+///
+/// There is deliberately no `Both` variant. `heading_path` is populated for every
+/// chunk under a heading regardless of this setting, so "both" is precisely what
+/// `Content` already does — a third variant would be a synonym, and one that every
+/// binding in 15 languages would have to carry and every caller would have to guess
+/// the meaning of.
+enum BreadcrumbTarget {
+  /// Prepend the heading breadcrumb into chunk `content`, and keep `heading_path`
+  /// populated (default; preserves the behaviour that existed before this option
+  /// was introduced).
+  content,
+
+  /// Leave `content` untouched; rely on `ChunkMetadata::heading_path` only.
+  metadata,
 }
 
 /// Browser backend used for JavaScript rendering.
@@ -1938,38 +2177,38 @@ class BrowserConfig {
 
   @override
   int get hashCode =>
-  mode.hashCode ^
-  backend.hashCode ^
-  endpoint.hashCode ^
-  timeout.hashCode ^
-  wait.hashCode ^
-  waitSelector.hashCode ^
-  extraWait.hashCode ^
-  proxy.hashCode ^
-  blockUrlPatterns.hashCode ^
-  evalScript.hashCode ^
-  robotsUserAgent.hashCode ^
-  captureNetworkEvents.hashCode ^
-  sessionAffinity.hashCode;
+      mode.hashCode ^
+      backend.hashCode ^
+      endpoint.hashCode ^
+      timeout.hashCode ^
+      wait.hashCode ^
+      waitSelector.hashCode ^
+      extraWait.hashCode ^
+      proxy.hashCode ^
+      blockUrlPatterns.hashCode ^
+      evalScript.hashCode ^
+      robotsUserAgent.hashCode ^
+      captureNetworkEvents.hashCode ^
+      sessionAffinity.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is BrowserConfig &&
-  runtimeType == other.runtimeType &&
-  mode == other.mode &&
-  backend == other.backend &&
-  endpoint == other.endpoint &&
-  timeout == other.timeout &&
-  wait == other.wait &&
-  waitSelector == other.waitSelector &&
-  extraWait == other.extraWait &&
-  proxy == other.proxy &&
-  blockUrlPatterns == other.blockUrlPatterns &&
-  evalScript == other.evalScript &&
-  robotsUserAgent == other.robotsUserAgent &&
-  captureNetworkEvents == other.captureNetworkEvents &&
-  sessionAffinity == other.sessionAffinity;
+      identical(this, other) ||
+      other is BrowserConfig &&
+          runtimeType == other.runtimeType &&
+          mode == other.mode &&
+          backend == other.backend &&
+          endpoint == other.endpoint &&
+          timeout == other.timeout &&
+          wait == other.wait &&
+          waitSelector == other.waitSelector &&
+          extraWait == other.extraWait &&
+          proxy == other.proxy &&
+          blockUrlPatterns == other.blockUrlPatterns &&
+          evalScript == other.evalScript &&
+          robotsUserAgent == other.robotsUserAgent &&
+          captureNetworkEvents == other.captureNetworkEvents &&
+          sessionAffinity == other.sessionAffinity;
 }
 
 /// When to use the headless browser fallback.
@@ -2038,22 +2277,22 @@ class CacheStats {
 
   @override
   int get hashCode =>
-  totalFiles.hashCode ^
-  totalSizeMb.hashCode ^
-  availableSpaceMb.hashCode ^
-  oldestFileAgeDays.hashCode ^
-  newestFileAgeDays.hashCode;
+      totalFiles.hashCode ^
+      totalSizeMb.hashCode ^
+      availableSpaceMb.hashCode ^
+      oldestFileAgeDays.hashCode ^
+      newestFileAgeDays.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CacheStats &&
-  runtimeType == other.runtimeType &&
-  totalFiles == other.totalFiles &&
-  totalSizeMb == other.totalSizeMb &&
-  availableSpaceMb == other.availableSpaceMb &&
-  oldestFileAgeDays == other.oldestFileAgeDays &&
-  newestFileAgeDays == other.newestFileAgeDays;
+      identical(this, other) ||
+      other is CacheStats &&
+          runtimeType == other.runtimeType &&
+          totalFiles == other.totalFiles &&
+          totalSizeMb == other.totalSizeMb &&
+          availableSpaceMb == other.availableSpaceMb &&
+          oldestFileAgeDays == other.oldestFileAgeDays &&
+          newestFileAgeDays == other.newestFileAgeDays;
 }
 
 /// How a structured-extraction preset is dispatched to the model.
@@ -2097,12 +2336,12 @@ class CaptioningConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CaptioningConfig &&
-  runtimeType == other.runtimeType &&
-  llm == other.llm &&
-  prompt == other.prompt &&
-  minImageArea == other.minImageArea;
+      identical(this, other) ||
+      other is CaptioningConfig &&
+          runtimeType == other.runtimeType &&
+          llm == other.llm &&
+          prompt == other.prompt &&
+          minImageArea == other.minImageArea;
 }
 
 /// A single changed cell within a table.
@@ -2135,13 +2374,13 @@ class CellChange {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CellChange &&
-  runtimeType == other.runtimeType &&
-  row == other.row &&
-  col == other.col &&
-  from == other.from &&
-  to == other.to;
+      identical(this, other) ||
+      other is CellChange &&
+          runtimeType == other.runtimeType &&
+          row == other.row &&
+          col == other.col &&
+          from == other.from &&
+          to == other.to;
 }
 
 /// A text chunk with optional embedding and metadata.
@@ -2165,6 +2404,29 @@ class Chunk {
   /// The dimensionality depends on the chosen embedding model.
   final Float64List? embedding;
 
+  /// Optional sparse (SPLADE) learned embedding for this chunk.
+  ///
+  /// Only populated when sparse-embedding generation is configured for chunking.
+  /// `None` otherwise, including on builds without the `sparse-embeddings` feature.
+  ///
+  /// Uses the crate-root `SparseEmbedding` alias rather than
+  /// `crate::sparse_embeddings::SparseEmbedding` directly: the `sparse_embeddings`
+  /// module itself only compiles under `sparse-embeddings`/`sparse-embedding-presets`,
+  /// while the crate-root alias is always defined (a field-compatible stub on builds
+  /// without either feature), so this field — and `Chunk` itself — compiles on every
+  /// feature combination, including the crate's default features.
+  final SparseEmbedding? sparseEmbedding;
+
+  /// Optional ColBERT-style multi-vector (late-interaction) embedding for this chunk.
+  ///
+  /// Only populated when late-interaction embedding generation is configured for
+  /// chunking. `None` otherwise, including on builds without the `late-interaction`
+  /// feature.
+  ///
+  /// Uses the crate-root `MultiVectorEmbedding` alias for the same reason
+  /// `sparse_embedding` uses `SparseEmbedding` — see that field's docs.
+  final MultiVectorEmbedding? lateInteraction;
+
   /// Metadata about this chunk's position and properties.
   final ChunkMetadata metadata;
 
@@ -2172,25 +2434,31 @@ class Chunk {
     required this.content,
     required this.chunkType,
     this.embedding,
+    this.sparseEmbedding,
+    this.lateInteraction,
     required this.metadata,
   });
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  chunkType.hashCode ^
-  embedding.hashCode ^
-  metadata.hashCode;
+      content.hashCode ^
+      chunkType.hashCode ^
+      embedding.hashCode ^
+      sparseEmbedding.hashCode ^
+      lateInteraction.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Chunk &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  chunkType == other.chunkType &&
-  embedding == other.embedding &&
-  metadata == other.metadata;
+      identical(this, other) ||
+      other is Chunk &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          chunkType == other.chunkType &&
+          embedding == other.embedding &&
+          sparseEmbedding == other.sparseEmbedding &&
+          lateInteraction == other.lateInteraction &&
+          metadata == other.metadata;
 }
 
 /// Configuration for the chunk-classification post-processor.
@@ -2237,22 +2505,22 @@ class ChunkClassificationConfig {
 
   @override
   int get hashCode =>
-  promptTemplate.hashCode ^
-  definitions.hashCode ^
-  llm.hashCode ^
-  batchSize.hashCode ^
-  maxConcurrency.hashCode;
+      promptTemplate.hashCode ^
+      definitions.hashCode ^
+      llm.hashCode ^
+      batchSize.hashCode ^
+      maxConcurrency.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ChunkClassificationConfig &&
-  runtimeType == other.runtimeType &&
-  promptTemplate == other.promptTemplate &&
-  definitions == other.definitions &&
-  llm == other.llm &&
-  batchSize == other.batchSize &&
-  maxConcurrency == other.maxConcurrency;
+      identical(this, other) ||
+      other is ChunkClassificationConfig &&
+          runtimeType == other.runtimeType &&
+          promptTemplate == other.promptTemplate &&
+          definitions == other.definitions &&
+          llm == other.llm &&
+          batchSize == other.batchSize &&
+          maxConcurrency == other.maxConcurrency;
 }
 
 /// A single labeled definition the chunk classifier may emit.
@@ -2279,11 +2547,11 @@ class ChunkClassificationDefinition {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ChunkClassificationDefinition &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  description == other.description;
+      identical(this, other) ||
+      other is ChunkClassificationDefinition &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          description == other.description;
 }
 
 /// Information about a single chunk.
@@ -2305,16 +2573,16 @@ class ChunkInfo {
 
   @override
   int get hashCode =>
-  index.hashCode ^ pages.hashCode ^ estimatedTimeMs.hashCode;
+      index.hashCode ^ pages.hashCode ^ estimatedTimeMs.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ChunkInfo &&
-  runtimeType == other.runtimeType &&
-  index == other.index &&
-  pages == other.pages &&
-  estimatedTimeMs == other.estimatedTimeMs;
+      identical(this, other) ||
+      other is ChunkInfo &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          pages == other.pages &&
+          estimatedTimeMs == other.estimatedTimeMs;
 }
 
 /// Metadata about a chunk's position in the original document.
@@ -2415,38 +2683,38 @@ class ChunkMetadata {
 
   @override
   int get hashCode =>
-  byteStart.hashCode ^
-  byteEnd.hashCode ^
-  tokenCount.hashCode ^
-  chunkIndex.hashCode ^
-  totalChunks.hashCode ^
-  firstPage.hashCode ^
-  lastPage.hashCode ^
-  headingContext.hashCode ^
-  headingPath.hashCode ^
-  imageIndices.hashCode ^
-  nodeIds.hashCode ^
-  pageSpans.hashCode ^
-  classifications.hashCode;
+      byteStart.hashCode ^
+      byteEnd.hashCode ^
+      tokenCount.hashCode ^
+      chunkIndex.hashCode ^
+      totalChunks.hashCode ^
+      firstPage.hashCode ^
+      lastPage.hashCode ^
+      headingContext.hashCode ^
+      headingPath.hashCode ^
+      imageIndices.hashCode ^
+      nodeIds.hashCode ^
+      pageSpans.hashCode ^
+      classifications.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ChunkMetadata &&
-  runtimeType == other.runtimeType &&
-  byteStart == other.byteStart &&
-  byteEnd == other.byteEnd &&
-  tokenCount == other.tokenCount &&
-  chunkIndex == other.chunkIndex &&
-  totalChunks == other.totalChunks &&
-  firstPage == other.firstPage &&
-  lastPage == other.lastPage &&
-  headingContext == other.headingContext &&
-  headingPath == other.headingPath &&
-  imageIndices == other.imageIndices &&
-  nodeIds == other.nodeIds &&
-  pageSpans == other.pageSpans &&
-  classifications == other.classifications;
+      identical(this, other) ||
+      other is ChunkMetadata &&
+          runtimeType == other.runtimeType &&
+          byteStart == other.byteStart &&
+          byteEnd == other.byteEnd &&
+          tokenCount == other.tokenCount &&
+          chunkIndex == other.chunkIndex &&
+          totalChunks == other.totalChunks &&
+          firstPage == other.firstPage &&
+          lastPage == other.lastPage &&
+          headingContext == other.headingContext &&
+          headingPath == other.headingPath &&
+          imageIndices == other.imageIndices &&
+          nodeIds == other.nodeIds &&
+          pageSpans == other.pageSpans &&
+          classifications == other.classifications;
 }
 
 @freezed
@@ -2593,6 +2861,27 @@ class ChunkingConfig {
   /// Optional embedding configuration for chunk embeddings.
   final EmbeddingConfig? embedding;
 
+  /// Optional sparse (SPLADE) embedding configuration for chunk embeddings.
+  ///
+  /// When set, sparse vectors are generated for each chunk's content and attached
+  /// via `sparse_embedding`. Requires the `sparse-embeddings`
+  /// feature; without it, a warning is emitted and no sparse vectors are attached.
+  ///
+  /// Config-file only: like `RerankerConfig` and the local-ONNX branch of
+  /// `embedding`, this has no CLI flag and no environment variable. Only the secret/identity
+  /// fields of LLM-routed configs (model, API key, base URL) get that reach. ~keep
+  final SparseEmbeddingConfig? sparseEmbedding;
+
+  /// Optional late-interaction (ColBERT) embedding configuration for chunk embeddings.
+  ///
+  /// When set, multi-vector embeddings are generated for each chunk's content and
+  /// attached via `late_interaction`. Requires the
+  /// `late-interaction` feature; without it, a warning is emitted and no
+  /// late-interaction vectors are attached.
+  ///
+  /// Config-file only, for the same reason as `sparse_embedding` above. ~keep
+  final LateInteractionConfig? lateInteraction;
+
   /// Use a preset configuration (overrides individual settings if provided).
   final String? preset;
 
@@ -2632,47 +2921,66 @@ class ChunkingConfig {
   /// Default: `Split`
   final TableChunkingMode tableChunking;
 
+  /// Where the heading-path breadcrumb is written when `prepend_heading_context`
+  /// is `true`. See
+  /// [`BreadcrumbTarget`](crate::core::config::extraction::BreadcrumbTarget) for
+  /// the dense-vs-lexical retrieval trade-off. Has no effect when
+  /// `prepend_heading_context` is `false`.
+  ///
+  /// Default: `Content` — preserves the pre-existing behaviour of prepending the
+  /// breadcrumb into chunk `content`.
+  final BreadcrumbTarget breadcrumbTarget;
+
   const ChunkingConfig({
     required this.maxCharacters,
     required this.overlap,
     required this.trim,
     required this.chunkerType,
     this.embedding,
+    this.sparseEmbedding,
+    this.lateInteraction,
     this.preset,
     required this.sizing,
     required this.prependHeadingContext,
     this.topicThreshold,
     required this.tableChunking,
+    required this.breadcrumbTarget,
   });
 
   @override
   int get hashCode =>
-  maxCharacters.hashCode ^
-  overlap.hashCode ^
-  trim.hashCode ^
-  chunkerType.hashCode ^
-  embedding.hashCode ^
-  preset.hashCode ^
-  sizing.hashCode ^
-  prependHeadingContext.hashCode ^
-  topicThreshold.hashCode ^
-  tableChunking.hashCode;
+      maxCharacters.hashCode ^
+      overlap.hashCode ^
+      trim.hashCode ^
+      chunkerType.hashCode ^
+      embedding.hashCode ^
+      sparseEmbedding.hashCode ^
+      lateInteraction.hashCode ^
+      preset.hashCode ^
+      sizing.hashCode ^
+      prependHeadingContext.hashCode ^
+      topicThreshold.hashCode ^
+      tableChunking.hashCode ^
+      breadcrumbTarget.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ChunkingConfig &&
-  runtimeType == other.runtimeType &&
-  maxCharacters == other.maxCharacters &&
-  overlap == other.overlap &&
-  trim == other.trim &&
-  chunkerType == other.chunkerType &&
-  embedding == other.embedding &&
-  preset == other.preset &&
-  sizing == other.sizing &&
-  prependHeadingContext == other.prependHeadingContext &&
-  topicThreshold == other.topicThreshold &&
-  tableChunking == other.tableChunking;
+      identical(this, other) ||
+      other is ChunkingConfig &&
+          runtimeType == other.runtimeType &&
+          maxCharacters == other.maxCharacters &&
+          overlap == other.overlap &&
+          trim == other.trim &&
+          chunkerType == other.chunkerType &&
+          embedding == other.embedding &&
+          sparseEmbedding == other.sparseEmbedding &&
+          lateInteraction == other.lateInteraction &&
+          preset == other.preset &&
+          sizing == other.sizing &&
+          prependHeadingContext == other.prependHeadingContext &&
+          topicThreshold == other.topicThreshold &&
+          tableChunking == other.tableChunking &&
+          breadcrumbTarget == other.breadcrumbTarget;
 }
 
 @freezed
@@ -2742,17 +3050,17 @@ class Citation {
 
   @override
   int get hashCode =>
-  label.hashCode ^ source.hashCode ^ locator.hashCode ^ excerpt.hashCode;
+      label.hashCode ^ source.hashCode ^ locator.hashCode ^ excerpt.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Citation &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  source == other.source &&
-  locator == other.locator &&
-  excerpt == other.excerpt;
+      identical(this, other) ||
+      other is Citation &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          source == other.source &&
+          locator == other.locator &&
+          excerpt == other.excerpt;
 }
 
 /// Citation file metadata (RIS, PubMed, EndNote).
@@ -2786,24 +3094,24 @@ class CitationMetadata {
 
   @override
   int get hashCode =>
-  citationCount.hashCode ^
-  format.hashCode ^
-  authors.hashCode ^
-  yearRange.hashCode ^
-  dois.hashCode ^
-  keywords.hashCode;
+      citationCount.hashCode ^
+      format.hashCode ^
+      authors.hashCode ^
+      yearRange.hashCode ^
+      dois.hashCode ^
+      keywords.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CitationMetadata &&
-  runtimeType == other.runtimeType &&
-  citationCount == other.citationCount &&
-  format == other.format &&
-  authors == other.authors &&
-  yearRange == other.yearRange &&
-  dois == other.dois &&
-  keywords == other.keywords;
+      identical(this, other) ||
+      other is CitationMetadata &&
+          runtimeType == other.runtimeType &&
+          citationCount == other.citationCount &&
+          format == other.format &&
+          authors == other.authors &&
+          yearRange == other.yearRange &&
+          dois == other.dois &&
+          keywords == other.keywords;
 }
 
 /// A single label + confidence pair.
@@ -2822,11 +3130,11 @@ class ClassificationLabel {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ClassificationLabel &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  confidence == other.confidence;
+      identical(this, other) ||
+      other is ClassificationLabel &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          confidence == other.confidence;
 }
 
 /// Code block fence style in Markdown output.
@@ -2875,22 +3183,22 @@ class CodeChunkInfo {
 
   @override
   int get hashCode =>
-  text.hashCode ^
-  contextPath.hashCode ^
-  nodeTypes.hashCode ^
-  byteStart.hashCode ^
-  byteEnd.hashCode;
+      text.hashCode ^
+      contextPath.hashCode ^
+      nodeTypes.hashCode ^
+      byteStart.hashCode ^
+      byteEnd.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CodeChunkInfo &&
-  runtimeType == other.runtimeType &&
-  text == other.text &&
-  contextPath == other.contextPath &&
-  nodeTypes == other.nodeTypes &&
-  byteStart == other.byteStart &&
-  byteEnd == other.byteEnd;
+      identical(this, other) ||
+      other is CodeChunkInfo &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          contextPath == other.contextPath &&
+          nodeTypes == other.nodeTypes &&
+          byteStart == other.byteStart &&
+          byteEnd == other.byteEnd;
 }
 
 /// Content rendering mode for code extraction.
@@ -2934,17 +3242,17 @@ class CodeDataAttribute {
 
   @override
   int get hashCode =>
-  name.hashCode ^ value.hashCode ^ byteStart.hashCode ^ byteEnd.hashCode;
+      name.hashCode ^ value.hashCode ^ byteStart.hashCode ^ byteEnd.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CodeDataAttribute &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  value == other.value &&
-  byteStart == other.byteStart &&
-  byteEnd == other.byteEnd;
+      identical(this, other) ||
+      other is CodeDataAttribute &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          value == other.value &&
+          byteStart == other.byteStart &&
+          byteEnd == other.byteEnd;
 }
 
 /// A node in the hierarchical data tree produced by data-format extraction.
@@ -2990,26 +3298,26 @@ class CodeDataNode {
 
   @override
   int get hashCode =>
-  kind.hashCode ^
-  key.hashCode ^
-  value.hashCode ^
-  attributes.hashCode ^
-  children.hashCode ^
-  byteStart.hashCode ^
-  byteEnd.hashCode;
+      kind.hashCode ^
+      key.hashCode ^
+      value.hashCode ^
+      attributes.hashCode ^
+      children.hashCode ^
+      byteStart.hashCode ^
+      byteEnd.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CodeDataNode &&
-  runtimeType == other.runtimeType &&
-  kind == other.kind &&
-  key == other.key &&
-  value == other.value &&
-  attributes == other.attributes &&
-  children == other.children &&
-  byteStart == other.byteStart &&
-  byteEnd == other.byteEnd;
+      identical(this, other) ||
+      other is CodeDataNode &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          key == other.key &&
+          value == other.value &&
+          attributes == other.attributes &&
+          children == other.children &&
+          byteStart == other.byteStart &&
+          byteEnd == other.byteEnd;
 }
 
 /// Discriminates the shape of a [`CodeDataNode`].
@@ -3050,11 +3358,11 @@ class CodeMetadata {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CodeMetadata &&
-  runtimeType == other.runtimeType &&
-  chunks == other.chunks &&
-  data == other.data;
+      identical(this, other) ||
+      other is CodeMetadata &&
+          runtimeType == other.runtimeType &&
+          chunks == other.chunks &&
+          data == other.data;
 }
 
 /// Content extraction and conversion configuration.
@@ -3127,36 +3435,36 @@ class ContentConfig {
 
   @override
   int get hashCode =>
-  outputFormat.hashCode ^
-  preprocessingPreset.hashCode ^
-  removeNavigation.hashCode ^
-  removeForms.hashCode ^
-  stripTags.hashCode ^
-  preserveTags.hashCode ^
-  excludeSelectors.hashCode ^
-  skipImages.hashCode ^
-  maxDepth.hashCode ^
-  wrap.hashCode ^
-  wrapWidth.hashCode ^
-  includeDocumentStructure.hashCode;
+      outputFormat.hashCode ^
+      preprocessingPreset.hashCode ^
+      removeNavigation.hashCode ^
+      removeForms.hashCode ^
+      stripTags.hashCode ^
+      preserveTags.hashCode ^
+      excludeSelectors.hashCode ^
+      skipImages.hashCode ^
+      maxDepth.hashCode ^
+      wrap.hashCode ^
+      wrapWidth.hashCode ^
+      includeDocumentStructure.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ContentConfig &&
-  runtimeType == other.runtimeType &&
-  outputFormat == other.outputFormat &&
-  preprocessingPreset == other.preprocessingPreset &&
-  removeNavigation == other.removeNavigation &&
-  removeForms == other.removeForms &&
-  stripTags == other.stripTags &&
-  preserveTags == other.preserveTags &&
-  excludeSelectors == other.excludeSelectors &&
-  skipImages == other.skipImages &&
-  maxDepth == other.maxDepth &&
-  wrap == other.wrap &&
-  wrapWidth == other.wrapWidth &&
-  includeDocumentStructure == other.includeDocumentStructure;
+      identical(this, other) ||
+      other is ContentConfig &&
+          runtimeType == other.runtimeType &&
+          outputFormat == other.outputFormat &&
+          preprocessingPreset == other.preprocessingPreset &&
+          removeNavigation == other.removeNavigation &&
+          removeForms == other.removeForms &&
+          stripTags == other.stripTags &&
+          preserveTags == other.preserveTags &&
+          excludeSelectors == other.excludeSelectors &&
+          skipImages == other.skipImages &&
+          maxDepth == other.maxDepth &&
+          wrap == other.wrap &&
+          wrapWidth == other.wrapWidth &&
+          includeDocumentStructure == other.includeDocumentStructure;
 }
 
 /// Cross-extractor content filtering configuration.
@@ -3191,6 +3499,17 @@ class ContentFilterConfig {
   /// Default: `false` (footers are stripped or excluded).
   final bool includeFooters;
 
+  /// Include footnote bodies in extraction output.
+  ///
+  /// - PDF: Prevents the layout model from treating `Footnote`-classified
+  ///   regions as furniture, so footnote bodies survive alongside the main
+  ///   text instead of being silently dropped.
+  /// - Other formats: No effect currently.
+  ///
+  /// Default: `false` (footnotes are stripped), matching the existing
+  /// `include_headers` / `include_footers` defaults.
+  final bool includeFootnotes;
+
   /// Enable the heuristic cross-page repeating text detector.
   ///
   /// When `true` (default), text that repeats verbatim across a supermajority
@@ -3198,9 +3517,10 @@ class ContentFilterConfig {
   /// names or repeated headings are being incorrectly removed by the heuristic.
   ///
   /// Note: when a layout-detection model is active, the model may independently
-  /// classify page-header / page-footer regions as furniture on a per-page basis.
-  /// To preserve those regions, set `include_headers = true`, `include_footers = true`,
-  /// or both, in addition to disabling this flag.
+  /// classify page-header / page-footer / footnote regions as furniture on a
+  /// per-page basis. To preserve those regions, set `include_headers = true`,
+  /// `include_footers = true`, `include_footnotes = true`, or any combination,
+  /// in addition to disabling this flag.
   ///
   /// Primarily affects PDF extraction.
   ///
@@ -3218,26 +3538,29 @@ class ContentFilterConfig {
   const ContentFilterConfig({
     required this.includeHeaders,
     required this.includeFooters,
+    required this.includeFootnotes,
     required this.stripRepeatingText,
     required this.includeWatermarks,
   });
 
   @override
   int get hashCode =>
-  includeHeaders.hashCode ^
-  includeFooters.hashCode ^
-  stripRepeatingText.hashCode ^
-  includeWatermarks.hashCode;
+      includeHeaders.hashCode ^
+      includeFooters.hashCode ^
+      includeFootnotes.hashCode ^
+      stripRepeatingText.hashCode ^
+      includeWatermarks.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ContentFilterConfig &&
-  runtimeType == other.runtimeType &&
-  includeHeaders == other.includeHeaders &&
-  includeFooters == other.includeFooters &&
-  stripRepeatingText == other.stripRepeatingText &&
-  includeWatermarks == other.includeWatermarks;
+      identical(this, other) ||
+      other is ContentFilterConfig &&
+          runtimeType == other.runtimeType &&
+          includeHeaders == other.includeHeaders &&
+          includeFooters == other.includeFooters &&
+          includeFootnotes == other.includeFootnotes &&
+          stripRepeatingText == other.stripRepeatingText &&
+          includeWatermarks == other.includeWatermarks;
 }
 
 /// Content layer classification for document nodes.
@@ -3272,11 +3595,11 @@ class ContributorRole {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ContributorRole &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  role == other.role;
+      identical(this, other) ||
+      other is ContributorRole &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          role == other.role;
 }
 
 /// Main conversion options for HTML to Markdown conversion.
@@ -3506,90 +3829,90 @@ class ConversionOptions {
 
   @override
   int get hashCode =>
-  headingStyle.hashCode ^
-  listIndentType.hashCode ^
-  listIndentWidth.hashCode ^
-  bullets.hashCode ^
-  strongEmSymbol.hashCode ^
-  escapeAsterisks.hashCode ^
-  escapeUnderscores.hashCode ^
-  escapeMisc.hashCode ^
-  escapeAscii.hashCode ^
-  codeLanguage.hashCode ^
-  autolinks.hashCode ^
-  defaultTitle.hashCode ^
-  brInTables.hashCode ^
-  compactTables.hashCode ^
-  highlightStyle.hashCode ^
-  extractMetadata.hashCode ^
-  whitespaceMode.hashCode ^
-  stripNewlines.hashCode ^
-  wrap.hashCode ^
-  wrapWidth.hashCode ^
-  convertAsInline.hashCode ^
-  subSymbol.hashCode ^
-  supSymbol.hashCode ^
-  newlineStyle.hashCode ^
-  codeBlockStyle.hashCode ^
-  keepInlineImagesIn.hashCode ^
-  preprocessing.hashCode ^
-  encoding.hashCode ^
-  debug.hashCode ^
-  stripTags.hashCode ^
-  preserveTags.hashCode ^
-  skipImages.hashCode ^
-  urlEscapeStyle.hashCode ^
-  linkStyle.hashCode ^
-  maxImageSize.hashCode ^
-  captureSvg.hashCode ^
-  inferDimensions.hashCode ^
-  maxDepth.hashCode ^
-  excludeSelectors.hashCode;
+      headingStyle.hashCode ^
+      listIndentType.hashCode ^
+      listIndentWidth.hashCode ^
+      bullets.hashCode ^
+      strongEmSymbol.hashCode ^
+      escapeAsterisks.hashCode ^
+      escapeUnderscores.hashCode ^
+      escapeMisc.hashCode ^
+      escapeAscii.hashCode ^
+      codeLanguage.hashCode ^
+      autolinks.hashCode ^
+      defaultTitle.hashCode ^
+      brInTables.hashCode ^
+      compactTables.hashCode ^
+      highlightStyle.hashCode ^
+      extractMetadata.hashCode ^
+      whitespaceMode.hashCode ^
+      stripNewlines.hashCode ^
+      wrap.hashCode ^
+      wrapWidth.hashCode ^
+      convertAsInline.hashCode ^
+      subSymbol.hashCode ^
+      supSymbol.hashCode ^
+      newlineStyle.hashCode ^
+      codeBlockStyle.hashCode ^
+      keepInlineImagesIn.hashCode ^
+      preprocessing.hashCode ^
+      encoding.hashCode ^
+      debug.hashCode ^
+      stripTags.hashCode ^
+      preserveTags.hashCode ^
+      skipImages.hashCode ^
+      urlEscapeStyle.hashCode ^
+      linkStyle.hashCode ^
+      maxImageSize.hashCode ^
+      captureSvg.hashCode ^
+      inferDimensions.hashCode ^
+      maxDepth.hashCode ^
+      excludeSelectors.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ConversionOptions &&
-  runtimeType == other.runtimeType &&
-  headingStyle == other.headingStyle &&
-  listIndentType == other.listIndentType &&
-  listIndentWidth == other.listIndentWidth &&
-  bullets == other.bullets &&
-  strongEmSymbol == other.strongEmSymbol &&
-  escapeAsterisks == other.escapeAsterisks &&
-  escapeUnderscores == other.escapeUnderscores &&
-  escapeMisc == other.escapeMisc &&
-  escapeAscii == other.escapeAscii &&
-  codeLanguage == other.codeLanguage &&
-  autolinks == other.autolinks &&
-  defaultTitle == other.defaultTitle &&
-  brInTables == other.brInTables &&
-  compactTables == other.compactTables &&
-  highlightStyle == other.highlightStyle &&
-  extractMetadata == other.extractMetadata &&
-  whitespaceMode == other.whitespaceMode &&
-  stripNewlines == other.stripNewlines &&
-  wrap == other.wrap &&
-  wrapWidth == other.wrapWidth &&
-  convertAsInline == other.convertAsInline &&
-  subSymbol == other.subSymbol &&
-  supSymbol == other.supSymbol &&
-  newlineStyle == other.newlineStyle &&
-  codeBlockStyle == other.codeBlockStyle &&
-  keepInlineImagesIn == other.keepInlineImagesIn &&
-  preprocessing == other.preprocessing &&
-  encoding == other.encoding &&
-  debug == other.debug &&
-  stripTags == other.stripTags &&
-  preserveTags == other.preserveTags &&
-  skipImages == other.skipImages &&
-  urlEscapeStyle == other.urlEscapeStyle &&
-  linkStyle == other.linkStyle &&
-  maxImageSize == other.maxImageSize &&
-  captureSvg == other.captureSvg &&
-  inferDimensions == other.inferDimensions &&
-  maxDepth == other.maxDepth &&
-  excludeSelectors == other.excludeSelectors;
+      identical(this, other) ||
+      other is ConversionOptions &&
+          runtimeType == other.runtimeType &&
+          headingStyle == other.headingStyle &&
+          listIndentType == other.listIndentType &&
+          listIndentWidth == other.listIndentWidth &&
+          bullets == other.bullets &&
+          strongEmSymbol == other.strongEmSymbol &&
+          escapeAsterisks == other.escapeAsterisks &&
+          escapeUnderscores == other.escapeUnderscores &&
+          escapeMisc == other.escapeMisc &&
+          escapeAscii == other.escapeAscii &&
+          codeLanguage == other.codeLanguage &&
+          autolinks == other.autolinks &&
+          defaultTitle == other.defaultTitle &&
+          brInTables == other.brInTables &&
+          compactTables == other.compactTables &&
+          highlightStyle == other.highlightStyle &&
+          extractMetadata == other.extractMetadata &&
+          whitespaceMode == other.whitespaceMode &&
+          stripNewlines == other.stripNewlines &&
+          wrap == other.wrap &&
+          wrapWidth == other.wrapWidth &&
+          convertAsInline == other.convertAsInline &&
+          subSymbol == other.subSymbol &&
+          supSymbol == other.supSymbol &&
+          newlineStyle == other.newlineStyle &&
+          codeBlockStyle == other.codeBlockStyle &&
+          keepInlineImagesIn == other.keepInlineImagesIn &&
+          preprocessing == other.preprocessing &&
+          encoding == other.encoding &&
+          debug == other.debug &&
+          stripTags == other.stripTags &&
+          preserveTags == other.preserveTags &&
+          skipImages == other.skipImages &&
+          urlEscapeStyle == other.urlEscapeStyle &&
+          linkStyle == other.linkStyle &&
+          maxImageSize == other.maxImageSize &&
+          captureSvg == other.captureSvg &&
+          inferDimensions == other.inferDimensions &&
+          maxDepth == other.maxDepth &&
+          excludeSelectors == other.excludeSelectors;
 }
 
 /// Dublin Core metadata from docProps/core.xml
@@ -3662,42 +3985,42 @@ class CoreProperties {
 
   @override
   int get hashCode =>
-  title.hashCode ^
-  subject.hashCode ^
-  creator.hashCode ^
-  keywords.hashCode ^
-  description.hashCode ^
-  lastModifiedBy.hashCode ^
-  revision.hashCode ^
-  created.hashCode ^
-  modified.hashCode ^
-  category.hashCode ^
-  contentStatus.hashCode ^
-  language.hashCode ^
-  identifier.hashCode ^
-  version.hashCode ^
-  lastPrinted.hashCode;
+      title.hashCode ^
+      subject.hashCode ^
+      creator.hashCode ^
+      keywords.hashCode ^
+      description.hashCode ^
+      lastModifiedBy.hashCode ^
+      revision.hashCode ^
+      created.hashCode ^
+      modified.hashCode ^
+      category.hashCode ^
+      contentStatus.hashCode ^
+      language.hashCode ^
+      identifier.hashCode ^
+      version.hashCode ^
+      lastPrinted.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CoreProperties &&
-  runtimeType == other.runtimeType &&
-  title == other.title &&
-  subject == other.subject &&
-  creator == other.creator &&
-  keywords == other.keywords &&
-  description == other.description &&
-  lastModifiedBy == other.lastModifiedBy &&
-  revision == other.revision &&
-  created == other.created &&
-  modified == other.modified &&
-  category == other.category &&
-  contentStatus == other.contentStatus &&
-  language == other.language &&
-  identifier == other.identifier &&
-  version == other.version &&
-  lastPrinted == other.lastPrinted;
+      identical(this, other) ||
+      other is CoreProperties &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          subject == other.subject &&
+          creator == other.creator &&
+          keywords == other.keywords &&
+          description == other.description &&
+          lastModifiedBy == other.lastModifiedBy &&
+          revision == other.revision &&
+          created == other.created &&
+          modified == other.modified &&
+          category == other.category &&
+          contentStatus == other.contentStatus &&
+          language == other.language &&
+          identifier == other.identifier &&
+          version == other.version &&
+          lastPrinted == other.lastPrinted;
 }
 
 /// Configuration for crawl, scrape, and map operations.
@@ -3880,90 +4203,139 @@ class CrawlConfig {
 
   @override
   int get hashCode =>
-  maxDepth.hashCode ^
-  maxPages.hashCode ^
-  maxConcurrent.hashCode ^
-  respectRobotsTxt.hashCode ^
-  softHttpErrors.hashCode ^
-  userAgent.hashCode ^
-  stayOnDomain.hashCode ^
-  allowSubdomains.hashCode ^
-  includePaths.hashCode ^
-  excludePaths.hashCode ^
-  customHeaders.hashCode ^
-  requestTimeout.hashCode ^
-  rateLimitMs.hashCode ^
-  maxRedirects.hashCode ^
-  retryCount.hashCode ^
-  retryCodes.hashCode ^
-  cookiesEnabled.hashCode ^
-  auth.hashCode ^
-  maxBodySize.hashCode ^
-  removeTags.hashCode ^
-  content.hashCode ^
-  mapLimit.hashCode ^
-  mapSearch.hashCode ^
-  downloadAssets.hashCode ^
-  assetTypes.hashCode ^
-  maxAssetSize.hashCode ^
-  browser.hashCode ^
-  proxy.hashCode ^
-  userAgents.hashCode ^
-  captureScreenshot.hashCode ^
-  followDocumentUrls.hashCode ^
-  documentUrlDepth.hashCode ^
-  downloadDocuments.hashCode ^
-  documentMaxSize.hashCode ^
-  documentMimeTypes.hashCode ^
-  warcOutput.hashCode ^
-  browserProfile.hashCode ^
-  saveBrowserProfile.hashCode ^
-  ssrf.hashCode;
+      maxDepth.hashCode ^
+      maxPages.hashCode ^
+      maxConcurrent.hashCode ^
+      respectRobotsTxt.hashCode ^
+      softHttpErrors.hashCode ^
+      userAgent.hashCode ^
+      stayOnDomain.hashCode ^
+      allowSubdomains.hashCode ^
+      includePaths.hashCode ^
+      excludePaths.hashCode ^
+      customHeaders.hashCode ^
+      requestTimeout.hashCode ^
+      rateLimitMs.hashCode ^
+      maxRedirects.hashCode ^
+      retryCount.hashCode ^
+      retryCodes.hashCode ^
+      cookiesEnabled.hashCode ^
+      auth.hashCode ^
+      maxBodySize.hashCode ^
+      removeTags.hashCode ^
+      content.hashCode ^
+      mapLimit.hashCode ^
+      mapSearch.hashCode ^
+      downloadAssets.hashCode ^
+      assetTypes.hashCode ^
+      maxAssetSize.hashCode ^
+      browser.hashCode ^
+      proxy.hashCode ^
+      userAgents.hashCode ^
+      captureScreenshot.hashCode ^
+      followDocumentUrls.hashCode ^
+      documentUrlDepth.hashCode ^
+      downloadDocuments.hashCode ^
+      documentMaxSize.hashCode ^
+      documentMimeTypes.hashCode ^
+      warcOutput.hashCode ^
+      browserProfile.hashCode ^
+      saveBrowserProfile.hashCode ^
+      ssrf.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CrawlConfig &&
-  runtimeType == other.runtimeType &&
-  maxDepth == other.maxDepth &&
-  maxPages == other.maxPages &&
-  maxConcurrent == other.maxConcurrent &&
-  respectRobotsTxt == other.respectRobotsTxt &&
-  softHttpErrors == other.softHttpErrors &&
-  userAgent == other.userAgent &&
-  stayOnDomain == other.stayOnDomain &&
-  allowSubdomains == other.allowSubdomains &&
-  includePaths == other.includePaths &&
-  excludePaths == other.excludePaths &&
-  customHeaders == other.customHeaders &&
-  requestTimeout == other.requestTimeout &&
-  rateLimitMs == other.rateLimitMs &&
-  maxRedirects == other.maxRedirects &&
-  retryCount == other.retryCount &&
-  retryCodes == other.retryCodes &&
-  cookiesEnabled == other.cookiesEnabled &&
-  auth == other.auth &&
-  maxBodySize == other.maxBodySize &&
-  removeTags == other.removeTags &&
-  content == other.content &&
-  mapLimit == other.mapLimit &&
-  mapSearch == other.mapSearch &&
-  downloadAssets == other.downloadAssets &&
-  assetTypes == other.assetTypes &&
-  maxAssetSize == other.maxAssetSize &&
-  browser == other.browser &&
-  proxy == other.proxy &&
-  userAgents == other.userAgents &&
-  captureScreenshot == other.captureScreenshot &&
-  followDocumentUrls == other.followDocumentUrls &&
-  documentUrlDepth == other.documentUrlDepth &&
-  downloadDocuments == other.downloadDocuments &&
-  documentMaxSize == other.documentMaxSize &&
-  documentMimeTypes == other.documentMimeTypes &&
-  warcOutput == other.warcOutput &&
-  browserProfile == other.browserProfile &&
-  saveBrowserProfile == other.saveBrowserProfile &&
-  ssrf == other.ssrf;
+      identical(this, other) ||
+      other is CrawlConfig &&
+          runtimeType == other.runtimeType &&
+          maxDepth == other.maxDepth &&
+          maxPages == other.maxPages &&
+          maxConcurrent == other.maxConcurrent &&
+          respectRobotsTxt == other.respectRobotsTxt &&
+          softHttpErrors == other.softHttpErrors &&
+          userAgent == other.userAgent &&
+          stayOnDomain == other.stayOnDomain &&
+          allowSubdomains == other.allowSubdomains &&
+          includePaths == other.includePaths &&
+          excludePaths == other.excludePaths &&
+          customHeaders == other.customHeaders &&
+          requestTimeout == other.requestTimeout &&
+          rateLimitMs == other.rateLimitMs &&
+          maxRedirects == other.maxRedirects &&
+          retryCount == other.retryCount &&
+          retryCodes == other.retryCodes &&
+          cookiesEnabled == other.cookiesEnabled &&
+          auth == other.auth &&
+          maxBodySize == other.maxBodySize &&
+          removeTags == other.removeTags &&
+          content == other.content &&
+          mapLimit == other.mapLimit &&
+          mapSearch == other.mapSearch &&
+          downloadAssets == other.downloadAssets &&
+          assetTypes == other.assetTypes &&
+          maxAssetSize == other.maxAssetSize &&
+          browser == other.browser &&
+          proxy == other.proxy &&
+          userAgents == other.userAgents &&
+          captureScreenshot == other.captureScreenshot &&
+          followDocumentUrls == other.followDocumentUrls &&
+          documentUrlDepth == other.documentUrlDepth &&
+          downloadDocuments == other.downloadDocuments &&
+          documentMaxSize == other.documentMaxSize &&
+          documentMimeTypes == other.documentMimeTypes &&
+          warcOutput == other.warcOutput &&
+          browserProfile == other.browserProfile &&
+          saveBrowserProfile == other.saveBrowserProfile &&
+          ssrf == other.ssrf;
+}
+
+/// Configuration for CSV/TSV extraction.
+///
+/// When unset (`ExtractionConfig::csv == None`), the extractor keeps its
+/// existing default behavior: the delimiter is auto-detected by sampling the
+/// file (comma, tab, pipe, or semicolon), and no line is treated as a comment.
+///
+/// # Example
+///
+/// ```rust
+/// use xberg::core::config::CsvConfig;
+///
+/// let config = CsvConfig {
+///     delimiter: Some(";".to_string()),
+///     comment_prefixes: vec!["#".to_string()],
+/// };
+/// ```
+class CsvConfig {
+  /// Field delimiter, as a single-character string (e.g. `","`, `";"`,
+  /// `"\t"`, `"|"`). When `None` (default), the delimiter is auto-detected
+  /// from a sample of the file.
+  ///
+  /// Must be exactly one ASCII byte when set — `ExtractionConfig::validate`
+  /// rejects an empty string or a multi-byte value with a helpful error.
+  /// The TSV MIME type (`text/tab-separated-values`) always forces `\t`
+  /// regardless of this setting.
+  final String? delimiter;
+
+  /// Line prefixes that mark a comment line to skip entirely during row
+  /// parsing (e.g. `["#"]`). A line is treated as a comment when its
+  /// trimmed start matches any of these prefixes exactly.
+  ///
+  /// Default: empty, meaning no line is treated as a comment (matches the
+  /// pre-existing extractor behavior).
+  final List<String> commentPrefixes;
+
+  const CsvConfig({this.delimiter, required this.commentPrefixes});
+
+  @override
+  int get hashCode => delimiter.hashCode ^ commentPrefixes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CsvConfig &&
+          runtimeType == other.runtimeType &&
+          delimiter == other.delimiter &&
+          commentPrefixes == other.commentPrefixes;
 }
 
 /// CSV/TSV file metadata.
@@ -3993,22 +4365,22 @@ class CsvMetadata {
 
   @override
   int get hashCode =>
-  rowCount.hashCode ^
-  columnCount.hashCode ^
-  delimiter.hashCode ^
-  hasHeader.hashCode ^
-  columnTypes.hashCode;
+      rowCount.hashCode ^
+      columnCount.hashCode ^
+      delimiter.hashCode ^
+      hasHeader.hashCode ^
+      columnTypes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is CsvMetadata &&
-  runtimeType == other.runtimeType &&
-  rowCount == other.rowCount &&
-  columnCount == other.columnCount &&
-  delimiter == other.delimiter &&
-  hasHeader == other.hasHeader &&
-  columnTypes == other.columnTypes;
+      identical(this, other) ||
+      other is CsvMetadata &&
+          runtimeType == other.runtimeType &&
+          rowCount == other.rowCount &&
+          columnCount == other.columnCount &&
+          delimiter == other.delimiter &&
+          hasHeader == other.hasHeader &&
+          columnTypes == other.columnTypes;
 }
 
 /// dBASE field information.
@@ -4026,11 +4398,11 @@ class DbfFieldInfo {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DbfFieldInfo &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  fieldType == other.fieldType;
+      identical(this, other) ||
+      other is DbfFieldInfo &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          fieldType == other.fieldType;
 }
 
 /// dBASE (DBF) file metadata.
@@ -4052,16 +4424,16 @@ class DbfMetadata {
 
   @override
   int get hashCode =>
-  recordCount.hashCode ^ fieldCount.hashCode ^ fields.hashCode;
+      recordCount.hashCode ^ fieldCount.hashCode ^ fields.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DbfMetadata &&
-  runtimeType == other.runtimeType &&
-  recordCount == other.recordCount &&
-  fieldCount == other.fieldCount &&
-  fields == other.fields;
+      identical(this, other) ||
+      other is DbfMetadata &&
+          runtimeType == other.runtimeType &&
+          recordCount == other.recordCount &&
+          fieldCount == other.fieldCount &&
+          fields == other.fields;
 }
 
 /// MIME type detection response.
@@ -4079,11 +4451,11 @@ class DetectResponse {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DetectResponse &&
-  runtimeType == other.runtimeType &&
-  mimeType == other.mimeType &&
-  filename == other.filename;
+      identical(this, other) ||
+      other is DetectResponse &&
+          runtimeType == other.runtimeType &&
+          mimeType == other.mimeType &&
+          filename == other.filename;
 }
 
 /// Page-level detection result containing all detections and page metadata.
@@ -4105,16 +4477,16 @@ class DetectionResult {
 
   @override
   int get hashCode =>
-  pageWidth.hashCode ^ pageHeight.hashCode ^ detections.hashCode;
+      pageWidth.hashCode ^ pageHeight.hashCode ^ detections.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DetectionResult &&
-  runtimeType == other.runtimeType &&
-  pageWidth == other.pageWidth &&
-  pageHeight == other.pageHeight &&
-  detections == other.detections;
+      identical(this, other) ||
+      other is DetectionResult &&
+          runtimeType == other.runtimeType &&
+          pageWidth == other.pageWidth &&
+          pageHeight == other.pageHeight &&
+          detections == other.detections;
 }
 
 /// A single contiguous hunk in a unified diff.
@@ -4144,22 +4516,22 @@ class DiffHunk {
 
   @override
   int get hashCode =>
-  fromLine.hashCode ^
-  fromCount.hashCode ^
-  toLine.hashCode ^
-  toCount.hashCode ^
-  lines.hashCode;
+      fromLine.hashCode ^
+      fromCount.hashCode ^
+      toLine.hashCode ^
+      toCount.hashCode ^
+      lines.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DiffHunk &&
-  runtimeType == other.runtimeType &&
-  fromLine == other.fromLine &&
-  fromCount == other.fromCount &&
-  toLine == other.toLine &&
-  toCount == other.toCount &&
-  lines == other.lines;
+      identical(this, other) ||
+      other is DiffHunk &&
+          runtimeType == other.runtimeType &&
+          fromLine == other.fromLine &&
+          fromCount == other.fromCount &&
+          toLine == other.toLine &&
+          toCount == other.toCount &&
+          lines == other.lines;
 }
 
 @freezed
@@ -4198,18 +4570,18 @@ class DiffOptions {
 
   @override
   int get hashCode =>
-  includeMetadata.hashCode ^
-  includeEmbedded.hashCode ^
-  maxContentChars.hashCode;
+      includeMetadata.hashCode ^
+      includeEmbedded.hashCode ^
+      maxContentChars.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DiffOptions &&
-  runtimeType == other.runtimeType &&
-  includeMetadata == other.includeMetadata &&
-  includeEmbedded == other.includeEmbedded &&
-  maxContentChars == other.maxContentChars;
+      identical(this, other) ||
+      other is DiffOptions &&
+          runtimeType == other.runtimeType &&
+          includeMetadata == other.includeMetadata &&
+          includeEmbedded == other.includeEmbedded &&
+          maxContentChars == other.maxContentChars;
 }
 
 /// Comprehensive Djot document structure with semantic preservation.
@@ -4257,26 +4629,26 @@ class DjotContent {
 
   @override
   int get hashCode =>
-  plainText.hashCode ^
-  blocks.hashCode ^
-  metadata.hashCode ^
-  tables.hashCode ^
-  images.hashCode ^
-  links.hashCode ^
-  footnotes.hashCode;
+      plainText.hashCode ^
+      blocks.hashCode ^
+      metadata.hashCode ^
+      tables.hashCode ^
+      images.hashCode ^
+      links.hashCode ^
+      footnotes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DjotContent &&
-  runtimeType == other.runtimeType &&
-  plainText == other.plainText &&
-  blocks == other.blocks &&
-  metadata == other.metadata &&
-  tables == other.tables &&
-  images == other.images &&
-  links == other.links &&
-  footnotes == other.footnotes;
+      identical(this, other) ||
+      other is DjotContent &&
+          runtimeType == other.runtimeType &&
+          plainText == other.plainText &&
+          blocks == other.blocks &&
+          metadata == other.metadata &&
+          tables == other.tables &&
+          images == other.images &&
+          links == other.links &&
+          footnotes == other.footnotes;
 }
 
 /// Image element in Djot.
@@ -4297,12 +4669,12 @@ class DjotImage {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DjotImage &&
-  runtimeType == other.runtimeType &&
-  src == other.src &&
-  alt == other.alt &&
-  title == other.title;
+      identical(this, other) ||
+      other is DjotImage &&
+          runtimeType == other.runtimeType &&
+          src == other.src &&
+          alt == other.alt &&
+          title == other.title;
 }
 
 /// Link element in Djot.
@@ -4323,12 +4695,12 @@ class DjotLink {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DjotLink &&
-  runtimeType == other.runtimeType &&
-  url == other.url &&
-  text == other.text &&
-  title == other.title;
+      identical(this, other) ||
+      other is DjotLink &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          text == other.text &&
+          title == other.title;
 }
 
 /// A single doctor verdict: what was checked, the outcome, and why.
@@ -4353,12 +4725,12 @@ class DoctorCheck {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DoctorCheck &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  status == other.status &&
-  message == other.message;
+      identical(this, other) ||
+      other is DoctorCheck &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          status == other.status &&
+          message == other.message;
 }
 
 /// Aggregate doctor report over all configured backends and settings.
@@ -4373,10 +4745,10 @@ class DoctorReport {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DoctorReport &&
-  runtimeType == other.runtimeType &&
-  checks == other.checks;
+      identical(this, other) ||
+      other is DoctorReport &&
+          runtimeType == other.runtimeType &&
+          checks == other.checks;
 }
 
 /// Detected document boundary within a PDF.
@@ -4402,20 +4774,20 @@ class DocumentBoundary {
 
   @override
   int get hashCode =>
-  startPage.hashCode ^
-  endPage.hashCode ^
-  confidence.hashCode ^
-  reason.hashCode;
+      startPage.hashCode ^
+      endPage.hashCode ^
+      confidence.hashCode ^
+      reason.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentBoundary &&
-  runtimeType == other.runtimeType &&
-  startPage == other.startPage &&
-  endPage == other.endPage &&
-  confidence == other.confidence &&
-  reason == other.reason;
+      identical(this, other) ||
+      other is DocumentBoundary &&
+          runtimeType == other.runtimeType &&
+          startPage == other.startPage &&
+          endPage == other.endPage &&
+          confidence == other.confidence &&
+          reason == other.reason;
 }
 
 /// Cheap structural counts for an extracted document.
@@ -4451,12 +4823,12 @@ class DocumentCounts {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentCounts &&
-  runtimeType == other.runtimeType &&
-  pages == other.pages &&
-  tables == other.tables &&
-  images == other.images;
+      identical(this, other) ||
+      other is DocumentCounts &&
+          runtimeType == other.runtimeType &&
+          pages == other.pages &&
+          tables == other.tables &&
+          images == other.images;
 }
 
 /// Metadata about a document for analysis.
@@ -4490,24 +4862,24 @@ class DocumentMetadata {
 
   @override
   int get hashCode =>
-  mimeType.hashCode ^
-  sizeBytes.hashCode ^
-  pageCount.hashCode ^
-  forceOcr.hashCode ^
-  userChunkConfig.hashCode ^
-  chunkingEnabled.hashCode;
+      mimeType.hashCode ^
+      sizeBytes.hashCode ^
+      pageCount.hashCode ^
+      forceOcr.hashCode ^
+      userChunkConfig.hashCode ^
+      chunkingEnabled.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentMetadata &&
-  runtimeType == other.runtimeType &&
-  mimeType == other.mimeType &&
-  sizeBytes == other.sizeBytes &&
-  pageCount == other.pageCount &&
-  forceOcr == other.forceOcr &&
-  userChunkConfig == other.userChunkConfig &&
-  chunkingEnabled == other.chunkingEnabled;
+      identical(this, other) ||
+      other is DocumentMetadata &&
+          runtimeType == other.runtimeType &&
+          mimeType == other.mimeType &&
+          sizeBytes == other.sizeBytes &&
+          pageCount == other.pageCount &&
+          forceOcr == other.forceOcr &&
+          userChunkConfig == other.userChunkConfig &&
+          chunkingEnabled == other.chunkingEnabled;
 }
 
 /// A single node in the document tree.
@@ -4579,32 +4951,32 @@ class DocumentNode {
 
   @override
   int get hashCode =>
-  id.hashCode ^
-  content.hashCode ^
-  parent.hashCode ^
-  children.hashCode ^
-  contentLayer.hashCode ^
-  page.hashCode ^
-  pageEnd.hashCode ^
-  bbox.hashCode ^
-  annotations.hashCode ^
-  attributes.hashCode;
+      id.hashCode ^
+      content.hashCode ^
+      parent.hashCode ^
+      children.hashCode ^
+      contentLayer.hashCode ^
+      page.hashCode ^
+      pageEnd.hashCode ^
+      bbox.hashCode ^
+      annotations.hashCode ^
+      attributes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentNode &&
-  runtimeType == other.runtimeType &&
-  id == other.id &&
-  content == other.content &&
-  parent == other.parent &&
-  children == other.children &&
-  contentLayer == other.contentLayer &&
-  page == other.page &&
-  pageEnd == other.pageEnd &&
-  bbox == other.bbox &&
-  annotations == other.annotations &&
-  attributes == other.attributes;
+      identical(this, other) ||
+      other is DocumentNode &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          content == other.content &&
+          parent == other.parent &&
+          children == other.children &&
+          contentLayer == other.contentLayer &&
+          page == other.page &&
+          pageEnd == other.pageEnd &&
+          bbox == other.bbox &&
+          annotations == other.annotations &&
+          attributes == other.attributes;
 }
 
 /// A resolved relationship between two nodes in the document tree.
@@ -4629,12 +5001,12 @@ class DocumentRelationship {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentRelationship &&
-  runtimeType == other.runtimeType &&
-  source == other.source &&
-  target == other.target &&
-  kind == other.kind;
+      identical(this, other) ||
+      other is DocumentRelationship &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          target == other.target &&
+          kind == other.kind;
 }
 
 /// A single tracked change embedded in a document.
@@ -4686,24 +5058,24 @@ class DocumentRevision {
 
   @override
   int get hashCode =>
-  revisionId.hashCode ^
-  author.hashCode ^
-  timestamp.hashCode ^
-  kind.hashCode ^
-  anchor.hashCode ^
-  delta.hashCode;
+      revisionId.hashCode ^
+      author.hashCode ^
+      timestamp.hashCode ^
+      kind.hashCode ^
+      anchor.hashCode ^
+      delta.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentRevision &&
-  runtimeType == other.runtimeType &&
-  revisionId == other.revisionId &&
-  author == other.author &&
-  timestamp == other.timestamp &&
-  kind == other.kind &&
-  anchor == other.anchor &&
-  delta == other.delta;
+      identical(this, other) ||
+      other is DocumentRevision &&
+          runtimeType == other.runtimeType &&
+          revisionId == other.revisionId &&
+          author == other.author &&
+          timestamp == other.timestamp &&
+          kind == other.kind &&
+          anchor == other.anchor &&
+          delta == other.delta;
 }
 
 /// Top-level structured document representation.
@@ -4751,20 +5123,20 @@ class DocumentStructure {
 
   @override
   int get hashCode =>
-  nodes.hashCode ^
-  sourceFormat.hashCode ^
-  relationships.hashCode ^
-  nodeTypes.hashCode;
+      nodes.hashCode ^
+      sourceFormat.hashCode ^
+      relationships.hashCode ^
+      nodeTypes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentStructure &&
-  runtimeType == other.runtimeType &&
-  nodes == other.nodes &&
-  sourceFormat == other.sourceFormat &&
-  relationships == other.relationships &&
-  nodeTypes == other.nodeTypes;
+      identical(this, other) ||
+      other is DocumentStructure &&
+          runtimeType == other.runtimeType &&
+          nodes == other.nodes &&
+          sourceFormat == other.sourceFormat &&
+          relationships == other.relationships &&
+          nodeTypes == other.nodeTypes;
 }
 
 /// Summary of an extracted document.
@@ -4789,12 +5161,12 @@ class DocumentSummary {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocumentSummary &&
-  runtimeType == other.runtimeType &&
-  text == other.text &&
-  strategy == other.strategy &&
-  tokenCount == other.tokenCount;
+      identical(this, other) ||
+      other is DocumentSummary &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          strategy == other.strategy &&
+          tokenCount == other.tokenCount;
 }
 
 /// Application properties from docProps/app.xml for DOCX
@@ -4870,44 +5242,44 @@ class DocxAppProperties {
 
   @override
   int get hashCode =>
-  application.hashCode ^
-  appVersion.hashCode ^
-  template.hashCode ^
-  totalTime.hashCode ^
-  pages.hashCode ^
-  words.hashCode ^
-  characters.hashCode ^
-  charactersWithSpaces.hashCode ^
-  lines.hashCode ^
-  paragraphs.hashCode ^
-  company.hashCode ^
-  docSecurity.hashCode ^
-  scaleCrop.hashCode ^
-  linksUpToDate.hashCode ^
-  sharedDoc.hashCode ^
-  hyperlinksChanged.hashCode;
+      application.hashCode ^
+      appVersion.hashCode ^
+      template.hashCode ^
+      totalTime.hashCode ^
+      pages.hashCode ^
+      words.hashCode ^
+      characters.hashCode ^
+      charactersWithSpaces.hashCode ^
+      lines.hashCode ^
+      paragraphs.hashCode ^
+      company.hashCode ^
+      docSecurity.hashCode ^
+      scaleCrop.hashCode ^
+      linksUpToDate.hashCode ^
+      sharedDoc.hashCode ^
+      hyperlinksChanged.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocxAppProperties &&
-  runtimeType == other.runtimeType &&
-  application == other.application &&
-  appVersion == other.appVersion &&
-  template == other.template &&
-  totalTime == other.totalTime &&
-  pages == other.pages &&
-  words == other.words &&
-  characters == other.characters &&
-  charactersWithSpaces == other.charactersWithSpaces &&
-  lines == other.lines &&
-  paragraphs == other.paragraphs &&
-  company == other.company &&
-  docSecurity == other.docSecurity &&
-  scaleCrop == other.scaleCrop &&
-  linksUpToDate == other.linksUpToDate &&
-  sharedDoc == other.sharedDoc &&
-  hyperlinksChanged == other.hyperlinksChanged;
+      identical(this, other) ||
+      other is DocxAppProperties &&
+          runtimeType == other.runtimeType &&
+          application == other.application &&
+          appVersion == other.appVersion &&
+          template == other.template &&
+          totalTime == other.totalTime &&
+          pages == other.pages &&
+          words == other.words &&
+          characters == other.characters &&
+          charactersWithSpaces == other.charactersWithSpaces &&
+          lines == other.lines &&
+          paragraphs == other.paragraphs &&
+          company == other.company &&
+          docSecurity == other.docSecurity &&
+          scaleCrop == other.scaleCrop &&
+          linksUpToDate == other.linksUpToDate &&
+          sharedDoc == other.sharedDoc &&
+          hyperlinksChanged == other.hyperlinksChanged;
 }
 
 /// Word document metadata.
@@ -4941,18 +5313,18 @@ class DocxMetadata {
 
   @override
   int get hashCode =>
-  coreProperties.hashCode ^
-  appProperties.hashCode ^
-  customProperties.hashCode;
+      coreProperties.hashCode ^
+      appProperties.hashCode ^
+      customProperties.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is DocxMetadata &&
-  runtimeType == other.runtimeType &&
-  coreProperties == other.coreProperties &&
-  appProperties == other.appProperties &&
-  customProperties == other.customProperties;
+      identical(this, other) ||
+      other is DocxMetadata &&
+          runtimeType == other.runtimeType &&
+          coreProperties == other.coreProperties &&
+          appProperties == other.appProperties &&
+          customProperties == other.customProperties;
 }
 
 /// Semantic element extracted from document.
@@ -4980,12 +5352,12 @@ class Element {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Element &&
-  runtimeType == other.runtimeType &&
-  elementType == other.elementType &&
-  text == other.text &&
-  metadata == other.metadata;
+      identical(this, other) ||
+      other is Element &&
+          runtimeType == other.runtimeType &&
+          elementType == other.elementType &&
+          text == other.text &&
+          metadata == other.metadata;
 }
 
 /// Metadata for a semantic element.
@@ -5015,22 +5387,22 @@ class ElementMetadata {
 
   @override
   int get hashCode =>
-  pageNumber.hashCode ^
-  filename.hashCode ^
-  coordinates.hashCode ^
-  elementIndex.hashCode ^
-  additional.hashCode;
+      pageNumber.hashCode ^
+      filename.hashCode ^
+      coordinates.hashCode ^
+      elementIndex.hashCode ^
+      additional.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ElementMetadata &&
-  runtimeType == other.runtimeType &&
-  pageNumber == other.pageNumber &&
-  filename == other.filename &&
-  coordinates == other.coordinates &&
-  elementIndex == other.elementIndex &&
-  additional == other.additional;
+      identical(this, other) ||
+      other is ElementMetadata &&
+          runtimeType == other.runtimeType &&
+          pageNumber == other.pageNumber &&
+          filename == other.filename &&
+          coordinates == other.coordinates &&
+          elementIndex == other.elementIndex &&
+          additional == other.additional;
 }
 
 /// Semantic element type classification.
@@ -5106,24 +5478,24 @@ class EmailAttachment {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  filename.hashCode ^
-  mimeType.hashCode ^
-  size.hashCode ^
-  isImage.hashCode ^
-  data.hashCode;
+      name.hashCode ^
+      filename.hashCode ^
+      mimeType.hashCode ^
+      size.hashCode ^
+      isImage.hashCode ^
+      data.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmailAttachment &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  filename == other.filename &&
-  mimeType == other.mimeType &&
-  size == other.size &&
-  isImage == other.isImage &&
-  data == other.data;
+      identical(this, other) ||
+      other is EmailAttachment &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          filename == other.filename &&
+          mimeType == other.mimeType &&
+          size == other.size &&
+          isImage == other.isImage &&
+          data == other.data;
 }
 
 /// Configuration for email extraction.
@@ -5155,10 +5527,10 @@ class EmailConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmailConfig &&
-  runtimeType == other.runtimeType &&
-  msgFallbackCodepage == other.msgFallbackCodepage;
+      identical(this, other) ||
+      other is EmailConfig &&
+          runtimeType == other.runtimeType &&
+          msgFallbackCodepage == other.msgFallbackCodepage;
 }
 
 /// Email extraction result.
@@ -5219,36 +5591,36 @@ class EmailExtractionResult {
 
   @override
   int get hashCode =>
-  subject.hashCode ^
-  fromEmail.hashCode ^
-  toEmails.hashCode ^
-  ccEmails.hashCode ^
-  bccEmails.hashCode ^
-  date.hashCode ^
-  messageId.hashCode ^
-  plainText.hashCode ^
-  htmlContent.hashCode ^
-  content.hashCode ^
-  attachments.hashCode ^
-  metadata.hashCode;
+      subject.hashCode ^
+      fromEmail.hashCode ^
+      toEmails.hashCode ^
+      ccEmails.hashCode ^
+      bccEmails.hashCode ^
+      date.hashCode ^
+      messageId.hashCode ^
+      plainText.hashCode ^
+      htmlContent.hashCode ^
+      content.hashCode ^
+      attachments.hashCode ^
+      metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmailExtractionResult &&
-  runtimeType == other.runtimeType &&
-  subject == other.subject &&
-  fromEmail == other.fromEmail &&
-  toEmails == other.toEmails &&
-  ccEmails == other.ccEmails &&
-  bccEmails == other.bccEmails &&
-  date == other.date &&
-  messageId == other.messageId &&
-  plainText == other.plainText &&
-  htmlContent == other.htmlContent &&
-  content == other.content &&
-  attachments == other.attachments &&
-  metadata == other.metadata;
+      identical(this, other) ||
+      other is EmailExtractionResult &&
+          runtimeType == other.runtimeType &&
+          subject == other.subject &&
+          fromEmail == other.fromEmail &&
+          toEmails == other.toEmails &&
+          ccEmails == other.ccEmails &&
+          bccEmails == other.bccEmails &&
+          date == other.date &&
+          messageId == other.messageId &&
+          plainText == other.plainText &&
+          htmlContent == other.htmlContent &&
+          content == other.content &&
+          attachments == other.attachments &&
+          metadata == other.metadata;
 }
 
 /// Email metadata extracted from .eml and .msg files.
@@ -5288,26 +5660,26 @@ class EmailMetadata {
 
   @override
   int get hashCode =>
-  fromEmail.hashCode ^
-  fromName.hashCode ^
-  toEmails.hashCode ^
-  ccEmails.hashCode ^
-  bccEmails.hashCode ^
-  messageId.hashCode ^
-  attachments.hashCode;
+      fromEmail.hashCode ^
+      fromName.hashCode ^
+      toEmails.hashCode ^
+      ccEmails.hashCode ^
+      bccEmails.hashCode ^
+      messageId.hashCode ^
+      attachments.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmailMetadata &&
-  runtimeType == other.runtimeType &&
-  fromEmail == other.fromEmail &&
-  fromName == other.fromName &&
-  toEmails == other.toEmails &&
-  ccEmails == other.ccEmails &&
-  bccEmails == other.bccEmails &&
-  messageId == other.messageId &&
-  attachments == other.attachments;
+      identical(this, other) ||
+      other is EmailMetadata &&
+          runtimeType == other.runtimeType &&
+          fromEmail == other.fromEmail &&
+          fromName == other.fromName &&
+          toEmails == other.toEmails &&
+          ccEmails == other.ccEmails &&
+          bccEmails == other.bccEmails &&
+          messageId == other.messageId &&
+          attachments == other.attachments;
 }
 
 /// Changes to embedded archive children between two results.
@@ -5334,12 +5706,12 @@ class EmbeddedChanges {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmbeddedChanges &&
-  runtimeType == other.runtimeType &&
-  added == other.added &&
-  removed == other.removed &&
-  changed == other.changed;
+      identical(this, other) ||
+      other is EmbeddedChanges &&
+          runtimeType == other.runtimeType &&
+          added == other.added &&
+          removed == other.removed &&
+          changed == other.changed;
 }
 
 /// Diff for a single embedded archive entry that appears in both results.
@@ -5357,11 +5729,11 @@ class EmbeddedDiff {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmbeddedDiff &&
-  runtimeType == other.runtimeType &&
-  path == other.path &&
-  diff == other.diff;
+      identical(this, other) ||
+      other is EmbeddedDiff &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          diff == other.diff;
 }
 
 /// Embedded file descriptor extracted from the PDF name tree.
@@ -5390,20 +5762,20 @@ class EmbeddedFile {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  data.hashCode ^
-  compressedSize.hashCode ^
-  mimeType.hashCode;
+      name.hashCode ^
+      data.hashCode ^
+      compressedSize.hashCode ^
+      mimeType.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmbeddedFile &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  data == other.data &&
-  compressedSize == other.compressedSize &&
-  mimeType == other.mimeType;
+      identical(this, other) ||
+      other is EmbeddedFile &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          data == other.data &&
+          compressedSize == other.compressedSize &&
+          mimeType == other.mimeType;
 }
 
 /// Embedding configuration for text chunks.
@@ -5420,7 +5792,13 @@ class EmbeddingConfig {
   /// Batch size for embedding generation
   final PlatformInt64 batchSize;
 
-  /// Show model download progress
+  /// Show model download progress.
+  ///
+  /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+  /// `info` level on the `xberg::model_download` target while they download (#279). Covers both
+  /// local backends (ONNX and static/model2vec). A warm Hugging Face cache transfers nothing and
+  /// so reports nothing. Ignored by [`EmbeddingModelType::Llm`] and
+  /// [`EmbeddingModelType::Plugin`], which download no model.
   final bool showDownloadProgress;
 
   /// Optional alternate Hugging Face cache root for model files.
@@ -5476,28 +5854,28 @@ class EmbeddingConfig {
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  normalize.hashCode ^
-  batchSize.hashCode ^
-  showDownloadProgress.hashCode ^
-  cacheDir.hashCode ^
-  acceleration.hashCode ^
-  maxEmbedDurationSecs.hashCode ^
-  maxSequenceLength.hashCode;
+      model.hashCode ^
+      normalize.hashCode ^
+      batchSize.hashCode ^
+      showDownloadProgress.hashCode ^
+      cacheDir.hashCode ^
+      acceleration.hashCode ^
+      maxEmbedDurationSecs.hashCode ^
+      maxSequenceLength.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EmbeddingConfig &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  normalize == other.normalize &&
-  batchSize == other.batchSize &&
-  showDownloadProgress == other.showDownloadProgress &&
-  cacheDir == other.cacheDir &&
-  acceleration == other.acceleration &&
-  maxEmbedDurationSecs == other.maxEmbedDurationSecs &&
-  maxSequenceLength == other.maxSequenceLength;
+      identical(this, other) ||
+      other is EmbeddingConfig &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          normalize == other.normalize &&
+          batchSize == other.batchSize &&
+          showDownloadProgress == other.showDownloadProgress &&
+          cacheDir == other.cacheDir &&
+          acceleration == other.acceleration &&
+          maxEmbedDurationSecs == other.maxEmbedDurationSecs &&
+          maxSequenceLength == other.maxSequenceLength;
 }
 
 @freezed
@@ -5525,6 +5903,10 @@ sealed class EmbeddingModelType with _$EmbeddingModelType {
   /// `"openai/text-embedding-3-small"`).
   const factory EmbeddingModelType.llm({
     /// LLM provider configuration specifying the model and API credentials.
+    ///
+    /// Boxed because `LlmConfig` carries liter-llm's full configuration surface and is
+    /// an order of magnitude larger than the other variants, which would otherwise make
+    /// every `Preset`/`Custom` value pay for it. ~keep
     required LlmConfig llm,
   }) = EmbeddingModelType_Llm;
 
@@ -5540,7 +5922,7 @@ sealed class EmbeddingModelType with _$EmbeddingModelType {
   /// apply: `normalize` (post-call L2 normalization) and `max_embed_duration_secs`
   /// (dispatcher timeout). Model-loading fields (`batch_size`, `cache_dir`,
   /// `show_download_progress`, `acceleration`) are ignored — the host owns the
-  /// model lifecycle.
+  /// model lifecycle, so there is no download to report progress for.
   ///
   /// Semantic chunking falls back to [`ChunkingConfig::max_characters`] when this variant
   /// is used, since there is no preset to look a chunk-size ceiling up against — size your
@@ -5598,22 +5980,22 @@ class Entity {
 
   @override
   int get hashCode =>
-  category.hashCode ^
-  text.hashCode ^
-  start.hashCode ^
-  end.hashCode ^
-  confidence.hashCode;
+      category.hashCode ^
+      text.hashCode ^
+      start.hashCode ^
+      end.hashCode ^
+      confidence.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Entity &&
-  runtimeType == other.runtimeType &&
-  category == other.category &&
-  text == other.text &&
-  start == other.start &&
-  end == other.end &&
-  confidence == other.confidence;
+      identical(this, other) ||
+      other is Entity &&
+          runtimeType == other.runtimeType &&
+          category == other.category &&
+          text == other.text &&
+          start == other.start &&
+          end == other.end &&
+          confidence == other.confidence;
 }
 
 @freezed
@@ -5652,7 +6034,7 @@ sealed class EntityCategory with _$EntityCategory {
 
   /// A caller-supplied custom category label.
   const factory EntityCategory.custom({required String field0}) =
-  EntityCategory_Custom;
+      EntityCategory_Custom;
 }
 
 /// EPUB metadata (Dublin Core extensions).
@@ -5686,24 +6068,24 @@ class EpubMetadata {
 
   @override
   int get hashCode =>
-  coverage.hashCode ^
-  dcFormat.hashCode ^
-  relation.hashCode ^
-  source.hashCode ^
-  dcType.hashCode ^
-  coverImage.hashCode;
+      coverage.hashCode ^
+      dcFormat.hashCode ^
+      relation.hashCode ^
+      source.hashCode ^
+      dcType.hashCode ^
+      coverImage.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is EpubMetadata &&
-  runtimeType == other.runtimeType &&
-  coverage == other.coverage &&
-  dcFormat == other.dcFormat &&
-  relation == other.relation &&
-  source == other.source &&
-  dcType == other.dcType &&
-  coverImage == other.coverImage;
+      identical(this, other) ||
+      other is EpubMetadata &&
+          runtimeType == other.runtimeType &&
+          coverage == other.coverage &&
+          dcFormat == other.dcFormat &&
+          relation == other.relation &&
+          source == other.source &&
+          dcType == other.dcType &&
+          coverImage == other.coverImage;
 }
 
 /// Error metadata (for batch operations).
@@ -5721,11 +6103,11 @@ class ErrorMetadata {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ErrorMetadata &&
-  runtimeType == other.runtimeType &&
-  errorType == other.errorType &&
-  message == other.message;
+      identical(this, other) ||
+      other is ErrorMetadata &&
+          runtimeType == other.runtimeType &&
+          errorType == other.errorType &&
+          message == other.message;
 }
 
 /// Excel/spreadsheet format metadata.
@@ -5746,11 +6128,11 @@ class ExcelMetadata {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExcelMetadata &&
-  runtimeType == other.runtimeType &&
-  sheetCount == other.sheetCount &&
-  sheetNames == other.sheetNames;
+      identical(this, other) ||
+      other is ExcelMetadata &&
+          runtimeType == other.runtimeType &&
+          sheetCount == other.sheetCount &&
+          sheetNames == other.sheetNames;
 }
 
 /// Single Excel worksheet.
@@ -5789,24 +6171,24 @@ class ExcelSheet {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  markdown.hashCode ^
-  rowCount.hashCode ^
-  colCount.hashCode ^
-  cellCount.hashCode ^
-  tableCells.hashCode;
+      name.hashCode ^
+      markdown.hashCode ^
+      rowCount.hashCode ^
+      colCount.hashCode ^
+      cellCount.hashCode ^
+      tableCells.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExcelSheet &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  markdown == other.markdown &&
-  rowCount == other.rowCount &&
-  colCount == other.colCount &&
-  cellCount == other.cellCount &&
-  tableCells == other.tableCells;
+      identical(this, other) ||
+      other is ExcelSheet &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          markdown == other.markdown &&
+          rowCount == other.rowCount &&
+          colCount == other.colCount &&
+          cellCount == other.cellCount &&
+          tableCells == other.tableCells;
 }
 
 /// Excel workbook representation.
@@ -5841,12 +6223,12 @@ class ExcelWorkbook {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExcelWorkbook &&
-  runtimeType == other.runtimeType &&
-  sheets == other.sheets &&
-  metadata == other.metadata &&
-  revisions == other.revisions;
+      identical(this, other) ||
+      other is ExcelWorkbook &&
+          runtimeType == other.runtimeType &&
+          sheets == other.sheets &&
+          metadata == other.metadata &&
+          revisions == other.revisions;
 }
 
 /// ONNX Runtime execution provider type.
@@ -5901,24 +6283,24 @@ class ExtractInput {
 
   @override
   int get hashCode =>
-  kind.hashCode ^
-  bytes.hashCode ^
-  uri.hashCode ^
-  mimeType.hashCode ^
-  filename.hashCode ^
-  config.hashCode;
+      kind.hashCode ^
+      bytes.hashCode ^
+      uri.hashCode ^
+      mimeType.hashCode ^
+      filename.hashCode ^
+      config.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractInput &&
-  runtimeType == other.runtimeType &&
-  kind == other.kind &&
-  bytes == other.bytes &&
-  uri == other.uri &&
-  mimeType == other.mimeType &&
-  filename == other.filename &&
-  config == other.config;
+      identical(this, other) ||
+      other is ExtractInput &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          bytes == other.bytes &&
+          uri == other.uri &&
+          mimeType == other.mimeType &&
+          filename == other.filename &&
+          config == other.config;
 }
 
 /// Source kind for [`ExtractInput`].
@@ -5961,6 +6343,14 @@ class ExtractedDocument {
 
   /// ISO 639-1 language codes detected in the document content.
   final List<String>? detectedLanguages;
+
+  /// Structured per-language detection results: confidence, document share, script,
+  /// and reliability, alongside the ISO-code-only `detected_languages` (#261).
+  ///
+  /// One entry per language in `detected_languages`, in the same order. `None` under
+  /// the same conditions as `detected_languages`: detection disabled, empty input
+  /// text, or no language met the configured `min_confidence`.
+  final List<LanguageConfidence>? detectedLanguageConfidences;
 
   /// Text chunks when chunking is enabled.
   ///
@@ -6166,13 +6556,6 @@ class ExtractedDocument {
   /// enabled (default) and the document is a fillable form. Empty otherwise.
   final List<PdfFormField> formFields;
 
-  /// Pre-rendered content in the requested output format.
-  ///
-  /// Populated during `derive_extraction_result` before tree derivation consumes
-  /// element data. `apply_output_format` swaps this into `content` at the end
-  /// of the pipeline, after post-processors have operated on plain text.
-  final String? formattedContent;
-
   const ExtractedDocument({
     required this.content,
     required this.mimeType,
@@ -6181,6 +6564,7 @@ class ExtractedDocument {
     required this.tables,
     required this.counts,
     this.detectedLanguages,
+    this.detectedLanguageConfidences,
     this.chunks,
     this.images,
     this.pages,
@@ -6206,83 +6590,82 @@ class ExtractedDocument {
     this.redactionReport,
     required this.formulas,
     required this.formFields,
-    this.formattedContent,
   });
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  mimeType.hashCode ^
-  metadata.hashCode ^
-  extractionMethod.hashCode ^
-  tables.hashCode ^
-  counts.hashCode ^
-  detectedLanguages.hashCode ^
-  chunks.hashCode ^
-  images.hashCode ^
-  pages.hashCode ^
-  elements.hashCode ^
-  djotContent.hashCode ^
-  ocrElements.hashCode ^
-  document.hashCode ^
-  extractedKeywords.hashCode ^
-  qualityScore.hashCode ^
-  processingWarnings.hashCode ^
-  annotations.hashCode ^
-  children.hashCode ^
-  uris.hashCode ^
-  revisions.hashCode ^
-  structuredOutput.hashCode ^
-  codeIntelligence.hashCode ^
-  llmUsage.hashCode ^
-  entities.hashCode ^
-  summary.hashCode ^
-  extractionConfidence.hashCode ^
-  translation.hashCode ^
-  pageClassifications.hashCode ^
-  redactionReport.hashCode ^
-  formulas.hashCode ^
-  formFields.hashCode ^
-  formattedContent.hashCode;
+      content.hashCode ^
+      mimeType.hashCode ^
+      metadata.hashCode ^
+      extractionMethod.hashCode ^
+      tables.hashCode ^
+      counts.hashCode ^
+      detectedLanguages.hashCode ^
+      detectedLanguageConfidences.hashCode ^
+      chunks.hashCode ^
+      images.hashCode ^
+      pages.hashCode ^
+      elements.hashCode ^
+      djotContent.hashCode ^
+      ocrElements.hashCode ^
+      document.hashCode ^
+      extractedKeywords.hashCode ^
+      qualityScore.hashCode ^
+      processingWarnings.hashCode ^
+      annotations.hashCode ^
+      children.hashCode ^
+      uris.hashCode ^
+      revisions.hashCode ^
+      structuredOutput.hashCode ^
+      codeIntelligence.hashCode ^
+      llmUsage.hashCode ^
+      entities.hashCode ^
+      summary.hashCode ^
+      extractionConfidence.hashCode ^
+      translation.hashCode ^
+      pageClassifications.hashCode ^
+      redactionReport.hashCode ^
+      formulas.hashCode ^
+      formFields.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractedDocument &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  mimeType == other.mimeType &&
-  metadata == other.metadata &&
-  extractionMethod == other.extractionMethod &&
-  tables == other.tables &&
-  counts == other.counts &&
-  detectedLanguages == other.detectedLanguages &&
-  chunks == other.chunks &&
-  images == other.images &&
-  pages == other.pages &&
-  elements == other.elements &&
-  djotContent == other.djotContent &&
-  ocrElements == other.ocrElements &&
-  document == other.document &&
-  extractedKeywords == other.extractedKeywords &&
-  qualityScore == other.qualityScore &&
-  processingWarnings == other.processingWarnings &&
-  annotations == other.annotations &&
-  children == other.children &&
-  uris == other.uris &&
-  revisions == other.revisions &&
-  structuredOutput == other.structuredOutput &&
-  codeIntelligence == other.codeIntelligence &&
-  llmUsage == other.llmUsage &&
-  entities == other.entities &&
-  summary == other.summary &&
-  extractionConfidence == other.extractionConfidence &&
-  translation == other.translation &&
-  pageClassifications == other.pageClassifications &&
-  redactionReport == other.redactionReport &&
-  formulas == other.formulas &&
-  formFields == other.formFields &&
-  formattedContent == other.formattedContent;
+      identical(this, other) ||
+      other is ExtractedDocument &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          mimeType == other.mimeType &&
+          metadata == other.metadata &&
+          extractionMethod == other.extractionMethod &&
+          tables == other.tables &&
+          counts == other.counts &&
+          detectedLanguages == other.detectedLanguages &&
+          detectedLanguageConfidences == other.detectedLanguageConfidences &&
+          chunks == other.chunks &&
+          images == other.images &&
+          pages == other.pages &&
+          elements == other.elements &&
+          djotContent == other.djotContent &&
+          ocrElements == other.ocrElements &&
+          document == other.document &&
+          extractedKeywords == other.extractedKeywords &&
+          qualityScore == other.qualityScore &&
+          processingWarnings == other.processingWarnings &&
+          annotations == other.annotations &&
+          children == other.children &&
+          uris == other.uris &&
+          revisions == other.revisions &&
+          structuredOutput == other.structuredOutput &&
+          codeIntelligence == other.codeIntelligence &&
+          llmUsage == other.llmUsage &&
+          entities == other.entities &&
+          summary == other.summary &&
+          extractionConfidence == other.extractionConfidence &&
+          translation == other.translation &&
+          pageClassifications == other.pageClassifications &&
+          redactionReport == other.redactionReport &&
+          formulas == other.formulas &&
+          formFields == other.formFields;
 }
 
 /// Extracted image from a document.
@@ -6391,50 +6774,50 @@ class ExtractedImage {
 
   @override
   int get hashCode =>
-  data.hashCode ^
-  format.hashCode ^
-  imageIndex.hashCode ^
-  pageNumber.hashCode ^
-  width.hashCode ^
-  height.hashCode ^
-  colorspace.hashCode ^
-  bitsPerComponent.hashCode ^
-  isMask.hashCode ^
-  description.hashCode ^
-  ocrResult.hashCode ^
-  boundingBox.hashCode ^
-  sourcePath.hashCode ^
-  imageKind.hashCode ^
-  kindConfidence.hashCode ^
-  clusterId.hashCode ^
-  caption.hashCode ^
-  qrCodes.hashCode ^
-  dataBase64.hashCode;
+      data.hashCode ^
+      format.hashCode ^
+      imageIndex.hashCode ^
+      pageNumber.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      colorspace.hashCode ^
+      bitsPerComponent.hashCode ^
+      isMask.hashCode ^
+      description.hashCode ^
+      ocrResult.hashCode ^
+      boundingBox.hashCode ^
+      sourcePath.hashCode ^
+      imageKind.hashCode ^
+      kindConfidence.hashCode ^
+      clusterId.hashCode ^
+      caption.hashCode ^
+      qrCodes.hashCode ^
+      dataBase64.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractedImage &&
-  runtimeType == other.runtimeType &&
-  data == other.data &&
-  format == other.format &&
-  imageIndex == other.imageIndex &&
-  pageNumber == other.pageNumber &&
-  width == other.width &&
-  height == other.height &&
-  colorspace == other.colorspace &&
-  bitsPerComponent == other.bitsPerComponent &&
-  isMask == other.isMask &&
-  description == other.description &&
-  ocrResult == other.ocrResult &&
-  boundingBox == other.boundingBox &&
-  sourcePath == other.sourcePath &&
-  imageKind == other.imageKind &&
-  kindConfidence == other.kindConfidence &&
-  clusterId == other.clusterId &&
-  caption == other.caption &&
-  qrCodes == other.qrCodes &&
-  dataBase64 == other.dataBase64;
+      identical(this, other) ||
+      other is ExtractedImage &&
+          runtimeType == other.runtimeType &&
+          data == other.data &&
+          format == other.format &&
+          imageIndex == other.imageIndex &&
+          pageNumber == other.pageNumber &&
+          width == other.width &&
+          height == other.height &&
+          colorspace == other.colorspace &&
+          bitsPerComponent == other.bitsPerComponent &&
+          isMask == other.isMask &&
+          description == other.description &&
+          ocrResult == other.ocrResult &&
+          boundingBox == other.boundingBox &&
+          sourcePath == other.sourcePath &&
+          imageKind == other.imageKind &&
+          kindConfidence == other.kindConfidence &&
+          clusterId == other.clusterId &&
+          caption == other.caption &&
+          qrCodes == other.qrCodes &&
+          dataBase64 == other.dataBase64;
 }
 
 /// A URI extracted from a document.
@@ -6464,17 +6847,17 @@ class ExtractedUri {
 
   @override
   int get hashCode =>
-  url.hashCode ^ label.hashCode ^ page.hashCode ^ kind.hashCode;
+      url.hashCode ^ label.hashCode ^ page.hashCode ^ kind.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractedUri &&
-  runtimeType == other.runtimeType &&
-  url == other.url &&
-  label == other.label &&
-  page == other.page &&
-  kind == other.kind;
+      identical(this, other) ||
+      other is ExtractedUri &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          label == other.label &&
+          page == other.page &&
+          kind == other.kind;
 }
 
 /// Combined confidence on `[0, 1]`.
@@ -6503,20 +6886,20 @@ class ExtractionConfidence {
 
   @override
   int get hashCode =>
-  textCoverage.hashCode ^
-  ocrAggregate.hashCode ^
-  schemaCompliance.hashCode ^
-  combined.hashCode;
+      textCoverage.hashCode ^
+      ocrAggregate.hashCode ^
+      schemaCompliance.hashCode ^
+      combined.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionConfidence &&
-  runtimeType == other.runtimeType &&
-  textCoverage == other.textCoverage &&
-  ocrAggregate == other.ocrAggregate &&
-  schemaCompliance == other.schemaCompliance &&
-  combined == other.combined;
+      identical(this, other) ||
+      other is ExtractionConfidence &&
+          runtimeType == other.runtimeType &&
+          textCoverage == other.textCoverage &&
+          ocrAggregate == other.ocrAggregate &&
+          schemaCompliance == other.schemaCompliance &&
+          combined == other.combined;
 }
 
 /// Main extraction configuration.
@@ -6798,6 +7181,13 @@ class ExtractionConfig {
   /// that do not specify one. See `EmailConfig` for details.
   final EmailConfig? email;
 
+  /// CSV/TSV extraction configuration (None = use defaults).
+  ///
+  /// Lets callers set an explicit delimiter and declare comment-line
+  /// prefixes to skip, instead of relying solely on delimiter
+  /// auto-detection. See `CsvConfig` for details.
+  final CsvConfig? csv;
+
   /// URL ingestion and crawl configuration.
   final UrlExtractionConfig url;
 
@@ -6889,6 +7279,7 @@ class ExtractionConfig {
     this.cacheNamespace,
     this.cacheTtlSecs,
     this.email,
+    this.csv,
     required this.url,
     required this.maxArchiveDepth,
     this.treeSitter,
@@ -6905,106 +7296,108 @@ class ExtractionConfig {
 
   @override
   int get hashCode =>
-  useCache.hashCode ^
-  enableQualityProcessing.hashCode ^
-  ocr.hashCode ^
-  forceOcr.hashCode ^
-  ocrStrategy.hashCode ^
-  forceOcrPages.hashCode ^
-  disableOcr.hashCode ^
-  chunking.hashCode ^
-  contentFilter.hashCode ^
-  images.hashCode ^
-  pdfOptions.hashCode ^
-  tokenReduction.hashCode ^
-  languageDetection.hashCode ^
-  pages.hashCode ^
-  keywords.hashCode ^
-  postprocessor.hashCode ^
-  htmlOptions.hashCode ^
-  htmlOutput.hashCode ^
-  extractionTimeoutSecs.hashCode ^
-  maxConcurrentExtractions.hashCode ^
-  resultFormat.hashCode ^
-  securityLimits.hashCode ^
-  maxEmbeddedFileBytes.hashCode ^
-  outputFormat.hashCode ^
-  escapeMarkdown.hashCode ^
-  tableAnchors.hashCode ^
-  jupyterCellRendering.hashCode ^
-  layout.hashCode ^
-  transcription.hashCode ^
-  useLayoutForMarkdown.hashCode ^
-  includeDocumentStructure.hashCode ^
-  acceleration.hashCode ^
-  cacheNamespace.hashCode ^
-  cacheTtlSecs.hashCode ^
-  email.hashCode ^
-  url.hashCode ^
-  maxArchiveDepth.hashCode ^
-  treeSitter.hashCode ^
-  structuredExtraction.hashCode ^
-  ner.hashCode ^
-  redaction.hashCode ^
-  summarization.hashCode ^
-  translation.hashCode ^
-  pageClassification.hashCode ^
-  chunkClassification.hashCode ^
-  captioning.hashCode ^
-  qrCodes.hashCode;
+      useCache.hashCode ^
+      enableQualityProcessing.hashCode ^
+      ocr.hashCode ^
+      forceOcr.hashCode ^
+      ocrStrategy.hashCode ^
+      forceOcrPages.hashCode ^
+      disableOcr.hashCode ^
+      chunking.hashCode ^
+      contentFilter.hashCode ^
+      images.hashCode ^
+      pdfOptions.hashCode ^
+      tokenReduction.hashCode ^
+      languageDetection.hashCode ^
+      pages.hashCode ^
+      keywords.hashCode ^
+      postprocessor.hashCode ^
+      htmlOptions.hashCode ^
+      htmlOutput.hashCode ^
+      extractionTimeoutSecs.hashCode ^
+      maxConcurrentExtractions.hashCode ^
+      resultFormat.hashCode ^
+      securityLimits.hashCode ^
+      maxEmbeddedFileBytes.hashCode ^
+      outputFormat.hashCode ^
+      escapeMarkdown.hashCode ^
+      tableAnchors.hashCode ^
+      jupyterCellRendering.hashCode ^
+      layout.hashCode ^
+      transcription.hashCode ^
+      useLayoutForMarkdown.hashCode ^
+      includeDocumentStructure.hashCode ^
+      acceleration.hashCode ^
+      cacheNamespace.hashCode ^
+      cacheTtlSecs.hashCode ^
+      email.hashCode ^
+      csv.hashCode ^
+      url.hashCode ^
+      maxArchiveDepth.hashCode ^
+      treeSitter.hashCode ^
+      structuredExtraction.hashCode ^
+      ner.hashCode ^
+      redaction.hashCode ^
+      summarization.hashCode ^
+      translation.hashCode ^
+      pageClassification.hashCode ^
+      chunkClassification.hashCode ^
+      captioning.hashCode ^
+      qrCodes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionConfig &&
-  runtimeType == other.runtimeType &&
-  useCache == other.useCache &&
-  enableQualityProcessing == other.enableQualityProcessing &&
-  ocr == other.ocr &&
-  forceOcr == other.forceOcr &&
-  ocrStrategy == other.ocrStrategy &&
-  forceOcrPages == other.forceOcrPages &&
-  disableOcr == other.disableOcr &&
-  chunking == other.chunking &&
-  contentFilter == other.contentFilter &&
-  images == other.images &&
-  pdfOptions == other.pdfOptions &&
-  tokenReduction == other.tokenReduction &&
-  languageDetection == other.languageDetection &&
-  pages == other.pages &&
-  keywords == other.keywords &&
-  postprocessor == other.postprocessor &&
-  htmlOptions == other.htmlOptions &&
-  htmlOutput == other.htmlOutput &&
-  extractionTimeoutSecs == other.extractionTimeoutSecs &&
-  maxConcurrentExtractions == other.maxConcurrentExtractions &&
-  resultFormat == other.resultFormat &&
-  securityLimits == other.securityLimits &&
-  maxEmbeddedFileBytes == other.maxEmbeddedFileBytes &&
-  outputFormat == other.outputFormat &&
-  escapeMarkdown == other.escapeMarkdown &&
-  tableAnchors == other.tableAnchors &&
-  jupyterCellRendering == other.jupyterCellRendering &&
-  layout == other.layout &&
-  transcription == other.transcription &&
-  useLayoutForMarkdown == other.useLayoutForMarkdown &&
-  includeDocumentStructure == other.includeDocumentStructure &&
-  acceleration == other.acceleration &&
-  cacheNamespace == other.cacheNamespace &&
-  cacheTtlSecs == other.cacheTtlSecs &&
-  email == other.email &&
-  url == other.url &&
-  maxArchiveDepth == other.maxArchiveDepth &&
-  treeSitter == other.treeSitter &&
-  structuredExtraction == other.structuredExtraction &&
-  ner == other.ner &&
-  redaction == other.redaction &&
-  summarization == other.summarization &&
-  translation == other.translation &&
-  pageClassification == other.pageClassification &&
-  chunkClassification == other.chunkClassification &&
-  captioning == other.captioning &&
-  qrCodes == other.qrCodes;
+      identical(this, other) ||
+      other is ExtractionConfig &&
+          runtimeType == other.runtimeType &&
+          useCache == other.useCache &&
+          enableQualityProcessing == other.enableQualityProcessing &&
+          ocr == other.ocr &&
+          forceOcr == other.forceOcr &&
+          ocrStrategy == other.ocrStrategy &&
+          forceOcrPages == other.forceOcrPages &&
+          disableOcr == other.disableOcr &&
+          chunking == other.chunking &&
+          contentFilter == other.contentFilter &&
+          images == other.images &&
+          pdfOptions == other.pdfOptions &&
+          tokenReduction == other.tokenReduction &&
+          languageDetection == other.languageDetection &&
+          pages == other.pages &&
+          keywords == other.keywords &&
+          postprocessor == other.postprocessor &&
+          htmlOptions == other.htmlOptions &&
+          htmlOutput == other.htmlOutput &&
+          extractionTimeoutSecs == other.extractionTimeoutSecs &&
+          maxConcurrentExtractions == other.maxConcurrentExtractions &&
+          resultFormat == other.resultFormat &&
+          securityLimits == other.securityLimits &&
+          maxEmbeddedFileBytes == other.maxEmbeddedFileBytes &&
+          outputFormat == other.outputFormat &&
+          escapeMarkdown == other.escapeMarkdown &&
+          tableAnchors == other.tableAnchors &&
+          jupyterCellRendering == other.jupyterCellRendering &&
+          layout == other.layout &&
+          transcription == other.transcription &&
+          useLayoutForMarkdown == other.useLayoutForMarkdown &&
+          includeDocumentStructure == other.includeDocumentStructure &&
+          acceleration == other.acceleration &&
+          cacheNamespace == other.cacheNamespace &&
+          cacheTtlSecs == other.cacheTtlSecs &&
+          email == other.email &&
+          csv == other.csv &&
+          url == other.url &&
+          maxArchiveDepth == other.maxArchiveDepth &&
+          treeSitter == other.treeSitter &&
+          structuredExtraction == other.structuredExtraction &&
+          ner == other.ner &&
+          redaction == other.redaction &&
+          summarization == other.summarization &&
+          translation == other.translation &&
+          pageClassification == other.pageClassification &&
+          chunkClassification == other.chunkClassification &&
+          captioning == other.captioning &&
+          qrCodes == other.qrCodes;
 }
 
 /// The complete diff between two `ExtractedDocument` values.
@@ -7048,24 +7441,24 @@ class ExtractionDiff {
 
   @override
   int get hashCode =>
-  contentDiff.hashCode ^
-  tablesAdded.hashCode ^
-  tablesRemoved.hashCode ^
-  tablesChanged.hashCode ^
-  metadataChanged.hashCode ^
-  embeddedChanges.hashCode;
+      contentDiff.hashCode ^
+      tablesAdded.hashCode ^
+      tablesRemoved.hashCode ^
+      tablesChanged.hashCode ^
+      metadataChanged.hashCode ^
+      embeddedChanges.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionDiff &&
-  runtimeType == other.runtimeType &&
-  contentDiff == other.contentDiff &&
-  tablesAdded == other.tablesAdded &&
-  tablesRemoved == other.tablesRemoved &&
-  tablesChanged == other.tablesChanged &&
-  metadataChanged == other.metadataChanged &&
-  embeddedChanges == other.embeddedChanges;
+      identical(this, other) ||
+      other is ExtractionDiff &&
+          runtimeType == other.runtimeType &&
+          contentDiff == other.contentDiff &&
+          tablesAdded == other.tablesAdded &&
+          tablesRemoved == other.tablesRemoved &&
+          tablesChanged == other.tablesChanged &&
+          metadataChanged == other.metadataChanged &&
+          embeddedChanges == other.embeddedChanges;
 }
 
 /// Non-fatal per-input extraction error captured by [`ExtractionResult`].
@@ -7095,22 +7488,22 @@ class ExtractionErrorItem {
 
   @override
   int get hashCode =>
-  index.hashCode ^
-  code.hashCode ^
-  errorType.hashCode ^
-  source.hashCode ^
-  message.hashCode;
+      index.hashCode ^
+      code.hashCode ^
+      errorType.hashCode ^
+      source.hashCode ^
+      message.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionErrorItem &&
-  runtimeType == other.runtimeType &&
-  index == other.index &&
-  code == other.code &&
-  errorType == other.errorType &&
-  source == other.source &&
-  message == other.message;
+      identical(this, other) ||
+      other is ExtractionErrorItem &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          code == other.code &&
+          errorType == other.errorType &&
+          source == other.source &&
+          message == other.message;
 }
 
 /// How the extracted text was produced.
@@ -7156,24 +7549,24 @@ class ExtractionResult {
 
   @override
   int get hashCode =>
-  results.hashCode ^
-  errors.hashCode ^
-  summary.hashCode ^
-  crawlFinalUrls.hashCode ^
-  crawlRedirectCount.hashCode ^
-  crawlUniqueNormalizedUrls.hashCode;
+      results.hashCode ^
+      errors.hashCode ^
+      summary.hashCode ^
+      crawlFinalUrls.hashCode ^
+      crawlRedirectCount.hashCode ^
+      crawlUniqueNormalizedUrls.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionResult &&
-  runtimeType == other.runtimeType &&
-  results == other.results &&
-  errors == other.errors &&
-  summary == other.summary &&
-  crawlFinalUrls == other.crawlFinalUrls &&
-  crawlRedirectCount == other.crawlRedirectCount &&
-  crawlUniqueNormalizedUrls == other.crawlUniqueNormalizedUrls;
+      identical(this, other) ||
+      other is ExtractionResult &&
+          runtimeType == other.runtimeType &&
+          results == other.results &&
+          errors == other.errors &&
+          summary == other.summary &&
+          crawlFinalUrls == other.crawlFinalUrls &&
+          crawlRedirectCount == other.crawlRedirectCount &&
+          crawlUniqueNormalizedUrls == other.crawlUniqueNormalizedUrls;
 }
 
 /// Summary for a unified extraction call.
@@ -7207,24 +7600,24 @@ class ExtractionSummary {
 
   @override
   int get hashCode =>
-  inputs.hashCode ^
-  results.hashCode ^
-  errors.hashCode ^
-  remoteUrls.hashCode ^
-  pagesCrawled.hashCode ^
-  documentsDownloaded.hashCode;
+      inputs.hashCode ^
+      results.hashCode ^
+      errors.hashCode ^
+      remoteUrls.hashCode ^
+      pagesCrawled.hashCode ^
+      documentsDownloaded.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ExtractionSummary &&
-  runtimeType == other.runtimeType &&
-  inputs == other.inputs &&
-  results == other.results &&
-  errors == other.errors &&
-  remoteUrls == other.remoteUrls &&
-  pagesCrawled == other.pagesCrawled &&
-  documentsDownloaded == other.documentsDownloaded;
+      identical(this, other) ||
+      other is ExtractionSummary &&
+          runtimeType == other.runtimeType &&
+          inputs == other.inputs &&
+          results == other.results &&
+          errors == other.errors &&
+          remoteUrls == other.remoteUrls &&
+          pagesCrawled == other.pagesCrawled &&
+          documentsDownloaded == other.documentsDownloaded;
 }
 
 /// FictionBook (FB2) metadata.
@@ -7246,16 +7639,16 @@ class FictionBookMetadata {
 
   @override
   int get hashCode =>
-  genres.hashCode ^ sequences.hashCode ^ annotation.hashCode;
+      genres.hashCode ^ sequences.hashCode ^ annotation.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FictionBookMetadata &&
-  runtimeType == other.runtimeType &&
-  genres == other.genres &&
-  sequences == other.sequences &&
-  annotation == other.annotation;
+      identical(this, other) ||
+      other is FictionBookMetadata &&
+          runtimeType == other.runtimeType &&
+          genres == other.genres &&
+          sequences == other.sequences &&
+          annotation == other.annotation;
 }
 
 /// Per-file extraction configuration overrides for batch processing.
@@ -7430,78 +7823,78 @@ class FileExtractionConfig {
 
   @override
   int get hashCode =>
-  enableQualityProcessing.hashCode ^
-  ocr.hashCode ^
-  forceOcr.hashCode ^
-  ocrStrategy.hashCode ^
-  forceOcrPages.hashCode ^
-  disableOcr.hashCode ^
-  chunking.hashCode ^
-  contentFilter.hashCode ^
-  images.hashCode ^
-  pdfOptions.hashCode ^
-  tokenReduction.hashCode ^
-  languageDetection.hashCode ^
-  pages.hashCode ^
-  keywords.hashCode ^
-  postprocessor.hashCode ^
-  htmlOutput.hashCode ^
-  resultFormat.hashCode ^
-  outputFormat.hashCode ^
-  includeDocumentStructure.hashCode ^
-  layout.hashCode ^
-  transcription.hashCode ^
-  timeoutSecs.hashCode ^
-  treeSitter.hashCode ^
-  structuredExtraction.hashCode ^
-  url.hashCode ^
-  ner.hashCode ^
-  redaction.hashCode ^
-  summarization.hashCode ^
-  translation.hashCode ^
-  pageClassification.hashCode ^
-  chunkClassification.hashCode ^
-  captioning.hashCode ^
-  qrCodes.hashCode;
+      enableQualityProcessing.hashCode ^
+      ocr.hashCode ^
+      forceOcr.hashCode ^
+      ocrStrategy.hashCode ^
+      forceOcrPages.hashCode ^
+      disableOcr.hashCode ^
+      chunking.hashCode ^
+      contentFilter.hashCode ^
+      images.hashCode ^
+      pdfOptions.hashCode ^
+      tokenReduction.hashCode ^
+      languageDetection.hashCode ^
+      pages.hashCode ^
+      keywords.hashCode ^
+      postprocessor.hashCode ^
+      htmlOutput.hashCode ^
+      resultFormat.hashCode ^
+      outputFormat.hashCode ^
+      includeDocumentStructure.hashCode ^
+      layout.hashCode ^
+      transcription.hashCode ^
+      timeoutSecs.hashCode ^
+      treeSitter.hashCode ^
+      structuredExtraction.hashCode ^
+      url.hashCode ^
+      ner.hashCode ^
+      redaction.hashCode ^
+      summarization.hashCode ^
+      translation.hashCode ^
+      pageClassification.hashCode ^
+      chunkClassification.hashCode ^
+      captioning.hashCode ^
+      qrCodes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FileExtractionConfig &&
-  runtimeType == other.runtimeType &&
-  enableQualityProcessing == other.enableQualityProcessing &&
-  ocr == other.ocr &&
-  forceOcr == other.forceOcr &&
-  ocrStrategy == other.ocrStrategy &&
-  forceOcrPages == other.forceOcrPages &&
-  disableOcr == other.disableOcr &&
-  chunking == other.chunking &&
-  contentFilter == other.contentFilter &&
-  images == other.images &&
-  pdfOptions == other.pdfOptions &&
-  tokenReduction == other.tokenReduction &&
-  languageDetection == other.languageDetection &&
-  pages == other.pages &&
-  keywords == other.keywords &&
-  postprocessor == other.postprocessor &&
-  htmlOutput == other.htmlOutput &&
-  resultFormat == other.resultFormat &&
-  outputFormat == other.outputFormat &&
-  includeDocumentStructure == other.includeDocumentStructure &&
-  layout == other.layout &&
-  transcription == other.transcription &&
-  timeoutSecs == other.timeoutSecs &&
-  treeSitter == other.treeSitter &&
-  structuredExtraction == other.structuredExtraction &&
-  url == other.url &&
-  ner == other.ner &&
-  redaction == other.redaction &&
-  summarization == other.summarization &&
-  translation == other.translation &&
-  pageClassification == other.pageClassification &&
-  chunkClassification == other.chunkClassification &&
-  captioning == other.captioning &&
-  qrCodes == other.qrCodes;
+      identical(this, other) ||
+      other is FileExtractionConfig &&
+          runtimeType == other.runtimeType &&
+          enableQualityProcessing == other.enableQualityProcessing &&
+          ocr == other.ocr &&
+          forceOcr == other.forceOcr &&
+          ocrStrategy == other.ocrStrategy &&
+          forceOcrPages == other.forceOcrPages &&
+          disableOcr == other.disableOcr &&
+          chunking == other.chunking &&
+          contentFilter == other.contentFilter &&
+          images == other.images &&
+          pdfOptions == other.pdfOptions &&
+          tokenReduction == other.tokenReduction &&
+          languageDetection == other.languageDetection &&
+          pages == other.pages &&
+          keywords == other.keywords &&
+          postprocessor == other.postprocessor &&
+          htmlOutput == other.htmlOutput &&
+          resultFormat == other.resultFormat &&
+          outputFormat == other.outputFormat &&
+          includeDocumentStructure == other.includeDocumentStructure &&
+          layout == other.layout &&
+          transcription == other.transcription &&
+          timeoutSecs == other.timeoutSecs &&
+          treeSitter == other.treeSitter &&
+          structuredExtraction == other.structuredExtraction &&
+          url == other.url &&
+          ner == other.ner &&
+          redaction == other.redaction &&
+          summarization == other.summarization &&
+          translation == other.translation &&
+          pageClassification == other.pageClassification &&
+          chunkClassification == other.chunkClassification &&
+          captioning == other.captioning &&
+          qrCodes == other.qrCodes;
 }
 
 /// Footnote in Djot.
@@ -7519,11 +7912,11 @@ class Footnote {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Footnote &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  content == other.content;
+      identical(this, other) ||
+      other is Footnote &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          content == other.content;
 }
 
 /// A footnote anchor reference in markdown text.
@@ -7543,11 +7936,11 @@ class FootnoteAnchor {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FootnoteAnchor &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  offset == other.offset;
+      identical(this, other) ||
+      other is FootnoteAnchor &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          offset == other.offset;
 }
 
 /// Configuration for markdown footnote and citation parsing.
@@ -7565,10 +7958,10 @@ class FootnoteConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FootnoteConfig &&
-  runtimeType == other.runtimeType &&
-  parseCitations == other.parseCitations;
+      identical(this, other) ||
+      other is FootnoteConfig &&
+          runtimeType == other.runtimeType &&
+          parseCitations == other.parseCitations;
 }
 
 /// A footnote definition from markdown text.
@@ -7595,12 +7988,12 @@ class FootnoteDefinition {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FootnoteDefinition &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  content == other.content &&
-  offset == other.offset;
+      identical(this, other) ||
+      other is FootnoteDefinition &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          content == other.content &&
+          offset == other.offset;
 }
 
 /// Kind of a PDF form field.
@@ -7636,59 +8029,59 @@ sealed class FormatMetadata with _$FormatMetadata {
 
   /// Metadata extracted from a PDF document.
   const factory FormatMetadata.pdf({required PdfMetadata field0}) =
-  FormatMetadata_Pdf;
+      FormatMetadata_Pdf;
 
   /// Metadata extracted from a DOCX Word document.
   const factory FormatMetadata.docx({required DocxMetadata field0}) =
-  FormatMetadata_Docx;
+      FormatMetadata_Docx;
 
   /// Metadata extracted from an Excel spreadsheet.
   const factory FormatMetadata.excel({required ExcelMetadata field0}) =
-  FormatMetadata_Excel;
+      FormatMetadata_Excel;
 
   /// Metadata extracted from an email message (EML/MSG).
   const factory FormatMetadata.email({required EmailMetadata field0}) =
-  FormatMetadata_Email;
+      FormatMetadata_Email;
 
   /// Metadata extracted from a PowerPoint presentation.
   const factory FormatMetadata.pptx({required PptxMetadata field0}) =
-  FormatMetadata_Pptx;
+      FormatMetadata_Pptx;
 
   /// Metadata extracted from an archive (ZIP, TAR, 7Z, etc.).
   const factory FormatMetadata.archive({required ArchiveMetadata field0}) =
-  FormatMetadata_Archive;
+      FormatMetadata_Archive;
 
   /// Metadata extracted from a raster or vector image.
   const factory FormatMetadata.image({required ImageMetadata field0}) =
-  FormatMetadata_Image;
+      FormatMetadata_Image;
 
   /// Metadata extracted from an XML document.
   const factory FormatMetadata.xml({required XmlMetadata field0}) =
-  FormatMetadata_Xml;
+      FormatMetadata_Xml;
 
   /// Metadata extracted from a plain-text file.
   const factory FormatMetadata.text({required TextMetadata field0}) =
-  FormatMetadata_Text;
+      FormatMetadata_Text;
 
   /// Metadata extracted from an HTML document.
   const factory FormatMetadata.html({required HtmlMetadata field0}) =
-  FormatMetadata_Html;
+      FormatMetadata_Html;
 
   /// Metadata produced by an OCR pipeline.
   const factory FormatMetadata.ocr({required OcrMetadata field0}) =
-  FormatMetadata_Ocr;
+      FormatMetadata_Ocr;
 
   /// Metadata extracted from a CSV or TSV file.
   const factory FormatMetadata.csv({required CsvMetadata field0}) =
-  FormatMetadata_Csv;
+      FormatMetadata_Csv;
 
   /// Metadata extracted from a BibTeX bibliography file.
   const factory FormatMetadata.bibtex({required BibtexMetadata field0}) =
-  FormatMetadata_Bibtex;
+      FormatMetadata_Bibtex;
 
   /// Metadata extracted from a citation file (RIS, PubMed, EndNote).
   const factory FormatMetadata.citation({required CitationMetadata field0}) =
-  FormatMetadata_Citation;
+      FormatMetadata_Citation;
 
   /// Metadata extracted from a FictionBook (FB2) e-book.
   const factory FormatMetadata.fictionBook({
@@ -7697,23 +8090,23 @@ sealed class FormatMetadata with _$FormatMetadata {
 
   /// Metadata extracted from a dBASE (DBF) database file.
   const factory FormatMetadata.dbf({required DbfMetadata field0}) =
-  FormatMetadata_Dbf;
+      FormatMetadata_Dbf;
 
   /// Metadata extracted from a JATS (Journal Article Tag Suite) XML file.
   const factory FormatMetadata.jats({required JatsMetadata field0}) =
-  FormatMetadata_Jats;
+      FormatMetadata_Jats;
 
   /// Metadata extracted from an EPUB e-book.
   const factory FormatMetadata.epub({required EpubMetadata field0}) =
-  FormatMetadata_Epub;
+      FormatMetadata_Epub;
 
   /// Metadata extracted from an Outlook PST archive.
   const factory FormatMetadata.pst({required PstMetadata field0}) =
-  FormatMetadata_Pst;
+      FormatMetadata_Pst;
 
   /// Metadata extracted from an audio or video file.
   const factory FormatMetadata.audio({required AudioMetadata field0}) =
-  FormatMetadata_Audio;
+      FormatMetadata_Audio;
 
   /// Code (tree-sitter analyzable source). Carries the structural chunks (function,
   /// class, and module boundaries) produced by the tree-sitter extractor, consumed by
@@ -7727,7 +8120,7 @@ sealed class FormatMetadata with _$FormatMetadata {
   /// variant shape consistent with every sibling (`Variant(XMetadata)`) so the derived
   /// OpenAPI discriminator can reference a named component schema.
   const factory FormatMetadata.code({required CodeMetadata field0}) =
-  FormatMetadata_Code;
+      FormatMetadata_Code;
 }
 
 /// Block-level element in a Djot document.
@@ -7763,24 +8156,24 @@ class FormattedBlock {
 
   @override
   int get hashCode =>
-  blockType.hashCode ^
-  level.hashCode ^
-  inlineContent.hashCode ^
-  language.hashCode ^
-  code.hashCode ^
-  children.hashCode;
+      blockType.hashCode ^
+      level.hashCode ^
+      inlineContent.hashCode ^
+      language.hashCode ^
+      code.hashCode ^
+      children.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is FormattedBlock &&
-  runtimeType == other.runtimeType &&
-  blockType == other.blockType &&
-  level == other.level &&
-  inlineContent == other.inlineContent &&
-  language == other.language &&
-  code == other.code &&
-  children == other.children;
+      identical(this, other) ||
+      other is FormattedBlock &&
+          runtimeType == other.runtimeType &&
+          blockType == other.blockType &&
+          level == other.level &&
+          inlineContent == other.inlineContent &&
+          language == other.language &&
+          code == other.code &&
+          children == other.children;
 }
 
 /// A mathematical formula detected and recognized in a document.
@@ -7817,12 +8210,12 @@ class Formula {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Formula &&
-  runtimeType == other.runtimeType &&
-  latex == other.latex &&
-  bbox == other.bbox &&
-  page == other.page;
+      identical(this, other) ||
+      other is Formula &&
+          runtimeType == other.runtimeType &&
+          latex == other.latex &&
+          bbox == other.bbox &&
+          page == other.page;
 }
 
 /// Individual grid cell with position and span metadata.
@@ -7860,26 +8253,26 @@ class GridCell {
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  row.hashCode ^
-  col.hashCode ^
-  rowSpan.hashCode ^
-  colSpan.hashCode ^
-  isHeader.hashCode ^
-  bbox.hashCode;
+      content.hashCode ^
+      row.hashCode ^
+      col.hashCode ^
+      rowSpan.hashCode ^
+      colSpan.hashCode ^
+      isHeader.hashCode ^
+      bbox.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is GridCell &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  row == other.row &&
-  col == other.col &&
-  rowSpan == other.rowSpan &&
-  colSpan == other.colSpan &&
-  isHeader == other.isHeader &&
-  bbox == other.bbox;
+      identical(this, other) ||
+      other is GridCell &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          row == other.row &&
+          col == other.col &&
+          rowSpan == other.rowSpan &&
+          colSpan == other.colSpan &&
+          isHeader == other.isHeader &&
+          bbox == other.bbox;
 }
 
 /// Header/heading element metadata.
@@ -7909,22 +8302,22 @@ class HeaderMetadata {
 
   @override
   int get hashCode =>
-  level.hashCode ^
-  text.hashCode ^
-  id.hashCode ^
-  depth.hashCode ^
-  htmlOffset.hashCode;
+      level.hashCode ^
+      text.hashCode ^
+      id.hashCode ^
+      depth.hashCode ^
+      htmlOffset.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HeaderMetadata &&
-  runtimeType == other.runtimeType &&
-  level == other.level &&
-  text == other.text &&
-  id == other.id &&
-  depth == other.depth &&
-  htmlOffset == other.htmlOffset;
+      identical(this, other) ||
+      other is HeaderMetadata &&
+          runtimeType == other.runtimeType &&
+          level == other.level &&
+          text == other.text &&
+          id == other.id &&
+          depth == other.depth &&
+          htmlOffset == other.htmlOffset;
 }
 
 /// Heading context for a chunk within a Markdown document.
@@ -7942,10 +8335,10 @@ class HeadingContext {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HeadingContext &&
-  runtimeType == other.runtimeType &&
-  headings == other.headings;
+      identical(this, other) ||
+      other is HeadingContext &&
+          runtimeType == other.runtimeType &&
+          headings == other.headings;
 }
 
 /// A single heading in the hierarchy.
@@ -7963,11 +8356,11 @@ class HeadingLevel {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HeadingLevel &&
-  runtimeType == other.runtimeType &&
-  level == other.level &&
-  text == other.text;
+      identical(this, other) ||
+      other is HeadingLevel &&
+          runtimeType == other.runtimeType &&
+          level == other.level &&
+          text == other.text;
 }
 
 /// Heading style options for Markdown output.
@@ -8066,34 +8459,34 @@ class HeuristicsConfig {
 
   @override
   int get hashCode =>
-  enablePdfTextHeuristics.hashCode ^
-  textLayerThreshold.hashCode ^
-  fileSizeThresholdBytes.hashCode ^
-  pageCountThreshold.hashCode ^
-  targetPagesPerChunk.hashCode ^
-  maxPagesPerChunk.hashCode ^
-  diskProcessingThresholdBytes.hashCode ^
-  minCharsPerPage.hashCode ^
-  maxXlsxSheetCount.hashCode ^
-  maxXlsxWorkbookCells.hashCode ^
-  maxPptxEmbeddedCount.hashCode;
+      enablePdfTextHeuristics.hashCode ^
+      textLayerThreshold.hashCode ^
+      fileSizeThresholdBytes.hashCode ^
+      pageCountThreshold.hashCode ^
+      targetPagesPerChunk.hashCode ^
+      maxPagesPerChunk.hashCode ^
+      diskProcessingThresholdBytes.hashCode ^
+      minCharsPerPage.hashCode ^
+      maxXlsxSheetCount.hashCode ^
+      maxXlsxWorkbookCells.hashCode ^
+      maxPptxEmbeddedCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HeuristicsConfig &&
-  runtimeType == other.runtimeType &&
-  enablePdfTextHeuristics == other.enablePdfTextHeuristics &&
-  textLayerThreshold == other.textLayerThreshold &&
-  fileSizeThresholdBytes == other.fileSizeThresholdBytes &&
-  pageCountThreshold == other.pageCountThreshold &&
-  targetPagesPerChunk == other.targetPagesPerChunk &&
-  maxPagesPerChunk == other.maxPagesPerChunk &&
-  diskProcessingThresholdBytes == other.diskProcessingThresholdBytes &&
-  minCharsPerPage == other.minCharsPerPage &&
-  maxXlsxSheetCount == other.maxXlsxSheetCount &&
-  maxXlsxWorkbookCells == other.maxXlsxWorkbookCells &&
-  maxPptxEmbeddedCount == other.maxPptxEmbeddedCount;
+      identical(this, other) ||
+      other is HeuristicsConfig &&
+          runtimeType == other.runtimeType &&
+          enablePdfTextHeuristics == other.enablePdfTextHeuristics &&
+          textLayerThreshold == other.textLayerThreshold &&
+          fileSizeThresholdBytes == other.fileSizeThresholdBytes &&
+          pageCountThreshold == other.pageCountThreshold &&
+          targetPagesPerChunk == other.targetPagesPerChunk &&
+          maxPagesPerChunk == other.maxPagesPerChunk &&
+          diskProcessingThresholdBytes == other.diskProcessingThresholdBytes &&
+          minCharsPerPage == other.minCharsPerPage &&
+          maxXlsxSheetCount == other.maxXlsxSheetCount &&
+          maxXlsxWorkbookCells == other.maxXlsxWorkbookCells &&
+          maxPptxEmbeddedCount == other.maxPptxEmbeddedCount;
 }
 
 @freezed
@@ -8102,11 +8495,11 @@ sealed class HeuristicsError with _$HeuristicsError {
 
   /// Invalid configuration value.
   const factory HeuristicsError.configError({required String field0}) =
-  HeuristicsError_ConfigError;
+      HeuristicsError_ConfigError;
 
   /// PDF analysis step failed (only when `heuristics-pdf` feature is active).
   const factory HeuristicsError.pdfAnalysisError({required String field0}) =
-  HeuristicsError_PdfAnalysisError;
+      HeuristicsError_PdfAnalysisError;
 }
 
 /// A text block with hierarchy level assignment.
@@ -8143,12 +8536,12 @@ class HierarchicalBlock {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HierarchicalBlock &&
-  runtimeType == other.runtimeType &&
-  text == other.text &&
-  fontSize == other.fontSize &&
-  level == other.level;
+      identical(this, other) ||
+      other is HierarchicalBlock &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          fontSize == other.fontSize &&
+          level == other.level;
 }
 
 /// Hierarchy extraction configuration for PDF text structure analysis.
@@ -8177,16 +8570,16 @@ class HierarchyConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^ kClusters.hashCode ^ includeBbox.hashCode;
+      enabled.hashCode ^ kClusters.hashCode ^ includeBbox.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HierarchyConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  kClusters == other.kClusters &&
-  includeBbox == other.includeBbox;
+      identical(this, other) ||
+      other is HierarchyConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          kClusters == other.kClusters &&
+          includeBbox == other.includeBbox;
 }
 
 /// Highlight rendering style for `<mark>` elements.
@@ -8279,42 +8672,42 @@ class HtmlMetadata {
 
   @override
   int get hashCode =>
-  title.hashCode ^
-  description.hashCode ^
-  keywords.hashCode ^
-  author.hashCode ^
-  canonicalUrl.hashCode ^
-  baseHref.hashCode ^
-  language.hashCode ^
-  textDirection.hashCode ^
-  openGraph.hashCode ^
-  twitterCard.hashCode ^
-  metaTags.hashCode ^
-  headers.hashCode ^
-  links.hashCode ^
-  images.hashCode ^
-  structuredData.hashCode;
+      title.hashCode ^
+      description.hashCode ^
+      keywords.hashCode ^
+      author.hashCode ^
+      canonicalUrl.hashCode ^
+      baseHref.hashCode ^
+      language.hashCode ^
+      textDirection.hashCode ^
+      openGraph.hashCode ^
+      twitterCard.hashCode ^
+      metaTags.hashCode ^
+      headers.hashCode ^
+      links.hashCode ^
+      images.hashCode ^
+      structuredData.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HtmlMetadata &&
-  runtimeType == other.runtimeType &&
-  title == other.title &&
-  description == other.description &&
-  keywords == other.keywords &&
-  author == other.author &&
-  canonicalUrl == other.canonicalUrl &&
-  baseHref == other.baseHref &&
-  language == other.language &&
-  textDirection == other.textDirection &&
-  openGraph == other.openGraph &&
-  twitterCard == other.twitterCard &&
-  metaTags == other.metaTags &&
-  headers == other.headers &&
-  links == other.links &&
-  images == other.images &&
-  structuredData == other.structuredData;
+      identical(this, other) ||
+      other is HtmlMetadata &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          description == other.description &&
+          keywords == other.keywords &&
+          author == other.author &&
+          canonicalUrl == other.canonicalUrl &&
+          baseHref == other.baseHref &&
+          language == other.language &&
+          textDirection == other.textDirection &&
+          openGraph == other.openGraph &&
+          twitterCard == other.twitterCard &&
+          metaTags == other.metaTags &&
+          headers == other.headers &&
+          links == other.links &&
+          images == other.images &&
+          structuredData == other.structuredData;
 }
 
 /// Configuration for styled HTML output.
@@ -8370,22 +8763,22 @@ class HtmlOutputConfig {
 
   @override
   int get hashCode =>
-  css.hashCode ^
-  cssFile.hashCode ^
-  theme.hashCode ^
-  classPrefix.hashCode ^
-  embedCss.hashCode;
+      css.hashCode ^
+      cssFile.hashCode ^
+      theme.hashCode ^
+      classPrefix.hashCode ^
+      embedCss.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is HtmlOutputConfig &&
-  runtimeType == other.runtimeType &&
-  css == other.css &&
-  cssFile == other.cssFile &&
-  theme == other.theme &&
-  classPrefix == other.classPrefix &&
-  embedCss == other.embedCss;
+      identical(this, other) ||
+      other is HtmlOutputConfig &&
+          runtimeType == other.runtimeType &&
+          css == other.css &&
+          cssFile == other.cssFile &&
+          theme == other.theme &&
+          classPrefix == other.classPrefix &&
+          embedCss == other.embedCss;
 }
 
 /// Built-in HTML theme selection.
@@ -8525,44 +8918,44 @@ class ImageExtractionConfig {
 
   @override
   int get hashCode =>
-  extractImages.hashCode ^
-  targetDpi.hashCode ^
-  maxImageDimension.hashCode ^
-  injectPlaceholders.hashCode ^
-  autoAdjustDpi.hashCode ^
-  minDpi.hashCode ^
-  maxDpi.hashCode ^
-  maxImagesPerPage.hashCode ^
-  classify.hashCode ^
-  includePageRasters.hashCode ^
-  runOcrOnImages.hashCode ^
-  ocrTextOnly.hashCode ^
-  appendOcrText.hashCode ^
-  outputFormat.hashCode ^
-  svg.hashCode ^
-  includeDataBase64.hashCode;
+      extractImages.hashCode ^
+      targetDpi.hashCode ^
+      maxImageDimension.hashCode ^
+      injectPlaceholders.hashCode ^
+      autoAdjustDpi.hashCode ^
+      minDpi.hashCode ^
+      maxDpi.hashCode ^
+      maxImagesPerPage.hashCode ^
+      classify.hashCode ^
+      includePageRasters.hashCode ^
+      runOcrOnImages.hashCode ^
+      ocrTextOnly.hashCode ^
+      appendOcrText.hashCode ^
+      outputFormat.hashCode ^
+      svg.hashCode ^
+      includeDataBase64.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ImageExtractionConfig &&
-  runtimeType == other.runtimeType &&
-  extractImages == other.extractImages &&
-  targetDpi == other.targetDpi &&
-  maxImageDimension == other.maxImageDimension &&
-  injectPlaceholders == other.injectPlaceholders &&
-  autoAdjustDpi == other.autoAdjustDpi &&
-  minDpi == other.minDpi &&
-  maxDpi == other.maxDpi &&
-  maxImagesPerPage == other.maxImagesPerPage &&
-  classify == other.classify &&
-  includePageRasters == other.includePageRasters &&
-  runOcrOnImages == other.runOcrOnImages &&
-  ocrTextOnly == other.ocrTextOnly &&
-  appendOcrText == other.appendOcrText &&
-  outputFormat == other.outputFormat &&
-  svg == other.svg &&
-  includeDataBase64 == other.includeDataBase64;
+      identical(this, other) ||
+      other is ImageExtractionConfig &&
+          runtimeType == other.runtimeType &&
+          extractImages == other.extractImages &&
+          targetDpi == other.targetDpi &&
+          maxImageDimension == other.maxImageDimension &&
+          injectPlaceholders == other.injectPlaceholders &&
+          autoAdjustDpi == other.autoAdjustDpi &&
+          minDpi == other.minDpi &&
+          maxDpi == other.maxDpi &&
+          maxImagesPerPage == other.maxImagesPerPage &&
+          classify == other.classify &&
+          includePageRasters == other.includePageRasters &&
+          runOcrOnImages == other.runOcrOnImages &&
+          ocrTextOnly == other.ocrTextOnly &&
+          appendOcrText == other.appendOcrText &&
+          outputFormat == other.outputFormat &&
+          svg == other.svg &&
+          includeDataBase64 == other.includeDataBase64;
 }
 
 /// Heuristic classification of what an image likely depicts.
@@ -8629,17 +9022,17 @@ class ImageMetadata {
 
   @override
   int get hashCode =>
-  width.hashCode ^ height.hashCode ^ format.hashCode ^ exif.hashCode;
+      width.hashCode ^ height.hashCode ^ format.hashCode ^ exif.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ImageMetadata &&
-  runtimeType == other.runtimeType &&
-  width == other.width &&
-  height == other.height &&
-  format == other.format &&
-  exif == other.exif;
+      identical(this, other) ||
+      other is ImageMetadata &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          format == other.format &&
+          exif == other.exif;
 }
 
 /// Image element metadata.
@@ -8665,17 +9058,17 @@ class ImageMetadataType {
 
   @override
   int get hashCode =>
-  src.hashCode ^ alt.hashCode ^ title.hashCode ^ imageType.hashCode;
+      src.hashCode ^ alt.hashCode ^ title.hashCode ^ imageType.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ImageMetadataType &&
-  runtimeType == other.runtimeType &&
-  src == other.src &&
-  alt == other.alt &&
-  title == other.title &&
-  imageType == other.imageType;
+      identical(this, other) ||
+      other is ImageMetadataType &&
+          runtimeType == other.runtimeType &&
+          src == other.src &&
+          alt == other.alt &&
+          title == other.title &&
+          imageType == other.imageType;
 }
 
 @freezed
@@ -8773,26 +9166,26 @@ class ImagePreprocessingConfig {
 
   @override
   int get hashCode =>
-  targetDpi.hashCode ^
-  autoRotate.hashCode ^
-  deskew.hashCode ^
-  denoise.hashCode ^
-  contrastEnhance.hashCode ^
-  binarizationMethod.hashCode ^
-  invertColors.hashCode;
+      targetDpi.hashCode ^
+      autoRotate.hashCode ^
+      deskew.hashCode ^
+      denoise.hashCode ^
+      contrastEnhance.hashCode ^
+      binarizationMethod.hashCode ^
+      invertColors.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ImagePreprocessingConfig &&
-  runtimeType == other.runtimeType &&
-  targetDpi == other.targetDpi &&
-  autoRotate == other.autoRotate &&
-  deskew == other.deskew &&
-  denoise == other.denoise &&
-  contrastEnhance == other.contrastEnhance &&
-  binarizationMethod == other.binarizationMethod &&
-  invertColors == other.invertColors;
+      identical(this, other) ||
+      other is ImagePreprocessingConfig &&
+          runtimeType == other.runtimeType &&
+          targetDpi == other.targetDpi &&
+          autoRotate == other.autoRotate &&
+          deskew == other.deskew &&
+          denoise == other.denoise &&
+          contrastEnhance == other.contrastEnhance &&
+          binarizationMethod == other.binarizationMethod &&
+          invertColors == other.invertColors;
 }
 
 /// Image preprocessing metadata.
@@ -8841,30 +9234,30 @@ class ImagePreprocessingMetadata {
 
   @override
   int get hashCode =>
-  targetDpi.hashCode ^
-  scaleFactor.hashCode ^
-  autoAdjusted.hashCode ^
-  finalDpi.hashCode ^
-  resampleMethod.hashCode ^
-  dimensionClamped.hashCode ^
-  calculatedDpi.hashCode ^
-  skippedResize.hashCode ^
-  resizeError.hashCode;
+      targetDpi.hashCode ^
+      scaleFactor.hashCode ^
+      autoAdjusted.hashCode ^
+      finalDpi.hashCode ^
+      resampleMethod.hashCode ^
+      dimensionClamped.hashCode ^
+      calculatedDpi.hashCode ^
+      skippedResize.hashCode ^
+      resizeError.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ImagePreprocessingMetadata &&
-  runtimeType == other.runtimeType &&
-  targetDpi == other.targetDpi &&
-  scaleFactor == other.scaleFactor &&
-  autoAdjusted == other.autoAdjusted &&
-  finalDpi == other.finalDpi &&
-  resampleMethod == other.resampleMethod &&
-  dimensionClamped == other.dimensionClamped &&
-  calculatedDpi == other.calculatedDpi &&
-  skippedResize == other.skippedResize &&
-  resizeError == other.resizeError;
+      identical(this, other) ||
+      other is ImagePreprocessingMetadata &&
+          runtimeType == other.runtimeType &&
+          targetDpi == other.targetDpi &&
+          scaleFactor == other.scaleFactor &&
+          autoAdjusted == other.autoAdjusted &&
+          finalDpi == other.finalDpi &&
+          resampleMethod == other.resampleMethod &&
+          dimensionClamped == other.dimensionClamped &&
+          calculatedDpi == other.calculatedDpi &&
+          skippedResize == other.skippedResize &&
+          resizeError == other.resizeError;
 }
 
 /// Image type classification.
@@ -8903,16 +9296,16 @@ class InlineElement {
 
   @override
   int get hashCode =>
-  elementType.hashCode ^ content.hashCode ^ metadata.hashCode;
+      elementType.hashCode ^ content.hashCode ^ metadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is InlineElement &&
-  runtimeType == other.runtimeType &&
-  elementType == other.elementType &&
-  content == other.content &&
-  metadata == other.metadata;
+      identical(this, other) ||
+      other is InlineElement &&
+          runtimeType == other.runtimeType &&
+          elementType == other.elementType &&
+          content == other.content &&
+          metadata == other.metadata;
 }
 
 /// Types of inline elements in Djot.
@@ -8989,20 +9382,20 @@ class JatsMetadata {
 
   @override
   int get hashCode =>
-  copyright.hashCode ^
-  license.hashCode ^
-  historyDates.hashCode ^
-  contributorRoles.hashCode;
+      copyright.hashCode ^
+      license.hashCode ^
+      historyDates.hashCode ^
+      contributorRoles.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is JatsMetadata &&
-  runtimeType == other.runtimeType &&
-  copyright == other.copyright &&
-  license == other.license &&
-  historyDates == other.historyDates &&
-  contributorRoles == other.contributorRoles;
+      identical(this, other) ||
+      other is JatsMetadata &&
+          runtimeType == other.runtimeType &&
+          copyright == other.copyright &&
+          license == other.license &&
+          historyDates == other.historyDates &&
+          contributorRoles == other.contributorRoles;
 }
 
 /// Controls how Jupyter notebook code cells are rendered during extraction.
@@ -9051,17 +9444,17 @@ class Keyword {
 
   @override
   int get hashCode =>
-  text.hashCode ^ score.hashCode ^ algorithm.hashCode ^ positions.hashCode;
+      text.hashCode ^ score.hashCode ^ algorithm.hashCode ^ positions.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Keyword &&
-  runtimeType == other.runtimeType &&
-  text == other.text &&
-  score == other.score &&
-  algorithm == other.algorithm &&
-  positions == other.positions;
+      identical(this, other) ||
+      other is Keyword &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          score == other.score &&
+          algorithm == other.algorithm &&
+          positions == other.positions;
 }
 
 /// Keyword algorithm selection.
@@ -9109,24 +9502,87 @@ class KeywordConfig {
 
   @override
   int get hashCode =>
-  algorithm.hashCode ^
-  maxKeywords.hashCode ^
-  minScore.hashCode ^
-  language.hashCode ^
-  yakeParams.hashCode ^
-  rakeParams.hashCode;
+      algorithm.hashCode ^
+      maxKeywords.hashCode ^
+      minScore.hashCode ^
+      language.hashCode ^
+      yakeParams.hashCode ^
+      rakeParams.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is KeywordConfig &&
-  runtimeType == other.runtimeType &&
-  algorithm == other.algorithm &&
-  maxKeywords == other.maxKeywords &&
-  minScore == other.minScore &&
-  language == other.language &&
-  yakeParams == other.yakeParams &&
-  rakeParams == other.rakeParams;
+      identical(this, other) ||
+      other is KeywordConfig &&
+          runtimeType == other.runtimeType &&
+          algorithm == other.algorithm &&
+          maxKeywords == other.maxKeywords &&
+          minScore == other.minScore &&
+          language == other.language &&
+          yakeParams == other.yakeParams &&
+          rakeParams == other.rakeParams;
+}
+
+/// Structured per-language detection result: confidence, document share, and script —
+/// the information the ISO-code-only `detected_languages` list cannot convey (#261).
+///
+/// Populated by `language_detection` alongside `detected_languages`, with one
+/// entry per language, in the same order as `detected_languages`.
+class LanguageConfidence {
+  /// ISO 639-3 language code, matching the corresponding entry in `detected_languages`.
+  final String language;
+
+  /// Confidence for this language, in `[0.0, 1.0]`.
+  ///
+  /// In single-language mode this is whatlang's `Info::confidence()` for the whole
+  /// document. In multi-language mode this is the average whatlang confidence across
+  /// the document's 200-character chunks that were classified as this language.
+  final double confidence;
+
+  /// Share of the document's analyzed content classified as this language, in `[0.0, 1.0]`.
+  ///
+  /// In single-language mode this is always `1.0`. In multi-language mode this is the
+  /// fraction of 200-character chunks classified as this language (chunks that did not
+  /// meet `min_confidence` for any language are excluded from the count but still count
+  /// toward the denominator).
+  final double proportion;
+
+  /// Writing system whatlang detected for this language (e.g. `"Latin"`, `"Cyrillic"`).
+  final String script;
+
+  /// Whether this detection is considered reliable.
+  ///
+  /// In single-language mode this is whatlang's own `Info::is_reliable()` (confidence
+  /// above whatlang's internal 0.9 threshold). In multi-language mode this is the
+  /// chunk-averaged `confidence` above that same 0.9 threshold, since whatlang's
+  /// `is_reliable()` only applies to a single detection.
+  final bool reliable;
+
+  const LanguageConfidence({
+    required this.language,
+    required this.confidence,
+    required this.proportion,
+    required this.script,
+    required this.reliable,
+  });
+
+  @override
+  int get hashCode =>
+      language.hashCode ^
+      confidence.hashCode ^
+      proportion.hashCode ^
+      script.hashCode ^
+      reliable.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LanguageConfidence &&
+          runtimeType == other.runtimeType &&
+          language == other.language &&
+          confidence == other.confidence &&
+          proportion == other.proportion &&
+          script == other.script &&
+          reliable == other.reliable;
 }
 
 /// Language detection configuration.
@@ -9148,16 +9604,16 @@ class LanguageDetectionConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^ minConfidence.hashCode ^ detectMultiple.hashCode;
+      enabled.hashCode ^ minConfidence.hashCode ^ detectMultiple.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LanguageDetectionConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  minConfidence == other.minConfidence &&
-  detectMultiple == other.detectMultiple;
+      identical(this, other) ||
+      other is LanguageDetectionConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          minConfidence == other.minConfidence &&
+          detectMultiple == other.detectMultiple;
 }
 
 /// Configuration for the late-interaction (ColBERT) pipeline.
@@ -9187,6 +9643,11 @@ class LateInteractionConfig {
   final PlatformInt64 queryMaxLength;
 
   /// Show model download progress (local ONNX path only).
+  ///
+  /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+  /// `info` level on the `xberg::model_download` target while they download (#279). A warm
+  /// Hugging Face cache transfers nothing and so reports nothing. Ignored by
+  /// [`LateInteractionModelType::Plugin`], which downloads no model.
   final bool showDownloadProgress;
 
   /// Optional alternate Hugging Face cache root for model files.
@@ -9215,28 +9676,28 @@ class LateInteractionConfig {
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  batchSize.hashCode ^
-  maxLength.hashCode ^
-  queryMaxLength.hashCode ^
-  showDownloadProgress.hashCode ^
-  cacheDir.hashCode ^
-  acceleration.hashCode ^
-  maxEmbedDurationSecs.hashCode;
+      model.hashCode ^
+      batchSize.hashCode ^
+      maxLength.hashCode ^
+      queryMaxLength.hashCode ^
+      showDownloadProgress.hashCode ^
+      cacheDir.hashCode ^
+      acceleration.hashCode ^
+      maxEmbedDurationSecs.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LateInteractionConfig &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  batchSize == other.batchSize &&
-  maxLength == other.maxLength &&
-  queryMaxLength == other.queryMaxLength &&
-  showDownloadProgress == other.showDownloadProgress &&
-  cacheDir == other.cacheDir &&
-  acceleration == other.acceleration &&
-  maxEmbedDurationSecs == other.maxEmbedDurationSecs;
+      identical(this, other) ||
+      other is LateInteractionConfig &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          batchSize == other.batchSize &&
+          maxLength == other.maxLength &&
+          queryMaxLength == other.queryMaxLength &&
+          showDownloadProgress == other.showDownloadProgress &&
+          cacheDir == other.cacheDir &&
+          acceleration == other.acceleration &&
+          maxEmbedDurationSecs == other.maxEmbedDurationSecs;
 }
 
 /// A single document match returned by [`max_sim_rank`], with its position in
@@ -9257,11 +9718,11 @@ class LateInteractionMatch {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LateInteractionMatch &&
-  runtimeType == other.runtimeType &&
-  index == other.index &&
-  score == other.score;
+      identical(this, other) ||
+      other is LateInteractionMatch &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          score == other.score;
 }
 
 @freezed
@@ -9338,28 +9799,28 @@ class LateInteractionPreset {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  modelRepo.hashCode ^
-  modelFile.hashCode ^
-  additionalFiles.hashCode ^
-  maxLength.hashCode ^
-  queryMaxLength.hashCode ^
-  dim.hashCode ^
-  description.hashCode;
+      name.hashCode ^
+      modelRepo.hashCode ^
+      modelFile.hashCode ^
+      additionalFiles.hashCode ^
+      maxLength.hashCode ^
+      queryMaxLength.hashCode ^
+      dim.hashCode ^
+      description.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LateInteractionPreset &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  modelRepo == other.modelRepo &&
-  modelFile == other.modelFile &&
-  additionalFiles == other.additionalFiles &&
-  maxLength == other.maxLength &&
-  queryMaxLength == other.queryMaxLength &&
-  dim == other.dim &&
-  description == other.description;
+      identical(this, other) ||
+      other is LateInteractionPreset &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          modelRepo == other.modelRepo &&
+          modelFile == other.modelFile &&
+          additionalFiles == other.additionalFiles &&
+          maxLength == other.maxLength &&
+          queryMaxLength == other.queryMaxLength &&
+          dim == other.dim &&
+          description == other.description;
 }
 
 /// The 18 canonical document layout classes.
@@ -9447,12 +9908,12 @@ class LayoutDetection {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LayoutDetection &&
-  runtimeType == other.runtimeType &&
-  className == other.className &&
-  confidence == other.confidence &&
-  bbox == other.bbox;
+      identical(this, other) ||
+      other is LayoutDetection &&
+          runtimeType == other.runtimeType &&
+          className == other.className &&
+          confidence == other.confidence &&
+          bbox == other.bbox;
 }
 
 /// Layout detection configuration.
@@ -9516,26 +9977,26 @@ class LayoutDetectionConfig {
 
   @override
   int get hashCode =>
-  strategy.hashCode ^
-  confidenceThreshold.hashCode ^
-  applyHeuristics.hashCode ^
-  tableModel.hashCode ^
-  tableOverlapPreference.hashCode ^
-  acceleration.hashCode ^
-  enableChartUnderstanding.hashCode;
+      strategy.hashCode ^
+      confidenceThreshold.hashCode ^
+      applyHeuristics.hashCode ^
+      tableModel.hashCode ^
+      tableOverlapPreference.hashCode ^
+      acceleration.hashCode ^
+      enableChartUnderstanding.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LayoutDetectionConfig &&
-  runtimeType == other.runtimeType &&
-  strategy == other.strategy &&
-  confidenceThreshold == other.confidenceThreshold &&
-  applyHeuristics == other.applyHeuristics &&
-  tableModel == other.tableModel &&
-  tableOverlapPreference == other.tableOverlapPreference &&
-  acceleration == other.acceleration &&
-  enableChartUnderstanding == other.enableChartUnderstanding;
+      identical(this, other) ||
+      other is LayoutDetectionConfig &&
+          runtimeType == other.runtimeType &&
+          strategy == other.strategy &&
+          confidenceThreshold == other.confidenceThreshold &&
+          applyHeuristics == other.applyHeuristics &&
+          tableModel == other.tableModel &&
+          tableOverlapPreference == other.tableOverlapPreference &&
+          acceleration == other.acceleration &&
+          enableChartUnderstanding == other.enableChartUnderstanding;
 }
 
 /// A detected layout region on a page.
@@ -9565,20 +10026,20 @@ class LayoutRegion {
 
   @override
   int get hashCode =>
-  className.hashCode ^
-  confidence.hashCode ^
-  boundingBox.hashCode ^
-  areaFraction.hashCode;
+      className.hashCode ^
+      confidence.hashCode ^
+      boundingBox.hashCode ^
+      areaFraction.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LayoutRegion &&
-  runtimeType == other.runtimeType &&
-  className == other.className &&
-  confidence == other.confidence &&
-  boundingBox == other.boundingBox &&
-  areaFraction == other.areaFraction;
+      identical(this, other) ||
+      other is LayoutRegion &&
+          runtimeType == other.runtimeType &&
+          className == other.className &&
+          confidence == other.confidence &&
+          boundingBox == other.boundingBox &&
+          areaFraction == other.areaFraction;
 }
 
 /// Which PDF pages the layout model runs on.
@@ -9630,22 +10091,22 @@ class LinkMetadata {
 
   @override
   int get hashCode =>
-  href.hashCode ^
-  text.hashCode ^
-  title.hashCode ^
-  linkType.hashCode ^
-  rel.hashCode;
+      href.hashCode ^
+      text.hashCode ^
+      title.hashCode ^
+      linkType.hashCode ^
+      rel.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LinkMetadata &&
-  runtimeType == other.runtimeType &&
-  href == other.href &&
-  text == other.text &&
-  title == other.title &&
-  linkType == other.linkType &&
-  rel == other.rel;
+      identical(this, other) ||
+      other is LinkMetadata &&
+          runtimeType == other.runtimeType &&
+          href == other.href &&
+          text == other.text &&
+          title == other.title &&
+          linkType == other.linkType &&
+          rel == other.rel;
 }
 
 /// Link rendering style in Markdown output.
@@ -9707,6 +10168,80 @@ enum ListType {
   indented,
 }
 
+/// Budget enforcement configuration.
+///
+/// Mirrors liter-llm's `LlmBudgetConfig`. Only takes effect when liter-llm's `tower`
+/// feature is compiled in; otherwise the value round-trips through configuration
+/// but is not enforced at request time.
+class LlmBudgetConfig {
+  /// Global spend limit in USD.
+  final double? globalLimit;
+
+  /// Per-model spend limits in USD, keyed by model name.
+  final Map<String, double>? modelLimits;
+
+  /// Enforcement mode: `"hard"` (reject over-budget requests) or `"soft"` (log only).
+  final String? enforcement;
+
+  const LlmBudgetConfig({this.globalLimit, this.modelLimits, this.enforcement});
+
+  @override
+  int get hashCode =>
+      globalLimit.hashCode ^ modelLimits.hashCode ^ enforcement.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LlmBudgetConfig &&
+          runtimeType == other.runtimeType &&
+          globalLimit == other.globalLimit &&
+          modelLimits == other.modelLimits &&
+          enforcement == other.enforcement;
+}
+
+/// Response cache configuration.
+///
+/// Mirrors liter-llm's `LlmCacheConfig`. Only takes effect when liter-llm's `tower`
+/// feature is compiled in; otherwise the value round-trips through configuration
+/// but is not consulted at request time.
+class LlmCacheConfig {
+  /// Maximum number of cached entries.
+  final PlatformInt64? maxEntries;
+
+  /// Cache entry time-to-live, in seconds.
+  final PlatformInt64? ttlSeconds;
+
+  /// Cache backend name (e.g. `"memory"`, or an `opendal` scheme).
+  final String? backend;
+
+  /// Backend-specific configuration key/value pairs.
+  final Map<String, String>? backendConfig;
+
+  const LlmCacheConfig({
+    this.maxEntries,
+    this.ttlSeconds,
+    this.backend,
+    this.backendConfig,
+  });
+
+  @override
+  int get hashCode =>
+      maxEntries.hashCode ^
+      ttlSeconds.hashCode ^
+      backend.hashCode ^
+      backendConfig.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LlmCacheConfig &&
+          runtimeType == other.runtimeType &&
+          maxEntries == other.maxEntries &&
+          ttlSeconds == other.ttlSeconds &&
+          backend == other.backend &&
+          backendConfig == other.backendConfig;
+}
+
 /// Configuration for an LLM provider/model via liter-llm.
 ///
 /// Each feature (VLM OCR, VLM embeddings, structured extraction) carries
@@ -9719,6 +10254,9 @@ enum ListType {
 /// model = "openai/gpt-4o"
 /// api_key = "sk-..."  # or use XBERG_LLM_API_KEY env var
 /// ```
+///
+/// `Debug` is implemented by hand so `api_key`, header values, and the AWS
+/// credentials in [`BedrockConfig`] are never printed.
 class LlmConfig {
   /// Provider/model string using liter-llm routing format.
   ///
@@ -9759,6 +10297,70 @@ class LlmConfig {
   /// that require custom auth/routing headers.
   final Map<String, String>? headers;
 
+  /// Custom provider configurations, in addition to liter-llm's built-in providers.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::providers`, for OpenAI-compatible gateways
+  /// and self-hosted model servers that are not in the built-in provider catalog.
+  final List<LlmProviderConfig>? providers;
+
+  /// Response cache configuration.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::cache`. Only takes effect when liter-llm's
+  /// `tower` feature is compiled in; otherwise the value is accepted but unused.
+  ///
+  /// Boxed for the same reason as `bedrock` (a4579589ac): `LlmConfig` is the payload
+  /// of `EmbeddingModelType::Llm` and `RerankerModelType::Llm`, whose other variants
+  /// are tens of bytes. Inlining this and the two sub-configs below pushed that
+  /// variant to 480 bytes and tripped `clippy::large_enum_variant` on the
+  /// `--features full` leg. ~keep
+  final LlmCacheConfig? cache;
+
+  /// Budget enforcement configuration.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::budget`. Only takes effect when liter-llm's
+  /// `tower` feature is compiled in; otherwise the value is accepted but unused.
+  final LlmBudgetConfig? budget;
+
+  /// Per-model rate limiting configuration.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::rate_limit`. Only takes effect when liter-llm's
+  /// `tower` feature is compiled in; otherwise the value is accepted but unused.
+  final LlmRateLimitConfig? rateLimit;
+
+  /// Enable per-request cost tracking.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::cost_tracking`. Only takes effect when
+  /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
+  /// but unused.
+  final bool? costTracking;
+
+  /// Enable OpenTelemetry-compatible tracing spans.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::tracing`. Only takes effect when liter-llm's
+  /// `tower` feature is compiled in; otherwise the value is accepted but unused.
+  final bool? tracing;
+
+  /// Cooldown duration after transient errors, in seconds.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::cooldown_secs`. Only takes effect when
+  /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
+  /// but unused.
+  final PlatformInt64? cooldownSecs;
+
+  /// Background health check interval, in seconds.
+  ///
+  /// Mirrors liter-llm's `LlmConfig::health_check_secs`. Only takes effect when
+  /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
+  /// but unused.
+  final PlatformInt64? healthCheckSecs;
+
+  /// AWS Bedrock settings (region, cross-region routing, explicit credentials).
+  ///
+  /// Only consulted for `bedrock/`-prefixed models. When `None` — or when an
+  /// individual field inside it is `None` — liter-llm falls back to the standard
+  /// AWS environment variables and the default credential chain.
+  final BedrockConfig? bedrock;
+
   const LlmConfig({
     required this.model,
     this.apiKey,
@@ -9769,34 +10371,132 @@ class LlmConfig {
     this.maxTokens,
     this.loadEnv,
     this.headers,
+    this.providers,
+    this.cache,
+    this.budget,
+    this.rateLimit,
+    this.costTracking,
+    this.tracing,
+    this.cooldownSecs,
+    this.healthCheckSecs,
+    this.bedrock,
   });
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  apiKey.hashCode ^
-  baseUrl.hashCode ^
-  timeoutSecs.hashCode ^
-  maxRetries.hashCode ^
-  temperature.hashCode ^
-  maxTokens.hashCode ^
-  loadEnv.hashCode ^
-  headers.hashCode;
+      model.hashCode ^
+      apiKey.hashCode ^
+      baseUrl.hashCode ^
+      timeoutSecs.hashCode ^
+      maxRetries.hashCode ^
+      temperature.hashCode ^
+      maxTokens.hashCode ^
+      loadEnv.hashCode ^
+      headers.hashCode ^
+      providers.hashCode ^
+      cache.hashCode ^
+      budget.hashCode ^
+      rateLimit.hashCode ^
+      costTracking.hashCode ^
+      tracing.hashCode ^
+      cooldownSecs.hashCode ^
+      healthCheckSecs.hashCode ^
+      bedrock.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LlmConfig &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  apiKey == other.apiKey &&
-  baseUrl == other.baseUrl &&
-  timeoutSecs == other.timeoutSecs &&
-  maxRetries == other.maxRetries &&
-  temperature == other.temperature &&
-  maxTokens == other.maxTokens &&
-  loadEnv == other.loadEnv &&
-  headers == other.headers;
+      identical(this, other) ||
+      other is LlmConfig &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          apiKey == other.apiKey &&
+          baseUrl == other.baseUrl &&
+          timeoutSecs == other.timeoutSecs &&
+          maxRetries == other.maxRetries &&
+          temperature == other.temperature &&
+          maxTokens == other.maxTokens &&
+          loadEnv == other.loadEnv &&
+          headers == other.headers &&
+          providers == other.providers &&
+          cache == other.cache &&
+          budget == other.budget &&
+          rateLimit == other.rateLimit &&
+          costTracking == other.costTracking &&
+          tracing == other.tracing &&
+          cooldownSecs == other.cooldownSecs &&
+          healthCheckSecs == other.healthCheckSecs &&
+          bedrock == other.bedrock;
+}
+
+/// A custom provider configuration entry, in addition to liter-llm's built-in providers.
+///
+/// Mirrors liter-llm's `LlmProviderConfig`.
+class LlmProviderConfig {
+  /// Provider name, used to key model prefix matching.
+  final String name;
+
+  /// Base URL for the provider's OpenAI-compatible API.
+  final String baseUrl;
+
+  /// Header name used to carry the API key (defaults to `Authorization` when unset).
+  final String? authHeader;
+
+  /// Model name prefixes routed to this provider (e.g. `["my-provider/"]`).
+  final List<String> modelPrefixes;
+
+  const LlmProviderConfig({
+    required this.name,
+    required this.baseUrl,
+    this.authHeader,
+    required this.modelPrefixes,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      baseUrl.hashCode ^
+      authHeader.hashCode ^
+      modelPrefixes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LlmProviderConfig &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          baseUrl == other.baseUrl &&
+          authHeader == other.authHeader &&
+          modelPrefixes == other.modelPrefixes;
+}
+
+/// Per-model rate limiting configuration.
+///
+/// Mirrors liter-llm's `LlmRateLimitConfig`. Only takes effect when liter-llm's
+/// `tower` feature is compiled in; otherwise the value round-trips through
+/// configuration but is not enforced at request time.
+class LlmRateLimitConfig {
+  /// Requests per minute limit.
+  final PlatformInt64? rpm;
+
+  /// Tokens per minute limit.
+  final PlatformInt64? tpm;
+
+  /// Rate limit window, in seconds.
+  final PlatformInt64? windowSeconds;
+
+  const LlmRateLimitConfig({this.rpm, this.tpm, this.windowSeconds});
+
+  @override
+  int get hashCode => rpm.hashCode ^ tpm.hashCode ^ windowSeconds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LlmRateLimitConfig &&
+          runtimeType == other.runtimeType &&
+          rpm == other.rpm &&
+          tpm == other.tpm &&
+          windowSeconds == other.windowSeconds;
 }
 
 /// Token usage and cost data for a single LLM call made during extraction.
@@ -9839,26 +10539,26 @@ class LlmUsage {
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  source.hashCode ^
-  inputTokens.hashCode ^
-  outputTokens.hashCode ^
-  totalTokens.hashCode ^
-  estimatedCost.hashCode ^
-  finishReason.hashCode;
+      model.hashCode ^
+      source.hashCode ^
+      inputTokens.hashCode ^
+      outputTokens.hashCode ^
+      totalTokens.hashCode ^
+      estimatedCost.hashCode ^
+      finishReason.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is LlmUsage &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  source == other.source &&
-  inputTokens == other.inputTokens &&
-  outputTokens == other.outputTokens &&
-  totalTokens == other.totalTokens &&
-  estimatedCost == other.estimatedCost &&
-  finishReason == other.finishReason;
+      identical(this, other) ||
+      other is LlmUsage &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          source == other.source &&
+          inputTokens == other.inputTokens &&
+          outputTokens == other.outputTokens &&
+          totalTokens == other.totalTokens &&
+          estimatedCost == other.estimatedCost &&
+          finishReason == other.finishReason;
 }
 
 @freezed
@@ -9876,7 +10576,7 @@ sealed class LoadError with _$LoadError {
 
   /// The file validates but cannot be deserialized into [`Preset`].
   const factory LoadError.deserialize({required String path}) =
-  LoadError_Deserialize;
+      LoadError_Deserialize;
 
   /// The preset's declared `id` does not match its file-system location.
   const factory LoadError.idMismatch({
@@ -9887,7 +10587,7 @@ sealed class LoadError with _$LoadError {
 
   /// The meta-schema itself failed to compile.
   const factory LoadError.badMetaSchema({required String field0}) =
-  LoadError_BadMetaSchema;
+      LoadError_BadMetaSchema;
 
   /// A filesystem I/O error occurred while reading a preset directory.
   const factory LoadError.io({required String field0}) = LoadError_Io;
@@ -9905,10 +10605,10 @@ class MapResult {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is MapResult &&
-  runtimeType == other.runtimeType &&
-  urls == other.urls;
+      identical(this, other) ||
+      other is MapResult &&
+          runtimeType == other.runtimeType &&
+          urls == other.urls;
 }
 
 /// How partial results from multiple model calls (e.g. per page batch) are combined.
@@ -10041,56 +10741,56 @@ class Metadata {
 
   @override
   int get hashCode =>
-  title.hashCode ^
-  subject.hashCode ^
-  authors.hashCode ^
-  keywords.hashCode ^
-  language.hashCode ^
-  createdAt.hashCode ^
-  modifiedAt.hashCode ^
-  createdBy.hashCode ^
-  modifiedBy.hashCode ^
-  pages.hashCode ^
-  format.hashCode ^
-  imagePreprocessing.hashCode ^
-  jsonSchema.hashCode ^
-  error.hashCode ^
-  extractionDurationMs.hashCode ^
-  category.hashCode ^
-  tags.hashCode ^
-  documentVersion.hashCode ^
-  abstractText.hashCode ^
-  outputFormat.hashCode ^
-  ocrUsed.hashCode ^
-  additional.hashCode;
+      title.hashCode ^
+      subject.hashCode ^
+      authors.hashCode ^
+      keywords.hashCode ^
+      language.hashCode ^
+      createdAt.hashCode ^
+      modifiedAt.hashCode ^
+      createdBy.hashCode ^
+      modifiedBy.hashCode ^
+      pages.hashCode ^
+      format.hashCode ^
+      imagePreprocessing.hashCode ^
+      jsonSchema.hashCode ^
+      error.hashCode ^
+      extractionDurationMs.hashCode ^
+      category.hashCode ^
+      tags.hashCode ^
+      documentVersion.hashCode ^
+      abstractText.hashCode ^
+      outputFormat.hashCode ^
+      ocrUsed.hashCode ^
+      additional.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Metadata &&
-  runtimeType == other.runtimeType &&
-  title == other.title &&
-  subject == other.subject &&
-  authors == other.authors &&
-  keywords == other.keywords &&
-  language == other.language &&
-  createdAt == other.createdAt &&
-  modifiedAt == other.modifiedAt &&
-  createdBy == other.createdBy &&
-  modifiedBy == other.modifiedBy &&
-  pages == other.pages &&
-  format == other.format &&
-  imagePreprocessing == other.imagePreprocessing &&
-  jsonSchema == other.jsonSchema &&
-  error == other.error &&
-  extractionDurationMs == other.extractionDurationMs &&
-  category == other.category &&
-  tags == other.tags &&
-  documentVersion == other.documentVersion &&
-  abstractText == other.abstractText &&
-  outputFormat == other.outputFormat &&
-  ocrUsed == other.ocrUsed &&
-  additional == other.additional;
+      identical(this, other) ||
+      other is Metadata &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          subject == other.subject &&
+          authors == other.authors &&
+          keywords == other.keywords &&
+          language == other.language &&
+          createdAt == other.createdAt &&
+          modifiedAt == other.modifiedAt &&
+          createdBy == other.createdBy &&
+          modifiedBy == other.modifiedBy &&
+          pages == other.pages &&
+          format == other.format &&
+          imagePreprocessing == other.imagePreprocessing &&
+          jsonSchema == other.jsonSchema &&
+          error == other.error &&
+          extractionDurationMs == other.extractionDurationMs &&
+          category == other.category &&
+          tags == other.tags &&
+          documentVersion == other.documentVersion &&
+          abstractText == other.abstractText &&
+          outputFormat == other.outputFormat &&
+          ocrUsed == other.ocrUsed &&
+          additional == other.additional;
 }
 
 /// Combined paths to all models needed for OCR (backward compatibility).
@@ -10116,20 +10816,20 @@ class ModelPaths {
 
   @override
   int get hashCode =>
-  detModel.hashCode ^
-  clsModel.hashCode ^
-  recModel.hashCode ^
-  dictFile.hashCode;
+      detModel.hashCode ^
+      clsModel.hashCode ^
+      recModel.hashCode ^
+      dictFile.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ModelPaths &&
-  runtimeType == other.runtimeType &&
-  detModel == other.detModel &&
-  clsModel == other.clsModel &&
-  recModel == other.recModel &&
-  dictFile == other.dictFile;
+      identical(this, other) ||
+      other is ModelPaths &&
+          runtimeType == other.runtimeType &&
+          detModel == other.detModel &&
+          clsModel == other.clsModel &&
+          recModel == other.recModel &&
+          dictFile == other.dictFile;
 }
 
 /// A ColBERT multi-vector embedding: one row per attention-live token.
@@ -10162,12 +10862,12 @@ class MultiVectorEmbedding {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is MultiVectorEmbedding &&
-  runtimeType == other.runtimeType &&
-  numTokens == other.numTokens &&
-  dim == other.dim &&
-  data == other.data;
+      identical(this, other) ||
+      other is MultiVectorEmbedding &&
+          runtimeType == other.runtimeType &&
+          numTokens == other.numTokens &&
+          dim == other.dim &&
+          data == other.data;
 }
 
 /// Input signals for multi-document boundary detection.
@@ -10185,11 +10885,11 @@ class MultidocInput {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is MultidocInput &&
-  runtimeType == other.runtimeType &&
-  pageCount == other.pageCount &&
-  pages == other.pages;
+      identical(this, other) ||
+      other is MultidocInput &&
+          runtimeType == other.runtimeType &&
+          pageCount == other.pageCount &&
+          pages == other.pages;
 }
 
 /// Thresholds for multi-document boundary detection.
@@ -10211,15 +10911,15 @@ class MultidocThresholds {
 
   @override
   int get hashCode =>
-  densityShiftThreshold.hashCode ^ bigramOverlapMin.hashCode;
+      densityShiftThreshold.hashCode ^ bigramOverlapMin.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is MultidocThresholds &&
-  runtimeType == other.runtimeType &&
-  densityShiftThreshold == other.densityShiftThreshold &&
-  bigramOverlapMin == other.bigramOverlapMin;
+      identical(this, other) ||
+      other is MultidocThresholds &&
+          runtimeType == other.runtimeType &&
+          densityShiftThreshold == other.densityShiftThreshold &&
+          bigramOverlapMin == other.bigramOverlapMin;
 }
 
 /// NER backend selector.
@@ -10271,22 +10971,22 @@ class NerConfig {
 
   @override
   int get hashCode =>
-  backend.hashCode ^
-  categories.hashCode ^
-  model.hashCode ^
-  llm.hashCode ^
-  customLabels.hashCode;
+      backend.hashCode ^
+      categories.hashCode ^
+      model.hashCode ^
+      llm.hashCode ^
+      customLabels.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is NerConfig &&
-  runtimeType == other.runtimeType &&
-  backend == other.backend &&
-  categories == other.categories &&
-  model == other.model &&
-  llm == other.llm &&
-  customLabels == other.customLabels;
+      identical(this, other) ||
+      other is NerConfig &&
+          runtimeType == other.runtimeType &&
+          backend == other.backend &&
+          categories == other.categories &&
+          model == other.model &&
+          llm == other.llm &&
+          customLabels == other.customLabels;
 }
 
 /// Line break syntax in Markdown output.
@@ -10339,11 +11039,11 @@ sealed class NoChunkingReason with _$NoChunkingReason {
 
   /// Chunking is disabled by configuration.
   const factory NoChunkingReason.chunkingDisabled() =
-  NoChunkingReason_ChunkingDisabled;
+      NoChunkingReason_ChunkingDisabled;
 
   /// Force OCR is disabled and text extraction is fast.
   const factory NoChunkingReason.fastTextExtraction() =
-  NoChunkingReason_FastTextExtraction;
+      NoChunkingReason_FastTextExtraction;
 }
 
 @freezed
@@ -10424,6 +11124,16 @@ sealed class NodeContent with _$NodeContent {
     /// The footnote body text.
     required String text,
   }) = NodeContent_Footnote;
+
+  /// Reviewer/editor comment content (e.g. DOCX comments).
+  ///
+  /// Distinct from [`NodeContent::Footnote`] (xberg-io/xberg#300): comments and
+  /// footnotes both reach the internal document via a marker/definition pair, but
+  /// a consumer needs to tell a reviewer comment apart from an authored footnote.
+  const factory NodeContent.comment({
+    /// The comment body text.
+    required String text,
+  }) = NodeContent_Comment;
 
   /// Logical grouping container (section, key-value area).
   ///
@@ -10539,7 +11249,7 @@ sealed class OcrBoundingGeometry with _$OcrBoundingGeometry {
   /// Points are in clockwise order starting from top-left:
   /// `[top_left, top_right, bottom_right, bottom_left]`
   const factory OcrBoundingGeometry.quadrilateral() =
-  OcrBoundingGeometry_Quadrilateral;
+      OcrBoundingGeometry_Quadrilateral;
 }
 
 /// Confidence scores for an OCR element.
@@ -10565,11 +11275,11 @@ class OcrConfidence {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrConfidence &&
-  runtimeType == other.runtimeType &&
-  detection == other.detection &&
-  recognition == other.recognition;
+      identical(this, other) ||
+      other is OcrConfidence &&
+          runtimeType == other.runtimeType &&
+          detection == other.detection &&
+          recognition == other.recognition;
 }
 
 /// OCR configuration.
@@ -10732,46 +11442,46 @@ class OcrConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^
-  backend.hashCode ^
-  language.hashCode ^
-  tesseractConfig.hashCode ^
-  outputFormat.hashCode ^
-  paddleOcrConfig.hashCode ^
-  backendOptions.hashCode ^
-  elementConfig.hashCode ^
-  qualityThresholds.hashCode ^
-  pipeline.hashCode ^
-  autoRotate.hashCode ^
-  vlmFallback.hashCode ^
-  vlmConfig.hashCode ^
-  vlmPrompt.hashCode ^
-  acceleration.hashCode ^
-  tessdataBytes.hashCode ^
-  tessdataPath.hashCode;
+      enabled.hashCode ^
+      backend.hashCode ^
+      language.hashCode ^
+      tesseractConfig.hashCode ^
+      outputFormat.hashCode ^
+      paddleOcrConfig.hashCode ^
+      backendOptions.hashCode ^
+      elementConfig.hashCode ^
+      qualityThresholds.hashCode ^
+      pipeline.hashCode ^
+      autoRotate.hashCode ^
+      vlmFallback.hashCode ^
+      vlmConfig.hashCode ^
+      vlmPrompt.hashCode ^
+      acceleration.hashCode ^
+      tessdataBytes.hashCode ^
+      tessdataPath.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  backend == other.backend &&
-  language == other.language &&
-  tesseractConfig == other.tesseractConfig &&
-  outputFormat == other.outputFormat &&
-  paddleOcrConfig == other.paddleOcrConfig &&
-  backendOptions == other.backendOptions &&
-  elementConfig == other.elementConfig &&
-  qualityThresholds == other.qualityThresholds &&
-  pipeline == other.pipeline &&
-  autoRotate == other.autoRotate &&
-  vlmFallback == other.vlmFallback &&
-  vlmConfig == other.vlmConfig &&
-  vlmPrompt == other.vlmPrompt &&
-  acceleration == other.acceleration &&
-  tessdataBytes == other.tessdataBytes &&
-  tessdataPath == other.tessdataPath;
+      identical(this, other) ||
+      other is OcrConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          backend == other.backend &&
+          language == other.language &&
+          tesseractConfig == other.tesseractConfig &&
+          outputFormat == other.outputFormat &&
+          paddleOcrConfig == other.paddleOcrConfig &&
+          backendOptions == other.backendOptions &&
+          elementConfig == other.elementConfig &&
+          qualityThresholds == other.qualityThresholds &&
+          pipeline == other.pipeline &&
+          autoRotate == other.autoRotate &&
+          vlmFallback == other.vlmFallback &&
+          vlmConfig == other.vlmConfig &&
+          vlmPrompt == other.vlmPrompt &&
+          acceleration == other.acceleration &&
+          tessdataBytes == other.tessdataBytes &&
+          tessdataPath == other.tessdataPath;
 }
 
 /// A unified OCR element representing detected text with full metadata.
@@ -10818,28 +11528,28 @@ class OcrElement {
 
   @override
   int get hashCode =>
-  text.hashCode ^
-  geometry.hashCode ^
-  confidence.hashCode ^
-  level.hashCode ^
-  rotation.hashCode ^
-  pageNumber.hashCode ^
-  parentId.hashCode ^
-  backendMetadata.hashCode;
+      text.hashCode ^
+      geometry.hashCode ^
+      confidence.hashCode ^
+      level.hashCode ^
+      rotation.hashCode ^
+      pageNumber.hashCode ^
+      parentId.hashCode ^
+      backendMetadata.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrElement &&
-  runtimeType == other.runtimeType &&
-  text == other.text &&
-  geometry == other.geometry &&
-  confidence == other.confidence &&
-  level == other.level &&
-  rotation == other.rotation &&
-  pageNumber == other.pageNumber &&
-  parentId == other.parentId &&
-  backendMetadata == other.backendMetadata;
+      identical(this, other) ||
+      other is OcrElement &&
+          runtimeType == other.runtimeType &&
+          text == other.text &&
+          geometry == other.geometry &&
+          confidence == other.confidence &&
+          level == other.level &&
+          rotation == other.rotation &&
+          pageNumber == other.pageNumber &&
+          parentId == other.parentId &&
+          backendMetadata == other.backendMetadata;
 }
 
 /// Configuration for OCR element extraction.
@@ -10876,20 +11586,20 @@ class OcrElementConfig {
 
   @override
   int get hashCode =>
-  includeElements.hashCode ^
-  minLevel.hashCode ^
-  minConfidence.hashCode ^
-  buildHierarchy.hashCode;
+      includeElements.hashCode ^
+      minLevel.hashCode ^
+      minConfidence.hashCode ^
+      buildHierarchy.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrElementConfig &&
-  runtimeType == other.runtimeType &&
-  includeElements == other.includeElements &&
-  minLevel == other.minLevel &&
-  minConfidence == other.minConfidence &&
-  buildHierarchy == other.buildHierarchy;
+      identical(this, other) ||
+      other is OcrElementConfig &&
+          runtimeType == other.runtimeType &&
+          includeElements == other.includeElements &&
+          minLevel == other.minLevel &&
+          minConfidence == other.minConfidence &&
+          buildHierarchy == other.buildHierarchy;
 }
 
 /// Hierarchical level of an OCR element.
@@ -10941,22 +11651,22 @@ class OcrExtractionResult {
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  mimeType.hashCode ^
-  metadata.hashCode ^
-  tables.hashCode ^
-  ocrElements.hashCode;
+      content.hashCode ^
+      mimeType.hashCode ^
+      metadata.hashCode ^
+      tables.hashCode ^
+      ocrElements.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrExtractionResult &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  mimeType == other.mimeType &&
-  metadata == other.metadata &&
-  tables == other.tables &&
-  ocrElements == other.ocrElements;
+      identical(this, other) ||
+      other is OcrExtractionResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          mimeType == other.mimeType &&
+          metadata == other.metadata &&
+          tables == other.tables &&
+          ocrElements == other.ocrElements;
 }
 
 /// OCR processing metadata.
@@ -10992,24 +11702,24 @@ class OcrMetadata {
 
   @override
   int get hashCode =>
-  language.hashCode ^
-  psm.hashCode ^
-  outputFormat.hashCode ^
-  tableCount.hashCode ^
-  tableRows.hashCode ^
-  tableCols.hashCode;
+      language.hashCode ^
+      psm.hashCode ^
+      outputFormat.hashCode ^
+      tableCount.hashCode ^
+      tableRows.hashCode ^
+      tableCols.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrMetadata &&
-  runtimeType == other.runtimeType &&
-  language == other.language &&
-  psm == other.psm &&
-  outputFormat == other.outputFormat &&
-  tableCount == other.tableCount &&
-  tableRows == other.tableRows &&
-  tableCols == other.tableCols;
+      identical(this, other) ||
+      other is OcrMetadata &&
+          runtimeType == other.runtimeType &&
+          language == other.language &&
+          psm == other.psm &&
+          outputFormat == other.outputFormat &&
+          tableCount == other.tableCount &&
+          tableRows == other.tableRows &&
+          tableCols == other.tableCols;
 }
 
 /// Multi-backend OCR pipeline with quality-based fallback.
@@ -11037,11 +11747,11 @@ class OcrPipelineConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrPipelineConfig &&
-  runtimeType == other.runtimeType &&
-  stages == other.stages &&
-  qualityThresholds == other.qualityThresholds;
+      identical(this, other) ||
+      other is OcrPipelineConfig &&
+          runtimeType == other.runtimeType &&
+          stages == other.stages &&
+          qualityThresholds == other.qualityThresholds;
 }
 
 /// A single backend stage in the OCR pipeline.
@@ -11093,26 +11803,26 @@ class OcrPipelineStage {
 
   @override
   int get hashCode =>
-  backend.hashCode ^
-  priority.hashCode ^
-  language.hashCode ^
-  tesseractConfig.hashCode ^
-  paddleOcrConfig.hashCode ^
-  vlmConfig.hashCode ^
-  backendOptions.hashCode;
+      backend.hashCode ^
+      priority.hashCode ^
+      language.hashCode ^
+      tesseractConfig.hashCode ^
+      paddleOcrConfig.hashCode ^
+      vlmConfig.hashCode ^
+      backendOptions.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrPipelineStage &&
-  runtimeType == other.runtimeType &&
-  backend == other.backend &&
-  priority == other.priority &&
-  language == other.language &&
-  tesseractConfig == other.tesseractConfig &&
-  paddleOcrConfig == other.paddleOcrConfig &&
-  vlmConfig == other.vlmConfig &&
-  backendOptions == other.backendOptions;
+      identical(this, other) ||
+      other is OcrPipelineStage &&
+          runtimeType == other.runtimeType &&
+          backend == other.backend &&
+          priority == other.priority &&
+          language == other.language &&
+          tesseractConfig == other.tesseractConfig &&
+          paddleOcrConfig == other.paddleOcrConfig &&
+          vlmConfig == other.vlmConfig &&
+          backendOptions == other.backendOptions;
 }
 
 /// Quality thresholds for OCR fallback decisions and pipeline quality gating.
@@ -11218,50 +11928,50 @@ class OcrQualityThresholds {
 
   @override
   int get hashCode =>
-  minTotalNonWhitespace.hashCode ^
-  minNonWhitespacePerPage.hashCode ^
-  minMeaningfulWordLen.hashCode ^
-  minMeaningfulWords.hashCode ^
-  minAlnumRatio.hashCode ^
-  minGarbageChars.hashCode ^
-  maxFragmentedWordRatio.hashCode ^
-  criticalFragmentedWordRatio.hashCode ^
-  minAvgWordLength.hashCode ^
-  minWordsForAvgLengthCheck.hashCode ^
-  minConsecutiveRepeatRatio.hashCode ^
-  minWordsForRepeatCheck.hashCode ^
-  substantiveMinChars.hashCode ^
-  nonTextMinChars.hashCode ^
-  alnumWsRatioThreshold.hashCode ^
-  pipelineMinQuality.hashCode ^
-  minUndecodableRatio.hashCode ^
-  enableProvenanceOcrRouting.hashCode ^
-  minProvenanceFallbackRatio.hashCode;
+      minTotalNonWhitespace.hashCode ^
+      minNonWhitespacePerPage.hashCode ^
+      minMeaningfulWordLen.hashCode ^
+      minMeaningfulWords.hashCode ^
+      minAlnumRatio.hashCode ^
+      minGarbageChars.hashCode ^
+      maxFragmentedWordRatio.hashCode ^
+      criticalFragmentedWordRatio.hashCode ^
+      minAvgWordLength.hashCode ^
+      minWordsForAvgLengthCheck.hashCode ^
+      minConsecutiveRepeatRatio.hashCode ^
+      minWordsForRepeatCheck.hashCode ^
+      substantiveMinChars.hashCode ^
+      nonTextMinChars.hashCode ^
+      alnumWsRatioThreshold.hashCode ^
+      pipelineMinQuality.hashCode ^
+      minUndecodableRatio.hashCode ^
+      enableProvenanceOcrRouting.hashCode ^
+      minProvenanceFallbackRatio.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrQualityThresholds &&
-  runtimeType == other.runtimeType &&
-  minTotalNonWhitespace == other.minTotalNonWhitespace &&
-  minNonWhitespacePerPage == other.minNonWhitespacePerPage &&
-  minMeaningfulWordLen == other.minMeaningfulWordLen &&
-  minMeaningfulWords == other.minMeaningfulWords &&
-  minAlnumRatio == other.minAlnumRatio &&
-  minGarbageChars == other.minGarbageChars &&
-  maxFragmentedWordRatio == other.maxFragmentedWordRatio &&
-  criticalFragmentedWordRatio == other.criticalFragmentedWordRatio &&
-  minAvgWordLength == other.minAvgWordLength &&
-  minWordsForAvgLengthCheck == other.minWordsForAvgLengthCheck &&
-  minConsecutiveRepeatRatio == other.minConsecutiveRepeatRatio &&
-  minWordsForRepeatCheck == other.minWordsForRepeatCheck &&
-  substantiveMinChars == other.substantiveMinChars &&
-  nonTextMinChars == other.nonTextMinChars &&
-  alnumWsRatioThreshold == other.alnumWsRatioThreshold &&
-  pipelineMinQuality == other.pipelineMinQuality &&
-  minUndecodableRatio == other.minUndecodableRatio &&
-  enableProvenanceOcrRouting == other.enableProvenanceOcrRouting &&
-  minProvenanceFallbackRatio == other.minProvenanceFallbackRatio;
+      identical(this, other) ||
+      other is OcrQualityThresholds &&
+          runtimeType == other.runtimeType &&
+          minTotalNonWhitespace == other.minTotalNonWhitespace &&
+          minNonWhitespacePerPage == other.minNonWhitespacePerPage &&
+          minMeaningfulWordLen == other.minMeaningfulWordLen &&
+          minMeaningfulWords == other.minMeaningfulWords &&
+          minAlnumRatio == other.minAlnumRatio &&
+          minGarbageChars == other.minGarbageChars &&
+          maxFragmentedWordRatio == other.maxFragmentedWordRatio &&
+          criticalFragmentedWordRatio == other.criticalFragmentedWordRatio &&
+          minAvgWordLength == other.minAvgWordLength &&
+          minWordsForAvgLengthCheck == other.minWordsForAvgLengthCheck &&
+          minConsecutiveRepeatRatio == other.minConsecutiveRepeatRatio &&
+          minWordsForRepeatCheck == other.minWordsForRepeatCheck &&
+          substantiveMinChars == other.substantiveMinChars &&
+          nonTextMinChars == other.nonTextMinChars &&
+          alnumWsRatioThreshold == other.alnumWsRatioThreshold &&
+          pipelineMinQuality == other.pipelineMinQuality &&
+          minUndecodableRatio == other.minUndecodableRatio &&
+          enableProvenanceOcrRouting == other.enableProvenanceOcrRouting &&
+          minProvenanceFallbackRatio == other.minProvenanceFallbackRatio;
 }
 
 /// Rotation information for an OCR element.
@@ -11279,11 +11989,11 @@ class OcrRotation {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrRotation &&
-  runtimeType == other.runtimeType &&
-  angleDegrees == other.angleDegrees &&
-  confidence == other.confidence;
+      identical(this, other) ||
+      other is OcrRotation &&
+          runtimeType == other.runtimeType &&
+          angleDegrees == other.angleDegrees &&
+          confidence == other.confidence;
 }
 
 @freezed
@@ -11338,20 +12048,20 @@ class OcrTable {
 
   @override
   int get hashCode =>
-  cells.hashCode ^
-  markdown.hashCode ^
-  pageNumber.hashCode ^
-  boundingBox.hashCode;
+      cells.hashCode ^
+      markdown.hashCode ^
+      pageNumber.hashCode ^
+      boundingBox.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrTable &&
-  runtimeType == other.runtimeType &&
-  cells == other.cells &&
-  markdown == other.markdown &&
-  pageNumber == other.pageNumber &&
-  boundingBox == other.boundingBox;
+      identical(this, other) ||
+      other is OcrTable &&
+          runtimeType == other.runtimeType &&
+          cells == other.cells &&
+          markdown == other.markdown &&
+          pageNumber == other.pageNumber &&
+          boundingBox == other.boundingBox;
 }
 
 /// Bounding box for an OCR-detected table in pixel coordinates.
@@ -11377,17 +12087,17 @@ class OcrTableBoundingBox {
 
   @override
   int get hashCode =>
-  left.hashCode ^ top.hashCode ^ right.hashCode ^ bottom.hashCode;
+      left.hashCode ^ top.hashCode ^ right.hashCode ^ bottom.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OcrTableBoundingBox &&
-  runtimeType == other.runtimeType &&
-  left == other.left &&
-  top == other.top &&
-  right == other.right &&
-  bottom == other.bottom;
+      identical(this, other) ||
+      other is OcrTableBoundingBox &&
+          runtimeType == other.runtimeType &&
+          left == other.left &&
+          top == other.top &&
+          right == other.right &&
+          bottom == other.bottom;
 }
 
 /// Document orientation detection result.
@@ -11405,11 +12115,11 @@ class OrientationResult {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is OrientationResult &&
-  runtimeType == other.runtimeType &&
-  degrees == other.degrees &&
-  confidence == other.confidence;
+      identical(this, other) ||
+      other is OrientationResult &&
+          runtimeType == other.runtimeType &&
+          degrees == other.degrees &&
+          confidence == other.confidence;
 }
 
 @freezed
@@ -11437,7 +12147,7 @@ sealed class OutputFormat with _$OutputFormat {
   /// Custom renderer registered via the RendererRegistry.
   /// The string is the renderer name (e.g., "docx", "latex").
   const factory OutputFormat.custom({required String field0}) =
-  OutputFormat_Custom;
+      OutputFormat_Custom;
 }
 
 /// Which concrete ONNX inference engine PaddleOCR model loading uses.
@@ -11624,40 +12334,40 @@ class PaddleOcrConfig {
 
   @override
   int get hashCode =>
-  language.hashCode ^
-  cacheDir.hashCode ^
-  useAngleCls.hashCode ^
-  enableTableDetection.hashCode ^
-  detDbThresh.hashCode ^
-  detDbBoxThresh.hashCode ^
-  detDbUnclipRatio.hashCode ^
-  detLimitSideLen.hashCode ^
-  recBatchNum.hashCode ^
-  padding.hashCode ^
-  dropScore.hashCode ^
-  modelTier.hashCode ^
-  modelVersion.hashCode ^
-  inferenceBackend.hashCode;
+      language.hashCode ^
+      cacheDir.hashCode ^
+      useAngleCls.hashCode ^
+      enableTableDetection.hashCode ^
+      detDbThresh.hashCode ^
+      detDbBoxThresh.hashCode ^
+      detDbUnclipRatio.hashCode ^
+      detLimitSideLen.hashCode ^
+      recBatchNum.hashCode ^
+      padding.hashCode ^
+      dropScore.hashCode ^
+      modelTier.hashCode ^
+      modelVersion.hashCode ^
+      inferenceBackend.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PaddleOcrConfig &&
-  runtimeType == other.runtimeType &&
-  language == other.language &&
-  cacheDir == other.cacheDir &&
-  useAngleCls == other.useAngleCls &&
-  enableTableDetection == other.enableTableDetection &&
-  detDbThresh == other.detDbThresh &&
-  detDbBoxThresh == other.detDbBoxThresh &&
-  detDbUnclipRatio == other.detDbUnclipRatio &&
-  detLimitSideLen == other.detLimitSideLen &&
-  recBatchNum == other.recBatchNum &&
-  padding == other.padding &&
-  dropScore == other.dropScore &&
-  modelTier == other.modelTier &&
-  modelVersion == other.modelVersion &&
-  inferenceBackend == other.inferenceBackend;
+      identical(this, other) ||
+      other is PaddleOcrConfig &&
+          runtimeType == other.runtimeType &&
+          language == other.language &&
+          cacheDir == other.cacheDir &&
+          useAngleCls == other.useAngleCls &&
+          enableTableDetection == other.enableTableDetection &&
+          detDbThresh == other.detDbThresh &&
+          detDbBoxThresh == other.detDbBoxThresh &&
+          detDbUnclipRatio == other.detDbUnclipRatio &&
+          detLimitSideLen == other.detLimitSideLen &&
+          recBatchNum == other.recBatchNum &&
+          padding == other.padding &&
+          dropScore == other.dropScore &&
+          modelTier == other.modelTier &&
+          modelVersion == other.modelVersion &&
+          inferenceBackend == other.inferenceBackend;
 }
 
 /// Byte offset boundary for a page.
@@ -11683,16 +12393,16 @@ class PageBoundary {
 
   @override
   int get hashCode =>
-  byteStart.hashCode ^ byteEnd.hashCode ^ pageNumber.hashCode;
+      byteStart.hashCode ^ byteEnd.hashCode ^ pageNumber.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageBoundary &&
-  runtimeType == other.runtimeType &&
-  byteStart == other.byteStart &&
-  byteEnd == other.byteEnd &&
-  pageNumber == other.pageNumber;
+      identical(this, other) ||
+      other is PageBoundary &&
+          runtimeType == other.runtimeType &&
+          byteStart == other.byteStart &&
+          byteEnd == other.byteEnd &&
+          pageNumber == other.pageNumber;
 }
 
 /// Classification result for a single page.
@@ -11711,11 +12421,11 @@ class PageClassification {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageClassification &&
-  runtimeType == other.runtimeType &&
-  pageNumber == other.pageNumber &&
-  labels == other.labels;
+      identical(this, other) ||
+      other is PageClassification &&
+          runtimeType == other.runtimeType &&
+          pageNumber == other.pageNumber &&
+          labels == other.labels;
 }
 
 /// Configuration for the page-classification post-processor.
@@ -11742,20 +12452,20 @@ class PageClassificationConfig {
 
   @override
   int get hashCode =>
-  promptTemplate.hashCode ^
-  labels.hashCode ^
-  multiLabel.hashCode ^
-  llm.hashCode;
+      promptTemplate.hashCode ^
+      labels.hashCode ^
+      multiLabel.hashCode ^
+      llm.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageClassificationConfig &&
-  runtimeType == other.runtimeType &&
-  promptTemplate == other.promptTemplate &&
-  labels == other.labels &&
-  multiLabel == other.multiLabel &&
-  llm == other.llm;
+      identical(this, other) ||
+      other is PageClassificationConfig &&
+          runtimeType == other.runtimeType &&
+          promptTemplate == other.promptTemplate &&
+          labels == other.labels &&
+          multiLabel == other.multiLabel &&
+          llm == other.llm;
 }
 
 /// Page extraction and tracking configuration.
@@ -11784,18 +12494,18 @@ class PageConfig {
 
   @override
   int get hashCode =>
-  extractPages.hashCode ^
-  insertPageMarkers.hashCode ^
-  markerFormat.hashCode;
+      extractPages.hashCode ^
+      insertPageMarkers.hashCode ^
+      markerFormat.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageConfig &&
-  runtimeType == other.runtimeType &&
-  extractPages == other.extractPages &&
-  insertPageMarkers == other.insertPageMarkers &&
-  markerFormat == other.markerFormat;
+      identical(this, other) ||
+      other is PageConfig &&
+          runtimeType == other.runtimeType &&
+          extractPages == other.extractPages &&
+          insertPageMarkers == other.insertPageMarkers &&
+          markerFormat == other.markerFormat;
 }
 
 /// Content for a single page/slide.
@@ -11884,32 +12594,32 @@ class PageContent {
 
   @override
   int get hashCode =>
-  pageNumber.hashCode ^
-  content.hashCode ^
-  tables.hashCode ^
-  imageIndices.hashCode ^
-  hierarchy.hashCode ^
-  isBlank.hashCode ^
-  layoutRegions.hashCode ^
-  speakerNotes.hashCode ^
-  sectionName.hashCode ^
-  sheetName.hashCode;
+      pageNumber.hashCode ^
+      content.hashCode ^
+      tables.hashCode ^
+      imageIndices.hashCode ^
+      hierarchy.hashCode ^
+      isBlank.hashCode ^
+      layoutRegions.hashCode ^
+      speakerNotes.hashCode ^
+      sectionName.hashCode ^
+      sheetName.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageContent &&
-  runtimeType == other.runtimeType &&
-  pageNumber == other.pageNumber &&
-  content == other.content &&
-  tables == other.tables &&
-  imageIndices == other.imageIndices &&
-  hierarchy == other.hierarchy &&
-  isBlank == other.isBlank &&
-  layoutRegions == other.layoutRegions &&
-  speakerNotes == other.speakerNotes &&
-  sectionName == other.sectionName &&
-  sheetName == other.sheetName;
+      identical(this, other) ||
+      other is PageContent &&
+          runtimeType == other.runtimeType &&
+          pageNumber == other.pageNumber &&
+          content == other.content &&
+          tables == other.tables &&
+          imageIndices == other.imageIndices &&
+          hierarchy == other.hierarchy &&
+          isBlank == other.isBlank &&
+          layoutRegions == other.layoutRegions &&
+          speakerNotes == other.speakerNotes &&
+          sectionName == other.sectionName &&
+          sheetName == other.sheetName;
 }
 
 /// Page hierarchy structure containing heading levels and block information.
@@ -11930,11 +12640,11 @@ class PageHierarchy {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageHierarchy &&
-  runtimeType == other.runtimeType &&
-  blockCount == other.blockCount &&
-  blocks == other.blocks;
+      identical(this, other) ||
+      other is PageHierarchy &&
+          runtimeType == other.runtimeType &&
+          blockCount == other.blockCount &&
+          blocks == other.blocks;
 }
 
 /// Metadata for individual page/slide/sheet.
@@ -11988,26 +12698,26 @@ class PageInfo {
 
   @override
   int get hashCode =>
-  number.hashCode ^
-  title.hashCode ^
-  imageCount.hashCode ^
-  tableCount.hashCode ^
-  hidden.hashCode ^
-  isBlank.hashCode ^
-  hasVectorGraphics.hashCode;
+      number.hashCode ^
+      title.hashCode ^
+      imageCount.hashCode ^
+      tableCount.hashCode ^
+      hidden.hashCode ^
+      isBlank.hashCode ^
+      hasVectorGraphics.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageInfo &&
-  runtimeType == other.runtimeType &&
-  number == other.number &&
-  title == other.title &&
-  imageCount == other.imageCount &&
-  tableCount == other.tableCount &&
-  hidden == other.hidden &&
-  isBlank == other.isBlank &&
-  hasVectorGraphics == other.hasVectorGraphics;
+      identical(this, other) ||
+      other is PageInfo &&
+          runtimeType == other.runtimeType &&
+          number == other.number &&
+          title == other.title &&
+          imageCount == other.imageCount &&
+          tableCount == other.tableCount &&
+          hidden == other.hidden &&
+          isBlank == other.isBlank &&
+          hasVectorGraphics == other.hasVectorGraphics;
 }
 
 /// Page range for a chunk (0-indexed, inclusive).
@@ -12025,11 +12735,11 @@ class PageRange {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageRange &&
-  runtimeType == other.runtimeType &&
-  start == other.start &&
-  end == other.end;
+      identical(this, other) ||
+      other is PageRange &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end;
 }
 
 /// Per-page signals extracted from PDF content.
@@ -12065,24 +12775,24 @@ class PageSignals {
 
   @override
   int get hashCode =>
-  pageNumber.hashCode ^
-  textExcerpt.hashCode ^
-  startsWithLetterheadLike.hashCode ^
-  hasPageNumberOneMarker.hashCode ^
-  hasSignatureBlock.hashCode ^
-  layoutTextDensity.hashCode;
+      pageNumber.hashCode ^
+      textExcerpt.hashCode ^
+      startsWithLetterheadLike.hashCode ^
+      hasPageNumberOneMarker.hashCode ^
+      hasSignatureBlock.hashCode ^
+      layoutTextDensity.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageSignals &&
-  runtimeType == other.runtimeType &&
-  pageNumber == other.pageNumber &&
-  textExcerpt == other.textExcerpt &&
-  startsWithLetterheadLike == other.startsWithLetterheadLike &&
-  hasPageNumberOneMarker == other.hasPageNumberOneMarker &&
-  hasSignatureBlock == other.hasSignatureBlock &&
-  layoutTextDensity == other.layoutTextDensity;
+      identical(this, other) ||
+      other is PageSignals &&
+          runtimeType == other.runtimeType &&
+          pageNumber == other.pageNumber &&
+          textExcerpt == other.textExcerpt &&
+          startsWithLetterheadLike == other.startsWithLetterheadLike &&
+          hasPageNumberOneMarker == other.hasPageNumberOneMarker &&
+          hasSignatureBlock == other.hasSignatureBlock &&
+          layoutTextDensity == other.layoutTextDensity;
 }
 
 /// A single page covered by a chunk, with an optional bounding box on that page.
@@ -12102,11 +12812,11 @@ class PageSpan {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageSpan &&
-  runtimeType == other.runtimeType &&
-  page == other.page &&
-  bbox == other.bbox;
+      identical(this, other) ||
+      other is PageSpan &&
+          runtimeType == other.runtimeType &&
+          page == other.page &&
+          bbox == other.bbox;
 }
 
 /// Unified page structure for documents.
@@ -12138,20 +12848,20 @@ class PageStructure {
 
   @override
   int get hashCode =>
-  totalCount.hashCode ^
-  unitType.hashCode ^
-  boundaries.hashCode ^
-  pages.hashCode;
+      totalCount.hashCode ^
+      unitType.hashCode ^
+      boundaries.hashCode ^
+      pages.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PageStructure &&
-  runtimeType == other.runtimeType &&
-  totalCount == other.totalCount &&
-  unitType == other.unitType &&
-  boundaries == other.boundaries &&
-  pages == other.pages;
+      identical(this, other) ||
+      other is PageStructure &&
+          runtimeType == other.runtimeType &&
+          totalCount == other.totalCount &&
+          unitType == other.unitType &&
+          boundaries == other.boundaries &&
+          pages == other.pages;
 }
 
 /// Type of paginated unit in a document.
@@ -12192,17 +12902,17 @@ class PatternMatch {
 
   @override
   int get hashCode =>
-  start.hashCode ^ end.hashCode ^ category.hashCode ^ text.hashCode;
+      start.hashCode ^ end.hashCode ^ category.hashCode ^ text.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PatternMatch &&
-  runtimeType == other.runtimeType &&
-  start == other.start &&
-  end == other.end &&
-  category == other.category &&
-  text == other.text;
+      identical(this, other) ||
+      other is PatternMatch &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end &&
+          category == other.category &&
+          text == other.text;
 }
 
 /// A PDF annotation extracted from a document page.
@@ -12219,29 +12929,72 @@ class PdfAnnotation {
   /// Bounding box of the annotation on the page.
   final BoundingBox? boundingBox;
 
+  /// Author/creator of the annotation (PDF `/T` entry).
+  final String? author;
+
+  /// Last modification date of the annotation (PDF `/M` entry), as a raw
+  /// PDF date string (e.g. `"D:20240115120000Z"`).
+  final String? modified;
+
+  /// Annotation colour (PDF `/C` entry), normalised to a CSS-compatible
+  /// `#rrggbb` hex string. Gray and CMYK colour spaces are converted to RGB.
+  final String? color;
+
+  /// Subject of the annotation (PDF `/Subj` entry).
+  final String? subject;
+
+  /// Per-line bounding boxes derived from the annotation's `/QuadPoints`
+  /// entry. Present for text markup annotations (Highlight, Underline,
+  /// StrikeOut, Squiggly), one box per marked line/run of text.
+  final List<BoundingBox>? quadPoints;
+
+  /// The document text covered by [`Self::quad_points`], recovered from the
+  /// page content underneath the marked-up region. Populated for
+  /// Highlight, Underline, StrikeOut, and Squiggly annotations when the
+  /// underlying text could be recovered.
+  final String? markedText;
+
   const PdfAnnotation({
     required this.annotationType,
     this.content,
     required this.pageNumber,
     this.boundingBox,
+    this.author,
+    this.modified,
+    this.color,
+    this.subject,
+    this.quadPoints,
+    this.markedText,
   });
 
   @override
   int get hashCode =>
-  annotationType.hashCode ^
-  content.hashCode ^
-  pageNumber.hashCode ^
-  boundingBox.hashCode;
+      annotationType.hashCode ^
+      content.hashCode ^
+      pageNumber.hashCode ^
+      boundingBox.hashCode ^
+      author.hashCode ^
+      modified.hashCode ^
+      color.hashCode ^
+      subject.hashCode ^
+      quadPoints.hashCode ^
+      markedText.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PdfAnnotation &&
-  runtimeType == other.runtimeType &&
-  annotationType == other.annotationType &&
-  content == other.content &&
-  pageNumber == other.pageNumber &&
-  boundingBox == other.boundingBox;
+      identical(this, other) ||
+      other is PdfAnnotation &&
+          runtimeType == other.runtimeType &&
+          annotationType == other.annotationType &&
+          content == other.content &&
+          pageNumber == other.pageNumber &&
+          boundingBox == other.boundingBox &&
+          author == other.author &&
+          modified == other.modified &&
+          color == other.color &&
+          subject == other.subject &&
+          quadPoints == other.quadPoints &&
+          markedText == other.markedText;
 }
 
 /// Type of PDF annotation.
@@ -12263,6 +13016,39 @@ enum PdfAnnotationType {
 
   /// Strikeout text markup
   strikeOut,
+
+  /// Squiggly (wavy) underline text markup
+  squiggly,
+
+  /// Freehand drawing (ink) annotation
+  ink,
+
+  /// Rectangle/box shape annotation
+  square,
+
+  /// Ellipse/oval shape annotation
+  circle,
+
+  /// Closed polygon shape annotation
+  polygon,
+
+  /// Open polyline shape annotation
+  polyLine,
+
+  /// Line annotation
+  line,
+
+  /// Caret (text-insertion marker) annotation
+  caret,
+
+  /// Embedded file attachment annotation
+  fileAttachment,
+
+  /// Embedded sound annotation
+  sound,
+
+  /// Embedded movie annotation
+  movie,
 
   /// Any other annotation type
   other,
@@ -12352,36 +13138,36 @@ class PdfConfig {
 
   @override
   int get hashCode =>
-  extractImages.hashCode ^
-  extractTables.hashCode ^
-  passwords.hashCode ^
-  extractMetadata.hashCode ^
-  hierarchy.hashCode ^
-  extractAnnotations.hashCode ^
-  topMarginFraction.hashCode ^
-  bottomMarginFraction.hashCode ^
-  allowSingleColumnTables.hashCode ^
-  ocrInlineImages.hashCode ^
-  extractFormFields.hashCode ^
-  readingOrder.hashCode;
+      extractImages.hashCode ^
+      extractTables.hashCode ^
+      passwords.hashCode ^
+      extractMetadata.hashCode ^
+      hierarchy.hashCode ^
+      extractAnnotations.hashCode ^
+      topMarginFraction.hashCode ^
+      bottomMarginFraction.hashCode ^
+      allowSingleColumnTables.hashCode ^
+      ocrInlineImages.hashCode ^
+      extractFormFields.hashCode ^
+      readingOrder.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PdfConfig &&
-  runtimeType == other.runtimeType &&
-  extractImages == other.extractImages &&
-  extractTables == other.extractTables &&
-  passwords == other.passwords &&
-  extractMetadata == other.extractMetadata &&
-  hierarchy == other.hierarchy &&
-  extractAnnotations == other.extractAnnotations &&
-  topMarginFraction == other.topMarginFraction &&
-  bottomMarginFraction == other.bottomMarginFraction &&
-  allowSingleColumnTables == other.allowSingleColumnTables &&
-  ocrInlineImages == other.ocrInlineImages &&
-  extractFormFields == other.extractFormFields &&
-  readingOrder == other.readingOrder;
+      identical(this, other) ||
+      other is PdfConfig &&
+          runtimeType == other.runtimeType &&
+          extractImages == other.extractImages &&
+          extractTables == other.extractTables &&
+          passwords == other.passwords &&
+          extractMetadata == other.extractMetadata &&
+          hierarchy == other.hierarchy &&
+          extractAnnotations == other.extractAnnotations &&
+          topMarginFraction == other.topMarginFraction &&
+          bottomMarginFraction == other.bottomMarginFraction &&
+          allowSingleColumnTables == other.allowSingleColumnTables &&
+          ocrInlineImages == other.ocrInlineImages &&
+          extractFormFields == other.extractFormFields &&
+          readingOrder == other.readingOrder;
 }
 
 /// A form field extracted from a PDF's AcroForm or XFA structure.
@@ -12441,32 +13227,32 @@ class PdfFormField {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  fullName.hashCode ^
-  fieldType.hashCode ^
-  value.hashCode ^
-  defaultValue.hashCode ^
-  flags.hashCode ^
-  page.hashCode ^
-  bbox.hashCode ^
-  maxLength.hashCode ^
-  tooltip.hashCode;
+      name.hashCode ^
+      fullName.hashCode ^
+      fieldType.hashCode ^
+      value.hashCode ^
+      defaultValue.hashCode ^
+      flags.hashCode ^
+      page.hashCode ^
+      bbox.hashCode ^
+      maxLength.hashCode ^
+      tooltip.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PdfFormField &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  fullName == other.fullName &&
-  fieldType == other.fieldType &&
-  value == other.value &&
-  defaultValue == other.defaultValue &&
-  flags == other.flags &&
-  page == other.page &&
-  bbox == other.bbox &&
-  maxLength == other.maxLength &&
-  tooltip == other.tooltip;
+      identical(this, other) ||
+      other is PdfFormField &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          fullName == other.fullName &&
+          fieldType == other.fieldType &&
+          value == other.value &&
+          defaultValue == other.defaultValue &&
+          flags == other.flags &&
+          page == other.page &&
+          bbox == other.bbox &&
+          maxLength == other.maxLength &&
+          tooltip == other.tooltip;
 }
 
 /// PDF-specific metadata.
@@ -12533,32 +13319,32 @@ class PdfMetadata {
 
   @override
   int get hashCode =>
-  pdfVersion.hashCode ^
-  producer.hashCode ^
-  isEncrypted.hashCode ^
-  width.hashCode ^
-  height.hashCode ^
-  pageCount.hashCode ^
-  scannedConfidence.hashCode ^
-  scannedPages.hashCode ^
-  layoutGatedPages.hashCode ^
-  layoutGateReasons.hashCode;
+      pdfVersion.hashCode ^
+      producer.hashCode ^
+      isEncrypted.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      pageCount.hashCode ^
+      scannedConfidence.hashCode ^
+      scannedPages.hashCode ^
+      layoutGatedPages.hashCode ^
+      layoutGateReasons.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PdfMetadata &&
-  runtimeType == other.runtimeType &&
-  pdfVersion == other.pdfVersion &&
-  producer == other.producer &&
-  isEncrypted == other.isEncrypted &&
-  width == other.width &&
-  height == other.height &&
-  pageCount == other.pageCount &&
-  scannedConfidence == other.scannedConfidence &&
-  scannedPages == other.scannedPages &&
-  layoutGatedPages == other.layoutGatedPages &&
-  layoutGateReasons == other.layoutGateReasons;
+      identical(this, other) ||
+      other is PdfMetadata &&
+          runtimeType == other.runtimeType &&
+          pdfVersion == other.pdfVersion &&
+          producer == other.producer &&
+          isEncrypted == other.isEncrypted &&
+          width == other.width &&
+          height == other.height &&
+          pageCount == other.pageCount &&
+          scannedConfidence == other.scannedConfidence &&
+          scannedPages == other.scannedPages &&
+          layoutGatedPages == other.layoutGatedPages &&
+          layoutGateReasons == other.layoutGateReasons;
 }
 
 @freezed
@@ -12611,7 +13397,7 @@ sealed class PiiCategory with _$PiiCategory {
   /// `categories` filter — the pattern engine cannot detect arbitrary text
   /// from a category name alone.
   const factory PiiCategory.custom({required String field0}) =
-  PiiCategory_Custom;
+      PiiCategory_Custom;
 }
 
 /// Post-processor configuration.
@@ -12641,22 +13427,22 @@ class PostProcessorConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^
-  enabledProcessors.hashCode ^
-  disabledProcessors.hashCode ^
-  enabledSet.hashCode ^
-  disabledSet.hashCode;
+      enabled.hashCode ^
+      enabledProcessors.hashCode ^
+      disabledProcessors.hashCode ^
+      enabledSet.hashCode ^
+      disabledSet.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PostProcessorConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  enabledProcessors == other.enabledProcessors &&
-  disabledProcessors == other.disabledProcessors &&
-  enabledSet == other.enabledSet &&
-  disabledSet == other.disabledSet;
+      identical(this, other) ||
+      other is PostProcessorConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          enabledProcessors == other.enabledProcessors &&
+          disabledProcessors == other.disabledProcessors &&
+          enabledSet == other.enabledSet &&
+          disabledSet == other.disabledSet;
 }
 
 /// Application properties from docProps/app.xml for PPTX
@@ -12728,42 +13514,42 @@ class PptxAppProperties {
 
   @override
   int get hashCode =>
-  application.hashCode ^
-  appVersion.hashCode ^
-  totalTime.hashCode ^
-  company.hashCode ^
-  docSecurity.hashCode ^
-  scaleCrop.hashCode ^
-  linksUpToDate.hashCode ^
-  sharedDoc.hashCode ^
-  hyperlinksChanged.hashCode ^
-  slides.hashCode ^
-  notes.hashCode ^
-  hiddenSlides.hashCode ^
-  multimediaClips.hashCode ^
-  presentationFormat.hashCode ^
-  slideTitles.hashCode;
+      application.hashCode ^
+      appVersion.hashCode ^
+      totalTime.hashCode ^
+      company.hashCode ^
+      docSecurity.hashCode ^
+      scaleCrop.hashCode ^
+      linksUpToDate.hashCode ^
+      sharedDoc.hashCode ^
+      hyperlinksChanged.hashCode ^
+      slides.hashCode ^
+      notes.hashCode ^
+      hiddenSlides.hashCode ^
+      multimediaClips.hashCode ^
+      presentationFormat.hashCode ^
+      slideTitles.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PptxAppProperties &&
-  runtimeType == other.runtimeType &&
-  application == other.application &&
-  appVersion == other.appVersion &&
-  totalTime == other.totalTime &&
-  company == other.company &&
-  docSecurity == other.docSecurity &&
-  scaleCrop == other.scaleCrop &&
-  linksUpToDate == other.linksUpToDate &&
-  sharedDoc == other.sharedDoc &&
-  hyperlinksChanged == other.hyperlinksChanged &&
-  slides == other.slides &&
-  notes == other.notes &&
-  hiddenSlides == other.hiddenSlides &&
-  multimediaClips == other.multimediaClips &&
-  presentationFormat == other.presentationFormat &&
-  slideTitles == other.slideTitles;
+      identical(this, other) ||
+      other is PptxAppProperties &&
+          runtimeType == other.runtimeType &&
+          application == other.application &&
+          appVersion == other.appVersion &&
+          totalTime == other.totalTime &&
+          company == other.company &&
+          docSecurity == other.docSecurity &&
+          scaleCrop == other.scaleCrop &&
+          linksUpToDate == other.linksUpToDate &&
+          sharedDoc == other.sharedDoc &&
+          hyperlinksChanged == other.hyperlinksChanged &&
+          slides == other.slides &&
+          notes == other.notes &&
+          hiddenSlides == other.hiddenSlides &&
+          multimediaClips == other.multimediaClips &&
+          presentationFormat == other.presentationFormat &&
+          slideTitles == other.slideTitles;
 }
 
 /// PowerPoint (PPTX) extraction result.
@@ -12827,34 +13613,34 @@ class PptxExtractionResult {
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  metadata.hashCode ^
-  slideCount.hashCode ^
-  imageCount.hashCode ^
-  tableCount.hashCode ^
-  images.hashCode ^
-  pageStructure.hashCode ^
-  pageContents.hashCode ^
-  document.hashCode ^
-  officeMetadata.hashCode ^
-  revisions.hashCode;
+      content.hashCode ^
+      metadata.hashCode ^
+      slideCount.hashCode ^
+      imageCount.hashCode ^
+      tableCount.hashCode ^
+      images.hashCode ^
+      pageStructure.hashCode ^
+      pageContents.hashCode ^
+      document.hashCode ^
+      officeMetadata.hashCode ^
+      revisions.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PptxExtractionResult &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  metadata == other.metadata &&
-  slideCount == other.slideCount &&
-  imageCount == other.imageCount &&
-  tableCount == other.tableCount &&
-  images == other.images &&
-  pageStructure == other.pageStructure &&
-  pageContents == other.pageContents &&
-  document == other.document &&
-  officeMetadata == other.officeMetadata &&
-  revisions == other.revisions;
+      identical(this, other) ||
+      other is PptxExtractionResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          metadata == other.metadata &&
+          slideCount == other.slideCount &&
+          imageCount == other.imageCount &&
+          tableCount == other.tableCount &&
+          images == other.images &&
+          pageStructure == other.pageStructure &&
+          pageContents == other.pageContents &&
+          document == other.document &&
+          officeMetadata == other.officeMetadata &&
+          revisions == other.revisions;
 }
 
 /// PowerPoint presentation metadata.
@@ -12882,20 +13668,20 @@ class PptxMetadata {
 
   @override
   int get hashCode =>
-  slideCount.hashCode ^
-  slideNames.hashCode ^
-  imageCount.hashCode ^
-  tableCount.hashCode;
+      slideCount.hashCode ^
+      slideNames.hashCode ^
+      imageCount.hashCode ^
+      tableCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PptxMetadata &&
-  runtimeType == other.runtimeType &&
-  slideCount == other.slideCount &&
-  slideNames == other.slideNames &&
-  imageCount == other.imageCount &&
-  tableCount == other.tableCount;
+      identical(this, other) ||
+      other is PptxMetadata &&
+          runtimeType == other.runtimeType &&
+          slideCount == other.slideCount &&
+          slideNames == other.slideNames &&
+          imageCount == other.imageCount &&
+          tableCount == other.tableCount;
 }
 
 /// HTML preprocessing options for document cleanup before conversion.
@@ -12921,20 +13707,20 @@ class PreprocessingOptions {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^
-  preset.hashCode ^
-  removeNavigation.hashCode ^
-  removeForms.hashCode;
+      enabled.hashCode ^
+      preset.hashCode ^
+      removeNavigation.hashCode ^
+      removeForms.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PreprocessingOptions &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  preset == other.preset &&
-  removeNavigation == other.removeNavigation &&
-  removeForms == other.removeForms;
+      identical(this, other) ||
+      other is PreprocessingOptions &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          preset == other.preset &&
+          removeNavigation == other.removeNavigation &&
+          removeForms == other.removeForms;
 }
 
 /// HTML preprocessing aggressiveness level.
@@ -13025,40 +13811,40 @@ class Preset {
 
   @override
   int get hashCode =>
-  id.hashCode ^
-  version.hashCode ^
-  schemaName.hashCode ^
-  description.hashCode ^
-  category.hashCode ^
-  tags.hashCode ^
-  schema.hashCode ^
-  systemPrompt.hashCode ^
-  contextTemplate.hashCode ^
-  mergeMode.hashCode ^
-  preferredCallMode.hashCode ^
-  emitCitations.hashCode ^
-  sample.hashCode ^
-  fingerprint.hashCode;
+      id.hashCode ^
+      version.hashCode ^
+      schemaName.hashCode ^
+      description.hashCode ^
+      category.hashCode ^
+      tags.hashCode ^
+      schema.hashCode ^
+      systemPrompt.hashCode ^
+      contextTemplate.hashCode ^
+      mergeMode.hashCode ^
+      preferredCallMode.hashCode ^
+      emitCitations.hashCode ^
+      sample.hashCode ^
+      fingerprint.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Preset &&
-  runtimeType == other.runtimeType &&
-  id == other.id &&
-  version == other.version &&
-  schemaName == other.schemaName &&
-  description == other.description &&
-  category == other.category &&
-  tags == other.tags &&
-  schema == other.schema &&
-  systemPrompt == other.systemPrompt &&
-  contextTemplate == other.contextTemplate &&
-  mergeMode == other.mergeMode &&
-  preferredCallMode == other.preferredCallMode &&
-  emitCitations == other.emitCitations &&
-  sample == other.sample &&
-  fingerprint == other.fingerprint;
+      identical(this, other) ||
+      other is Preset &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          version == other.version &&
+          schemaName == other.schemaName &&
+          description == other.description &&
+          category == other.category &&
+          tags == other.tags &&
+          schema == other.schema &&
+          systemPrompt == other.systemPrompt &&
+          contextTemplate == other.contextTemplate &&
+          mergeMode == other.mergeMode &&
+          preferredCallMode == other.preferredCallMode &&
+          emitCitations == other.emitCitations &&
+          sample == other.sample &&
+          fingerprint == other.fingerprint;
 }
 
 /// High-level category used to group presets in the registry UI.
@@ -13100,11 +13886,11 @@ class PresetSample {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PresetSample &&
-  runtimeType == other.runtimeType &&
-  inputPath == other.inputPath &&
-  outputPath == other.outputPath;
+      identical(this, other) ||
+      other is PresetSample &&
+          runtimeType == other.runtimeType &&
+          inputPath == other.inputPath &&
+          outputPath == other.outputPath;
 }
 
 /// Lightweight projection of [`Preset`] used by the registry list endpoint
@@ -13151,30 +13937,30 @@ class PresetSummary {
 
   @override
   int get hashCode =>
-  id.hashCode ^
-  version.hashCode ^
-  schemaName.hashCode ^
-  description.hashCode ^
-  category.hashCode ^
-  tags.hashCode ^
-  preferredCallMode.hashCode ^
-  emitCitations.hashCode ^
-  fingerprint.hashCode;
+      id.hashCode ^
+      version.hashCode ^
+      schemaName.hashCode ^
+      description.hashCode ^
+      category.hashCode ^
+      tags.hashCode ^
+      preferredCallMode.hashCode ^
+      emitCitations.hashCode ^
+      fingerprint.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PresetSummary &&
-  runtimeType == other.runtimeType &&
-  id == other.id &&
-  version == other.version &&
-  schemaName == other.schemaName &&
-  description == other.description &&
-  category == other.category &&
-  tags == other.tags &&
-  preferredCallMode == other.preferredCallMode &&
-  emitCitations == other.emitCitations &&
-  fingerprint == other.fingerprint;
+      identical(this, other) ||
+      other is PresetSummary &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          version == other.version &&
+          schemaName == other.schemaName &&
+          description == other.description &&
+          category == other.category &&
+          tags == other.tags &&
+          preferredCallMode == other.preferredCallMode &&
+          emitCitations == other.emitCitations &&
+          fingerprint == other.fingerprint;
 }
 
 /// Outcome of a single doctor check.
@@ -13246,11 +14032,11 @@ class ProcessingWarning {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ProcessingWarning &&
-  runtimeType == other.runtimeType &&
-  source == other.source &&
-  message == other.message;
+      identical(this, other) ||
+      other is ProcessingWarning &&
+          runtimeType == other.runtimeType &&
+          source == other.source &&
+          message == other.message;
 }
 
 /// A single run-level or style-level property change.
@@ -13276,12 +14062,12 @@ class PropertyChange {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PropertyChange &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  from == other.from &&
-  to == other.to;
+      identical(this, other) ||
+      other is PropertyChange &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          from == other.from &&
+          to == other.to;
 }
 
 /// Proxy configuration for HTTP requests.
@@ -13302,12 +14088,12 @@ class ProxyConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ProxyConfig &&
-  runtimeType == other.runtimeType &&
-  url == other.url &&
-  username == other.username &&
-  password == other.password;
+      identical(this, other) ||
+      other is ProxyConfig &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          username == other.username &&
+          password == other.password;
 }
 
 /// Page Segmentation Mode for Tesseract OCR.
@@ -13358,10 +14144,10 @@ class PstMetadata {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is PstMetadata &&
-  runtimeType == other.runtimeType &&
-  messageCount == other.messageCount;
+      identical(this, other) ||
+      other is PstMetadata &&
+          runtimeType == other.runtimeType &&
+          messageCount == other.messageCount;
 }
 
 /// Pixel-space bounding box of a QR code inside its source image.
@@ -13387,17 +14173,17 @@ class QrBoundingBox {
 
   @override
   int get hashCode =>
-  x.hashCode ^ y.hashCode ^ width.hashCode ^ height.hashCode;
+      x.hashCode ^ y.hashCode ^ width.hashCode ^ height.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is QrBoundingBox &&
-  runtimeType == other.runtimeType &&
-  x == other.x &&
-  y == other.y &&
-  width == other.width &&
-  height == other.height;
+      identical(this, other) ||
+      other is QrBoundingBox &&
+          runtimeType == other.runtimeType &&
+          x == other.x &&
+          y == other.y &&
+          width == other.width &&
+          height == other.height;
 }
 
 /// One QR code decoded from an extracted image.
@@ -13422,12 +14208,12 @@ class QrCode {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is QrCode &&
-  runtimeType == other.runtimeType &&
-  payload == other.payload &&
-  confidence == other.confidence &&
-  bbox == other.bbox;
+      identical(this, other) ||
+      other is QrCode &&
+          runtimeType == other.runtimeType &&
+          payload == other.payload &&
+          confidence == other.confidence &&
+          bbox == other.bbox;
 }
 
 /// RAKE-specific parameters.
@@ -13448,11 +14234,11 @@ class RakeParams {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RakeParams &&
-  runtimeType == other.runtimeType &&
-  minWordLength == other.minWordLength &&
-  maxWordsPerPhrase == other.maxWordsPerPhrase;
+      identical(this, other) ||
+      other is RakeParams &&
+          runtimeType == other.runtimeType &&
+          minWordLength == other.minWordLength &&
+          maxWordsPerPhrase == other.maxWordsPerPhrase;
 }
 
 /// Pre-computed table markdown for a table detection region.
@@ -13479,16 +14265,16 @@ class RecognizedTable {
 
   @override
   int get hashCode =>
-  detectionBbox.hashCode ^ cells.hashCode ^ markdown.hashCode;
+      detectionBbox.hashCode ^ cells.hashCode ^ markdown.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RecognizedTable &&
-  runtimeType == other.runtimeType &&
-  detectionBbox == other.detectionBbox &&
-  cells == other.cells &&
-  markdown == other.markdown;
+      identical(this, other) ||
+      other is RecognizedTable &&
+          runtimeType == other.runtimeType &&
+          detectionBbox == other.detectionBbox &&
+          cells == other.cells &&
+          markdown == other.markdown;
 }
 
 /// Configuration for the redaction post-processor.
@@ -13538,24 +14324,24 @@ class RedactionConfig {
 
   @override
   int get hashCode =>
-  categories.hashCode ^
-  strategy.hashCode ^
-  ner.hashCode ^
-  preserveOffsets.hashCode ^
-  customTerms.hashCode ^
-  customPatterns.hashCode;
+      categories.hashCode ^
+      strategy.hashCode ^
+      ner.hashCode ^
+      preserveOffsets.hashCode ^
+      customTerms.hashCode ^
+      customPatterns.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RedactionConfig &&
-  runtimeType == other.runtimeType &&
-  categories == other.categories &&
-  strategy == other.strategy &&
-  ner == other.ner &&
-  preserveOffsets == other.preserveOffsets &&
-  customTerms == other.customTerms &&
-  customPatterns == other.customPatterns;
+      identical(this, other) ||
+      other is RedactionConfig &&
+          runtimeType == other.runtimeType &&
+          categories == other.categories &&
+          strategy == other.strategy &&
+          ner == other.ner &&
+          preserveOffsets == other.preserveOffsets &&
+          customTerms == other.customTerms &&
+          customPatterns == other.customPatterns;
 }
 
 /// One redaction event: which span was rewritten, why, and with what.
@@ -13586,22 +14372,22 @@ class RedactionFinding {
 
   @override
   int get hashCode =>
-  start.hashCode ^
-  end.hashCode ^
-  category.hashCode ^
-  strategy.hashCode ^
-  replacementToken.hashCode;
+      start.hashCode ^
+      end.hashCode ^
+      category.hashCode ^
+      strategy.hashCode ^
+      replacementToken.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RedactionFinding &&
-  runtimeType == other.runtimeType &&
-  start == other.start &&
-  end == other.end &&
-  category == other.category &&
-  strategy == other.strategy &&
-  replacementToken == other.replacementToken;
+      identical(this, other) ||
+      other is RedactionFinding &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end &&
+          category == other.category &&
+          strategy == other.strategy &&
+          replacementToken == other.replacementToken;
 }
 
 /// One user-supplied regex pattern to redact.
@@ -13627,16 +14413,16 @@ class RedactionPattern {
 
   @override
   int get hashCode =>
-  label.hashCode ^ pattern.hashCode ^ caseSensitive.hashCode;
+      label.hashCode ^ pattern.hashCode ^ caseSensitive.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RedactionPattern &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  pattern == other.pattern &&
-  caseSensitive == other.caseSensitive;
+      identical(this, other) ||
+      other is RedactionPattern &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          pattern == other.pattern &&
+          caseSensitive == other.caseSensitive;
 }
 
 /// Audit report describing what the redaction processor found and how it replaced it.
@@ -13659,11 +14445,11 @@ class RedactionReport {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RedactionReport &&
-  runtimeType == other.runtimeType &&
-  findings == other.findings &&
-  totalRedacted == other.totalRedacted;
+      identical(this, other) ||
+      other is RedactionReport &&
+          runtimeType == other.runtimeType &&
+          findings == other.findings &&
+          totalRedacted == other.totalRedacted;
 }
 
 /// Strategy applied when a PII match is rewritten.
@@ -13709,12 +14495,12 @@ class RedactionTerm {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RedactionTerm &&
-  runtimeType == other.runtimeType &&
-  label == other.label &&
-  value == other.value &&
-  caseSensitive == other.caseSensitive;
+      identical(this, other) ||
+      other is RedactionTerm &&
+          runtimeType == other.runtimeType &&
+          label == other.label &&
+          value == other.value &&
+          caseSensitive == other.caseSensitive;
 }
 
 /// Intensity level for the token-reduction pipeline.
@@ -13819,12 +14605,12 @@ class RerankedDocument {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RerankedDocument &&
-  runtimeType == other.runtimeType &&
-  index == other.index &&
-  score == other.score &&
-  document == other.document;
+      identical(this, other) ||
+      other is RerankedDocument &&
+          runtimeType == other.runtimeType &&
+          index == other.index &&
+          score == other.score &&
+          document == other.document;
 }
 
 /// Configuration for the reranking pipeline.
@@ -13846,6 +14632,11 @@ class RerankerConfig {
   final PlatformInt64 batchSize;
 
   /// Show model download progress (local ONNX path only).
+  ///
+  /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+  /// `info` level on the `xberg::model_download` target while they download (#279). A warm
+  /// Hugging Face cache transfers nothing and so reports nothing. Ignored by
+  /// [`RerankerModelType::Llm`] and [`RerankerModelType::Plugin`], which download no model.
   final bool showDownloadProgress;
 
   /// Optional alternate Hugging Face cache root for model files.
@@ -13884,26 +14675,26 @@ class RerankerConfig {
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  topK.hashCode ^
-  batchSize.hashCode ^
-  showDownloadProgress.hashCode ^
-  cacheDir.hashCode ^
-  acceleration.hashCode ^
-  maxRerankDurationSecs.hashCode;
+      model.hashCode ^
+      topK.hashCode ^
+      batchSize.hashCode ^
+      showDownloadProgress.hashCode ^
+      cacheDir.hashCode ^
+      acceleration.hashCode ^
+      maxRerankDurationSecs.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RerankerConfig &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  topK == other.topK &&
-  batchSize == other.batchSize &&
-  showDownloadProgress == other.showDownloadProgress &&
-  cacheDir == other.cacheDir &&
-  acceleration == other.acceleration &&
-  maxRerankDurationSecs == other.maxRerankDurationSecs;
+      identical(this, other) ||
+      other is RerankerConfig &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          topK == other.topK &&
+          batchSize == other.batchSize &&
+          showDownloadProgress == other.showDownloadProgress &&
+          cacheDir == other.cacheDir &&
+          acceleration == other.acceleration &&
+          maxRerankDurationSecs == other.maxRerankDurationSecs;
 }
 
 /// Selects how a local ONNX reranker's raw output tensor is turned into a score.
@@ -13975,6 +14766,9 @@ sealed class RerankerModelType with _$RerankerModelType {
   /// (e.g. `"cohere/rerank-english-v3.0"`).
   const factory RerankerModelType.llm({
     /// LLM provider configuration specifying the model and API credentials.
+    ///
+    /// Boxed for the same reason as `EmbeddingModelType::Llm` -- kept in step so the two
+    /// parallel enums present one shape to the generated bindings. ~keep
     required LlmConfig llm,
   }) = RerankerModelType_Llm;
 
@@ -13987,7 +14781,8 @@ sealed class RerankerModelType with _$RerankerModelType {
   ///
   /// When this variant is selected, only `max_rerank_duration_secs` applies.
   /// Model-loading fields (`batch_size`, `cache_dir`, `show_download_progress`,
-  /// `acceleration`) are ignored — the host owns the model lifecycle.
+  /// `acceleration`) are ignored — the host owns the model lifecycle, so there is
+  /// no download to report progress for.
   ///
   /// See `register_reranker_backend`.
   const factory RerankerModelType.plugin({
@@ -14046,30 +14841,30 @@ class ResolvedPreset {
 
   @override
   int get hashCode =>
-  id.hashCode ^
-  version.hashCode ^
-  fingerprint.hashCode ^
-  schemaName.hashCode ^
-  schema.hashCode ^
-  systemPrompt.hashCode ^
-  mergeMode.hashCode ^
-  preferredCallMode.hashCode ^
-  emitCitations.hashCode;
+      id.hashCode ^
+      version.hashCode ^
+      fingerprint.hashCode ^
+      schemaName.hashCode ^
+      schema.hashCode ^
+      systemPrompt.hashCode ^
+      mergeMode.hashCode ^
+      preferredCallMode.hashCode ^
+      emitCitations.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ResolvedPreset &&
-  runtimeType == other.runtimeType &&
-  id == other.id &&
-  version == other.version &&
-  fingerprint == other.fingerprint &&
-  schemaName == other.schemaName &&
-  schema == other.schema &&
-  systemPrompt == other.systemPrompt &&
-  mergeMode == other.mergeMode &&
-  preferredCallMode == other.preferredCallMode &&
-  emitCitations == other.emitCitations;
+      identical(this, other) ||
+      other is ResolvedPreset &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          version == other.version &&
+          fingerprint == other.fingerprint &&
+          schemaName == other.schemaName &&
+          schema == other.schema &&
+          systemPrompt == other.systemPrompt &&
+          mergeMode == other.mergeMode &&
+          preferredCallMode == other.preferredCallMode &&
+          emitCitations == other.emitCitations;
 }
 
 /// Result-shape selection for extraction results.
@@ -14153,16 +14948,16 @@ class RevisionDelta {
 
   @override
   int get hashCode =>
-  content.hashCode ^ tableChanges.hashCode ^ propertyChanges.hashCode;
+      content.hashCode ^ tableChanges.hashCode ^ propertyChanges.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is RevisionDelta &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  tableChanges == other.tableChanges &&
-  propertyChanges == other.propertyChanges;
+      identical(this, other) ||
+      other is RevisionDelta &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          tableChanges == other.tableChanges &&
+          propertyChanges == other.propertyChanges;
 }
 
 /// Semantic classification of a tracked change.
@@ -14245,30 +15040,30 @@ class SecurityLimits {
 
   @override
   int get hashCode =>
-  maxArchiveSize.hashCode ^
-  maxCompressionRatio.hashCode ^
-  maxFilesInArchive.hashCode ^
-  maxNestingDepth.hashCode ^
-  maxEntityLength.hashCode ^
-  maxContentSize.hashCode ^
-  maxIterations.hashCode ^
-  maxXmlDepth.hashCode ^
-  maxTableCells.hashCode;
+      maxArchiveSize.hashCode ^
+      maxCompressionRatio.hashCode ^
+      maxFilesInArchive.hashCode ^
+      maxNestingDepth.hashCode ^
+      maxEntityLength.hashCode ^
+      maxContentSize.hashCode ^
+      maxIterations.hashCode ^
+      maxXmlDepth.hashCode ^
+      maxTableCells.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SecurityLimits &&
-  runtimeType == other.runtimeType &&
-  maxArchiveSize == other.maxArchiveSize &&
-  maxCompressionRatio == other.maxCompressionRatio &&
-  maxFilesInArchive == other.maxFilesInArchive &&
-  maxNestingDepth == other.maxNestingDepth &&
-  maxEntityLength == other.maxEntityLength &&
-  maxContentSize == other.maxContentSize &&
-  maxIterations == other.maxIterations &&
-  maxXmlDepth == other.maxXmlDepth &&
-  maxTableCells == other.maxTableCells;
+      identical(this, other) ||
+      other is SecurityLimits &&
+          runtimeType == other.runtimeType &&
+          maxArchiveSize == other.maxArchiveSize &&
+          maxCompressionRatio == other.maxCompressionRatio &&
+          maxFilesInArchive == other.maxFilesInArchive &&
+          maxNestingDepth == other.maxNestingDepth &&
+          maxEntityLength == other.maxEntityLength &&
+          maxContentSize == other.maxContentSize &&
+          maxIterations == other.maxIterations &&
+          maxXmlDepth == other.maxXmlDepth &&
+          maxTableCells == other.maxTableCells;
 }
 
 /// API server configuration.
@@ -14313,22 +15108,22 @@ class ServerConfig {
 
   @override
   int get hashCode =>
-  host.hashCode ^
-  port.hashCode ^
-  corsOrigins.hashCode ^
-  maxRequestBodyBytes.hashCode ^
-  maxMultipartFieldBytes.hashCode;
+      host.hashCode ^
+      port.hashCode ^
+      corsOrigins.hashCode ^
+      maxRequestBodyBytes.hashCode ^
+      maxMultipartFieldBytes.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is ServerConfig &&
-  runtimeType == other.runtimeType &&
-  host == other.host &&
-  port == other.port &&
-  corsOrigins == other.corsOrigins &&
-  maxRequestBodyBytes == other.maxRequestBodyBytes &&
-  maxMultipartFieldBytes == other.maxMultipartFieldBytes;
+      identical(this, other) ||
+      other is ServerConfig &&
+          runtimeType == other.runtimeType &&
+          host == other.host &&
+          port == other.port &&
+          corsOrigins == other.corsOrigins &&
+          maxRequestBodyBytes == other.maxRequestBodyBytes &&
+          maxMultipartFieldBytes == other.maxMultipartFieldBytes;
 }
 
 /// A URL entry from a sitemap.
@@ -14354,17 +15149,17 @@ class SitemapUrl {
 
   @override
   int get hashCode =>
-  url.hashCode ^ lastmod.hashCode ^ changefreq.hashCode ^ priority.hashCode;
+      url.hashCode ^ lastmod.hashCode ^ changefreq.hashCode ^ priority.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SitemapUrl &&
-  runtimeType == other.runtimeType &&
-  url == other.url &&
-  lastmod == other.lastmod &&
-  changefreq == other.changefreq &&
-  priority == other.priority;
+      identical(this, other) ||
+      other is SitemapUrl &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          lastmod == other.lastmod &&
+          changefreq == other.changefreq &&
+          priority == other.priority;
 }
 
 /// A sparse learned embedding: vocabulary term indices and their weights.
@@ -14388,11 +15183,11 @@ class SparseEmbedding {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SparseEmbedding &&
-  runtimeType == other.runtimeType &&
-  indices == other.indices &&
-  values == other.values;
+      identical(this, other) ||
+      other is SparseEmbedding &&
+          runtimeType == other.runtimeType &&
+          indices == other.indices &&
+          values == other.values;
 }
 
 /// Configuration for the sparse-embedding pipeline.
@@ -14415,6 +15210,11 @@ class SparseEmbeddingConfig {
   final PlatformInt64 maxLength;
 
   /// Show model download progress (local ONNX path only).
+  ///
+  /// When enabled, transfer progress for the model, tokenizer and config files is reported at
+  /// `info` level on the `xberg::model_download` target while they download (#279). A warm
+  /// Hugging Face cache transfers nothing and so reports nothing. Ignored by
+  /// [`SparseEmbeddingModelType::Plugin`], which downloads no model.
   final bool showDownloadProgress;
 
   /// Optional alternate Hugging Face cache root for model files.
@@ -14442,26 +15242,26 @@ class SparseEmbeddingConfig {
 
   @override
   int get hashCode =>
-  model.hashCode ^
-  batchSize.hashCode ^
-  maxLength.hashCode ^
-  showDownloadProgress.hashCode ^
-  cacheDir.hashCode ^
-  acceleration.hashCode ^
-  maxEmbedDurationSecs.hashCode;
+      model.hashCode ^
+      batchSize.hashCode ^
+      maxLength.hashCode ^
+      showDownloadProgress.hashCode ^
+      cacheDir.hashCode ^
+      acceleration.hashCode ^
+      maxEmbedDurationSecs.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SparseEmbeddingConfig &&
-  runtimeType == other.runtimeType &&
-  model == other.model &&
-  batchSize == other.batchSize &&
-  maxLength == other.maxLength &&
-  showDownloadProgress == other.showDownloadProgress &&
-  cacheDir == other.cacheDir &&
-  acceleration == other.acceleration &&
-  maxEmbedDurationSecs == other.maxEmbedDurationSecs;
+      identical(this, other) ||
+      other is SparseEmbeddingConfig &&
+          runtimeType == other.runtimeType &&
+          model == other.model &&
+          batchSize == other.batchSize &&
+          maxLength == other.maxLength &&
+          showDownloadProgress == other.showDownloadProgress &&
+          cacheDir == other.cacheDir &&
+          acceleration == other.acceleration &&
+          maxEmbedDurationSecs == other.maxEmbedDurationSecs;
 }
 
 @freezed
@@ -14530,24 +15330,24 @@ class SparseEmbeddingPreset {
 
   @override
   int get hashCode =>
-  name.hashCode ^
-  modelRepo.hashCode ^
-  modelFile.hashCode ^
-  additionalFiles.hashCode ^
-  maxLength.hashCode ^
-  description.hashCode;
+      name.hashCode ^
+      modelRepo.hashCode ^
+      modelFile.hashCode ^
+      additionalFiles.hashCode ^
+      maxLength.hashCode ^
+      description.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SparseEmbeddingPreset &&
-  runtimeType == other.runtimeType &&
-  name == other.name &&
-  modelRepo == other.modelRepo &&
-  modelFile == other.modelFile &&
-  additionalFiles == other.additionalFiles &&
-  maxLength == other.maxLength &&
-  description == other.description;
+      identical(this, other) ||
+      other is SparseEmbeddingPreset &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          modelRepo == other.modelRepo &&
+          modelFile == other.modelFile &&
+          additionalFiles == other.additionalFiles &&
+          maxLength == other.maxLength &&
+          description == other.description;
 }
 
 /// SSRF policy configuration.
@@ -14565,11 +15365,11 @@ class SsrfPolicy {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SsrfPolicy &&
-  runtimeType == other.runtimeType &&
-  denyPrivate == other.denyPrivate &&
-  maxRedirects == other.maxRedirects;
+      identical(this, other) ||
+      other is SsrfPolicy &&
+          runtimeType == other.runtimeType &&
+          denyPrivate == other.denyPrivate &&
+          maxRedirects == other.maxRedirects;
 }
 
 /// Structured data (Schema.org, microdata, RDFa) block.
@@ -14591,16 +15391,16 @@ class StructuredData {
 
   @override
   int get hashCode =>
-  dataType.hashCode ^ rawJson.hashCode ^ schemaType.hashCode;
+      dataType.hashCode ^ rawJson.hashCode ^ schemaType.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is StructuredData &&
-  runtimeType == other.runtimeType &&
-  dataType == other.dataType &&
-  rawJson == other.rawJson &&
-  schemaType == other.schemaType;
+      identical(this, other) ||
+      other is StructuredData &&
+          runtimeType == other.runtimeType &&
+          dataType == other.dataType &&
+          rawJson == other.rawJson &&
+          schemaType == other.schemaType;
 }
 
 /// Result of parsing a structured data file (JSON, JSONL, YAML, or TOML).
@@ -14617,29 +15417,48 @@ class StructuredDataResult {
   /// JSON paths of fields that were classified as text-bearing.
   final List<String> textFields;
 
+  /// The parsed document as a canonical `serde_json::Value` tree, when the
+  /// source format could be represented as one. `None` only for TOML inputs
+  /// whose `toml::Value` fails to round-trip through `serde_json::Value`
+  /// (xberg-io/xberg#155): the extractor falls back to a raw code block in
+  /// that case.
+  final String? value;
+
+  /// Flattened `path: value` renderings for every leaf field, in traversal
+  /// order. Previously computed and discarded (xberg-io/xberg#166); now
+  /// surfaced so callers get a full-text view even when the structured
+  /// renderer only emits headings/lists for a subset of fields.
+  final List<String> flattened;
+
   const StructuredDataResult({
     required this.content,
     required this.format,
     required this.metadata,
     required this.textFields,
+    this.value,
+    required this.flattened,
   });
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  format.hashCode ^
-  metadata.hashCode ^
-  textFields.hashCode;
+      content.hashCode ^
+      format.hashCode ^
+      metadata.hashCode ^
+      textFields.hashCode ^
+      value.hashCode ^
+      flattened.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is StructuredDataResult &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  format == other.format &&
-  metadata == other.metadata &&
-  textFields == other.textFields;
+      identical(this, other) ||
+      other is StructuredDataResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          format == other.format &&
+          metadata == other.metadata &&
+          textFields == other.textFields &&
+          value == other.value &&
+          flattened == other.flattened;
 }
 
 /// Structured data type classification.
@@ -14711,24 +15530,24 @@ class StructuredExtractionConfig {
 
   @override
   int get hashCode =>
-  schema.hashCode ^
-  schemaName.hashCode ^
-  schemaDescription.hashCode ^
-  strict.hashCode ^
-  prompt.hashCode ^
-  llm.hashCode;
+      schema.hashCode ^
+      schemaName.hashCode ^
+      schemaDescription.hashCode ^
+      strict.hashCode ^
+      prompt.hashCode ^
+      llm.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is StructuredExtractionConfig &&
-  runtimeType == other.runtimeType &&
-  schema == other.schema &&
-  schemaName == other.schemaName &&
-  schemaDescription == other.schemaDescription &&
-  strict == other.strict &&
-  prompt == other.prompt &&
-  llm == other.llm;
+      identical(this, other) ||
+      other is StructuredExtractionConfig &&
+          runtimeType == other.runtimeType &&
+          schema == other.schema &&
+          schemaName == other.schemaName &&
+          schemaDescription == other.schemaDescription &&
+          strict == other.strict &&
+          prompt == other.prompt &&
+          llm == other.llm;
 }
 
 /// Configuration for the summarisation post-processor.
@@ -14750,12 +15569,12 @@ class SummarizationConfig {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SummarizationConfig &&
-  runtimeType == other.runtimeType &&
-  strategy == other.strategy &&
-  maxTokens == other.maxTokens &&
-  llm == other.llm;
+      identical(this, other) ||
+      other is SummarizationConfig &&
+          runtimeType == other.runtimeType &&
+          strategy == other.strategy &&
+          maxTokens == other.maxTokens &&
+          llm == other.llm;
 }
 
 /// Summarisation strategy.
@@ -14787,11 +15606,11 @@ class SupportedFormat {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SupportedFormat &&
-  runtimeType == other.runtimeType &&
-  extension_ == other.extension_ &&
-  mimeType == other.mimeType;
+      identical(this, other) ||
+      other is SupportedFormat &&
+          runtimeType == other.runtimeType &&
+          extension_ == other.extension_ &&
+          mimeType == other.mimeType;
 }
 
 /// SVG-specific configuration for the image-encode pipeline.
@@ -14818,11 +15637,11 @@ class SvgOptions {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is SvgOptions &&
-  runtimeType == other.runtimeType &&
-  sanitize == other.sanitize &&
-  renderDpi == other.renderDpi;
+      identical(this, other) ||
+      other is SvgOptions &&
+          runtimeType == other.runtimeType &&
+          sanitize == other.sanitize &&
+          renderDpi == other.renderDpi;
 }
 
 /// Extracted table structure.
@@ -14882,24 +15701,24 @@ class Table {
 
   @override
   int get hashCode =>
-  cells.hashCode ^
-  markdown.hashCode ^
-  pageNumber.hashCode ^
-  boundingBox.hashCode ^
-  tableId.hashCode ^
-  columns.hashCode;
+      cells.hashCode ^
+      markdown.hashCode ^
+      pageNumber.hashCode ^
+      boundingBox.hashCode ^
+      tableId.hashCode ^
+      columns.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Table &&
-  runtimeType == other.runtimeType &&
-  cells == other.cells &&
-  markdown == other.markdown &&
-  pageNumber == other.pageNumber &&
-  boundingBox == other.boundingBox &&
-  tableId == other.tableId &&
-  columns == other.columns;
+      identical(this, other) ||
+      other is Table &&
+          runtimeType == other.runtimeType &&
+          cells == other.cells &&
+          markdown == other.markdown &&
+          pageNumber == other.pageNumber &&
+          boundingBox == other.boundingBox &&
+          tableId == other.tableId &&
+          columns == other.columns;
 }
 
 /// Individual table cell with content and optional styling.
@@ -14927,20 +15746,20 @@ class TableCell {
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  rowSpan.hashCode ^
-  colSpan.hashCode ^
-  isHeader.hashCode;
+      content.hashCode ^
+      rowSpan.hashCode ^
+      colSpan.hashCode ^
+      isHeader.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TableCell &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  rowSpan == other.rowSpan &&
-  colSpan == other.colSpan &&
-  isHeader == other.isHeader;
+      identical(this, other) ||
+      other is TableCell &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          rowSpan == other.rowSpan &&
+          colSpan == other.colSpan &&
+          isHeader == other.isHeader;
 }
 
 /// Controls how markdown tables are handled when they exceed the chunk size limit.
@@ -14983,16 +15802,16 @@ class TableDiff {
 
   @override
   int get hashCode =>
-  fromIndex.hashCode ^ toIndex.hashCode ^ cellChanges.hashCode;
+      fromIndex.hashCode ^ toIndex.hashCode ^ cellChanges.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TableDiff &&
-  runtimeType == other.runtimeType &&
-  fromIndex == other.fromIndex &&
-  toIndex == other.toIndex &&
-  cellChanges == other.cellChanges;
+      identical(this, other) ||
+      other is TableDiff &&
+          runtimeType == other.runtimeType &&
+          fromIndex == other.fromIndex &&
+          toIndex == other.toIndex &&
+          cellChanges == other.cellChanges;
 }
 
 /// Structured table grid with cell-level metadata.
@@ -15019,12 +15838,12 @@ class TableGrid {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TableGrid &&
-  runtimeType == other.runtimeType &&
-  rows == other.rows &&
-  cols == other.cols &&
-  cells == other.cells;
+      identical(this, other) ||
+      other is TableGrid &&
+          runtimeType == other.runtimeType &&
+          rows == other.rows &&
+          cols == other.cols &&
+          cells == other.cells;
 }
 
 /// Which table structure recognition model to use.
@@ -15186,56 +16005,56 @@ class TesseractConfig {
 
   @override
   int get hashCode =>
-  language.hashCode ^
-  psm.hashCode ^
-  outputFormat.hashCode ^
-  oem.hashCode ^
-  minConfidence.hashCode ^
-  preprocessing.hashCode ^
-  enableTableDetection.hashCode ^
-  tableMinConfidence.hashCode ^
-  tableColumnThreshold.hashCode ^
-  tableRowThresholdRatio.hashCode ^
-  useCache.hashCode ^
-  classifyUsePreAdaptedTemplates.hashCode ^
-  languageModelNgramOn.hashCode ^
-  tesseditDontBlkrejGoodWds.hashCode ^
-  tesseditDontRowrejGoodWds.hashCode ^
-  tesseditEnableDictCorrection.hashCode ^
-  tesseditCharWhitelist.hashCode ^
-  tesseditCharBlacklist.hashCode ^
-  tesseditUsePrimaryParamsModel.hashCode ^
-  textordSpaceSizeIsVariable.hashCode ^
-  thresholdingMethod.hashCode;
+      language.hashCode ^
+      psm.hashCode ^
+      outputFormat.hashCode ^
+      oem.hashCode ^
+      minConfidence.hashCode ^
+      preprocessing.hashCode ^
+      enableTableDetection.hashCode ^
+      tableMinConfidence.hashCode ^
+      tableColumnThreshold.hashCode ^
+      tableRowThresholdRatio.hashCode ^
+      useCache.hashCode ^
+      classifyUsePreAdaptedTemplates.hashCode ^
+      languageModelNgramOn.hashCode ^
+      tesseditDontBlkrejGoodWds.hashCode ^
+      tesseditDontRowrejGoodWds.hashCode ^
+      tesseditEnableDictCorrection.hashCode ^
+      tesseditCharWhitelist.hashCode ^
+      tesseditCharBlacklist.hashCode ^
+      tesseditUsePrimaryParamsModel.hashCode ^
+      textordSpaceSizeIsVariable.hashCode ^
+      thresholdingMethod.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TesseractConfig &&
-  runtimeType == other.runtimeType &&
-  language == other.language &&
-  psm == other.psm &&
-  outputFormat == other.outputFormat &&
-  oem == other.oem &&
-  minConfidence == other.minConfidence &&
-  preprocessing == other.preprocessing &&
-  enableTableDetection == other.enableTableDetection &&
-  tableMinConfidence == other.tableMinConfidence &&
-  tableColumnThreshold == other.tableColumnThreshold &&
-  tableRowThresholdRatio == other.tableRowThresholdRatio &&
-  useCache == other.useCache &&
-  classifyUsePreAdaptedTemplates ==
-  other.classifyUsePreAdaptedTemplates &&
-  languageModelNgramOn == other.languageModelNgramOn &&
-  tesseditDontBlkrejGoodWds == other.tesseditDontBlkrejGoodWds &&
-  tesseditDontRowrejGoodWds == other.tesseditDontRowrejGoodWds &&
-  tesseditEnableDictCorrection == other.tesseditEnableDictCorrection &&
-  tesseditCharWhitelist == other.tesseditCharWhitelist &&
-  tesseditCharBlacklist == other.tesseditCharBlacklist &&
-  tesseditUsePrimaryParamsModel ==
-  other.tesseditUsePrimaryParamsModel &&
-  textordSpaceSizeIsVariable == other.textordSpaceSizeIsVariable &&
-  thresholdingMethod == other.thresholdingMethod;
+      identical(this, other) ||
+      other is TesseractConfig &&
+          runtimeType == other.runtimeType &&
+          language == other.language &&
+          psm == other.psm &&
+          outputFormat == other.outputFormat &&
+          oem == other.oem &&
+          minConfidence == other.minConfidence &&
+          preprocessing == other.preprocessing &&
+          enableTableDetection == other.enableTableDetection &&
+          tableMinConfidence == other.tableMinConfidence &&
+          tableColumnThreshold == other.tableColumnThreshold &&
+          tableRowThresholdRatio == other.tableRowThresholdRatio &&
+          useCache == other.useCache &&
+          classifyUsePreAdaptedTemplates ==
+              other.classifyUsePreAdaptedTemplates &&
+          languageModelNgramOn == other.languageModelNgramOn &&
+          tesseditDontBlkrejGoodWds == other.tesseditDontBlkrejGoodWds &&
+          tesseditDontRowrejGoodWds == other.tesseditDontRowrejGoodWds &&
+          tesseditEnableDictCorrection == other.tesseditEnableDictCorrection &&
+          tesseditCharWhitelist == other.tesseditCharWhitelist &&
+          tesseditCharBlacklist == other.tesseditCharBlacklist &&
+          tesseditUsePrimaryParamsModel ==
+              other.tesseditUsePrimaryParamsModel &&
+          textordSpaceSizeIsVariable == other.textordSpaceSizeIsVariable &&
+          thresholdingMethod == other.thresholdingMethod;
 }
 
 /// Inline text annotation — byte-range based formatting and links.
@@ -15263,12 +16082,12 @@ class TextAnnotation {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TextAnnotation &&
-  runtimeType == other.runtimeType &&
-  start == other.start &&
-  end == other.end &&
-  kind == other.kind;
+      identical(this, other) ||
+      other is TextAnnotation &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end &&
+          kind == other.kind;
 }
 
 /// Text direction enumeration for HTML documents.
@@ -15313,22 +16132,22 @@ class TextExtractionResult {
 
   @override
   int get hashCode =>
-  content.hashCode ^
-  lineCount.hashCode ^
-  wordCount.hashCode ^
-  characterCount.hashCode ^
-  headers.hashCode;
+      content.hashCode ^
+      lineCount.hashCode ^
+      wordCount.hashCode ^
+      characterCount.hashCode ^
+      headers.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TextExtractionResult &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  lineCount == other.lineCount &&
-  wordCount == other.wordCount &&
-  characterCount == other.characterCount &&
-  headers == other.headers;
+      identical(this, other) ||
+      other is TextExtractionResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          lineCount == other.lineCount &&
+          wordCount == other.wordCount &&
+          characterCount == other.characterCount &&
+          headers == other.headers;
 }
 
 /// Text/Markdown metadata.
@@ -15357,20 +16176,20 @@ class TextMetadata {
 
   @override
   int get hashCode =>
-  lineCount.hashCode ^
-  wordCount.hashCode ^
-  characterCount.hashCode ^
-  headers.hashCode;
+      lineCount.hashCode ^
+      wordCount.hashCode ^
+      characterCount.hashCode ^
+      headers.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TextMetadata &&
-  runtimeType == other.runtimeType &&
-  lineCount == other.lineCount &&
-  wordCount == other.wordCount &&
-  characterCount == other.characterCount &&
-  headers == other.headers;
+      identical(this, other) ||
+      other is TextMetadata &&
+          runtimeType == other.runtimeType &&
+          lineCount == other.lineCount &&
+          wordCount == other.wordCount &&
+          characterCount == other.characterCount &&
+          headers == other.headers;
 }
 
 /// Configuration for the token-reduction pipeline.
@@ -15408,6 +16227,16 @@ class TokenReductionConfig {
   /// Group semantically similar sentences and emit only one per cluster.
   final bool enableSemanticClustering;
 
+  /// Skip removal of words with "important" characteristics (all-caps
+  /// acronyms, words containing digits, mixed-case identifiers, very long
+  /// words) during the `Aggressive`/`Maximum` common-word removal pass.
+  ///
+  /// `true` (the default) protects those words even when they would
+  /// otherwise be dropped as low-value filler; `false` lets the frequency/
+  /// length heuristics apply uniformly to every word, including ones that
+  /// look like acronyms or technical terms (#269).
+  final bool preserveImportantWords;
+
   const TokenReductionConfig({
     required this.level,
     this.languageHint,
@@ -15420,38 +16249,41 @@ class TokenReductionConfig {
     required this.preservePatterns,
     this.targetReduction,
     required this.enableSemanticClustering,
+    required this.preserveImportantWords,
   });
 
   @override
   int get hashCode =>
-  level.hashCode ^
-  languageHint.hashCode ^
-  preserveMarkdown.hashCode ^
-  preserveCode.hashCode ^
-  semanticThreshold.hashCode ^
-  enableParallel.hashCode ^
-  useSimd.hashCode ^
-  customStopwords.hashCode ^
-  preservePatterns.hashCode ^
-  targetReduction.hashCode ^
-  enableSemanticClustering.hashCode;
+      level.hashCode ^
+      languageHint.hashCode ^
+      preserveMarkdown.hashCode ^
+      preserveCode.hashCode ^
+      semanticThreshold.hashCode ^
+      enableParallel.hashCode ^
+      useSimd.hashCode ^
+      customStopwords.hashCode ^
+      preservePatterns.hashCode ^
+      targetReduction.hashCode ^
+      enableSemanticClustering.hashCode ^
+      preserveImportantWords.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TokenReductionConfig &&
-  runtimeType == other.runtimeType &&
-  level == other.level &&
-  languageHint == other.languageHint &&
-  preserveMarkdown == other.preserveMarkdown &&
-  preserveCode == other.preserveCode &&
-  semanticThreshold == other.semanticThreshold &&
-  enableParallel == other.enableParallel &&
-  useSimd == other.useSimd &&
-  customStopwords == other.customStopwords &&
-  preservePatterns == other.preservePatterns &&
-  targetReduction == other.targetReduction &&
-  enableSemanticClustering == other.enableSemanticClustering;
+      identical(this, other) ||
+      other is TokenReductionConfig &&
+          runtimeType == other.runtimeType &&
+          level == other.level &&
+          languageHint == other.languageHint &&
+          preserveMarkdown == other.preserveMarkdown &&
+          preserveCode == other.preserveCode &&
+          semanticThreshold == other.semanticThreshold &&
+          enableParallel == other.enableParallel &&
+          useSimd == other.useSimd &&
+          customStopwords == other.customStopwords &&
+          preservePatterns == other.preservePatterns &&
+          targetReduction == other.targetReduction &&
+          enableSemanticClustering == other.enableSemanticClustering &&
+          preserveImportantWords == other.preserveImportantWords;
 }
 
 /// Token reduction configuration.
@@ -15472,11 +16304,11 @@ class TokenReductionOptions {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TokenReductionOptions &&
-  runtimeType == other.runtimeType &&
-  mode == other.mode &&
-  preserveImportantWords == other.preserveImportantWords;
+      identical(this, other) ||
+      other is TokenReductionOptions &&
+          runtimeType == other.runtimeType &&
+          mode == other.mode &&
+          preserveImportantWords == other.preserveImportantWords;
 }
 
 /// Configuration for audio/video transcription (speech-to-text).
@@ -15573,32 +16405,32 @@ class TranscriptionConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^
-  model.hashCode ^
-  language.hashCode ^
-  timestamps.hashCode ^
-  maxDurationMs.hashCode ^
-  maxBytes.hashCode ^
-  timeoutMs.hashCode ^
-  modelCacheDir.hashCode ^
-  allowNetwork.hashCode ^
-  verifyHash.hashCode;
+      enabled.hashCode ^
+      model.hashCode ^
+      language.hashCode ^
+      timestamps.hashCode ^
+      maxDurationMs.hashCode ^
+      maxBytes.hashCode ^
+      timeoutMs.hashCode ^
+      modelCacheDir.hashCode ^
+      allowNetwork.hashCode ^
+      verifyHash.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TranscriptionConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  model == other.model &&
-  language == other.language &&
-  timestamps == other.timestamps &&
-  maxDurationMs == other.maxDurationMs &&
-  maxBytes == other.maxBytes &&
-  timeoutMs == other.timeoutMs &&
-  modelCacheDir == other.modelCacheDir &&
-  allowNetwork == other.allowNetwork &&
-  verifyHash == other.verifyHash;
+      identical(this, other) ||
+      other is TranscriptionConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          model == other.model &&
+          language == other.language &&
+          timestamps == other.timestamps &&
+          maxDurationMs == other.maxDurationMs &&
+          maxBytes == other.maxBytes &&
+          timeoutMs == other.timeoutMs &&
+          modelCacheDir == other.modelCacheDir &&
+          allowNetwork == other.allowNetwork &&
+          verifyHash == other.verifyHash;
 }
 
 /// Translation of the extracted content.
@@ -15630,20 +16462,20 @@ class Translation {
 
   @override
   int get hashCode =>
-  targetLang.hashCode ^
-  sourceLang.hashCode ^
-  content.hashCode ^
-  formattedContent.hashCode;
+      targetLang.hashCode ^
+      sourceLang.hashCode ^
+      content.hashCode ^
+      formattedContent.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is Translation &&
-  runtimeType == other.runtimeType &&
-  targetLang == other.targetLang &&
-  sourceLang == other.sourceLang &&
-  content == other.content &&
-  formattedContent == other.formattedContent;
+      identical(this, other) ||
+      other is Translation &&
+          runtimeType == other.runtimeType &&
+          targetLang == other.targetLang &&
+          sourceLang == other.sourceLang &&
+          content == other.content &&
+          formattedContent == other.formattedContent;
 }
 
 /// Configuration for the translation post-processor.
@@ -15670,20 +16502,20 @@ class TranslationConfig {
 
   @override
   int get hashCode =>
-  targetLang.hashCode ^
-  sourceLang.hashCode ^
-  preserveMarkup.hashCode ^
-  llm.hashCode;
+      targetLang.hashCode ^
+      sourceLang.hashCode ^
+      preserveMarkup.hashCode ^
+      llm.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TranslationConfig &&
-  runtimeType == other.runtimeType &&
-  targetLang == other.targetLang &&
-  sourceLang == other.sourceLang &&
-  preserveMarkup == other.preserveMarkup &&
-  llm == other.llm;
+      identical(this, other) ||
+      other is TranslationConfig &&
+          runtimeType == other.runtimeType &&
+          targetLang == other.targetLang &&
+          sourceLang == other.sourceLang &&
+          preserveMarkup == other.preserveMarkup &&
+          llm == other.llm;
 }
 
 /// Configuration for tree-sitter language pack integration.
@@ -15712,12 +16544,27 @@ class TreeSitterConfig {
   /// Custom cache directory for downloaded grammars.
   ///
   /// When `None`, uses the default: `~/.cache/tree-sitter-language-pack/v{version}/libs/`.
+  ///
+  /// Consumed both by the CLI (`tree-sitter download --from-config`,
+  /// `cache warm`) and by `CodeExtractor` at
+  /// extraction time, so that a configured cache directory is honoured
+  /// wherever grammars are looked up or downloaded, not only during an
+  /// explicit CLI download.
   final String? cacheDir;
 
   /// Languages to pre-download on init (e.g., `["python", "rust"]`).
+  ///
+  /// Consumed only by the CLI's `tree-sitter download --from-config` and
+  /// `cache warm` commands as a pre-download hint. Extraction itself does
+  /// not read this field: a given source file always processes with a
+  /// single, already auto-detected language, so there is nothing for a
+  /// language allowlist to gate at extraction time.
   final List<String>? languages;
 
   /// Language groups to pre-download (e.g., `["web", "systems", "scripting"]`).
+  ///
+  /// Consumed only by the CLI's `tree-sitter download --from-config` and
+  /// `cache warm` commands, for the same reason as `languages` above.
   final List<String>? groups;
 
   /// Processing options for code analysis.
@@ -15733,22 +16580,22 @@ class TreeSitterConfig {
 
   @override
   int get hashCode =>
-  enabled.hashCode ^
-  cacheDir.hashCode ^
-  languages.hashCode ^
-  groups.hashCode ^
-  process.hashCode;
+      enabled.hashCode ^
+      cacheDir.hashCode ^
+      languages.hashCode ^
+      groups.hashCode ^
+      process.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TreeSitterConfig &&
-  runtimeType == other.runtimeType &&
-  enabled == other.enabled &&
-  cacheDir == other.cacheDir &&
-  languages == other.languages &&
-  groups == other.groups &&
-  process == other.process;
+      identical(this, other) ||
+      other is TreeSitterConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          cacheDir == other.cacheDir &&
+          languages == other.languages &&
+          groups == other.groups &&
+          process == other.process;
 }
 
 /// Processing options for tree-sitter code analysis.
@@ -15801,32 +16648,32 @@ class TreeSitterProcessConfig {
 
   @override
   int get hashCode =>
-  structure.hashCode ^
-  imports.hashCode ^
-  exports.hashCode ^
-  comments.hashCode ^
-  docstrings.hashCode ^
-  symbols.hashCode ^
-  diagnostics.hashCode ^
-  dataExtraction.hashCode ^
-  chunkMaxSize.hashCode ^
-  contentMode.hashCode;
+      structure.hashCode ^
+      imports.hashCode ^
+      exports.hashCode ^
+      comments.hashCode ^
+      docstrings.hashCode ^
+      symbols.hashCode ^
+      diagnostics.hashCode ^
+      dataExtraction.hashCode ^
+      chunkMaxSize.hashCode ^
+      contentMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is TreeSitterProcessConfig &&
-  runtimeType == other.runtimeType &&
-  structure == other.structure &&
-  imports == other.imports &&
-  exports == other.exports &&
-  comments == other.comments &&
-  docstrings == other.docstrings &&
-  symbols == other.symbols &&
-  diagnostics == other.diagnostics &&
-  dataExtraction == other.dataExtraction &&
-  chunkMaxSize == other.chunkMaxSize &&
-  contentMode == other.contentMode;
+      identical(this, other) ||
+      other is TreeSitterProcessConfig &&
+          runtimeType == other.runtimeType &&
+          structure == other.structure &&
+          imports == other.imports &&
+          exports == other.exports &&
+          comments == other.comments &&
+          docstrings == other.docstrings &&
+          symbols == other.symbols &&
+          diagnostics == other.diagnostics &&
+          dataExtraction == other.dataExtraction &&
+          chunkMaxSize == other.chunkMaxSize &&
+          contentMode == other.contentMode;
 }
 
 /// Semantic classification of an extracted URI.
@@ -15905,26 +16752,26 @@ class UrlExtractionConfig {
 
   @override
   int get hashCode =>
-  mode.hashCode ^
-  crawl.hashCode ^
-  documentUrlPattern.hashCode ^
-  maxDocumentUrlsPerResult.hashCode ^
-  maxTotalUrls.hashCode ^
-  allowLocalFileInputs.hashCode ^
-  allowFileUris.hashCode;
+      mode.hashCode ^
+      crawl.hashCode ^
+      documentUrlPattern.hashCode ^
+      maxDocumentUrlsPerResult.hashCode ^
+      maxTotalUrls.hashCode ^
+      allowLocalFileInputs.hashCode ^
+      allowFileUris.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is UrlExtractionConfig &&
-  runtimeType == other.runtimeType &&
-  mode == other.mode &&
-  crawl == other.crawl &&
-  documentUrlPattern == other.documentUrlPattern &&
-  maxDocumentUrlsPerResult == other.maxDocumentUrlsPerResult &&
-  maxTotalUrls == other.maxTotalUrls &&
-  allowLocalFileInputs == other.allowLocalFileInputs &&
-  allowFileUris == other.allowFileUris;
+      identical(this, other) ||
+      other is UrlExtractionConfig &&
+          runtimeType == other.runtimeType &&
+          mode == other.mode &&
+          crawl == other.crawl &&
+          documentUrlPattern == other.documentUrlPattern &&
+          maxDocumentUrlsPerResult == other.maxDocumentUrlsPerResult &&
+          maxTotalUrls == other.maxTotalUrls &&
+          allowLocalFileInputs == other.allowLocalFileInputs &&
+          allowFileUris == other.allowFileUris;
 }
 
 /// URL extraction mode.
@@ -15962,20 +16809,20 @@ class UserChunkConfig {
 
   @override
   int get hashCode =>
-  pageRanges.hashCode ^
-  pagesPerChunk.hashCode ^
-  forceChunking.hashCode ^
-  disableChunking.hashCode;
+      pageRanges.hashCode ^
+      pagesPerChunk.hashCode ^
+      forceChunking.hashCode ^
+      disableChunking.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is UserChunkConfig &&
-  runtimeType == other.runtimeType &&
-  pageRanges == other.pageRanges &&
-  pagesPerChunk == other.pagesPerChunk &&
-  forceChunking == other.forceChunking &&
-  disableChunking == other.disableChunking;
+      identical(this, other) ||
+      other is UserChunkConfig &&
+          runtimeType == other.runtimeType &&
+          pageRanges == other.pageRanges &&
+          pagesPerChunk == other.pagesPerChunk &&
+          forceChunking == other.forceChunking &&
+          disableChunking == other.disableChunking;
 }
 
 @freezed
@@ -16043,29 +16890,29 @@ sealed class XbergError with _$XbergError {
 
   /// Document parsing failed (e.g. corrupt file, unsupported format feature).
   const factory XbergError.parsing({required String message}) =
-  XbergError_Parsing;
+      XbergError_Parsing;
 
   /// An OCR engine returned an error or produced unusable output.
   const factory XbergError.ocr({required String message}) = XbergError_Ocr;
 
   /// Invalid configuration or input parameters were supplied.
   const factory XbergError.validation({required String message}) =
-  XbergError_Validation;
+      XbergError_Validation;
 
   /// A cache read or write operation failed.
   const factory XbergError.cache({required String message}) = XbergError_Cache;
 
   /// An image manipulation operation (resize, decode, DPI conversion) failed.
   const factory XbergError.imageProcessing({required String message}) =
-  XbergError_ImageProcessing;
+      XbergError_ImageProcessing;
 
   /// JSON or MessagePack serialization/deserialization failed.
   const factory XbergError.serialization({required String message}) =
-  XbergError_Serialization;
+      XbergError_Serialization;
 
   /// A required optional system dependency (e.g. `tesseract`) was not found.
   const factory XbergError.missingDependency({required String field0}) =
-  XbergError_MissingDependency;
+      XbergError_MissingDependency;
 
   /// A registered plugin returned an error during extraction.
   const factory XbergError.plugin({
@@ -16075,25 +16922,25 @@ sealed class XbergError with _$XbergError {
 
   /// An internal `Mutex` or `RwLock` was found in a poisoned state.
   const factory XbergError.lockPoisoned({required String field0}) =
-  XbergError_LockPoisoned;
+      XbergError_LockPoisoned;
 
   /// The document's MIME type is not supported by any registered extractor.
   const factory XbergError.unsupportedFormat({required String field0}) =
-  XbergError_UnsupportedFormat;
+      XbergError_UnsupportedFormat;
 
   /// The embedding model or embedding pipeline returned an error.
   const factory XbergError.embedding({required String message}) =
-  XbergError_Embedding;
+      XbergError_Embedding;
 
   /// The reranker model or reranking pipeline returned an error.
   ///
   /// Since v5.0.0.
   const factory XbergError.reranking({required String message}) =
-  XbergError_Reranking;
+      XbergError_Reranking;
 
   /// Audio/video transcription failed.
   const factory XbergError.transcription({required String message}) =
-  XbergError_Transcription;
+      XbergError_Transcription;
 
   /// The extraction operation exceeded the configured time limit.
   const factory XbergError.timeout({
@@ -16106,7 +16953,7 @@ sealed class XbergError with _$XbergError {
 
   /// A security policy was violated (e.g. zip bomb, oversized archive).
   const factory XbergError.security({required String message}) =
-  XbergError_Security;
+      XbergError_Security;
 
   /// A catch-all for uncommon errors that do not fit another variant.
   const factory XbergError.other({required String field0}) = XbergError_Other;
@@ -16157,30 +17004,30 @@ class XlsxAppProperties {
 
   @override
   int get hashCode =>
-  application.hashCode ^
-  appVersion.hashCode ^
-  docSecurity.hashCode ^
-  scaleCrop.hashCode ^
-  linksUpToDate.hashCode ^
-  sharedDoc.hashCode ^
-  hyperlinksChanged.hashCode ^
-  company.hashCode ^
-  worksheetNames.hashCode;
+      application.hashCode ^
+      appVersion.hashCode ^
+      docSecurity.hashCode ^
+      scaleCrop.hashCode ^
+      linksUpToDate.hashCode ^
+      sharedDoc.hashCode ^
+      hyperlinksChanged.hashCode ^
+      company.hashCode ^
+      worksheetNames.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is XlsxAppProperties &&
-  runtimeType == other.runtimeType &&
-  application == other.application &&
-  appVersion == other.appVersion &&
-  docSecurity == other.docSecurity &&
-  scaleCrop == other.scaleCrop &&
-  linksUpToDate == other.linksUpToDate &&
-  sharedDoc == other.sharedDoc &&
-  hyperlinksChanged == other.hyperlinksChanged &&
-  company == other.company &&
-  worksheetNames == other.worksheetNames;
+      identical(this, other) ||
+      other is XlsxAppProperties &&
+          runtimeType == other.runtimeType &&
+          application == other.application &&
+          appVersion == other.appVersion &&
+          docSecurity == other.docSecurity &&
+          scaleCrop == other.scaleCrop &&
+          linksUpToDate == other.linksUpToDate &&
+          sharedDoc == other.sharedDoc &&
+          hyperlinksChanged == other.hyperlinksChanged &&
+          company == other.company &&
+          worksheetNames == other.worksheetNames;
 }
 
 /// XML extraction result.
@@ -16205,16 +17052,16 @@ class XmlExtractionResult {
 
   @override
   int get hashCode =>
-  content.hashCode ^ elementCount.hashCode ^ uniqueElements.hashCode;
+      content.hashCode ^ elementCount.hashCode ^ uniqueElements.hashCode;
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is XmlExtractionResult &&
-  runtimeType == other.runtimeType &&
-  content == other.content &&
-  elementCount == other.elementCount &&
-  uniqueElements == other.uniqueElements;
+      identical(this, other) ||
+      other is XmlExtractionResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          elementCount == other.elementCount &&
+          uniqueElements == other.uniqueElements;
 }
 
 /// XML metadata extracted during XML parsing.
@@ -16234,11 +17081,11 @@ class XmlMetadata {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is XmlMetadata &&
-  runtimeType == other.runtimeType &&
-  elementCount == other.elementCount &&
-  uniqueElements == other.uniqueElements;
+      identical(this, other) ||
+      other is XmlMetadata &&
+          runtimeType == other.runtimeType &&
+          elementCount == other.elementCount &&
+          uniqueElements == other.uniqueElements;
 }
 
 /// YAKE-specific parameters.
@@ -16255,10 +17102,10 @@ class YakeParams {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is YakeParams &&
-  runtimeType == other.runtimeType &&
-  windowSize == other.windowSize;
+      identical(this, other) ||
+      other is YakeParams &&
+          runtimeType == other.runtimeType &&
+          windowSize == other.windowSize;
 }
 
 /// Year range for bibliographic metadata.
@@ -16279,10 +17126,10 @@ class YearRange {
 
   @override
   bool operator ==(Object other) =>
-  identical(this, other) ||
-  other is YearRange &&
-  runtimeType == other.runtimeType &&
-  min == other.min &&
-  max == other.max &&
-  years == other.years;
+      identical(this, other) ||
+      other is YearRange &&
+          runtimeType == other.runtimeType &&
+          min == other.min &&
+          max == other.max &&
+          years == other.years;
 }

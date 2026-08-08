@@ -1,12 +1,14 @@
 //! Render an `InternalDocument` to Djot markup.
 
+use crate::types::annotations::PdfAnnotation;
 use crate::types::document_structure::AnnotationKind;
 use crate::types::internal::{ElementKind, InternalDocument};
 
 use super::common::{
-    FootnoteCollector, NestingKind, RenderState, ensure_trailing_newline, finalize_output, get_admonition_kind,
-    get_admonition_title, get_language, handle_container_end, is_body_element, is_container_end, normalize_inline_text,
-    parse_metadata_entries, push_with_bq, render_annotated_text_with_plain, render_table_djot,
+    FootnoteCollector, NestingKind, RenderState, annotation_display_text, annotation_type_label,
+    ensure_trailing_newline, finalize_output, get_admonition_kind, get_admonition_title, get_language,
+    handle_container_end, is_body_element, is_container_end, normalize_inline_text, parse_metadata_entries,
+    push_with_bq, render_annotated_text_with_plain, render_table_djot,
 };
 
 /// Render an `InternalDocument` to Djot markup.
@@ -137,6 +139,8 @@ pub(crate) fn render_djot(doc: &InternalDocument) -> String {
                 }
             }
             ElementKind::FootnoteDefinition => {}
+            ElementKind::CommentRef => {}
+            ElementKind::CommentDefinition => {}
             ElementKind::Citation => {}
             ElementKind::PageBreak => {}
             ElementKind::Slide { number: _ } => {
@@ -248,7 +252,64 @@ pub(crate) fn render_djot(doc: &InternalDocument) -> String {
         }
     }
 
+    // Comment definitions (#300) aren't tracked by `FootnoteCollector`, so surface
+    // them the same way `Citation` is above — keyed by anchor rather than assigned
+    // a sequential number — instead of silently dropping the comment body.
+    for elem in &doc.elements {
+        if elem.kind == ElementKind::CommentDefinition {
+            let key = elem.anchor.as_deref().unwrap_or("?");
+            out.push_str("[^");
+            out.push_str(key);
+            out.push_str("]: ");
+            out.push_str(&elem.text);
+            out.push_str("\n\n");
+        }
+    }
+
+    if let Some(annotations) = doc.annotations.as_deref() {
+        let block = render_annotations_djot(annotations);
+        if !block.is_empty() {
+            if !out.trim_end().is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&block);
+        }
+    }
+
     finalize_output(out)
+}
+
+/// Render the document-level PDF annotations (issue #63) as a Djot section:
+/// a `## Annotations` heading followed by one bullet per annotation.
+///
+/// Returns an empty string when `annotations` is empty.
+fn render_annotations_djot(annotations: &[PdfAnnotation]) -> String {
+    if annotations.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from("## Annotations\n\n");
+    for annotation in annotations {
+        out.push_str("- _");
+        out.push_str(annotation_type_label(annotation.annotation_type));
+        out.push_str("_ (page ");
+        out.push_str(&annotation.page_number.to_string());
+        out.push(')');
+
+        if let Some(author) = annotation.author.as_deref().filter(|s| !s.is_empty()) {
+            out.push_str(" by ");
+            out.push_str(author);
+        }
+
+        if let Some(text) = annotation_display_text(annotation) {
+            out.push_str(": ");
+            out.push_str(text);
+        }
+
+        out.push('\n');
+    }
+    out.push('\n');
+    out
 }
 
 /// Render text with djot inline annotations, normalizing inline text.

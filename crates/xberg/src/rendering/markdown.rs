@@ -4,8 +4,10 @@ use comrak::{Arena, Options, format_commonmark};
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
+use crate::types::annotations::PdfAnnotation;
 use crate::types::internal::InternalDocument;
 
+use super::common::{annotation_display_text, annotation_type_label};
 use super::comrak_bridge::build_comrak_ast;
 
 /// Single-pass replacement of multiple two-char escape sequences of the form `\X`
@@ -133,7 +135,7 @@ pub(crate) fn render_markdown(doc: &InternalDocument) -> String {
 
     if root.first_child().is_none() {
         tracing::debug!("markdown rendering: empty AST, returning empty string");
-        return String::new();
+        return finalize_annotations_appendix(doc.annotations.as_deref());
     }
 
     let mut options = comrak_options();
@@ -198,6 +200,16 @@ pub(crate) fn render_markdown(doc: &InternalDocument) -> String {
 
     output = strip_arxiv_watermark_noise(output);
 
+    if let Some(annotations) = doc.annotations.as_deref() {
+        let block = render_annotations_markdown(annotations);
+        if !block.is_empty() {
+            if !output.trim_end().is_empty() {
+                output.push_str("\n\n");
+            }
+            output.push_str(&block);
+        }
+    }
+
     let trimmed_len = output.trim_end().len();
     if trimmed_len == 0 {
         return String::new();
@@ -206,6 +218,52 @@ pub(crate) fn render_markdown(doc: &InternalDocument) -> String {
     output.push('\n');
     tracing::debug!(output_length = output.len(), "markdown rendering complete");
     output
+}
+
+/// Render the document-level PDF annotations (issue #63) as a Markdown
+/// section: a `## Annotations` heading followed by one bullet per annotation.
+///
+/// Returns an empty string when `annotations` is empty, so callers can append
+/// unconditionally without introducing spurious blank sections.
+fn render_annotations_markdown(annotations: &[PdfAnnotation]) -> String {
+    if annotations.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from("## Annotations\n\n");
+    for annotation in annotations {
+        out.push_str("- **");
+        out.push_str(annotation_type_label(annotation.annotation_type));
+        out.push_str("** (page ");
+        out.push_str(&annotation.page_number.to_string());
+        out.push(')');
+
+        if let Some(author) = annotation.author.as_deref().filter(|s| !s.is_empty()) {
+            out.push_str(" by ");
+            out.push_str(author);
+        }
+
+        if let Some(text) = annotation_display_text(annotation) {
+            out.push_str(": ");
+            out.push_str(text);
+        }
+
+        out.push('\n');
+    }
+    out
+}
+
+/// Build the final annotations-only output when the document body itself
+/// renders empty (e.g. a scanned page whose only content is a highlight).
+fn finalize_annotations_appendix(annotations: Option<&[PdfAnnotation]>) -> String {
+    let mut block = annotations.map(render_annotations_markdown).unwrap_or_default();
+    let trimmed_len = block.trim_end().len();
+    if trimmed_len == 0 {
+        return String::new();
+    }
+    block.truncate(trimmed_len);
+    block.push('\n');
+    block
 }
 
 /// Strip arXiv watermark noise from rendered markdown.

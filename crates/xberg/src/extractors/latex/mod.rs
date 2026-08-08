@@ -68,6 +68,9 @@ static HEADING_LEVELS_NO_CHAPTERS: LazyLock<ahash::AHashMap<&'static str, u8>> =
     m
 });
 
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+const LATEX_WARNING_SOURCE: &str = "latex";
+
 /// LaTeX document extractor
 #[cfg_attr(alef, alef(skip))]
 pub struct LatexExtractor;
@@ -465,11 +468,20 @@ impl LatexExtractor {
                         i = new_i;
                         continue;
                     }
-                    "tabular" => {
-                        let (env_content, new_i) = collect_environment(&lines, i, "tabular");
+                    "tabular" | "longtable" | "tabularx" | "tabulary" => {
+                        let (env_content, new_i) = collect_environment(&lines, i, &env_name);
                         let cells = Self::parse_tabular_cells(&env_content);
                         if !cells.is_empty() {
-                            b.push_table_from_cells(&cells, None, None);
+                            let caption = Self::extract_caption(&env_content);
+                            let label = Self::extract_label(&env_content);
+                            let idx = b.push_table_from_cells(&cells, None, None);
+                            if let Some(lbl) = label {
+                                b.set_anchor(idx, &lbl);
+                            }
+                            if let Some(cap) = caption {
+                                let cap_idx = b.push_paragraph(&cap, vec![], None, None);
+                                b.push_relationship(cap_idx, RelationshipTarget::Index(idx), RelationshipKind::Caption);
+                            }
                         }
                         i = new_i;
                         continue;
@@ -525,6 +537,16 @@ impl LatexExtractor {
                                     );
                                 }
                             }
+                        } else {
+                            // No `\includegraphics`: the whole `figure` body (a caption-only
+                            // figure, a sub-figure wrapper, a `\resizebox`'d graphic, ...) was
+                            // otherwise dropped without a trace, since this arm's only other
+                            // output path is the image placeholder above (#171).
+                            b.add_warning(crate::core::diagnostics::warning(
+                                LATEX_WARNING_SOURCE,
+                                "A figure environment without \\includegraphics was skipped; \
+                                 its body and caption are missing from the extracted text",
+                            ));
                         }
                         i = new_i;
                         continue;
@@ -628,11 +650,20 @@ impl LatexExtractor {
                         i = new_i;
                         continue;
                     }
-                    "tabular" => {
-                        let (env_content, new_i) = collect_environment(lines, i, "tabular");
+                    "tabular" | "longtable" | "tabularx" | "tabulary" => {
+                        let (env_content, new_i) = collect_environment(lines, i, &env_name);
                         let cells = Self::parse_tabular_cells(&env_content);
                         if !cells.is_empty() {
-                            b.push_table_from_cells(&cells, None, None);
+                            let caption = Self::extract_caption(&env_content);
+                            let label = Self::extract_label(&env_content);
+                            let idx = b.push_table_from_cells(&cells, None, None);
+                            if let Some(lbl) = label {
+                                b.set_anchor(idx, &lbl);
+                            }
+                            if let Some(cap) = caption {
+                                let cap_idx = b.push_paragraph(&cap, vec![], None, None);
+                                b.push_relationship(cap_idx, RelationshipTarget::Index(idx), RelationshipKind::Caption);
+                            }
                         }
                         i = new_i;
                         continue;
@@ -728,6 +759,39 @@ impl LatexExtractor {
         "VerbatimFootnotes",
     ];
 
+    /// If `trimmed` is an `\input{file}` or `\include{file}` command, return the
+    /// command name and the referenced file argument.
+    ///
+    /// Both commands are in [`Self::SKIP_COMMANDS`] because this extractor works
+    /// line-by-line over a single file and has no way to resolve or read the
+    /// referenced file — so the entire referenced document's content vanishes
+    /// with no trace (#171). That is a real, guaranteed loss on every match, not
+    /// a heuristic, so it is always worth naming.
+    fn extract_input_include_target(trimmed: &str) -> Option<(&'static str, String)> {
+        let after_backslash = trimmed.strip_prefix('\\')?;
+        // Match the command-name boundary exactly as `is_skip_command` does, so
+        // `\inputenc{...}` (a real, unrelated command) is never mistaken for
+        // `\input{...}`.
+        let cmd_end = after_backslash
+            .find(|c: char| !c.is_alphabetic())
+            .unwrap_or(after_backslash.len());
+        let cmd = match &after_backslash[..cmd_end] {
+            "input" => "input",
+            "include" => "include",
+            _ => return None,
+        };
+        let after = after_backslash[cmd_end..].trim_start();
+        let target = if let Some(braced) = after.strip_prefix('{') {
+            braced.split('}').next()?.trim()
+        } else {
+            after.trim()
+        };
+        if target.is_empty() {
+            return None;
+        }
+        Some((cmd, target.to_string()))
+    }
+
     /// Check if a line starts with a command that should be silently skipped.
     fn is_skip_command(trimmed: &str) -> bool {
         if !trimmed.starts_with('\\') {
@@ -749,6 +813,17 @@ impl LatexExtractor {
         inject_placeholders: bool,
     ) {
         if trimmed.is_empty() || trimmed.starts_with('%') {
+            return;
+        }
+
+        if let Some((cmd, target)) = Self::extract_input_include_target(trimmed) {
+            b.add_warning(crate::core::diagnostics::warning(
+                LATEX_WARNING_SOURCE,
+                format!(
+                    "\\{cmd}{{{target}}} references an external file that was not read; \
+                     its content is missing from the extracted text"
+                ),
+            ));
             return;
         }
 
@@ -965,16 +1040,19 @@ impl LatexExtractor {
         }
     }
 
-    /// Parse tabular cells from environment content.
+    /// Parse table cells from `tabular`, `longtable`, `tabularx`, or
+    /// `tabulary` environment content.
+    ///
+    /// All four environments share the same `&`-separated cell / `\\`-terminated
+    /// row grid; they differ only in their column-spec argument syntax (already
+    /// stripped out by [`collect_environment`]) and in `longtable`'s extra
+    /// page-break markers (`\endhead`, `\endfoot`, ...), which are skipped via
+    /// [`utilities::is_table_structural_line`].
     fn parse_tabular_cells(content: &str) -> Vec<Vec<String>> {
         let mut rows = Vec::new();
         for line in content.lines() {
             let trimmed = line.trim();
-            if trimmed.starts_with("\\hline")
-                || trimmed.is_empty()
-                || trimmed.contains("\\begin{tabular}")
-                || trimmed.contains("\\end{tabular}")
-            {
+            if utilities::is_table_structural_line(trimmed) {
                 continue;
             }
             let row_str = trimmed.replace("\\\\", "").replace("\\hline", "");
@@ -1230,6 +1308,119 @@ mod tests {
         assert!(
             !has_image,
             "expected no image placeholder with inject_placeholders=false"
+        );
+    }
+
+    fn latex_warnings(doc: &InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == LATEX_WARNING_SOURCE)
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #171: `\input`/`\include` are silently skipped because this extractor
+    /// only ever sees a single in-memory file; the referenced file's content
+    /// never appears anywhere in the output.
+    #[test]
+    fn should_warn_when_latex_input_command_is_skipped() {
+        let latex = r#"\documentclass{article}
+\begin{document}
+\input{chapter1}
+\end{document}"#;
+        let doc = LatexExtractor::build_internal_document(latex, true);
+
+        let warnings = latex_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one latex warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("\\input{chapter1}") && warnings[0].contains("was not read"),
+            "warning must name the skipped \\input target, got {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn should_warn_when_latex_include_command_is_skipped() {
+        let latex = r#"\documentclass{article}
+\begin{document}
+\include{appendix}
+\end{document}"#;
+        let doc = LatexExtractor::build_internal_document(latex, true);
+
+        let warnings = latex_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one latex warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("\\include{appendix}"),
+            "warning must name the skipped \\include target, got {warnings:?}"
+        );
+    }
+
+    /// A document with no `\input`/`\include` must not warn.
+    #[test]
+    fn should_not_warn_for_latex_document_without_input_or_include() {
+        let latex = r#"\documentclass{article}
+\begin{document}
+\section{Introduction}
+Plain body text.
+\end{document}"#;
+        let doc = LatexExtractor::build_internal_document(latex, true);
+
+        assert!(
+            latex_warnings(&doc).is_empty(),
+            "a document without \\input/\\include must not warn, got {:?}",
+            latex_warnings(&doc)
+        );
+    }
+
+    /// #171: a `figure` environment with no `\includegraphics` (a caption-only
+    /// figure, a `\resizebox`'d graphic, a sub-figure wrapper, ...) previously
+    /// vanished with no trace — the arm's only other output path is the image
+    /// placeholder.
+    #[test]
+    fn should_warn_when_latex_figure_without_includegraphics_is_skipped() {
+        let latex = r#"\documentclass{article}
+\begin{document}
+\begin{figure}
+\caption{A figure with no graphic}
+\end{figure}
+\end{document}"#;
+        let doc = LatexExtractor::build_internal_document(latex, true);
+
+        let warnings = latex_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one latex warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("figure environment without \\includegraphics"),
+            "warning must describe the skipped figure, got {warnings:?}"
+        );
+    }
+
+    /// A figure that does contain `\includegraphics` must not warn.
+    #[test]
+    fn should_not_warn_for_latex_figure_with_includegraphics() {
+        let latex = r#"\documentclass{article}
+\begin{document}
+\begin{figure}
+\includegraphics{photo.png}
+\caption{A photo}
+\end{figure}
+\end{document}"#;
+        let doc = LatexExtractor::build_internal_document(latex, true);
+
+        assert!(
+            latex_warnings(&doc).is_empty(),
+            "a figure with \\includegraphics must not warn, got {:?}",
+            latex_warnings(&doc)
         );
     }
 }

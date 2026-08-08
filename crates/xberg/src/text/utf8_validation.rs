@@ -11,7 +11,10 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! Not run as a doctest: `from_utf8` is `pub(crate)`, an internal drop-in for
+//! [`std::str::from_utf8`] used on the extraction hot paths.
+//!
+//! ```ignore
 //! use xberg::text::utf8_validation::from_utf8;
 //!
 //! let bytes = b"Hello, UTF-8 world!";

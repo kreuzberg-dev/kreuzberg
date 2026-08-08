@@ -796,6 +796,10 @@ pub(crate) fn build_comrak_ast<'a>(doc: &InternalDocument, arena: &'a comrak::Ar
 
             ElementKind::FootnoteDefinition => {}
 
+            ElementKind::CommentRef => {}
+
+            ElementKind::CommentDefinition => {}
+
             ElementKind::Citation => {}
 
             ElementKind::PageBreak => {}
@@ -994,6 +998,26 @@ pub(crate) fn build_comrak_ast<'a>(doc: &InternalDocument, arena: &'a comrak::Ar
 
     for elem in &doc.elements {
         if elem.kind == ElementKind::Citation {
+            let key = elem.anchor.as_deref().unwrap_or("?");
+            let fndef = mk(
+                arena,
+                NodeValue::FootnoteDefinition(NodeFootnoteDefinition {
+                    name: key.to_string(),
+                    total_references: 1,
+                }),
+            );
+            let para = mk(arena, NodeValue::Paragraph);
+            para.append(mk_text(arena, &elem.text));
+            fndef.append(para);
+            root.append(fndef);
+        }
+    }
+
+    // Comment definitions (#300) aren't tracked by `FootnoteCollector`, so surface
+    // them the same way `Citation` is above — keyed by anchor — instead of
+    // silently dropping the comment body now that it has its own `ElementKind`.
+    for elem in &doc.elements {
+        if elem.kind == ElementKind::CommentDefinition {
             let key = elem.anchor.as_deref().unwrap_or("?");
             let fndef = mk(
                 arena,

@@ -312,12 +312,14 @@ fn unresolved_answer_token_error(word: &str) -> crate::XbergError {
 /// Downloads model files from HuggingFace if needed, loads the tokenizer,
 /// creates an ORT session, and caches the engine for reuse.
 #[cfg(feature = "reranker")]
+#[allow(clippy::too_many_arguments)]
 fn get_or_init_engine(
     repo_name: &str,
     model_file: &str,
     additional_files: &[String],
     max_length: usize,
     cache_dir: Option<std::path::PathBuf>,
+    progress: crate::core::config::DownloadProgress,
     accel: Option<crate::core::config::acceleration::AccelerationConfig>,
     head: crate::core::config::reranker::RerankerHead,
 ) -> crate::Result<Arc<RerankerEngine>> {
@@ -362,6 +364,7 @@ fn get_or_init_engine(
             additional_files,
             revision,
             cache_dir.as_deref(),
+            progress,
             Some(RERANKER_SHA256_MANIFEST),
             rerank_err,
         )?;
@@ -658,6 +661,7 @@ pub fn rerank(
                 &additional_files,
                 max_length,
                 config.cache_dir.clone(),
+                config.into(),
                 config.acceleration.clone(),
                 head,
             )?;

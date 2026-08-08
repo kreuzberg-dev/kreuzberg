@@ -17,7 +17,13 @@ use regex::Regex;
 
 use crate::core::config::LlmConfig;
 use crate::plugins::{OcrBackend, OcrBackendType, Plugin};
-use crate::types::{BoundingBox, Formula};
+use crate::types::{BoundingBox, FormatMetadata, Formula, Metadata, OcrMetadata, Table};
+
+// Taken from the ungated `crate::ocr_metadata_keys` rather than `crate::ocr`, which is
+// gated on `feature = "ocr"` / `"ocr-wasm"` — neither of which `liter-llm` implies, so a
+// VLM-only build cannot see it. ~keep
+use crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY as PROCESSED_HEIGHT_KEY;
+use crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY as PROCESSED_WIDTH_KEY;
 
 /// Default request timeout for VLM OCR when `vlm_config.timeout_secs` is unset.
 ///
@@ -85,12 +91,17 @@ impl OcrBackend for VlmOcrBackend {
         let (text, usage) = vlm_ocr(image_bytes, mime, lang_str, vlm_config, config.vlm_prompt.as_deref()).await?;
 
         let formulas = extract_formulas(&text);
+        let tables = extract_gfm_tables(&text);
+        let metadata = build_metadata(image_bytes, tables.len() as u32);
 
         Ok(crate::ExtractedDocument {
             content: text,
             mime_type: Cow::Borrowed("text/plain"),
             llm_usage: usage.map(|u| vec![u]),
             formulas,
+            metadata,
+            tables,
+            detected_languages: Some(languages),
             ..Default::default()
         })
     }
@@ -245,6 +256,8 @@ pub(crate) async fn vlm_ocr(
     request.messages = vec![message];
     request.temperature = config.temperature;
     request.max_tokens = config.max_tokens;
+    request.reasoning_effort = super::client::parse_reasoning_effort(config)?;
+    request.extra_body = config.extra_body.clone();
 
     let response = client.chat(request).await.map_err(|e| {
         crate::XbergError::ocr(format!(
@@ -288,16 +301,125 @@ fn normalize_vlm_model(model: &str, base_url: Option<&str>) -> String {
     model.to_string()
 }
 
-/// Matches LaTeX display-math blocks the model was instructed to emit via
-/// [`super::prompts::VLM_OCR_TEMPLATE`]: `$$...$$` and, for models that ignore the
-/// requested delimiter, the equivalent `\[...\]` form. `(?s)` makes `.` match
-/// newlines so multi-line formulas are captured as a single match, and the
-/// named groups let the surrounding delimiters be dropped without a separate
-/// strip step.
+/// Matches LaTeX math the model was instructed to emit via
+/// [`super::prompts::VLM_OCR_TEMPLATE`]: display math as `$$...$$` or `\[...\]`,
+/// and inline math as `$...$` or `\(...\)`. `(?s)` makes `.` match newlines so
+/// multi-line display formulas are captured as a single match, and the named
+/// groups let the surrounding delimiters be dropped without a separate strip
+/// step.
+///
+/// Alternation order matters: `$$...$$` is tried before the single-`$` inline
+/// alternative, so a display block is never partially consumed as two inline
+/// matches (the `regex` crate is leftmost-first among alternatives at a given
+/// start position).
+///
+/// The inline `$...$` alternative additionally guards against plain-prose
+/// dollar signs (e.g. "$5 and $10"): the captured content must start and end
+/// with a non-whitespace, non-`$` character. Prose like "$5 and $10" pairs as
+/// content `"5 and "`, which ends in a space and is rejected; a real inline
+/// formula like "$x+y$" has no such boundary whitespace and matches.
 static FORMULA_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)\$\$(?P<dollar>.+?)\$\$|\\\[(?P<bracket>.+?)\\\]")
-        .expect("VLM formula regex pattern is valid and should compile")
+    Regex::new(
+        r"(?s)\$\$(?P<dollar>.+?)\$\$|\\\[(?P<bracket>.+?)\\\]|\\\((?P<paren>.+?)\\\)|\$(?P<inline>[^\s$](?:[^$\n]*[^\s$])?)\$",
+    )
+    .expect("VLM formula regex pattern is valid and should compile")
 });
+
+/// Build OCR metadata for a VLM OCR result: `FormatMetadata::Ocr` with the
+/// table count, `ocr_used`, and processed image dimensions (best-effort; a
+/// decode failure just omits the dimensions rather than failing the OCR call).
+///
+/// Mirrors `candle_ocr::ocr_result::build_metadata`; not shared with it because the
+/// two sit in separate feature domains (VLM vs. `candle-*`), issue #179. Only the key
+/// names are shared, via `crate::ocr_metadata_keys`.
+fn build_metadata(image_bytes: &[u8], table_count: u32) -> Metadata {
+    let mut metadata = Metadata {
+        format: Some(FormatMetadata::Ocr(OcrMetadata {
+            table_count,
+            ..Default::default()
+        })),
+        ocr_used: true,
+        ..Default::default()
+    };
+
+    if let Some((width, height)) = probe_image_dimensions(image_bytes) {
+        metadata
+            .additional
+            .insert(Cow::Borrowed(PROCESSED_WIDTH_KEY), serde_json::json!(width));
+        metadata
+            .additional
+            .insert(Cow::Borrowed(PROCESSED_HEIGHT_KEY), serde_json::json!(height));
+    }
+
+    metadata
+}
+
+/// Read image dimensions from the header without decoding pixel data.
+fn probe_image_dimensions(image_bytes: &[u8]) -> Option<(u32, u32)> {
+    image::ImageReader::new(std::io::Cursor::new(image_bytes))
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
+}
+
+/// Parse every GFM table in VLM OCR output text into structured [`Table`]
+/// entries, mirroring `candle_ocr::ocr_result::extract_gfm_tables` (issue #179).
+/// Without this, a VLM that reproduces a table as GFM markdown left `tables[]`
+/// empty even though the table data was present in `content`.
+fn extract_gfm_tables(text: &str) -> Vec<Table> {
+    use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+
+    let mut tables = Vec::new();
+    let mut in_table = false;
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut current_row: Vec<String> = Vec::new();
+    let mut current_cell = String::new();
+    let mut in_cell = false;
+
+    for event in Parser::new_ext(text, Options::ENABLE_TABLES) {
+        match event {
+            Event::Start(Tag::Table(_)) => {
+                in_table = true;
+                rows.clear();
+            }
+            Event::End(TagEnd::Table) if in_table => {
+                in_table = false;
+                if !rows.is_empty() {
+                    let cells = std::mem::take(&mut rows);
+                    let markdown = crate::rendering::common::render_table_markdown(&cells);
+                    tables.push(Table {
+                        cells,
+                        markdown,
+                        page_number: 1,
+                        ..Default::default()
+                    });
+                }
+            }
+            Event::Start(Tag::TableHead | Tag::TableRow) if in_table => {
+                current_row.clear();
+            }
+            Event::End(TagEnd::TableHead | TagEnd::TableRow) if in_table && !current_row.is_empty() => {
+                rows.push(std::mem::take(&mut current_row));
+            }
+            Event::Start(Tag::TableCell) if in_table => {
+                in_cell = true;
+                current_cell.clear();
+            }
+            Event::End(TagEnd::TableCell) if in_table => {
+                in_cell = false;
+                current_row.push(current_cell.trim().to_string());
+                current_cell.clear();
+            }
+            Event::Text(cell_text) | Event::Code(cell_text) if in_table && in_cell => {
+                current_cell.push_str(&cell_text);
+            }
+            _ => {}
+        }
+    }
+
+    tables
+}
 
 /// Extract LaTeX formulas from VLM OCR output text.
 ///
@@ -308,7 +430,12 @@ static FORMULA_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 fn extract_formulas(text: &str) -> Vec<Formula> {
     FORMULA_PATTERN
         .captures_iter(text)
-        .filter_map(|caps| caps.name("dollar").or_else(|| caps.name("bracket")))
+        .filter_map(|caps| {
+            caps.name("dollar")
+                .or_else(|| caps.name("bracket"))
+                .or_else(|| caps.name("paren"))
+                .or_else(|| caps.name("inline"))
+        })
         .map(|m| m.as_str().trim())
         .filter(|latex| !latex.is_empty())
         .map(|latex| Formula {
@@ -463,6 +590,108 @@ mod tests {
     fn test_extract_formulas_returns_empty_when_no_math_present() {
         let formulas = super::extract_formulas("Just a plain paragraph with no equations.");
         assert!(formulas.is_empty(), "expected no formulas; got: {formulas:?}");
+    }
+
+    /// Regression test for issue #188: inline math `$...$`, as requested by
+    /// `VLM_OCR_TEMPLATE`, must be extracted into `formulas[]`, not left only in
+    /// content.
+    #[test]
+    fn test_extract_formulas_extracts_inline_dollar_math() {
+        let text = "The area is $A = \\pi r^2$ for a circle.";
+
+        let formulas = super::extract_formulas(text);
+
+        assert_eq!(formulas.len(), 1, "expected exactly one formula; got: {formulas:?}");
+        assert_eq!(formulas[0].latex, r"A = \pi r^2");
+        assert_eq!(formulas[0].bbox, crate::types::BoundingBox::default());
+        assert_eq!(formulas[0].page, 1);
+    }
+
+    /// Regression test for issue #188: `\(...\)` inline math must also be
+    /// extracted, matching the `\[...\]` display form already handled.
+    #[test]
+    fn test_extract_formulas_extracts_inline_paren_math() {
+        let text = r"Euler's identity: \(e^{i\pi} + 1 = 0\).";
+
+        let formulas = super::extract_formulas(text);
+
+        assert_eq!(formulas.len(), 1, "expected exactly one formula; got: {formulas:?}");
+        assert_eq!(formulas[0].latex, r"e^{i\pi} + 1 = 0");
+    }
+
+    /// Guard test for issue #188: prose containing plain-text dollar amounts
+    /// must NOT be misdetected as inline math. "$5 and $10" pairs as content
+    /// `"5 and "`, which has trailing whitespace before the closing `$` and is
+    /// rejected by the inline-match boundary guard.
+    #[test]
+    fn test_extract_formulas_ignores_currency_dollar_signs() {
+        let text = "The item costs $5 and the other costs $10, for $15 total.";
+
+        let formulas = super::extract_formulas(text);
+
+        assert!(
+            formulas.is_empty(),
+            "currency amounts must not be treated as formulas; got: {formulas:?}"
+        );
+    }
+
+    /// A single stray `$` with no closing partner must not match at all.
+    #[test]
+    fn test_extract_formulas_ignores_single_unpaired_dollar() {
+        let formulas = super::extract_formulas("Prices start at $20 per unit.");
+        assert!(
+            formulas.is_empty(),
+            "unpaired dollar sign must not match; got: {formulas:?}"
+        );
+    }
+
+    /// Display math must still take priority over the inline alternative so a
+    /// `$$...$$` block is captured whole rather than as two inline matches.
+    #[test]
+    fn test_extract_formulas_prefers_display_over_inline_when_both_present() {
+        let text = "$$x^2 + y^2 = z^2$$ and separately $a+b$.";
+
+        let formulas = super::extract_formulas(text);
+
+        assert_eq!(
+            formulas.len(),
+            2,
+            "expected one display + one inline; got: {formulas:?}"
+        );
+        assert_eq!(formulas[0].latex, "x^2 + y^2 = z^2");
+        assert_eq!(formulas[1].latex, "a+b");
+    }
+
+    /// Regression test for issue #179: a GFM table embedded in VLM OCR output
+    /// text must be parsed into `tables[]`, not left only in `content`.
+    #[test]
+    fn test_extract_gfm_tables_from_vlm_response() {
+        let text = "Some text.\n\n| Name | Age |\n|------|-----|\n| Alice | 30 |\n\nMore text.";
+
+        let tables = super::extract_gfm_tables(text);
+
+        assert_eq!(tables.len(), 1, "expected exactly one table; got: {tables:?}");
+        assert_eq!(
+            tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Age".to_string()],
+                vec!["Alice".to_string(), "30".to_string()],
+            ]
+        );
+        assert_eq!(tables[0].page_number, 1);
+    }
+
+    /// Regression test for issue #179: `process_image` must populate
+    /// `FormatMetadata::Ocr` / `ocr_used`, not leave `metadata` at its default.
+    #[test]
+    fn test_build_metadata_reports_ocr_used_and_table_count() {
+        let metadata = super::build_metadata(&[], 2);
+
+        assert!(metadata.ocr_used, "ocr_used must be true for a VLM OCR result");
+        let Some(super::FormatMetadata::Ocr(ocr_metadata)) = metadata.format else {
+            panic!("expected FormatMetadata::Ocr; got: {:?}", metadata.format);
+        };
+        assert_eq!(ocr_metadata.table_count, 2);
     }
 
     /// When vlm_prompt is None the built-in default template is used.

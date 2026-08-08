@@ -73,6 +73,41 @@ pub struct DocumentCounts {
     pub images: usize,
 }
 
+/// Structured per-language detection result: confidence, document share, and script —
+/// the information the ISO-code-only `detected_languages` list cannot convey (#261).
+///
+/// Populated by [`crate::language_detection`] alongside `detected_languages`, with one
+/// entry per language, in the same order as `detected_languages`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+pub struct LanguageConfidence {
+    /// ISO 639-3 language code, matching the corresponding entry in `detected_languages`.
+    pub language: String,
+    /// Confidence for this language, in `[0.0, 1.0]`.
+    ///
+    /// In single-language mode this is whatlang's `Info::confidence()` for the whole
+    /// document. In multi-language mode this is the average whatlang confidence across
+    /// the document's 200-character chunks that were classified as this language.
+    pub confidence: f64,
+    /// Share of the document's analyzed content classified as this language, in `[0.0, 1.0]`.
+    ///
+    /// In single-language mode this is always `1.0`. In multi-language mode this is the
+    /// fraction of 200-character chunks classified as this language (chunks that did not
+    /// meet `min_confidence` for any language are excluded from the count but still count
+    /// toward the denominator).
+    pub proportion: f64,
+    /// Writing system whatlang detected for this language (e.g. `"Latin"`, `"Cyrillic"`).
+    pub script: String,
+    /// Whether this detection is considered reliable.
+    ///
+    /// In single-language mode this is whatlang's own `Info::is_reliable()` (confidence
+    /// above whatlang's internal 0.9 threshold). In multi-language mode this is the
+    /// chunk-averaged `confidence` above that same 0.9 threshold, since whatlang's
+    /// `is_reliable()` only applies to a single detection.
+    pub reliable: bool,
+}
+
 /// Document extracted by the core extraction pipeline.
 ///
 /// `extract` and `extract_batch` return an `ExtractionResult` envelope whose
@@ -108,6 +143,16 @@ pub struct ExtractedDocument {
     /// ISO 639-1 language codes detected in the document content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detected_languages: Option<Vec<String>>,
+
+    /// Structured per-language detection results: confidence, document share, script,
+    /// and reliability, alongside the ISO-code-only `detected_languages` (#261).
+    ///
+    /// One entry per language in `detected_languages`, in the same order. `None` under
+    /// the same conditions as `detected_languages`: detection disabled, empty input
+    /// text, or no language met the configured `min_confidence`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub detected_language_confidences: Option<Vec<LanguageConfidence>>,
 
     /// Text chunks when chunking is enabled.
     ///
@@ -361,10 +406,20 @@ pub struct ExtractedDocument {
 
     /// Pre-rendered content in the requested output format.
     ///
-    /// Populated during `derive_extraction_result` before tree derivation consumes
-    /// element data. `apply_output_format` swaps this into `content` at the end
-    /// of the pipeline, after post-processors have operated on plain text.
+    /// Pipeline-internal scratch space, not a result field. `derive_extraction_result`
+    /// renders it before tree derivation consumes the element data, post-processors may
+    /// rewrite it alongside `content`, and `apply_output_format` then *moves* it into
+    /// `content` as the last pipeline step. Every document returned by `extract_bytes` /
+    /// `extract_file` — and every nested archive or email child — therefore carries
+    /// `None` here, with the rendering in `content`.
+    ///
+    /// It stays `pub` because it is part of the Rust plugin contract: a
+    /// `DocumentExtractor` may return it pre-rendered, and a post-processor that rewrites
+    /// `content` must rewrite this alongside it or the rendering is discarded as stale
+    /// (see `core::pipeline::discard_diverged_formatted_content`). It is hidden from the
+    /// language bindings, which only ever observe the post-pipeline document.
     #[serde(skip)]
+    #[cfg_attr(alef, alef(skip))]
     pub formatted_content: Option<String>,
 
     /// Structured hOCR document for the OCR+layout pipeline.
@@ -523,6 +578,35 @@ pub struct Chunk {
     /// The dimensionality depends on the chosen embedding model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
+
+    /// Optional sparse (SPLADE) learned embedding for this chunk.
+    ///
+    /// Only populated when sparse-embedding generation is configured for chunking.
+    /// `None` otherwise, including on builds without the `sparse-embeddings` feature.
+    ///
+    /// Uses the crate-root [`crate::SparseEmbedding`] alias rather than
+    /// `crate::sparse_embeddings::SparseEmbedding` directly: the `sparse_embeddings`
+    /// module itself only compiles under `sparse-embeddings`/`sparse-embedding-presets`,
+    /// while the crate-root alias is always defined (a field-compatible stub on builds
+    /// without either feature), so this field — and `Chunk` itself — compiles on every
+    /// feature combination, including the crate's default features.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub sparse_embedding: Option<crate::SparseEmbedding>,
+
+    /// Optional ColBERT-style multi-vector (late-interaction) embedding for this chunk.
+    ///
+    /// Only populated when late-interaction embedding generation is configured for
+    /// chunking. `None` otherwise, including on builds without the `late-interaction`
+    /// feature.
+    ///
+    /// Uses the crate-root [`crate::MultiVectorEmbedding`] alias for the same reason
+    /// `sparse_embedding` uses [`crate::SparseEmbedding`] — see that field's docs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub late_interaction: Option<crate::MultiVectorEmbedding>,
 
     /// Metadata about this chunk's position and properties.
     pub metadata: ChunkMetadata,
@@ -1213,5 +1297,63 @@ mod tests {
         let bbox = deserialized.form_fields[0].bbox.unwrap();
         assert_eq!(bbox.x0, 72.0);
         assert_eq!(bbox.y1, 320.0);
+    }
+
+    fn empty_chunk(content: &str) -> Chunk {
+        Chunk {
+            content: content.to_string(),
+            chunk_type: ChunkType::default(),
+            embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
+            metadata: empty_chunk_metadata(),
+        }
+    }
+
+    #[test]
+    fn should_round_trip_exact_sparse_and_late_interaction_vectors_when_populated() {
+        let mut chunk = empty_chunk("hello world");
+        chunk.sparse_embedding = Some(crate::SparseEmbedding {
+            indices: vec![3, 7, 42],
+            values: vec![0.5, 0.25, 0.125],
+        });
+        chunk.late_interaction = Some(crate::MultiVectorEmbedding {
+            num_tokens: 2,
+            dim: 3,
+            data: vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        });
+
+        let json = serde_json::to_string(&chunk).expect("serialize");
+        let back: Chunk = serde_json::from_str(&json).expect("deserialize");
+
+        let sparse = back.sparse_embedding.expect("sparse_embedding must round-trip as Some");
+        assert_eq!(sparse.indices, vec![3, 7, 42]);
+        assert_eq!(sparse.values, vec![0.5, 0.25, 0.125]);
+
+        let late = back.late_interaction.expect("late_interaction must round-trip as Some");
+        assert_eq!(late.num_tokens, 2);
+        assert_eq!(late.dim, 3);
+        assert_eq!(late.data, vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+    }
+
+    #[test]
+    fn should_omit_sparse_and_late_interaction_fields_when_not_configured() {
+        let chunk = empty_chunk("hello world");
+        assert!(chunk.sparse_embedding.is_none());
+        assert!(chunk.late_interaction.is_none());
+
+        let json = serde_json::to_value(&chunk).expect("serialize");
+        assert!(
+            json.get("sparse_embedding").is_none(),
+            "sparse_embedding must be omitted from the wire when None, got: {json:?}"
+        );
+        assert!(
+            json.get("late_interaction").is_none(),
+            "late_interaction must be omitted from the wire when None, got: {json:?}"
+        );
+
+        let back: Chunk = serde_json::from_value(json).expect("deserialize");
+        assert!(back.sparse_embedding.is_none());
+        assert!(back.late_interaction.is_none());
     }
 }

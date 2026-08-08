@@ -101,11 +101,7 @@ pub unsafe extern "C" fn xberg_cancel_token_is_cancelled(token: *const Cancellat
         return 0;
     }
     // SAFETY: Caller guarantees `token` is a non-null, live pointer.
-    if unsafe { (*token).inner.is_cancelled() } {
-        1
-    } else {
-        0
-    }
+    if unsafe { (*token).inner.is_cancelled() } { 1 } else { 0 }
 }
 
 /// Free a cancellation token handle previously returned by

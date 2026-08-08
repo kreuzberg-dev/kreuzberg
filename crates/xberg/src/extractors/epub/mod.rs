@@ -338,8 +338,21 @@ impl EpubExtractor {
             } else {
                 let mut first_heading_idx: Option<u32> = None;
                 let mut in_list = false;
-                for node in chapter_structure.nodes.iter() {
+                // Tracks the highest direct-child index of the most recently opened
+                // blockquote, so `push_quote_end()` can be emitted once that child has been
+                // processed. This is a one-level approximation (direct children only, not the
+                // full subtree) — correct for the common case of a blockquote with no nested
+                // blockquote inside it, which covers the overwhelming majority of EPUB content.
+                let mut quote_close_after: Option<u32> = None;
+                for (node_index, node) in chapter_structure.nodes.iter().enumerate() {
                     use crate::types::document_structure::NodeContent;
+
+                    if let Some(close_after) = quote_close_after
+                        && node_index as u32 > close_after
+                    {
+                        builder.push_quote_end();
+                        quote_close_after = None;
+                    }
 
                     if in_list && !matches!(&node.content, NodeContent::ListItem { .. }) {
                         builder.end_list();
@@ -347,7 +360,16 @@ impl EpubExtractor {
                     }
 
                     match &node.content {
-                        NodeContent::Quote => continue,
+                        // The blockquote container itself is recorded (issue #127): its
+                        // children still follow as ordinary flat entries in `nodes`, so the
+                        // quote markers just need to bracket them.
+                        NodeContent::Quote => {
+                            builder.push_quote_start();
+                            quote_close_after = node.children.iter().map(|c| c.0).max();
+                            if quote_close_after.is_none() {
+                                builder.push_quote_end();
+                            }
+                        }
                         NodeContent::Heading { level, text } => {
                             let idx = builder.push_heading(*level, text, None, None);
                             if first_heading_idx.is_none() {
@@ -460,8 +482,39 @@ impl EpubExtractor {
                         NodeContent::Group {
                             heading_text: Some(_), ..
                         } => {}
+                        // Issue #127: these kinds used to fall into the catch-all below and
+                        // be dropped entirely, even though the upstream HTML structure
+                        // walker (`extraction::html::structure`) does produce them (e.g.
+                        // `DefinitionItem` for `<dl>/<dt>/<dd>`).
+                        NodeContent::DefinitionList | NodeContent::List { .. } => {}
+                        NodeContent::DefinitionItem { term, definition } => {
+                            builder.push_definition_term(term, None);
+                            builder.push_definition_description(definition, None);
+                        }
+                        NodeContent::Citation { key, text } => {
+                            builder.push_citation(text, key, None);
+                        }
+                        NodeContent::Admonition { kind, title } => {
+                            builder.push_admonition(kind, title.as_deref(), None);
+                        }
+                        NodeContent::Footnote { text } => {
+                            builder.push_footnote_definition(text, "footnote", None);
+                        }
+                        NodeContent::Title { text } => {
+                            builder.push_heading(1, text, None, None);
+                        }
+                        NodeContent::PageBreak => {
+                            builder.push_page_break();
+                        }
+                        NodeContent::RawBlock { format, content } => {
+                            builder.push_raw_block(format, content, None);
+                        }
                         _ => {}
                     }
+                }
+
+                if quote_close_after.is_some() {
+                    builder.push_quote_end();
                 }
 
                 if in_list {

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/ttf-parser-compat",
     "crates/xberg",
     "crates/xberg-candle-ocr",
     "crates/xberg-cli",
@@ -13,8 +14,6 @@ members = [
     "crates/xberg-php",
     "crates/xberg-py",
     "crates/xberg-tesseract",
-    "crates/xberg-ttf-parser",
-    "crates/xberg-ttf-parser/compat",
     "crates/xberg-wasm",
     "packages/dart/rust",
     "packages/swift/rust",
@@ -62,7 +61,7 @@ chrono = "0.4"
 clap = { version = "4.6", features = ["derive", "color", "suggestions"] }
 comrak = { version = "0.54", default-features = false }
 console_error_panic_hook = "0.1"
-crawlberg = { version = "1.1.3", default-features = false }
+crawlberg = { version = "1.1.4", default-features = false }
 criterion = { version = "0.8", features = ["html_reports"] }
 dbase = "0.8"
 flate2 = "1.1"
@@ -82,9 +81,8 @@ libc = "0.2.189"
 # cross-compilation (zigbuild aarch64/musl) where no host libz is usable.
 # Only consumed by crates/xberg-libwpd. ~keep
 libz-sys = { version = "1.1", features = ["static"] }
-liter-llm = { version = "1.15.0", default-features = false }
+liter-llm = { version = "1.16.0", default-features = false }
 log = "0.4"
-lzma-rust2 = { version = "0.18.0" }
 memmap2 = "0.9"
 minijinja = "2"
 nom-exif = { version = "3.6", default-features = false }
@@ -100,7 +98,7 @@ reqwest = { version = "0.13.4", default-features = false }
 # drops text, system-fonts, memmap-fonts, raster-images — all pure-Rust, WASM-safe).
 resvg = { version = "0.48", default-features = false }
 rusqlite = { version = "0.40", features = ["bundled"] }
-sceptre = { version = "0.3.0", default-features = false }
+sceptre = { version = "0.4.0", default-features = false }
 
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151" }
@@ -131,7 +129,7 @@ tracing = "0.1"
 # and WASM-safe; the top-level `tract` facade instead defaults to CUDA and bundles
 # GPU backends, so it is unusable here. See issue #1275.
 tract-onnx = { version = "0.23.4", default-features = false }
-tree-sitter-language-pack = { version = "1.14.1", default-features = false, features = ["serde"] }
+tree-sitter-language-pack = { version = "1.14.3", default-features = false, features = ["serde"] }
 url = "2.5.8"
 # usvg (re-exported by resvg) with only the `writer` feature so `Tree::to_string`
 # / `WriteOptions` are available for SVG sanitize re-serialization. `writer` pulls
@@ -159,10 +157,35 @@ xberg-gliner = { path = "crates/xberg-gliner" }
 xberg-tesseract = { path = "crates/xberg-tesseract" }
 xberg-paddle-ocr = { path = "crates/xberg-paddle-ocr" }
 xberg-candle-ocr = { path = "crates/xberg-candle-ocr" }
-# Redirects the transitive ttf-parser used by pdf_oxide and fontdb onto the
-# vendored copy, which carries the CFF dotsection fix and eight other upstream
-# fixes; see crates/xberg-ttf-parser/README.md.
-ttf-parser = { path = "crates/xberg-ttf-parser/compat" }
+# Redirects the transitive ttf-parser used by pdf_oxide and fontdb onto
+# xberg-ttf-parser, which carries the CFF dotsection fix and eight other fixes
+# unreleased upstream. Cargo matches patch entries on package name alone, so the
+# redirect goes through a name-compat shim; see crates/ttf-parser-compat.
+#
+# EXPOSURE: [patch] only rewrites resolution for builds going through this
+# workspace root. Anyone who depends on published `xberg` (crates.io, currently
+# 1.0.14) from their own Cargo.toml pulls pdf_oxide's and fontdb's real,
+# unpatched ttf-parser instead, with none of these nine fixes. The dotsection
+# one is user-visible: xberg's `pdf` feature silently drops the i, j, period,
+# colon, semicolon, exclamation, and question-mark glyphs of any CFF font that
+# uses the deprecated `dotsection` operator (e.g. distiller-produced Type 1C
+# subsets) when rendering a page to an image. There is no workaround for those
+# consumers short of this fix shipping from upstream ttf-parser itself.
+#
+# STATUS (checked 2026-08-06, re-verify before touching this entry):
+# harfbuzz/ttf-parser#228 (dotsection) is merged to upstream `main`, but
+# nothing is tagged or published — crates.io still serves 0.25.1, the same as
+# GitHub's newest tag (v0.25.1). The backport-to-0.25.2 proposal (#229) was
+# closed and folded into #228, so no 0.25.x patch release is in flight. The
+# fix now only ships via the next `main` release, tracked as 0.26.0 in
+# harfbuzz/ttf-parser#242 (also closed, blocked on crates.io publish access,
+# no tag cut). Even once 0.26.0 publishes, it will NOT satisfy pdf_oxide's and
+# fontdb's `ttf-parser = "^0.25"` requirement — 0.x caret ranges do not cross a
+# minor version — so this patch stays load-bearing until pdf_oxide and fontdb
+# themselves widen that requirement and re-publish. Do not drop this entry on
+# the assumption that a release landed; confirm crates.io serves >=0.25.2 (or
+# pdf_oxide/fontdb accept 0.26) first.
+ttf-parser = { path = "crates/ttf-parser-compat" }
 
 [profile.release]
 lto = "thin"

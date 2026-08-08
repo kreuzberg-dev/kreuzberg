@@ -17,6 +17,10 @@ use crate::core::config::{ChunkClassificationConfig, ChunkClassificationDefiniti
 use crate::types::classification::ClassificationLabel;
 use crate::types::{ExtractedDocument, LlmUsage};
 
+/// Stable, lowercase warning source for partial chunk-classification batch
+/// failures (#264). See `core::diagnostics` for the convention.
+const PARTIAL_FAILURE_WARNING_SOURCE: &str = "chunk_classification";
+
 /// Default Jinja2 template used when `ChunkClassificationConfig::prompt_template`
 /// is `None`. Variables: `definitions` (rendered label + description list),
 /// `chunks` (numbered chunk texts in the current batch).
@@ -183,9 +187,8 @@ async fn classify_batch(
 /// Returns [`crate::XbergError::Validation`] when `config.definitions` is empty.
 /// Returns the first batch error encountered when rendering the prompt or
 /// calling the LLM fails for every batch; partial failures on a subset of
-/// batches are recorded as `ProcessingWarning`s by the caller instead of
-/// aborting the whole run (see
-/// [`crate::plugins::processor::builtin::chunk_classification`]).
+/// batches are recorded here as a `ProcessingWarning` on `result` instead of
+/// aborting the whole run.
 pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClassificationConfig) -> crate::Result<()> {
     if config.definitions.is_empty() {
         return Err(crate::XbergError::validation(
@@ -216,6 +219,7 @@ pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClass
     if batches.is_empty() {
         return Ok(());
     }
+    let total_batches = batches.len();
 
     let ctx = Arc::new(ClassifyChunkContext::new(config));
     let llm_config = Arc::new(config.llm.clone());
@@ -237,6 +241,7 @@ pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClass
     let mut per_chunk: HashMap<usize, Vec<ClassificationLabel>> = HashMap::new();
     let mut usages: Vec<LlmUsage> = Vec::new();
     let mut first_error: Option<crate::XbergError> = None;
+    let mut failed_batches = 0usize;
     let mut any_success = false;
 
     while let Some(joined) = join_set.join_next().await {
@@ -255,6 +260,7 @@ pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClass
                 }
             }
             Err(err) => {
+                failed_batches += 1;
                 if first_error.is_none() {
                     first_error = Some(err);
                 }
@@ -266,6 +272,15 @@ pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClass
         return Err(err);
     }
 
+    if let Some(err) = &first_error {
+        let message = partial_batch_failure_message(failed_batches, total_batches, err);
+        crate::core::diagnostics::push_warning(
+            &mut result.processing_warnings,
+            PARTIAL_FAILURE_WARNING_SOURCE,
+            message,
+        );
+    }
+
     if let Some(chunks_mut) = result.chunks.as_mut() {
         apply_batch_results(chunks_mut, per_chunk);
     }
@@ -275,6 +290,23 @@ pub async fn classify_chunks(result: &mut ExtractedDocument, config: &ChunkClass
     }
 
     Ok(())
+}
+
+/// Build the warning message for a chunk-classification run where some
+/// batches failed but at least one succeeded. The chunks belonging to the
+/// failed batches are left with an empty `classifications` vector, which is
+/// otherwise indistinguishable from "classified, no label matched" (#264).
+fn partial_batch_failure_message(
+    failed_batches: usize,
+    total_batches: usize,
+    last_error: &crate::XbergError,
+) -> String {
+    format!(
+        "{failed_batches} of {total_batches} chunk-classification batch{} failed; \
+         chunks in the failed batch{} were left without classifications (last error: {last_error})",
+        if total_batches == 1 { "" } else { "es" },
+        if failed_batches == 1 { "" } else { "es" },
+    )
 }
 
 /// Write each batch's parsed labels onto the matching chunk's
@@ -390,6 +422,8 @@ mod tests {
             content: format!("chunk {index}"),
             chunk_type: Default::default(),
             embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
             metadata: crate::types::ChunkMetadata {
                 byte_start: 0,
                 byte_end: 0,
@@ -434,6 +468,28 @@ mod tests {
         assert_eq!(chunks[0].metadata.classifications[1].label, "registered_office_change");
         assert!(chunks[1].metadata.classifications.is_empty());
         assert!(chunks[2].metadata.classifications.is_empty());
+    }
+
+    #[test]
+    fn partial_batch_failure_message_names_counts_and_last_error() {
+        let err = crate::XbergError::Other("model timed out".to_string());
+        let message = partial_batch_failure_message(1, 3, &err);
+        assert_eq!(
+            message,
+            "1 of 3 chunk-classification batches failed; chunks in the failed batch \
+             were left without classifications (last error: model timed out)"
+        );
+    }
+
+    #[test]
+    fn partial_batch_failure_message_pluralizes_singular_counts() {
+        let err = crate::XbergError::Other("boom".to_string());
+        let message = partial_batch_failure_message(1, 1, &err);
+        assert_eq!(
+            message,
+            "1 of 1 chunk-classification batch failed; chunks in the failed batch \
+             were left without classifications (last error: boom)"
+        );
     }
 
     #[tokio::test]

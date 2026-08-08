@@ -72,9 +72,9 @@ TEST_LOG="/tmp/cargo-test-$$.log"
 # ~keep the block and surface its own failure; pipefail carries it past `tee`.
 if ! {
   # ~keep `--all-targets` runs --lib --bins --tests --examples --benches but excludes
-  # ~keep `--doc`. The xberg crate still has rustdoc examples for private/internal
-  # ~keep APIs; `cargo test -p xberg --features full --doc` currently fails those
-  # ~keep examples because rustdoc compiles them as an external crate.
+  # ~keep `--doc`. Doctests are covered by the separate "Run doctests" step in
+  # ~keep .github/workflows/ci-rust.yaml, which uses the same feature set selected
+  # ~keep below (including the aarch64 substitution) so it reuses these artifacts.
   echo "=== cargo test -p xberg --features full ==="
   # `full` now includes candle-vlm-ocr; candle's gemm-f16 matmul backend carries
   # aarch64 inline asm requiring the fullfp16 target feature, which this runner's

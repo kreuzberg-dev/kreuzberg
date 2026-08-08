@@ -112,7 +112,7 @@ fn engine_pool_key(
 }
 
 const INFERENCE_THREAD_COUNT: usize = 1;
-const ORIENTATION_CONFIDENCE_METADATA_KEY: &str = "orientation_confidence";
+use crate::ocr_metadata_keys::OCR_ORIENTATION_CONFIDENCE_METADATA_KEY as ORIENTATION_CONFIDENCE_METADATA_KEY;
 const VERTICAL_TEXT_MIN_ASPECT_RATIO: f32 = 1.5;
 const VERTICAL_COLUMN_MIN_OVERLAP_RATIO: f32 = 0.5;
 
@@ -194,16 +194,16 @@ fn rotate_for_detected_orientation(
 fn image_metadata(outcome: &RotationOutcome) -> AHashMap<Cow<'static, str>, serde_json::Value> {
     let mut additional = AHashMap::new();
     additional.insert(
-        Cow::Borrowed(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
+        Cow::Borrowed(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
         serde_json::Value::Number(outcome.processed_width.into()),
     );
     additional.insert(
-        Cow::Borrowed(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
+        Cow::Borrowed(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
         serde_json::Value::Number(outcome.processed_height.into()),
     );
     if let Some(orientation) = outcome.orientation {
         additional.insert(
-            Cow::Borrowed(crate::ocr::OCR_ORIENTATION_DEGREES_METADATA_KEY),
+            Cow::Borrowed(crate::ocr_metadata_keys::OCR_ORIENTATION_DEGREES_METADATA_KEY),
             serde_json::Value::Number(orientation.degrees.into()),
         );
         additional.insert(
@@ -213,7 +213,7 @@ fn image_metadata(outcome: &RotationOutcome) -> AHashMap<Cow<'static, str>, serd
     }
     if outcome.auto_rotated() {
         additional.insert(
-            Cow::Borrowed(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY),
+            Cow::Borrowed(crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY),
             serde_json::Value::Bool(true),
         );
     }
@@ -1471,18 +1471,18 @@ mod tests {
 
         let metadata = image_metadata(&outcome);
         assert_eq!(
-            metadata.get(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
             Some(&serde_json::json!(3))
         );
         assert_eq!(
-            metadata.get(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
             Some(&serde_json::json!(2))
         );
         assert_eq!(
-            metadata.get(crate::ocr::OCR_ORIENTATION_DEGREES_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_ORIENTATION_DEGREES_METADATA_KEY),
             Some(&serde_json::json!(0))
         );
-        assert!(!metadata.contains_key(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY));
+        assert!(!metadata.contains_key(crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY));
     }
 
     #[test]
@@ -1509,19 +1509,19 @@ mod tests {
 
         let metadata = image_metadata(&outcome);
         assert_eq!(
-            metadata.get(crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),
             Some(&serde_json::json!(2))
         );
         assert_eq!(
-            metadata.get(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY),
             Some(&serde_json::json!(3))
         );
         assert_eq!(
-            metadata.get(crate::ocr::OCR_ORIENTATION_DEGREES_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_ORIENTATION_DEGREES_METADATA_KEY),
             Some(&serde_json::json!(90))
         );
         assert_eq!(
-            metadata.get(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY),
+            metadata.get(crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY),
             Some(&serde_json::json!(true))
         );
     }

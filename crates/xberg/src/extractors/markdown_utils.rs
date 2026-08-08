@@ -10,7 +10,7 @@ use std::borrow::Cow;
 
 /// Decode a data URI into an `ExtractedImage`.
 ///
-/// Supports base64-encoded PNG, JPEG, GIF, and WebP data URIs.
+/// Supports base64-encoded PNG, JPEG, GIF, WebP, and SVG data URIs.
 /// Returns `None` for non-base64 encodings or unsupported formats.
 ///
 /// # Arguments
@@ -25,6 +25,9 @@ pub(crate) fn decode_data_uri_image(uri: &str, index: u32) -> Option<ExtractedIm
         return None;
     }
 
+    // `image/svg+xml` is recognized alongside the raster formats below (issue #145):
+    // inline SVG data URIs used to be dropped from Markdown entirely, even though the HTML
+    // extractor already handles inline SVG via `InlineImageFormat::Svg`.
     let format: &str = if mime_and_encoding.contains("image/png") {
         "png"
     } else if mime_and_encoding.contains("image/jpeg") {
@@ -33,6 +36,8 @@ pub(crate) fn decode_data_uri_image(uri: &str, index: u32) -> Option<ExtractedIm
         "gif"
     } else if mime_and_encoding.contains("image/webp") {
         "webp"
+    } else if mime_and_encoding.contains("image/svg+xml") {
+        "svg"
     } else {
         return None;
     };

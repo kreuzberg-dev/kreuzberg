@@ -40,13 +40,20 @@ impl<F: Read + Seek> CfbReader<F> {
         self.cfb.exists(path)
     }
 
-    /// List all streams in the compound file.
+    /// List all streams in the compound file, as root-relative paths.
+    ///
+    /// `cfb` reports entry paths absolutely (`/BodyText/Section0`), while every caller
+    /// here — and [`Self::read_stream`], which resolves relative to the root — speaks in
+    /// relative names (`BodyText/Section0`). Returning the absolute form made every
+    /// `starts_with("BodyText/Section")` and `starts_with("BinData/")` test fail, so no
+    /// section and no image was ever found in a real HWP file.
     pub(crate) fn list_streams(&self) -> Vec<String> {
         self.cfb
             .walk()
             .filter_map(|entry| {
                 if entry.is_stream() {
-                    Some(entry.path().to_string_lossy().into_owned())
+                    let path = entry.path().to_string_lossy().into_owned();
+                    Some(path.trim_start_matches('/').to_string())
                 } else {
                     None
                 }

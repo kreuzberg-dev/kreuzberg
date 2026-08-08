@@ -30,7 +30,11 @@ pub use core::TokenReducer;
 ///
 /// # Examples
 ///
-/// ```rust
+/// Not run as a doctest: this function is `pub(crate)`. Downstream crates reach it by
+/// setting [`crate::TokenReductionConfig`] on the extraction config; only the config
+/// types ([`crate::TokenReductionConfig`], [`crate::ReductionLevel`]) are public.
+///
+/// ```ignore
 /// use xberg::text::token_reduction::{reduce_tokens, TokenReductionConfig, ReductionLevel};
 ///
 /// let text = "This is a simple example text with some stopwords.";

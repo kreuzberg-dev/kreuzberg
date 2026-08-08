@@ -48,7 +48,7 @@ pub fn detect_qr_codes(image_bytes: &[u8], _format_hint: Option<&str>) -> Vec<Qr
     let dynamic = match image::load_from_memory(image_bytes) {
         Ok(img) => img,
         Err(error) => {
-            tracing::debug!(error = %error, "qr: image decode failed; skipping");
+            tracing::warn!(error = %error, "qr: image decode failed; skipping");
             return Vec::new();
         }
     };
@@ -87,7 +87,7 @@ pub fn detect_qr_codes(image_bytes: &[u8], _format_hint: Option<&str>) -> Vec<Qr
                 });
             }
             Err(error) => {
-                tracing::debug!(error = %error, "qr: grid decode failed; skipping grid");
+                tracing::warn!(error = %error, "qr: grid decode failed; skipping grid");
             }
         }
     }

@@ -130,7 +130,10 @@ static FORMAT_FIELD_SET: LazyLock<AHashSet<&'static str>> = LazyLock::new(|| KNO
 ///
 /// # Example
 ///
-/// ```rust
+/// Not run as a doctest: this helper is `#[cfg(test)] pub(crate)`, so it does not
+/// exist in any build a downstream crate can link against.
+///
+/// ```ignore
 /// use xberg::core::formats::is_valid_format_field;
 ///
 /// assert!(is_valid_format_field("title"));

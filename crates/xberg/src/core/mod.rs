@@ -34,10 +34,8 @@ pub mod batch_mode;
 pub mod batch_optimizations;
 pub mod config;
 pub mod config_validation;
-#[cfg(all(
-    feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection")
-))]
+// Unconditional: every extractor that reports partial extraction goes through
+// these helpers, not just the pdf/ocr pipelines that first needed them (#171).
 pub(crate) mod diagnostics;
 pub mod extract;
 pub(crate) mod extractor;

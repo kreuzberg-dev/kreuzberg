@@ -86,12 +86,31 @@ fn run_extractive(result: &mut ExtractedDocument, max_tokens: Option<u32>) -> Re
         .and_then(|langs| langs.first())
         .map(String::as_str);
 
-    let summary_text =
-        crate::text::summarization::textrank::summarize(&result.content, language, max_tokens).unwrap_or_default();
+    let summary_text = crate::text::summarization::textrank::summarize(&result.content, language, max_tokens);
+    apply_extractive_summary(result, summary_text);
+    Ok(())
+}
 
-    if summary_text.is_empty() {
-        return Ok(());
-    }
+/// Apply the outcome of TextRank extractive summarisation to `result`.
+///
+/// `summary_text` is `None` (or, defensively, `Some("")`) when the summariser
+/// could not produce output for this document. Previously this was masked by
+/// `.unwrap_or_default()` and silently left `result.summary` unset with no
+/// signal to the caller, unlike the abstractive branch which pushes a
+/// `ProcessingWarning` on failure (#257). Mirror that behaviour here so the
+/// caller can distinguish "no summary produced" from "summariser errored".
+fn apply_extractive_summary(result: &mut ExtractedDocument, summary_text: Option<String>) {
+    let summary_text = match summary_text {
+        Some(text) if !text.is_empty() => text,
+        _ => {
+            crate::core::diagnostics::push_warning(
+                &mut result.processing_warnings,
+                "summarization_extractive",
+                "Extractive summarisation produced no output for this document",
+            );
+            return;
+        }
+    };
 
     let token_count = crate::text::summarization::textrank::token_count(&summary_text);
     result.summary = Some(DocumentSummary {
@@ -99,7 +118,6 @@ fn run_extractive(result: &mut ExtractedDocument, max_tokens: Option<u32>) -> Re
         strategy: SummaryStrategy::Extractive,
         token_count: Some(token_count),
     });
-    Ok(())
 }
 
 #[cfg(feature = "summarization-llm")]
@@ -242,5 +260,56 @@ mod tests {
         let p = SummarizationProcessor;
         assert_eq!(p.name(), "summarization");
         assert!(!p.version().is_empty());
+    }
+
+    #[test]
+    fn should_warn_when_extractive_summariser_produces_no_output() {
+        let mut result = ExtractedDocument {
+            content: PARAGRAPH.to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            ..Default::default()
+        };
+
+        apply_extractive_summary(&mut result, None);
+
+        assert!(result.summary.is_none(), "no summary should be set on failure");
+        assert_eq!(result.processing_warnings.len(), 1);
+        assert_eq!(result.processing_warnings[0].source, "summarization_extractive");
+        assert_eq!(
+            result.processing_warnings[0].message,
+            "Extractive summarisation produced no output for this document"
+        );
+    }
+
+    #[test]
+    fn should_warn_when_extractive_summariser_returns_empty_string() {
+        let mut result = ExtractedDocument {
+            content: PARAGRAPH.to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            ..Default::default()
+        };
+
+        apply_extractive_summary(&mut result, Some(String::new()));
+
+        assert!(result.summary.is_none());
+        assert_eq!(result.processing_warnings.len(), 1);
+        assert_eq!(result.processing_warnings[0].source, "summarization_extractive");
+    }
+
+    #[test]
+    fn should_set_summary_and_emit_no_warning_when_summariser_succeeds() {
+        let mut result = ExtractedDocument {
+            content: PARAGRAPH.to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            ..Default::default()
+        };
+
+        apply_extractive_summary(&mut result, Some("Machine learning is great.".to_string()));
+
+        assert!(result.processing_warnings.is_empty());
+        let summary = result.summary.as_ref().expect("summary populated");
+        assert_eq!(summary.text, "Machine learning is great.");
+        assert_eq!(summary.strategy, SummaryStrategy::Extractive);
+        assert_eq!(summary.token_count, Some(4));
     }
 }

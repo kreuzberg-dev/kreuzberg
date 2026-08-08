@@ -51,6 +51,42 @@ pub(crate) fn pipeline_stage_span(stage: &str) -> tracing::Span {
     tracing::info_span!("xberg.pipeline", { conventions::PIPELINE_STAGE } = stage,)
 }
 
+/// Create the pipeline span for the core extraction stage.
+///
+/// Emits the same `xberg.pipeline` span as [`pipeline_stage_span`] with
+/// `xberg.pipeline.stage = "extraction"`, plus the name and priority of the
+/// extractor that the registry selected for this document. It is the parent of
+/// the extractor's own `xberg.extract` span.
+pub(crate) fn extraction_stage_span(extractor_name: &str, extractor_priority: i32) -> tracing::Span {
+    tracing::info_span!(
+        "xberg.pipeline",
+        { conventions::PIPELINE_STAGE } = conventions::stages::EXTRACTION,
+        { conventions::EXTRACTOR_NAME } = extractor_name,
+        { conventions::EXTRACTOR_PRIORITY } = extractor_priority,
+    )
+}
+
+/// Create the span covering an entire batch extraction request.
+pub(crate) fn batch_span(batch_size: usize) -> tracing::Span {
+    tracing::info_span!(
+        "xberg.batch",
+        { conventions::OPERATION } = conventions::operations::BATCH_EXTRACT,
+        { conventions::BATCH_SIZE } = batch_size,
+    )
+}
+
+/// Create the span covering a single item within a batch extraction.
+///
+/// This is the only span that can carry [`conventions::BATCH_INDEX`], which is
+/// defined per item rather than per batch.
+pub(crate) fn batch_item_span(batch_index: usize) -> tracing::Span {
+    tracing::debug_span!(
+        "xberg.batch.item",
+        { conventions::OPERATION } = conventions::operations::BATCH_EXTRACT,
+        { conventions::BATCH_INDEX } = batch_index,
+    )
+}
+
 /// Create a pipeline processor span.
 pub(crate) fn pipeline_processor_span(stage: &str, processor_name: &str) -> tracing::Span {
     tracing::debug_span!(

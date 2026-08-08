@@ -72,7 +72,13 @@ pub fn extraction_result_to_djot(result: &crate::types::ExtractedDocument) -> cr
     } else {
         let mut output = String::new();
 
-        let paragraphs: Vec<&str> = result.content.split("\n\n").collect();
+        // `ExtractedDocument::content` carries no LF-only guarantee: `render_plain`
+        // copies each element's text verbatim (crate::rendering::plain) and the
+        // `pre_rendered_content` path bypasses rendering entirely, so a CRLF-authored
+        // source (e.g. a Windows-authored code file) reaches here with `\r\n` intact.
+        // Splitting raw emits the whole document as one djot paragraph (#316).
+        let content = crate::extraction::transform::normalize_line_endings(&result.content);
+        let paragraphs: Vec<&str> = content.split("\n\n").collect();
 
         for para in paragraphs {
             let trimmed = para.trim();

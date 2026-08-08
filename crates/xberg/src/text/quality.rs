@@ -15,7 +15,6 @@ const STRUCTURE_BONUS_WEIGHT: f64 = 0.2;
 const METADATA_BONUS_WEIGHT: f64 = 0.1;
 
 const MIN_TEXT_LENGTH: usize = 10;
-const LARGE_TEXT_LENGTH: usize = 1000;
 const MIN_SENTENCE_WORDS: f64 = 10.0;
 const MAX_SENTENCE_WORDS: f64 = 30.0;
 const MIN_PARAGRAPH_WORDS: f64 = 50.0;
@@ -138,22 +137,22 @@ pub fn calculate_quality_score(text: &str, metadata: Option<&AHashMap<Cow<'stati
         return 0.1;
     }
 
+    // Every penalty/bonus applies regardless of `text.len()`. This used to
+    // short-circuit script and navigation penalties for texts at or below
+    // `LARGE_TEXT_LENGTH`, so a short HTML-derived fragment full of nav chrome
+    // (breadcrumbs, "Skip to main content", pagination) scored as clean prose
+    // purely because it was short (#267).
     let mut score = 1.0;
 
-    if text.len() > LARGE_TEXT_LENGTH {
-        let ocr_penalty = calculate_ocr_penalty(text, total_chars);
-        let script_penalty = calculate_script_penalty(text, total_chars);
-        let nav_penalty = calculate_navigation_penalty(text, total_chars);
-        let structure_bonus = calculate_structure_bonus(text);
+    let ocr_penalty = calculate_ocr_penalty(text, total_chars);
+    let script_penalty = calculate_script_penalty(text, total_chars);
+    let nav_penalty = calculate_navigation_penalty(text, total_chars);
+    let structure_bonus = calculate_structure_bonus(text);
 
-        score -= ocr_penalty * OCR_PENALTY_WEIGHT;
-        score -= script_penalty * SCRIPT_PENALTY_WEIGHT;
-        score -= nav_penalty * NAV_PENALTY_WEIGHT;
-        score += structure_bonus * STRUCTURE_BONUS_WEIGHT;
-    } else {
-        score -= calculate_ocr_penalty(text, total_chars) * OCR_PENALTY_WEIGHT;
-        score += calculate_structure_bonus(text) * STRUCTURE_BONUS_WEIGHT;
-    }
+    score -= ocr_penalty * OCR_PENALTY_WEIGHT;
+    score -= script_penalty * SCRIPT_PENALTY_WEIGHT;
+    score -= nav_penalty * NAV_PENALTY_WEIGHT;
+    score += structure_bonus * STRUCTURE_BONUS_WEIGHT;
 
     if let Some(metadata) = metadata {
         score += calculate_metadata_bonus(metadata) * METADATA_BONUS_WEIGHT;
@@ -526,7 +525,45 @@ mod tests {
     #[test]
     fn test_quality_constants() {
         assert_eq!(MIN_TEXT_LENGTH, 10);
-        assert_eq!(LARGE_TEXT_LENGTH, 1000);
         assert_eq!(OCR_PENALTY_WEIGHT, 0.3);
+    }
+
+    #[test]
+    fn should_apply_navigation_penalty_to_short_text() {
+        // Below the removed `LARGE_TEXT_LENGTH` threshold, navigation chrome
+        // used to be scored as if it were clean prose (#267). This text is
+        // short (well under 1000 bytes) and dominated by nav chrome, so the
+        // navigation penalty must pull the score down from the neutral 1.0
+        // baseline instead of leaving it unpenalized.
+        let text = "Skip to main content. Back to top. Home > Products > Widgets. Page 1 of 12.";
+        assert!(text.len() < 1000, "fixture must exercise the short-text path");
+
+        let score = calculate_quality_score(text, None);
+        let nav_penalty = calculate_navigation_penalty(text, text.len() as f64);
+
+        assert!(
+            nav_penalty > 0.0,
+            "fixture must actually trigger the navigation pattern"
+        );
+        assert!(
+            score < 1.0,
+            "navigation-heavy short text must be penalized, got score {score}"
+        );
+    }
+
+    #[test]
+    fn should_apply_script_penalty_to_short_text() {
+        // Same defect as above but for the script/style penalty (#267).
+        let text = "function init() { doStuff(); } Welcome to our site!";
+        assert!(text.len() < 1000, "fixture must exercise the short-text path");
+
+        let score = calculate_quality_score(text, None);
+        let script_penalty = calculate_script_penalty(text, text.len() as f64);
+
+        assert!(script_penalty > 0.0, "fixture must actually trigger the script pattern");
+        assert!(
+            score < 1.0,
+            "script-heavy short text must be penalized, got score {score}"
+        );
     }
 }

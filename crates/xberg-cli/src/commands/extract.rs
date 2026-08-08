@@ -15,7 +15,7 @@ use xberg::{
 
 use crate::{
     WireFormat,
-    output::{BatchEnvelope, ExtractEnvelope, StageTimings},
+    output::{BatchEnvelope, ExtractEnvelope, StageTimings, write_processing_warnings, write_text_envelope},
     style,
 };
 
@@ -151,6 +151,11 @@ pub fn extract_command(
                 write_extracted_images(images, dir)?;
             }
             print!("{}", result.content);
+            // `stdout` stays exactly the extracted content so it remains pipeable; everything
+            // else the extraction produced — warnings included — goes to `stderr`.
+            let mut diagnostics = std::io::stderr().lock();
+            write_text_envelope(&result, extraction_time_ms, &mut diagnostics)
+                .context("Failed to write the extraction envelope summary")?;
         }
         WireFormat::Json => {
             // `getrusage` reports the peak for the process's whole lifetime, so the exact sample
@@ -172,9 +177,19 @@ pub fn extract_command(
                 let dir = output_dir.as_deref().unwrap_or(Path::new("."));
                 write_extracted_images(images, dir)?;
             }
+            // Serialize the same envelope the JSON path emits. Previously this serialized the
+            // bare `ExtractedDocument`, so TOON consumers lost the timing/peak-memory fields
+            // that JSON consumers get.
+            let peak_memory_bytes = crate::peak_memory::peak_memory_bytes().unwrap_or(0);
+            let envelope = ExtractEnvelope {
+                result,
+                extraction_time_ms,
+                peak_memory_bytes,
+                stage_timings,
+            };
             println!(
                 "{}",
-                serde_toon::to_string(&result).context("Failed to serialize extraction result to TOON")?
+                serde_toon::to_string(&envelope).context("Failed to serialize extraction result to TOON")?
             );
         }
     }
@@ -215,6 +230,7 @@ pub fn batch_command(
         WireFormat::Text => {
             let results = run_batch_sync(&uris, file_configs_map.as_ref(), &config)?;
             let dir = output_dir.as_deref().unwrap_or(Path::new("."));
+            let mut diagnostics = std::io::stderr().lock();
             for (i, result) in results.iter().enumerate() {
                 if let Some(images) = &result.images {
                     write_extracted_images(images, dir)?;
@@ -223,6 +239,10 @@ pub fn batch_command(
                 println!("{} {}", style::label("MIME Type:"), style::success(&result.mime_type));
                 println!("{}\n{}", style::label("Content:"), result.content);
                 println!();
+                // Warnings go to `stderr` for the same reason as in `extract_command`: the
+                // batch text stream is content, not diagnostics.
+                write_processing_warnings(&result.processing_warnings, &mut diagnostics)
+                    .context("Failed to write processing warnings")?;
             }
         }
         WireFormat::Toon => {

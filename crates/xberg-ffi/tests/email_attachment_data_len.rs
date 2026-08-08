@@ -15,7 +15,7 @@
 /// that contain embedded NUL bytes.
 ///
 /// Per project rules: every unsafe block has a SAFETY comment.
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 use std::fs;
 use std::path::Path;
 

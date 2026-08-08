@@ -7,7 +7,9 @@
 use std::collections::HashMap;
 use std::io::{Read, Seek};
 
+use crate::core::diagnostics::push_warning;
 use crate::extraction::ooxml_constants::PRESENTATIONML_NAMESPACE;
+use crate::types::ProcessingWarning;
 use crate::types::revisions::{DiffLine, DocumentRevision, RevisionAnchor, RevisionDelta, RevisionKind};
 
 use super::container::PptxContainer;
@@ -20,13 +22,15 @@ use super::container::PptxContainer;
 ///
 /// Returns `None` when no comment XML parts exist in the archive, and
 /// `Some(vec![])` when files are present but contain no `<p:cm>` elements.
-/// On parse error the function logs a warning and returns `None` so that the
-/// rest of extraction still succeeds.
+/// A comment file or the author list that exists but fails to parse is
+/// surfaced as a `ProcessingWarning` naming the part, rather than only
+/// logging and silently discarding those comments (#238).
 pub(super) fn extract_comments<R: Read + Seek>(
     container: &mut PptxContainer<R>,
     slide_paths: &[String],
+    warnings: &mut Vec<ProcessingWarning>,
 ) -> Option<Vec<DocumentRevision>> {
-    let author_map = load_author_map(container);
+    let author_map = load_author_map(container, warnings);
     let mut all_comments: Vec<DocumentRevision> = Vec::new();
     let mut any_comment_file_found = false;
 
@@ -50,6 +54,16 @@ pub(super) fn extract_comments<R: Read + Seek>(
                     error = %e,
                     "failed to parse PPTX comment file; skipping slide comments"
                 );
+                push_warning(
+                    warnings,
+                    "pptx",
+                    format!(
+                        "Could not parse comments for slide {} ('{}'): {}; comments were not extracted",
+                        slide_idx + 1,
+                        comment_path,
+                        e
+                    ),
+                );
             }
         }
     }
@@ -63,8 +77,13 @@ pub(super) fn extract_comments<R: Read + Seek>(
 
 /// Load `ppt/commentAuthors.xml` and return an `authorId → name` map.
 ///
-/// Returns an empty map when the file is absent or unparseable.
-fn load_author_map<R: Read + Seek>(container: &mut PptxContainer<R>) -> HashMap<u32, String> {
+/// Returns an empty map when the file is absent. A file that exists but
+/// fails to parse is surfaced as a `ProcessingWarning`, since comments will
+/// then be missing author attribution (#238).
+fn load_author_map<R: Read + Seek>(
+    container: &mut PptxContainer<R>,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> HashMap<u32, String> {
     let xml_bytes = match container.read_file("ppt/commentAuthors.xml") {
         Ok(b) => b,
         Err(_) => return HashMap::new(),
@@ -73,6 +92,14 @@ fn load_author_map<R: Read + Seek>(container: &mut PptxContainer<R>) -> HashMap<
         Ok(map) => map,
         Err(e) => {
             tracing::warn!(error = %e, "failed to parse ppt/commentAuthors.xml");
+            push_warning(
+                warnings,
+                "pptx",
+                format!(
+                    "Could not parse ppt/commentAuthors.xml: {}; comment authors were not resolved",
+                    e
+                ),
+            );
             HashMap::new()
         }
     }

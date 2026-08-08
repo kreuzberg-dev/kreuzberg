@@ -61,11 +61,10 @@ pub enum OcrBackendType {
 /// impl OcrBackend for CustomOcrBackend {
 ///     async fn process_image(&self, image_bytes: &[u8], config: &OcrConfig) -> Result<ExtractedDocument> {
 ///         // Implement OCR logic here
-///         Ok(ExtractedDocument {
-///             content: "Extracted text".to_string(),
-///             mime_type: Cow::Borrowed("text/plain"),
-///             ..Default::default()
-///         })
+///         let mut document = ExtractedDocument::default();
+///         document.content = "Extracted text".to_string();
+///         document.mime_type = Cow::Borrowed("text/plain");
+///         Ok(document)
 ///     }
 ///
 ///     async fn process_image_file(&self, path: &Path, config: &OcrConfig) -> Result<ExtractedDocument> {
@@ -149,14 +148,13 @@ pub trait OcrBackend: Plugin {
     ///     let text = if fast_mode {
     ///         "Fast OCR result".to_string()
     ///     } else {
-    ///         format!("Extracted text in language: {}", config.language)
+    ///         format!("Extracted text in language: {:?}", config.language)
     ///     };
     ///
-    ///     Ok(ExtractedDocument {
-    ///         content: text,
-    ///         mime_type: Cow::Borrowed("text/plain"),
-    ///         ..Default::default()
-    ///     })
+    ///     let mut document = ExtractedDocument::default();
+    ///     document.content = text;
+    ///     document.mime_type = Cow::Borrowed("text/plain");
+    ///     Ok(document)
     /// }
     /// # }
     /// ```
@@ -388,11 +386,10 @@ pub trait OcrBackend: Plugin {
 /// #[async_trait]
 /// impl OcrBackend for CustomOcr {
 ///     async fn process_image(&self, _: &[u8], _: &OcrConfig) -> Result<ExtractedDocument> {
-///         Ok(ExtractedDocument {
-///             content: "text".to_string(),
-///             mime_type: Cow::Borrowed("text/plain"),
-///             ..Default::default()
-///         })
+///         let mut document = ExtractedDocument::default();
+///         document.content = "text".to_string();
+///         document.mime_type = Cow::Borrowed("text/plain");
+///         Ok(document)
 ///     }
 ///     fn supports_language(&self, _: &str) -> bool { true }
 ///     fn backend_type(&self) -> OcrBackendType { OcrBackendType::Custom }

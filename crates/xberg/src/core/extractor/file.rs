@@ -7,12 +7,15 @@
 //! - Extraction pipeline orchestration
 
 use crate::Result;
-#[cfg(not(feature = "office"))]
 use crate::XbergError;
 use crate::core::config::ExtractionConfig;
 use crate::core::mime::{LEGACY_POWERPOINT_MIME_TYPE, LEGACY_WORD_MIME_TYPE};
+use crate::plugins::InternalDocumentExtractor;
+use crate::plugins::registry::RegisteredDocumentExtractor;
 use crate::types::ExtractedDocument;
 use std::path::Path;
+#[cfg(feature = "otel")]
+use tracing::Instrument;
 
 use super::helpers::get_extractor;
 
@@ -43,14 +46,16 @@ use super::helpers::get_extractor;
 ///
 /// # Example
 ///
+/// This function is crate-internal; the public entry point that reaches it is
+/// [`crate::extract`] with a URI input.
+///
 /// ```rust,no_run
-/// use xberg::core::extractor::extract_file;
-/// use xberg::core::config::ExtractionConfig;
+/// use xberg::{ExtractInput, ExtractionConfig, extract};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let result = extract_file("document.pdf", None, &config).await?;
-/// println!("Content: {}", result.content);
+/// let output = extract(ExtractInput::from_uri("document.pdf"), &config).await?;
+/// println!("Content: {}", output.results[0].content);
 /// # Ok(())
 /// # }
 /// ```
@@ -212,17 +217,123 @@ pub(in crate::core::extractor) async fn extract_file_with_extractor(
     Ok(result)
 }
 
+/// Whether an extractor failure is eligible for the extractor fallback chain (#217).
+///
+/// Only failures indicating that *this* extractor could not handle the input in a
+/// way another registered extractor for the same MIME type plausibly could are
+/// eligible:
+///
+/// - [`XbergError::UnsupportedFormat`] — the extractor determined, past MIME-based
+///   selection, that it does not actually support this content (e.g. a container
+///   format that only handles some of its own sub-variants).
+/// - [`XbergError::Plugin`] — a third-party extractor's own reported failure. That
+///   is a property of the plugin, not necessarily of the document.
+///
+/// Every other variant is treated as a hard failure and is *not* retried with a
+/// lower-priority extractor. In particular [`XbergError::Parsing`] — the variant
+/// an encrypted file or a corrupt archive surfaces as — means the document itself
+/// is the problem: every other extractor registered for the same MIME type would
+/// almost certainly fail identically, so cascading through them would only add
+/// latency before producing a confusing final error (e.g. a generic archive
+/// extractor's error swallowing the specific "wrong password" message from the
+/// primary one).
+fn is_extractor_fallback_eligible(error: &XbergError) -> bool {
+    matches!(error, XbergError::UnsupportedFormat(_) | XbergError::Plugin { .. })
+}
+
 /// Extract without caching logic.
+///
+/// Fetches extractor candidates for `mime_type` from the process-global
+/// [`crate::plugins::registry::DocumentExtractorRegistry`] and delegates the
+/// dispatch/fallback logic to [`extract_with_candidates`].
 async fn extract_file_uncached(path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<ExtractedDocument> {
     let budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
     crate::core::config::concurrency::init_thread_pools(budget);
 
     crate::extractors::ensure_initialized()?;
 
-    let extractor = get_extractor(mime_type)?;
-    let doc = Box::pin(extractor.extract_path(path, mime_type, config)).await?;
-    let result = Box::pin(crate::core::pipeline::run_pipeline(doc, config)).await?;
-    Ok(result)
+    let candidates = {
+        let registry = crate::plugins::registry::get_document_extractor_registry();
+        let registry_read = registry.read();
+        registry_read.get_candidates(path, mime_type)
+    };
+
+    extract_with_candidates(path, mime_type, config, candidates).await
+}
+
+/// Tries every extractor `candidates` in order (highest priority first,
+/// see [`crate::plugins::registry::DocumentExtractorRegistry::get_candidates`]),
+/// falling back to the next candidate only when the failure is
+/// [fallback-eligible](is_extractor_fallback_eligible) (#217). A
+/// `ProcessingWarning` records which extractor ultimately ran and why whenever a
+/// higher-priority extractor was tried and failed first.
+///
+/// Parameterized on `candidates` rather than fetching them itself so callers
+/// (in particular tests) can supply candidates from a local registry instead
+/// of the process-global one, without racing concurrently running extraction
+/// paths that self-heal the global registry only when it is observed
+/// completely empty (see `crate::extractors::ensure_initialized`).
+pub(crate) async fn extract_with_candidates(
+    path: &Path,
+    mime_type: &str,
+    config: &ExtractionConfig,
+    candidates: Vec<RegisteredDocumentExtractor>,
+) -> Result<ExtractedDocument> {
+    if candidates.is_empty() {
+        return Err(XbergError::UnsupportedFormat(mime_type.to_string()));
+    }
+
+    let candidate_count = candidates.len();
+    let mut last_error = None;
+
+    for (index, candidate) in candidates.into_iter().enumerate() {
+        // The extraction stage span wraps only the extractor invocation — post-processing
+        // is covered by `run_pipeline` below and must not be nested inside it.
+        #[cfg(feature = "otel")]
+        let extraction = {
+            let stage_span = crate::telemetry::spans::extraction_stage_span(
+                candidate.plugin().name(),
+                candidate.plugin().priority(),
+            );
+            candidate
+                .extract_path(path, mime_type, config)
+                .instrument(stage_span)
+                .await
+        };
+        #[cfg(not(feature = "otel"))]
+        let extraction = candidate.extract_path(path, mime_type, config).await;
+
+        match extraction {
+            Ok(mut doc) => {
+                if index > 0 {
+                    let name = candidate.plugin().name();
+                    crate::core::diagnostics::push_warning(
+                        &mut doc.processing_warnings,
+                        "extractor-fallback",
+                        format!(
+                            "extractor '{name}' handled this document for MIME type '{mime_type}' after \
+                             {index} higher-priority extractor(s) failed"
+                        ),
+                    );
+                }
+                let result = Box::pin(crate::core::pipeline::run_pipeline(doc, config)).await?;
+                return Ok(result);
+            }
+            Err(e) if index + 1 < candidate_count && is_extractor_fallback_eligible(&e) => {
+                tracing::debug!(
+                    "Extractor '{}' failed for MIME type '{}' with a fallback-eligible error, \
+                     trying the next candidate: {}",
+                    candidate.plugin().name(),
+                    mime_type,
+                    e
+                );
+                last_error = Some(e);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| XbergError::UnsupportedFormat(mime_type.to_string())))
 }
 
 /// Hash ExtractionConfig fields that affect extraction output.
@@ -289,7 +400,17 @@ pub(in crate::core::extractor) async fn extract_bytes_with_extractor(
     crate::extractors::ensure_initialized()?;
 
     let extractor = get_extractor(mime_type)?;
+
+    #[cfg(feature = "otel")]
+    let doc = {
+        let stage_span = crate::telemetry::spans::extraction_stage_span(extractor.name(), extractor.priority());
+        Box::pin(extractor.extract_content(content, mime_type, config))
+            .instrument(stage_span)
+            .await?
+    };
+    #[cfg(not(feature = "otel"))]
     let doc = Box::pin(extractor.extract_content(content, mime_type, config)).await?;
+
     let result = Box::pin(crate::core::pipeline::run_pipeline(doc, config)).await?;
     Ok(result)
 }
@@ -381,5 +502,161 @@ mod cache_key_tests {
             hash_extraction_config(&strict, "application/pdf"),
             "min_confidence selects different pages for OCR and must be part of the cache key"
         );
+    }
+}
+
+/// #217: extractor fallback chain behavior.
+#[cfg(all(test, feature = "tokio-runtime", not(target_arch = "wasm32")))]
+mod issue_217_fallback_tests {
+    use super::*;
+    use crate::core::config::{ExtractInput, ExtractionConfig};
+    use crate::plugins::registry::DocumentExtractorRegistry;
+    use crate::plugins::{DocumentExtractor, Plugin};
+    use crate::types::ExtractedDocument;
+    use std::borrow::Cow;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    const FALLBACK_MIME: &str = "application/x-issue-217-fallback";
+
+    /// A `DocumentExtractor` whose `extract` outcome is a plain function pointer,
+    /// so each test can script a distinct sequence of successes/failures without
+    /// a new type per scenario.
+    struct ScriptedExtractor {
+        name: &'static str,
+        priority: i32,
+        outcome: fn() -> Result<ExtractedDocument>,
+    }
+
+    impl Plugin for ScriptedExtractor {
+        fn name(&self) -> &str {
+            self.name
+        }
+        fn version(&self) -> String {
+            "1.0.0".to_string()
+        }
+        fn initialize(&self) -> Result<()> {
+            Ok(())
+        }
+        fn shutdown(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DocumentExtractor for ScriptedExtractor {
+        async fn extract(&self, _input: ExtractInput, _config: &ExtractionConfig) -> Result<ExtractedDocument> {
+            (self.outcome)()
+        }
+
+        fn supported_mime_types(&self) -> &[&str] {
+            &[FALLBACK_MIME]
+        }
+
+        fn priority(&self) -> i32 {
+            self.priority
+        }
+    }
+
+    fn ok_result() -> Result<ExtractedDocument> {
+        Ok(ExtractedDocument {
+            content: "fallback succeeded".to_string(),
+            mime_type: Cow::Borrowed(FALLBACK_MIME),
+            ..Default::default()
+        })
+    }
+
+    fn unsupported_format_error() -> Result<ExtractedDocument> {
+        Err(XbergError::UnsupportedFormat(
+            "this extractor declines this specific variant".to_string(),
+        ))
+    }
+
+    fn parsing_error() -> Result<ExtractedDocument> {
+        Err(XbergError::Parsing {
+            message: "corrupt or encrypted content".to_string(),
+            source: None,
+        })
+    }
+
+    fn write_temp_file() -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("doc.bin");
+        std::fs::write(&file_path, b"irrelevant bytes").unwrap();
+        (dir, file_path)
+    }
+
+    /// A [`XbergError::UnsupportedFormat`] failure from the highest-priority
+    /// extractor must fall through to the next-priority candidate, and the
+    /// success must be recorded in `processing_warnings` naming which extractor
+    /// ran and why.
+    #[tokio::test]
+    async fn fallback_eligible_error_tries_next_extractor_and_warns() {
+        let mut registry = DocumentExtractorRegistry::new();
+        registry
+            .register(Arc::new(ScriptedExtractor {
+                name: "picky-217",
+                priority: 100,
+                outcome: unsupported_format_error,
+            }))
+            .unwrap();
+        registry
+            .register(Arc::new(ScriptedExtractor {
+                name: "fallback-217",
+                priority: 50,
+                outcome: ok_result,
+            }))
+            .unwrap();
+
+        let (_dir, file_path) = write_temp_file();
+        let config = ExtractionConfig::default();
+        let candidates = registry.get_candidates(&file_path, FALLBACK_MIME);
+        let result = extract_with_candidates(&file_path, FALLBACK_MIME, &config, candidates)
+            .await
+            .expect("the lower-priority extractor must still succeed");
+
+        assert_eq!(result.content, "fallback succeeded");
+        assert_eq!(result.processing_warnings.len(), 1);
+        assert_eq!(result.processing_warnings[0].source, "extractor-fallback");
+        assert!(
+            result.processing_warnings[0].message.contains("fallback-217"),
+            "warning must name the extractor that actually ran: {}",
+            result.processing_warnings[0].message
+        );
+    }
+
+    /// A hard failure ([`XbergError::Parsing`] — the shape an encrypted file or a
+    /// corrupt archive surfaces as) must NOT cascade to a lower-priority
+    /// extractor: the document itself is the problem, so retrying would only add
+    /// latency before producing a confusing error.
+    #[tokio::test]
+    async fn non_eligible_error_does_not_cascade_to_lower_priority_extractor() {
+        let mut registry = DocumentExtractorRegistry::new();
+        registry
+            .register(Arc::new(ScriptedExtractor {
+                name: "hard-failure-217",
+                priority: 100,
+                outcome: parsing_error,
+            }))
+            .unwrap();
+        registry
+            .register(Arc::new(ScriptedExtractor {
+                name: "never-reached-217",
+                priority: 50,
+                outcome: ok_result,
+            }))
+            .unwrap();
+
+        let (_dir, file_path) = write_temp_file();
+        let config = ExtractionConfig::default();
+        let candidates = registry.get_candidates(&file_path, FALLBACK_MIME);
+        let result = extract_with_candidates(&file_path, FALLBACK_MIME, &config, candidates).await;
+
+        match result {
+            Err(XbergError::Parsing { message, .. }) => {
+                assert_eq!(message, "corrupt or encrypted content");
+            }
+            other => panic!("a hard failure must propagate directly, not cascade: {other:?}"),
+        }
     }
 }

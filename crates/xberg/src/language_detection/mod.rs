@@ -4,15 +4,36 @@
 
 use crate::Result;
 use crate::core::config::LanguageDetectionConfig;
+use crate::types::LanguageConfidence;
 use whatlang::{Lang, detect};
 
 pub mod processor;
 pub use processor::LanguageDetector;
 
+/// Confidence threshold above which an aggregated (multi-chunk) per-language
+/// detection is considered reliable.
+///
+/// Mirrors whatlang's own `Info::is_reliable()` threshold (not exposed as a public
+/// constant by whatlang), applied here to the chunk-averaged confidence for a
+/// language rather than to a single detection instance (#261).
+const AGGREGATE_RELIABLE_THRESHOLD: f64 = 0.9;
+
+/// Number of characters per chunk when detecting multiple languages.
+const CHUNK_SIZE: usize = 200;
+
 /// Detect languages in text using whatlang.
 ///
 /// Returns a list of detected language codes (ISO 639-3 format).
 /// Returns `None` if no languages could be detected with sufficient confidence.
+///
+/// In `config.detect_multiple` mode, languages are ordered by descending
+/// chunk-share — the first entry is the language whatlang detected most
+/// often across the document's 200-character chunks, ties broken by ISO
+/// 639-3 code. This is a thin wrapper over [`detect_language_details`] that
+/// keeps `ExtractedDocument::detected_languages` backward compatible; callers
+/// that also need confidence, document share, script, and reliability should
+/// use [`detect_language_details`] / `ExtractedDocument::detected_language_confidences`
+/// instead (#261).
 ///
 /// # Arguments
 ///
@@ -21,7 +42,11 @@ pub use processor::LanguageDetector;
 ///
 /// # Example
 ///
-/// ```rust
+/// Not run as a doctest: this function is `pub(crate)`. Downstream crates reach it by
+/// setting [`crate::core::config::LanguageDetectionConfig`] on the extraction config and
+/// reading `ExtractedDocument::detected_languages`.
+///
+/// ```ignore
 /// use xberg::language_detection::detect_languages;
 /// use xberg::core::config::LanguageDetectionConfig;
 ///
@@ -35,6 +60,21 @@ pub use processor::LanguageDetector;
 /// println!("Detected languages: {:?}", languages);
 /// ```
 pub(crate) fn detect_languages(text: &str, config: &LanguageDetectionConfig) -> Result<Option<Vec<String>>> {
+    Ok(detect_language_details(text, config)?
+        .map(|details| details.into_iter().map(|detail| detail.language).collect()))
+}
+
+/// Detect languages in text using whatlang, returning structured per-language details.
+///
+/// Unlike [`detect_languages`], this carries the confidence, document-share proportion,
+/// script, and reliability for every detected language, in the same order `detect_languages`
+/// would return their codes (#261). Returns `None` under the same conditions as
+/// `detect_languages`: detection disabled, empty input text, or no language meeting
+/// `config.min_confidence`.
+pub(crate) fn detect_language_details(
+    text: &str,
+    config: &LanguageDetectionConfig,
+) -> Result<Option<Vec<LanguageConfidence>>> {
     if !config.enabled {
         return Ok(None);
     }
@@ -44,19 +84,27 @@ pub(crate) fn detect_languages(text: &str, config: &LanguageDetectionConfig) -> 
     }
 
     if !config.detect_multiple {
-        return detect_single_language(text, config);
+        return detect_single_language_details(text, config);
     }
 
-    detect_multiple_languages(text, config)
+    detect_multiple_languages_details(text, config)
 }
 
-/// Detect a single primary language in the text.
-fn detect_single_language(text: &str, config: &LanguageDetectionConfig) -> Result<Option<Vec<String>>> {
+/// Detect a single primary language in the text, with structured details.
+fn detect_single_language_details(
+    text: &str,
+    config: &LanguageDetectionConfig,
+) -> Result<Option<Vec<LanguageConfidence>>> {
     match detect(text) {
         Some(info) => {
             if info.confidence() >= config.min_confidence {
-                let lang_code = lang_to_iso639_3(info.lang());
-                Ok(Some(vec![lang_code]))
+                Ok(Some(vec![LanguageConfidence {
+                    language: lang_to_iso639_3(info.lang()),
+                    confidence: info.confidence(),
+                    proportion: 1.0,
+                    script: info.script().name().to_string(),
+                    reliable: info.is_reliable(),
+                }]))
             } else {
                 Ok(None)
             }
@@ -65,12 +113,28 @@ fn detect_single_language(text: &str, config: &LanguageDetectionConfig) -> Resul
     }
 }
 
-/// Detect multiple languages in the text by analyzing chunks.
+/// Per-language running totals accumulated while scanning chunks in
+/// [`detect_multiple_languages_details`].
+struct LangAggregate {
+    /// Number of chunks classified as this language above `min_confidence`.
+    count: usize,
+    /// Sum of whatlang's per-chunk confidence for this language, used to compute
+    /// the chunk-averaged confidence once scanning completes.
+    confidence_sum: f64,
+    /// Script from the most recently scanned chunk classified as this language.
+    script: whatlang::Script,
+}
+
+/// Detect multiple languages in the text by analyzing chunks, with structured details.
 ///
-/// This splits the text into chunks and detects the language of each chunk,
-/// then returns the most common languages found.
-fn detect_multiple_languages(text: &str, config: &LanguageDetectionConfig) -> Result<Option<Vec<String>>> {
-    const CHUNK_SIZE: usize = 200;
+/// This splits the text into chunks and detects the language of each chunk, then
+/// returns per-language confidence, proportion, script, and reliability for the
+/// most common languages found, ordered by descending chunk-share (ties broken by
+/// ISO 639-3 code).
+fn detect_multiple_languages_details(
+    text: &str,
+    config: &LanguageDetectionConfig,
+) -> Result<Option<Vec<LanguageConfidence>>> {
     let char_vec: Vec<char> = text.chars().collect();
     let chunk_strings: Vec<String> = char_vec
         .chunks(CHUNK_SIZE)
@@ -81,30 +145,51 @@ fn detect_multiple_languages(text: &str, config: &LanguageDetectionConfig) -> Re
         return Ok(None);
     }
 
-    let mut lang_counts = ahash::AHashMap::new();
+    let mut lang_aggregates: ahash::AHashMap<Lang, LangAggregate> = ahash::AHashMap::new();
     let threshold = config.min_confidence;
 
     for chunk in &chunk_strings {
         if let Some(info) = detect(chunk)
             && info.confidence() >= threshold
         {
-            *lang_counts.entry(info.lang()).or_insert(0) += 1;
+            let aggregate = lang_aggregates.entry(info.lang()).or_insert(LangAggregate {
+                count: 0,
+                confidence_sum: 0.0,
+                script: info.script(),
+            });
+            aggregate.count += 1;
+            aggregate.confidence_sum += info.confidence();
+            aggregate.script = info.script();
         }
     }
 
-    if lang_counts.is_empty() {
-        return detect_single_language(text, config);
+    if lang_aggregates.is_empty() {
+        return detect_single_language_details(text, config);
     }
 
-    let mut lang_vec: Vec<(Lang, usize)> = lang_counts.into_iter().collect();
+    let total_chunks = chunk_strings.len() as f64;
+    let mut lang_vec: Vec<(Lang, LangAggregate)> = lang_aggregates.into_iter().collect();
     lang_vec.sort_by(|a, b| {
-        b.1.cmp(&a.1)
+        b.1.count
+            .cmp(&a.1.count)
             .then_with(|| lang_to_iso639_3(a.0).cmp(&lang_to_iso639_3(b.0)))
     });
 
-    let languages: Vec<String> = lang_vec.iter().map(|(lang, _)| lang_to_iso639_3(*lang)).collect();
+    let details = lang_vec
+        .into_iter()
+        .map(|(lang, aggregate)| {
+            let confidence = aggregate.confidence_sum / aggregate.count as f64;
+            LanguageConfidence {
+                language: lang_to_iso639_3(lang),
+                confidence,
+                proportion: aggregate.count as f64 / total_chunks,
+                script: aggregate.script.name().to_string(),
+                reliable: confidence > AGGREGATE_RELIABLE_THRESHOLD,
+            }
+        })
+        .collect();
 
-    Ok(Some(languages))
+    Ok(Some(details))
 }
 
 /// Convert whatlang Lang enum to ISO 639-3 language code.
@@ -986,6 +1071,27 @@ mod tests {
         let over_chunk = "This is English text. ".repeat(30);
         let result2 = detect_languages(&over_chunk, &config).unwrap();
         assert!(result2.is_none() || result2.is_some());
+    }
+
+    /// Locks in the ordering contract documented on `detect_languages` (#261):
+    /// with no per-language confidence/proportion in the return type, list
+    /// order is the only signal callers have for which language dominates.
+    /// English chunks outnumber Spanish 4:1 here, so "eng" must sort first.
+    #[test]
+    fn test_multiple_languages_ordered_by_descending_chunk_share() {
+        let text = format!(
+            "{}{}",
+            "Hello world! This is English text. The quick brown fox jumps over the lazy dog. ".repeat(8),
+            "Hola mundo! Este es texto en español. El rápido zorro marrón salta sobre el perro perezoso. ".repeat(2)
+        );
+        let config = LanguageDetectionConfig {
+            enabled: true,
+            min_confidence: 0.3,
+            detect_multiple: true,
+        };
+
+        let langs = detect_languages(&text, &config).unwrap().expect("languages detected");
+        assert_eq!(langs.first().map(String::as_str), Some("eng"), "got order: {langs:?}");
     }
 
     #[test]

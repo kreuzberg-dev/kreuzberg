@@ -54,6 +54,7 @@ RUN mkdir -p /build/.cargo && { \
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates/xberg/ crates/xberg/
+COPY crates/ttf-parser-compat/ crates/ttf-parser-compat/
 COPY crates/xberg-gliner/ crates/xberg-gliner/
 COPY crates/xberg-cli/ crates/xberg-cli/
 COPY crates/xberg-tesseract/ crates/xberg-tesseract/

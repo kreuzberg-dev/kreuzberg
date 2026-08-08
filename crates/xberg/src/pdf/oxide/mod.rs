@@ -9,6 +9,7 @@ pub(crate) mod forms;
 pub(crate) mod hierarchy;
 pub(crate) mod images;
 pub(crate) mod metadata;
+pub(crate) mod span_geometry;
 pub(crate) mod table;
 pub(crate) mod text;
 

@@ -6,7 +6,11 @@
 //! Supports PowerPoint 97, 2000, XP, and 2003 (.ppt) files.
 
 use crate::error::{Result, XbergError};
+use crate::types::ProcessingWarning;
 use std::io::Cursor;
+
+/// Warning source tag for `.ppt` extraction diagnostics (#171 convention).
+const PPT_WARNING_SOURCE: &str = "ppt";
 
 /// Result of PPT text extraction.
 #[cfg_attr(alef, alef(skip))]
@@ -19,6 +23,9 @@ pub struct PptExtractionResult {
     pub metadata: PptMetadata,
     /// Speaker notes text per slide (if available).
     pub speaker_notes: Vec<String>,
+    /// Non-fatal degradations encountered while extracting (see
+    /// `core::diagnostics`). Empty when extraction was complete.
+    pub processing_warnings: Vec<ProcessingWarning>,
 }
 
 /// Metadata extracted from PPT files.
@@ -37,7 +44,12 @@ pub struct PptMetadata {
 
 const RT_TEXT_CHARS_ATOM: u16 = 0x0FA0;
 const RT_TEXT_BYTES_ATOM: u16 = 0x0FA8;
-const RT_SLIDE_LIST_WITH_TEXT: u16 = 0x0FF0;
+/// A single slide's persisted content container (SlideAtom + shapes/text).
+/// `SlideListWithText` (0x0FF0), by contrast, is a per-document container of
+/// `SlidePersistAtom` entries used for the outline view -- it does not
+/// enclose the slides' actual text and does not occur once per slide, so it
+/// cannot be used as a slide boundary (#87).
+const RT_SLIDE: u16 = 0x03EE;
 const RT_MAIN_MASTER: u16 = 0x03F8;
 const RT_NOTES: u16 = 0x03F0;
 
@@ -72,7 +84,9 @@ pub(crate) fn extract_ppt_text_with_options(
         return Err(XbergError::parsing("PowerPoint Document stream is empty"));
     }
 
-    let (texts, slide_count, speaker_notes) = extract_texts_from_records(&ppt_stream, include_master_slides)?;
+    let mut processing_warnings = Vec::new();
+    let (texts, slide_count, speaker_notes) =
+        extract_texts_from_records(&ppt_stream, include_master_slides, &mut processing_warnings)?;
 
     let text = texts
         .into_iter()
@@ -85,6 +99,7 @@ pub(crate) fn extract_ppt_text_with_options(
         slide_count,
         metadata,
         speaker_notes,
+        processing_warnings,
     })
 }
 
@@ -94,23 +109,64 @@ pub(crate) fn extract_ppt_text_with_options(
 ///
 /// When `include_master_slides` is `true`, master slide containers are not
 /// skipped, allowing their placeholder text to appear in the output.
-fn extract_texts_from_records(data: &[u8], include_master_slides: bool) -> Result<(Vec<String>, usize, Vec<String>)> {
+fn extract_texts_from_records(
+    data: &[u8],
+    include_master_slides: bool,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<(Vec<String>, usize, Vec<String>)> {
     let mut texts = Vec::new();
     let mut slide_count = 0;
     let mut pos = 0;
     let mut in_slide_text = false;
+    let mut slide_end: Option<usize> = None;
     let mut current_slide_texts: Vec<String> = Vec::new();
     let mut speaker_notes = Vec::new();
     let mut in_notes = false;
+    let mut notes_end: Option<usize> = None;
     let mut current_notes_texts: Vec<String> = Vec::new();
 
     while pos + 8 <= data.len() {
+        // A slide/notes container's text only spans its own declared byte
+        // range; close it out as soon as the walk passes that range's end,
+        // rather than leaving `in_slide_text`/`in_notes` stuck on until the
+        // *next* occurrence (which, for `in_slide_text`, previously ran on
+        // to the end of the stream -- see `RT_SLIDE` below).
+        if let Some(end) = slide_end
+            && pos >= end
+        {
+            if !current_slide_texts.is_empty() {
+                texts.push(current_slide_texts.join("\n"));
+                current_slide_texts.clear();
+            }
+            in_slide_text = false;
+            slide_end = None;
+        }
+        if let Some(end) = notes_end
+            && pos >= end
+        {
+            if !current_notes_texts.is_empty() {
+                let notes_text = current_notes_texts.join("\n");
+                let trimmed = notes_text.trim().to_string();
+                if !trimmed.is_empty() {
+                    speaker_notes.push(trimmed);
+                }
+                current_notes_texts.clear();
+            }
+            in_notes = false;
+            notes_end = None;
+        }
+
         let rec_ver_instance = u16::from_le_bytes([data[pos], data[pos + 1]]);
         let rec_ver = rec_ver_instance & 0x000F;
         let rec_type = u16::from_le_bytes([data[pos + 2], data[pos + 3]]);
         let rec_len = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]) as usize;
 
         if rec_len > data.len() - pos {
+            crate::core::diagnostics::push_warning(
+                warnings,
+                PPT_WARNING_SOURCE,
+                "Record stream ended with a truncated record; the remaining presentation content was not extracted",
+            );
             break;
         }
 
@@ -119,12 +175,13 @@ fn extract_texts_from_records(data: &[u8], include_master_slides: bool) -> Resul
         let content_end = content_start + rec_len;
 
         match rec_type {
-            RT_SLIDE_LIST_WITH_TEXT => {
+            RT_SLIDE => {
                 if in_slide_text && !current_slide_texts.is_empty() {
                     texts.push(current_slide_texts.join("\n"));
                     current_slide_texts.clear();
                 }
                 in_slide_text = true;
+                slide_end = Some(content_end);
                 slide_count += 1;
                 pos += 8;
                 continue;
@@ -139,6 +196,7 @@ fn extract_texts_from_records(data: &[u8], include_master_slides: bool) -> Resul
                     current_notes_texts.clear();
                 }
                 in_notes = true;
+                notes_end = Some(content_end);
                 pos += 8;
                 continue;
             }
@@ -427,5 +485,104 @@ mod tests {
     fn test_extract_ppt_invalid_data() {
         let result = extract_ppt_text(b"not a ppt file");
         assert!(result.is_err());
+    }
+
+    /// #87 regression: `test_documents/ppt/simple.ppt` has exactly two
+    /// top-level `Slide` (0x03EE) containers and three `SlideListWithText`
+    /// (0x0FF0) containers holding only outline-view `SlidePersistAtom`
+    /// entries. Segmenting on `SlideListWithText` collapsed all real slide
+    /// text into a single trailing blob and reported the wrong slide count.
+    #[test]
+    fn test_extract_ppt_real_file_reports_two_slides() {
+        let test_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/ppt/simple.ppt");
+        if !test_file.exists() {
+            return;
+        }
+        let content = std::fs::read(&test_file).expect("Failed to read test PPT");
+        let result = extract_ppt_text(&content).expect("Failed to extract PPT text");
+        assert_eq!(result.slide_count, 2, "simple.ppt has exactly two Slide containers");
+    }
+
+    /// Build one PowerPoint record header (8 bytes: recVerInstance, recType, recLen).
+    fn record_header(rec_ver_instance: u16, rec_type: u16, rec_len: u32) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(8);
+        buf.extend_from_slice(&rec_ver_instance.to_le_bytes());
+        buf.extend_from_slice(&rec_type.to_le_bytes());
+        buf.extend_from_slice(&rec_len.to_le_bytes());
+        buf
+    }
+
+    /// Build a container record (recVer nibble = 0xF) wrapping `children`.
+    fn container(rec_type: u16, children: &[u8]) -> Vec<u8> {
+        let mut buf = record_header(0x000F, rec_type, children.len() as u32);
+        buf.extend_from_slice(children);
+        buf
+    }
+
+    /// Build a `TextCharsAtom` (UTF-16LE) record for `text`.
+    fn text_chars_atom(text: &str) -> Vec<u8> {
+        let utf16: Vec<u8> = text.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+        let mut buf = record_header(0x0000, RT_TEXT_CHARS_ATOM, utf16.len() as u32);
+        buf.extend_from_slice(&utf16);
+        buf
+    }
+
+    /// #87: `SlideListWithText` (0x0FF0) is a per-document container of
+    /// `SlidePersistAtom` outline-view entries -- it does not occur once per
+    /// slide, and (as in real files) commonly holds no text of its own. The
+    /// actual per-slide text lives in each `Slide` (0x03EE) container.
+    /// Segmenting on `SlideListWithText` merges every slide's text into a
+    /// single blob attributed to the wrong slide count; segmenting on
+    /// `Slide` keeps each slide's text separate.
+    #[test]
+    fn test_extract_texts_segments_on_slide_not_slide_list_with_text() {
+        const RT_SLIDE_LIST_WITH_TEXT: u16 = 0x0FF0;
+        const RT_SLIDE_PERSIST_ATOM: u16 = 0x03F3;
+
+        // A SlideListWithText container holding only SlidePersistAtom entries
+        // (no text), exactly as real files lay it out -- this used to be
+        // mistaken for a slide boundary.
+        let slide_persist_atom = record_header(0x0000, RT_SLIDE_PERSIST_ATOM, 0);
+        let bogus_slwt = container(RT_SLIDE_LIST_WITH_TEXT, &slide_persist_atom);
+
+        let slide1 = container(RT_SLIDE, &text_chars_atom("Slide One"));
+        let slide2 = container(RT_SLIDE, &text_chars_atom("Slide Two"));
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&bogus_slwt);
+        data.extend_from_slice(&slide1);
+        data.extend_from_slice(&slide2);
+
+        let mut warnings = Vec::new();
+        let (texts, slide_count, notes) =
+            extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
+
+        assert_eq!(
+            slide_count, 2,
+            "each Slide container is one slide, not each SlideListWithText"
+        );
+        assert_eq!(texts, vec!["Slide One".to_string(), "Slide Two".to_string()]);
+        assert!(notes.is_empty());
+        assert!(warnings.is_empty(), "well-formed records should not warn: {warnings:?}");
+    }
+
+    /// A `Notes` container's text must not bleed into the slide that follows
+    /// it once its own byte range has ended.
+    #[test]
+    fn test_extract_texts_closes_notes_range_before_next_slide() {
+        let notes = container(RT_NOTES, &text_chars_atom("Speaker notes"));
+        let slide1 = container(RT_SLIDE, &text_chars_atom("Slide One"));
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&notes);
+        data.extend_from_slice(&slide1);
+
+        let mut warnings = Vec::new();
+        let (texts, slide_count, speaker_notes) =
+            extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
+
+        assert_eq!(slide_count, 1);
+        assert_eq!(texts, vec!["Slide One".to_string()]);
+        assert_eq!(speaker_notes, vec!["Speaker notes".to_string()]);
     }
 }

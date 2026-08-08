@@ -82,9 +82,11 @@ use commands::serve_command;
 ))]
 use commands::warm_command;
 use commands::{
-    BatchInputFormat, batch_command, clear_command, doctor_command, extract_command, load_config, manifest_command,
-    stats_command, validate_file_exists, validate_output_dir,
+    BatchInputFormat, batch_command, clear_command, compiled_in_formats, doctor_command, extract_command, load_config,
+    manifest_command, stats_command, validate_file_exists, validate_output_dir,
 };
+#[cfg(feature = "tree-sitter")]
+use commands::{cache_dir_command, clean_command, download_command, list_command};
 #[cfg(feature = "core-cli")]
 use commands::{chunk_command, validate_chunk_params};
 #[cfg(feature = "mcp")]
@@ -272,6 +274,13 @@ enum Commands {
     Cache {
         #[command(subcommand)]
         command: CacheCommands,
+    },
+
+    /// Manage tree-sitter grammar parsers
+    #[cfg(feature = "tree-sitter")]
+    TreeSitter {
+        #[command(subcommand)]
+        command: TreeSitterCommands,
     },
 
     /// Probe configured backends and report what will actually execute on this host
@@ -573,6 +582,70 @@ enum CacheCommands {
     },
 }
 
+#[cfg(feature = "tree-sitter")]
+#[derive(Subcommand)]
+enum TreeSitterCommands {
+    /// Download tree-sitter grammar parsers
+    ///
+    /// Downloads specific languages by name, all available languages (--all),
+    /// language groups (--groups), or resolves cache_dir/languages/groups from
+    /// the auto-discovered xberg config's [tree_sitter] section (--from-config).
+    Download {
+        /// Language names to download (e.g., python rust go)
+        languages: Vec<String>,
+
+        /// Download all available languages
+        #[arg(long)]
+        all: bool,
+
+        /// Download specific language groups (comma-separated: web,systems,scripting,data,jvm,functional)
+        #[arg(long, value_name = "GROUPS", value_delimiter = ',')]
+        groups: Option<Vec<String>>,
+
+        /// Grammar cache directory. CLI arg overrides the config file's tree_sitter.cache_dir.
+        #[arg(long)]
+        cache_dir: Option<PathBuf>,
+
+        /// Resolve cache_dir/languages/groups from the auto-discovered xberg config's
+        /// [tree_sitter] section. Explicit CLI args (--cache-dir, languages, --groups) still win.
+        #[arg(long)]
+        from_config: bool,
+
+        /// Output format (text or json)
+        #[arg(short, long, default_value = "text")]
+        format: WireFormat,
+    },
+
+    /// List available or downloaded tree-sitter languages
+    List {
+        /// Only list already-downloaded languages
+        #[arg(long)]
+        downloaded: bool,
+
+        /// Filter languages by name substring
+        #[arg(long)]
+        filter: Option<String>,
+
+        /// Output format (text or json)
+        #[arg(short, long, default_value = "text")]
+        format: WireFormat,
+    },
+
+    /// Show the effective tree-sitter grammar cache directory
+    CacheDir {
+        /// Output format (text or json)
+        #[arg(short, long, default_value = "text")]
+        format: WireFormat,
+    },
+
+    /// Clear all cached tree-sitter grammar parser shared libraries
+    Clean {
+        /// Output format (text or json)
+        #[arg(short, long, default_value = "text")]
+        format: WireFormat,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WireFormat {
     Text,
@@ -757,7 +830,9 @@ fn main() -> Result<()> {
         }
 
         Commands::Formats { format } => {
-            let formats = xberg::core::mime::list_supported_formats();
+            // Resolved against the extractor registry rather than the core's static catalogue,
+            // so this reports what the binary can actually extract. See `commands::formats`.
+            let formats = compiled_in_formats()?;
             match format {
                 WireFormat::Text => {
                     println!("{:<15} {}", style::label("EXTENSION"), style::label("MIME TYPE"));
@@ -905,6 +980,33 @@ fn main() -> Result<()> {
                     #[cfg(feature = "ner-onnx")]
                     all_ner_models,
                 )?;
+            }
+        },
+
+        #[cfg(feature = "tree-sitter")]
+        Commands::TreeSitter { command } => match command {
+            TreeSitterCommands::Download {
+                languages,
+                all,
+                groups,
+                cache_dir,
+                from_config,
+                format,
+            } => {
+                download_command(languages, all, groups, cache_dir, from_config, format)?;
+            }
+            TreeSitterCommands::List {
+                downloaded,
+                filter,
+                format,
+            } => {
+                list_command(downloaded, filter, format)?;
+            }
+            TreeSitterCommands::CacheDir { format } => {
+                cache_dir_command(format)?;
+            }
+            TreeSitterCommands::Clean { format } => {
+                clean_command(format)?;
             }
         },
 
@@ -1147,5 +1249,189 @@ mod feature_profile_tests {
         let command = Cli::command();
         let cache = command.find_subcommand("cache").expect("cache command should exist");
         assert!(cache.find_subcommand("warm").is_some());
+    }
+}
+
+/// Regression coverage for issue #280: `commands/tree_sitter.rs` implemented
+/// `download_command`/`list_command`/`cache_dir_command`/`clean_command` (and the
+/// `--from-config` cascade in `resolve_pack_config`), but no `Commands` variant ever
+/// invoked them, so the flag was unreachable from the command line. These tests parse
+/// argv through clap directly (never shelling out to the built binary) to prove the
+/// `tree-sitter` subcommand is registered and its arguments actually reach the enum
+/// variants that main() matches on.
+#[cfg(all(test, feature = "tree-sitter"))]
+mod tree_sitter_cli_tests {
+    use super::*;
+
+    /// `Cli::command().debug_assert()` walks the entire clap command graph (including
+    /// the newly-added `tree-sitter` subcommand) and panics on any structural error
+    /// (duplicate ids, conflicting arg configuration, etc.). This is clap's own
+    /// self-check and is the cheapest possible proof that `TreeSitterCommands` is
+    /// wired into `Commands` without a definition error.
+    #[test]
+    fn cli_command_graph_is_structurally_valid() {
+        Cli::command().debug_assert();
+    }
+
+    /// The regression this whole task exists to prevent: `tree_sitter.rs` was never
+    /// declared in `commands/mod.rs`, and even after that fix, no subcommand invoked
+    /// it, so `xberg tree-sitter --help` would have failed with clap's "unrecognized
+    /// subcommand" error. Asserting the subcommand (and each of its four children) is
+    /// discoverable via `find_subcommand` is the check that would have caught the
+    /// original bug.
+    #[test]
+    fn tree_sitter_subcommand_and_its_children_are_registered() {
+        let command = Cli::command();
+        let tree_sitter = command
+            .find_subcommand("tree-sitter")
+            .expect("tree-sitter subcommand should be registered");
+        for child in ["download", "list", "cache-dir", "clean"] {
+            assert!(
+                tree_sitter.find_subcommand(child).is_some(),
+                "tree-sitter subcommand missing child: {child}"
+            );
+        }
+    }
+
+    /// `xberg tree-sitter download --from-config` must parse `from_config` as `true`
+    /// while leaving CLI overrides such as `--cache-dir` intact alongside it, proving
+    /// the parsed args are the exact values `Commands::TreeSitter`'s match arm forwards
+    /// into `download_command` (which threads them into `resolve_pack_config`).
+    #[test]
+    fn should_parse_download_from_config_flag_with_explicit_cache_dir_override() {
+        let cli = Cli::try_parse_from([
+            "xberg",
+            "tree-sitter",
+            "download",
+            "--from-config",
+            "--cache-dir",
+            "/tmp/xberg-grammars",
+        ])
+        .expect("clap should parse tree-sitter download --from-config --cache-dir");
+
+        let Commands::TreeSitter { command } = cli.command else {
+            panic!("expected Commands::TreeSitter");
+        };
+        let TreeSitterCommands::Download {
+            languages,
+            all,
+            groups,
+            cache_dir,
+            from_config,
+            format,
+        } = command
+        else {
+            panic!("expected TreeSitterCommands::Download");
+        };
+
+        assert!(from_config);
+        assert_eq!(cache_dir, Some(PathBuf::from("/tmp/xberg-grammars")));
+        assert!(languages.is_empty());
+        assert!(!all);
+        assert_eq!(groups, None);
+        assert_eq!(format, WireFormat::Text);
+    }
+
+    /// `xberg tree-sitter download go zig --groups web,systems` must parse the
+    /// positional language names and the comma-delimited `--groups` list exactly,
+    /// with `from_config` defaulting to `false` when the flag is absent.
+    #[test]
+    fn should_parse_download_languages_and_groups_without_from_config() {
+        let cli = Cli::try_parse_from([
+            "xberg",
+            "tree-sitter",
+            "download",
+            "go",
+            "zig",
+            "--groups",
+            "web,systems",
+        ])
+        .expect("clap should parse tree-sitter download with languages and --groups");
+
+        let Commands::TreeSitter { command } = cli.command else {
+            panic!("expected Commands::TreeSitter");
+        };
+        let TreeSitterCommands::Download {
+            languages,
+            groups,
+            from_config,
+            ..
+        } = command
+        else {
+            panic!("expected TreeSitterCommands::Download");
+        };
+
+        assert_eq!(languages, vec!["go".to_string(), "zig".to_string()]);
+        assert_eq!(groups, Some(vec!["web".to_string(), "systems".to_string()]));
+        assert!(!from_config);
+    }
+
+    /// `xberg tree-sitter list --downloaded --filter py --format json` must parse
+    /// exactly into `TreeSitterCommands::List`'s three fields.
+    #[test]
+    fn should_parse_list_subcommand_with_downloaded_and_filter() {
+        let cli = Cli::try_parse_from([
+            "xberg",
+            "tree-sitter",
+            "list",
+            "--downloaded",
+            "--filter",
+            "py",
+            "--format",
+            "json",
+        ])
+        .expect("clap should parse tree-sitter list --downloaded --filter py --format json");
+
+        let Commands::TreeSitter { command } = cli.command else {
+            panic!("expected Commands::TreeSitter");
+        };
+        let TreeSitterCommands::List {
+            downloaded,
+            filter,
+            format,
+        } = command
+        else {
+            panic!("expected TreeSitterCommands::List");
+        };
+
+        assert!(downloaded);
+        assert_eq!(filter, Some("py".to_string()));
+        assert_eq!(format, WireFormat::Json);
+    }
+
+    /// `xberg tree-sitter cache-dir` must parse into `TreeSitterCommands::CacheDir`
+    /// with the default text format.
+    #[test]
+    fn should_parse_cache_dir_subcommand() {
+        let cli = Cli::try_parse_from(["xberg", "tree-sitter", "cache-dir"])
+            .expect("clap should parse tree-sitter cache-dir");
+
+        let Commands::TreeSitter { command } = cli.command else {
+            panic!("expected Commands::TreeSitter");
+        };
+        assert!(matches!(
+            command,
+            TreeSitterCommands::CacheDir {
+                format: WireFormat::Text
+            }
+        ));
+    }
+
+    /// `xberg tree-sitter clean --format toon` must parse into
+    /// `TreeSitterCommands::Clean` carrying the requested format.
+    #[test]
+    fn should_parse_clean_subcommand_with_format_override() {
+        let cli = Cli::try_parse_from(["xberg", "tree-sitter", "clean", "--format", "toon"])
+            .expect("clap should parse tree-sitter clean --format toon");
+
+        let Commands::TreeSitter { command } = cli.command else {
+            panic!("expected Commands::TreeSitter");
+        };
+        assert!(matches!(
+            command,
+            TreeSitterCommands::Clean {
+                format: WireFormat::Toon
+            }
+        ));
     }
 }

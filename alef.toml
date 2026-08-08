@@ -1,5 +1,5 @@
 [workspace]
-alef_version = "0.54.2"
+alef_version = "0.56.0"
 # -D warnings (emitted into every generated Rust binding as #![allow(...)]).
 extra_clippy_allows = ["redundant_field_names"]
 languages = [
@@ -728,7 +728,24 @@ package_name = "@xberg-io/xberg-wasm"
 # limit and broke the docs live demo. The `web` build serves browsers, CDNs,
 # bundlers, Deno (npm:), and Node 22+. ~keep
 targets = ["web"]
-features = ["wasm-target", "url-ingestion"]
+features = [
+  "wasm-target",
+  "url-ingestion",
+  # Listed literally because alef matches `#[cfg(feature = "...")]` against this
+  # exact list rather than resolving Cargo's feature graph, so the `wasm-target`
+  # alias alone satisfies no leaf gate and the generator drops the gated field
+  # (#244). Both are already active transitively via wasm-target -> no-ort-target
+  # -> keywords, so this adds no dependency and no wasm bytes.
+  "keywords-yake",
+  "keywords-rake",
+  # NOT listed, deliberately: "heuristics", "pdf", "html", "layout-types",
+  # "transcription-types". Adding them makes alef's wasm backend emit serde mirror
+  # structs that reference `xberg::ConversionOptions` and
+  # `xberg::ExtractionConfidence` at the crate root -- neither is exported there --
+  # plus a WasmPageRange/PageRange mismatch. The wasm backend has no per-type
+  # wrapper the way the node backend does, so this needs an alef fix before those
+  # fields can be exposed (#252, and the extraction_confidence half of #244). ~keep
+]
 # tract layout/orientation weights push the release .wasm past jsdelivr's 50MB
 # per-file cap when wasm-pack's default wasm-opt is off. Run wasm-opt -Oz to
 # claw the binary back under the cap. ~keep
@@ -839,6 +856,21 @@ extra_features = ["full-no-heic"]
 # v1.0.12. This is the v1.0.11 granular floor: `full` minus heic/candle. ~keep
 features = [
   "pdf",
+  # GH#1387: these eight must be listed explicitly here. alef matches the LITERAL
+  # feature strings in this list, and this ffi list deliberately omits "full"
+  # (cf7fa0533d, to keep libheif out of no-heic consumers such as Swift's
+  # cross-compiled Linux targets). Without them a regen rewrites
+  # crates/xberg-ffi/Cargo.toml without them and silently reverts a0583843a3 --
+  # which is exactly what the pending regen had already done before this was caught.
+  # Go, C, Java-native and C# all build from this crate. ~keep
+  "excel",
+  "hwp",
+  "hwpx",
+  "iwork",
+  "wordperfect",
+  "mdx",
+  "xml",
+  "qr-codes",
   "ocr",
   "paddle-ocr",
   "paddle-ocr-types",
@@ -1307,6 +1339,13 @@ features = [
   "hwp",
   "hwpx",
   "iwork",
+  # `wordperfect` is inert for codegen -- nothing in the parsed sources is gated on the
+  # literal feature, so it adds no binding surface, and libwpd is already compiled in via
+  # `ffi_features = ["full-no-heic"]` above. It is listed anyway so this dep array stays
+  # correct on its own rather than only by accident of what the ffi edge happens to carry:
+  # if that edge is ever narrowed the way `full` was in cf7fa0533d, swift would silently
+  # lose .wpd extraction while the format table kept advertising it -- the GH#1387 shape. ~keep
+  "wordperfect",
   "email",
   "html",
   "xml",
@@ -1399,6 +1438,25 @@ cfg = 'all(target_os = "macos", target_arch = "x86_64")'
 features = ["macos-intel-target"]
 default_features = false
 
+# The swift-bridge backend injects the xberg-ffi dependency itself. Without these
+# overrides it emits a single unconditional `[dependencies]` entry carrying
+# `ffi_features` (`full-no-heic`), which pulls `sceptre-ocr` -> `sceptre-ocr-ort`.
+# Cargo unifies features across every edge to the same resolved package, so that
+# would activate the desktop/server-only ORT path even on targets where the core
+# `xberg` dep above only asks for `android-target`, tripping the `compile_error!`
+# guards in crates/xberg/src/lib.rs and breaking the iOS and Android builds.
+# These entries make alef gate the default entry on `cfg(not(any(ios, android)))`
+# and emit the reduced feature set for mobile -- replacing the post-regen hand
+# patch that `alef all` used to revert every time (GH#370). ~keep
+# NOTE: one combined `any(...)` entry, NOT one per OS. The core `xberg` dep above
+# already emits its own `cfg(target_os = "ios")` and `cfg(target_os = "android")`
+# blocks, so per-OS entries here would emit a second table with an identical cfg
+# key and produce a duplicate-key TOML error in the generated manifest.
+[[crates.swift.ffi_target_dep_overrides]]
+cfg = 'any(target_os = "ios", target_os = "android")'
+features = ["android-target"]
+default_features = false
+
 # NOTE (heic / xberg-ffi on the swift-bridge shim):
 # The swift-bridge backend injects an `xberg-ffi` path dependency (the C-ABI
 # shim) with Cargo-default features. That pulls xberg-ffi's default `heic`
@@ -1410,10 +1468,15 @@ default_features = false
 # `extra_dependencies.xberg-ffi` entry does NOT override it — it emits a SECOND
 # `xberg-ffi` key, a duplicate-key manifest that poisons the workspace mid-regen.
 # So we do NOT declare it here. Instead `packages/swift/rust/Cargo.toml` carries
-# a committed post-regen normalization: its `xberg-ffi` line is set to
-# `default-features = false` + the full-minus-heic feature list. That edit is
-# stable for CI/publish (no CI job regenerates `packages/` + diffs), but a local
-# `alef all` reverts it — reapply it. Durable fix is upstream in alef.
+# a committed post-regen normalization: its single unconditional `xberg-ffi` line
+# is split into two `[target.cfg(...)]` blocks, mirroring the `xberg` dep below —
+# `default-features = false` + `full-no-heic` off-iOS/Android, `android-target` on
+# iOS/Android. A plain unconditional `full-no-heic` pulls in `sceptre-ocr` (->
+# `sceptre-ocr-ort`), which trips the mobile-only `compile_error!` guards in
+# crates/xberg/src/lib.rs (issue #324) because Cargo unifies features across
+# dependency edges for the same resolved package. That edit is stable for
+# CI/publish (no CI job regenerates `packages/` + diffs), but a local `alef all`
+# reverts it — reapply it. Durable fix is upstream in alef.
 
 [crates.csharp]
 namespace = "Xberg"
@@ -1610,11 +1673,19 @@ types = [
   "xberg::engine::structured::citations::CitationOutput",
   "xberg::engine::structured::prompts::BuiltPrompt",
 
+  "FinalizedOutput",
+  "xberg::engine::structured::finalize::FinalizedOutput",
+
   "ParsedDocument",
   "xberg::engine::parsed::ParsedDocument",
 ]
 methods = [
   "ApiError.from",
+
+  # Hand-written redacting Debug impls that keep api_key and header values out of
+  # logs. `fmt` takes a std::fmt::Formatter, which has no binding representation.
+  "LlmConfig.fmt",
+  "BedrockConfig.fmt",
 
   "BBox.fmt",
   "LayoutDetection.fmt",
@@ -1639,9 +1710,23 @@ methods = [
 ]
 
 functions = [
+  # Gated by #[cfg(feature = "prometheus")] on the `mod`/`pub use` in
+  # telemetry/mod.rs, not on the fn itself, so alef parses it as ungated and emits
+  # an FFI wrapper the ffi crate's feature set cannot satisfy. A prometheus
+  # Registry is not a meaningful C-ABI/binding surface in any case.
+  "init_prometheus",
+  "xberg::telemetry::init_prometheus",
   "fuse",
   "build_prompt",
   "build_vision_fallback_prompt",
+  # Composes validate_and_merge into fuse; returns the excluded FinalizedOutput.
+  "merge_and_cite",
+  # Wraps build_vision_fallback_prompt with the threshold decision; returns
+  # Option<BuiltPrompt>, and BuiltPrompt is already excluded above.
+  "escalate_if_below_threshold",
+  # Returns Vec<(u32, u32, Vec<u32>)> -- a bare tuple with no binding
+  # representation. Internal Whisper token-stream helper.
+  "parse_timestamped_segments",
   "batch_pages",
   "pages_for_call",
   "validate_and_merge",
@@ -1926,7 +2011,6 @@ fields_optional = [
   "translation",
   "page_classifications",
   "redaction_report",
-  "formatted_content",
 ]
 fields_array = [
   "results",
@@ -3739,7 +3823,7 @@ package_manager = ["cargo"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "ocr_backends"]
-snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "ocr/ocr_extraction.md", table_extraction = "api/tables.md" }
+snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "ocr/ocr_extraction.md", table_extraction = "metadata/tables.md" }
 
 [crates.readme.languages.python]
 template = "python.md"
@@ -3752,7 +3836,7 @@ package_manager = ["pip"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["async_vs_sync_performance", "ocr_backends", "system_requirements"]
-snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md", table_extraction = "getting-started/read_content.md" }
+snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md", table_extraction = "getting-started/read_content.md" }
 
 [crates.readme.languages.typescript]
 template = "language_package.md"
@@ -3766,7 +3850,7 @@ package_manager = ["pnpm"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, config_discovery = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["native_vs_wasm_comparison", "ocr_support", "performance", "napi_implementation"]
-snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_batch.md", ocr_configuration = "config/config_ocr.md", table_extraction = "api/tables.md", config_discovery = "config/config_discovery.md" }
+snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/client_extract_single_file.md", batch_processing = "getting-started/extract_batch.md", ocr_configuration = "config/config_ocr.md", table_extraction = "api/tables.md", config_discovery = "config/config_discovery.md" }
 
 [crates.readme.languages.go]
 template = "go.md"
@@ -3780,7 +3864,7 @@ package_manager = ["go get"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "ffi_build_instructions"]
-snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md" }
+snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/extract.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "getting-started/hello_world.md" }
 
 [crates.readme.languages.java]
 template = "language_package.md"
@@ -3819,7 +3903,7 @@ package_manager = ["rubygems", "bundler"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["system_requirements", "development_setup"]
-snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "getting-started/extract.md", batch_processing = "getting-started/install_verify.md", ocr_configuration = "getting-started/extract_with_ocr.md" }
+snippets = { basic_extraction = "getting-started/basic_usage.md", async_extraction = "api/extract.md", batch_processing = "getting-started/install_verify.md", ocr_configuration = "getting-started/extract_with_ocr.md" }
 
 [crates.readme.languages.csharp]
 template = "language_package.md"
@@ -3845,7 +3929,7 @@ package_manager = ["mix"]
 features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
 ocr_backends = ["tesseract", "paddleocr", "sceptre"]
 optional_sections = ["mix_installation", "async_with_tasks", "plugin_system"]
-snippets = { basic_extraction = "getting-started/basic_usage.exs", async_extraction = "getting-started/extract.exs", batch_processing = "core/extract_batch.exs", ocr_configuration = "ocr/tesseract_basic.exs", plugin_system = "plugins/word_count_processor.exs" }
+snippets = { basic_extraction = "getting-started/basic_usage.exs", async_extraction = "core/extract.md", batch_processing = "core/extract_batch.md", ocr_configuration = "ocr/tesseract_basic.md", plugin_system = "plugins/word_count_processor.exs" }
 
 [crates.readme.languages.wasm]
 template = "language_package.md"
@@ -3870,7 +3954,13 @@ badge_url = "https://img.shields.io/badge/C%2FC%2B%2B-xberg--ffi-007ec6"
 docs_url = "https://xberg.io/"
 description = "Extract text, tables, images, metadata, and code intelligence from 101 file formats and 371 programming languages including PDF, Office documents, images, and audio/video transcripts where native transcription is available. C/C++ FFI bindings providing a stable ABI for native integration, shared library distribution, and cross-language interop."
 package_manager = ["cargo"]
-features = { ocr = true, async = true, plugin_system = true, embeddings = true, code_intelligence = true }
+# `async = false`: the C ABI is synchronous, so the template's async section ("full
+# async/await support") would be untrue here, and there is deliberately no
+# `async_extraction` snippet under `docs-site/src/snippets/c/`. With `async = true`
+# the template still rendered the section, `snippets.async_extraction` resolved to
+# nothing, and `include_snippet` tried to read the bare `snippets/c/` directory --
+# failing the whole docs render. ~keep
+features = { ocr = true, async = false, plugin_system = true, embeddings = true, code_intelligence = true }
 # The FFI README's quick-start examples are C code, and `docs-site/src/snippets/`
 # only maintains one such set under `c/` (shared with the e2e C consumer) rather
 # than a duplicate `ffi/` directory. `snippet_language` (alef >=0.54.1) points
@@ -3880,6 +3970,11 @@ snippet_language = "c"
 snippets = { basic_extraction = "getting-started/basic_usage.md", batch_processing = "getting-started/extract_with_ocr.md", ocr_configuration = "ocr/ocr_extraction.md", table_extraction = "metadata/tables.md" }
 
 [crates.readme.languages.kotlin_android]
+# Snippets live under `docs-site/src/snippets/kotlin/`; there is no
+# `kotlin_android/` directory. Same arrangement as `ffi` -> `c`: point
+# include_snippet at the real directory while leaving the language key intact for
+# template branching. ~keep
+snippet_language = "kotlin"
 template = "language_package.md"
 name = "Kotlin (Android)"
 package_name = "io.xberg:xberg-android"

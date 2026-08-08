@@ -19,8 +19,49 @@ use crate::transcription::tags::AudioTags;
 use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
 use crate::types::metadata::{AudioMetadata, FormatMetadata};
 use crate::{Result, XbergError};
+use ahash::AHashMap;
 use async_trait::async_trait;
 use tokio::task;
+
+/// Attribute key holding a segment's start time (milliseconds, as a decimal string).
+const ATTR_START_MS: &str = "start_ms";
+/// Attribute key holding a segment's end time (milliseconds, as a decimal string).
+const ATTR_END_MS: &str = "end_ms";
+
+/// Push transcript text onto `doc` as one or more `Paragraph` elements.
+///
+/// When `timestamps` is `false`, all segment text is joined into a single flat
+/// paragraph (matching the pre-#306 behavior, since there is no per-segment
+/// timing to preserve). When `true`, each non-empty `(start_ms, end_ms, text)`
+/// segment becomes its own `Paragraph` element carrying `start_ms`/`end_ms`
+/// attributes, so callers get segment boundaries and per-segment timestamps
+/// without a new binding-visible type.
+fn push_transcript_elements(doc: &mut InternalDocument, segments: &[(u32, u32, String)], timestamps: bool) {
+    if timestamps {
+        for (start_ms, end_ms, text) in segments {
+            if text.is_empty() {
+                continue;
+            }
+            let mut element = InternalElement::text(ElementKind::Paragraph, text.as_str(), 0);
+            let mut attributes = AHashMap::default();
+            attributes.insert(ATTR_START_MS.to_string(), start_ms.to_string());
+            attributes.insert(ATTR_END_MS.to_string(), end_ms.to_string());
+            element.attributes = Some(attributes);
+            doc.push_element(element);
+        }
+        return;
+    }
+
+    let joined = segments
+        .iter()
+        .map(|(_, _, text)| text.as_str())
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !joined.is_empty() {
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, &joined, 0));
+    }
+}
 
 /// Process-wide cache of loaded `WhisperEngine` instances, keyed by the
 /// canonical model paths (encoder|tokenizer). Mirrors the pattern in
@@ -57,6 +98,97 @@ fn get_or_build_engine(paths: &WhisperModelPaths) -> Result<Arc<WhisperEngine>> 
     let arc = Arc::new(engine);
     map.insert(key, Arc::clone(&arc));
     Ok(arc)
+}
+
+/// Run `future` under a wall-clock deadline, bounding total async work.
+///
+/// `timeout_ms = None` disables the bound and simply awaits `future`. On
+/// elapse, `future` is dropped (canceling any `.await` points inside it;
+/// already-spawned `spawn_blocking` tasks keep running to completion in the
+/// background but their result is discarded) and a
+/// [`XbergError::Transcription`](crate::XbergError) is returned so callers get
+/// a clear error instead of blocking forever.
+async fn apply_timeout<T, Fut>(timeout_ms: Option<u64>, future: Fut) -> Result<T>
+where
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    match timeout_ms {
+        Some(ms) => tokio::time::timeout(std::time::Duration::from_millis(ms), future)
+            .await
+            .map_err(|_| {
+                XbergError::transcription(format!(
+                    "Transcription exceeded transcription.timeout_ms limit of {ms} ms. \
+                     Increase `transcription.timeout_ms`, use a smaller Whisper model, or \
+                     shorten the input."
+                ))
+            })?,
+        None => future.await,
+    }
+}
+
+/// Decode audio, resolve/load the Whisper model, and run inference.
+///
+/// This is the portion of transcription that [`TranscriptionExtractor::extract_content`]
+/// bounds with [`TranscriptionConfig::timeout_ms`](crate::core::config::transcription::TranscriptionConfig::timeout_ms)
+/// via [`apply_timeout`]. Split out as a free function (rather than inlined) so the
+/// timeout wrapper composes cleanly around it.
+async fn run_transcription_pipeline(
+    content: &[u8],
+    mime_type: &str,
+    tcfg: &crate::core::config::transcription::TranscriptionConfig,
+) -> Result<InternalDocument> {
+    let bytes_owned = content.to_vec();
+    let max_bytes_for_decode = tcfg.max_bytes;
+    let (pcm, tags): (PcmAudio, crate::transcription::tags::AudioTags) = task::spawn_blocking(move || {
+        let pcm = decode_audio_to_pcm(&bytes_owned, max_bytes_for_decode)?;
+        let tags = crate::transcription::tags::read_audio_tags(&bytes_owned);
+        Ok::<_, XbergError>((pcm, tags))
+    })
+    .await
+    .map_err(|e| XbergError::transcription_with_source("Decoder task panicked", e))??;
+
+    if let Some(max_dur) = tcfg.max_duration_ms
+        && pcm.duration_ms > max_dur
+    {
+        return Err(XbergError::transcription(format!(
+            "Decoded audio duration {} ms exceeds transcription.max_duration_ms limit of {}",
+            pcm.duration_ms, max_dur
+        )));
+    }
+
+    let paths = {
+        let model = tcfg.model;
+        let cache_dir = tcfg.model_cache_dir.clone();
+        let allow_network = tcfg.allow_network;
+        let verify_hash = tcfg.verify_hash;
+        task::spawn_blocking(move || ensure_whisper_model(model, cache_dir.as_deref(), allow_network, verify_hash))
+            .await
+            .map_err(|e| XbergError::transcription(format!("model resolution task panicked: {e}")))?
+            .map_err(|e| XbergError::transcription(format!("whisper model resolution failed: {e}")))?
+    };
+
+    let engine = get_or_build_engine(&paths)?;
+
+    let _permit = TRANSCRIPTION_SEMAPHORE
+        .acquire()
+        .await
+        .map_err(|e| XbergError::transcription(format!("semaphore closed: {e}")))?;
+
+    let pcm_clone = pcm.clone();
+    let lang_clone = tcfg.language.clone();
+    let timestamps = tcfg.timestamps;
+    let engine_for_task = Arc::clone(&engine);
+
+    let segments = task::spawn_blocking(move || {
+        engine_for_task.transcribe_segments(&pcm_clone, lang_clone.as_deref(), timestamps)
+    })
+    .await
+    .map_err(|e| XbergError::transcription(format!("whisper task panicked: {e}")))?
+    .map_err(|e| XbergError::transcription(format!("whisper inference failed: {e}")))?;
+
+    let mut doc = build_audio_document(tags, &pcm, mime_type);
+    push_transcript_elements(&mut doc, &segments, tcfg.timestamps);
+    Ok(doc)
 }
 
 /// The transcription extractor.
@@ -112,68 +244,25 @@ impl InternalDocumentExtractor for TranscriptionExtractor {
             )));
         }
 
-        let bytes_owned = content.to_vec();
-        let max_bytes_for_decode = tcfg.max_bytes;
-        let (pcm, tags): (PcmAudio, crate::transcription::tags::AudioTags) = task::spawn_blocking(move || {
-            let pcm = decode_audio_to_pcm(&bytes_owned, max_bytes_for_decode)?;
-            let tags = crate::transcription::tags::read_audio_tags(&bytes_owned);
-            Ok::<_, XbergError>((pcm, tags))
-        })
-        .await
-        .map_err(|e| XbergError::transcription_with_source("Decoder task panicked", e))??;
-
-        if let Some(max_dur) = tcfg.max_duration_ms
-            && pcm.duration_ms > max_dur
-        {
-            return Err(XbergError::transcription(format!(
-                "Decoded audio duration {} ms exceeds transcription.max_duration_ms limit of {}",
-                pcm.duration_ms, max_dur
-            )));
-        }
-
-        let paths = {
-            let model = tcfg.model;
-            let cache_dir = tcfg.model_cache_dir.clone();
-            let allow_network = tcfg.allow_network;
-            let verify_hash = tcfg.verify_hash;
-            task::spawn_blocking(move || ensure_whisper_model(model, cache_dir.as_deref(), allow_network, verify_hash))
-                .await
-                .map_err(|e| XbergError::transcription(format!("model resolution task panicked: {e}")))?
-                .map_err(|e| XbergError::transcription(format!("whisper model resolution failed: {e}")))?
-        };
-
-        let engine = get_or_build_engine(&paths)?;
-
-        let _permit = TRANSCRIPTION_SEMAPHORE
-            .acquire()
-            .await
-            .map_err(|e| XbergError::transcription(format!("semaphore closed: {e}")))?;
-
-        let pcm_clone = pcm.clone();
-        let lang_clone = tcfg.language.clone();
-        let timestamps = tcfg.timestamps;
-        let engine_for_task = Arc::clone(&engine);
-
-        let transcript =
-            task::spawn_blocking(move || engine_for_task.transcribe(&pcm_clone, lang_clone.as_deref(), timestamps))
-                .await
-                .map_err(|e| XbergError::transcription(format!("whisper task panicked: {e}")))?
-                .map_err(|e| XbergError::transcription(format!("whisper inference failed: {e}")))?;
-
-        let mut doc = build_audio_document(tags, &pcm, mime_type);
-        if !transcript.is_empty() {
-            doc.push_element(InternalElement::text(ElementKind::Paragraph, &transcript, 0));
-        }
-        Ok(doc)
+        apply_timeout(tcfg.timeout_ms, run_transcription_pipeline(content, mime_type, tcfg)).await
     }
 
     fn supported_mime_types(&self) -> &[&str] {
+        // The `audio/mp3`, `audio/x-m4a`, `audio/x-wav` and `video/mpeg` entries are the
+        // aliases core/mime.rs declares for the four canonical types beside them.
+        // `validate_mime_type` accepts an alias verbatim and the registry looks extractors up
+        // by exact string with no alias resolution, so an unclaimed alias is advertised as
+        // supported and then fails as UnsupportedFormat (#229).
         &[
             "audio/mpeg",
+            "audio/mp3",
             "audio/mp4",
+            "audio/x-m4a",
             "audio/wav",
+            "audio/x-wav",
             "audio/webm",
             "video/mp4",
+            "video/mpeg",
             "video/webm",
         ]
     }
@@ -227,14 +316,12 @@ impl TranscriptionExtractor {
 
         let engine = get_or_build_engine(&paths)?;
 
-        let transcript = engine
-            .transcribe(&pcm, tcfg.language.as_deref(), tcfg.timestamps)
+        let segments = engine
+            .transcribe_segments(&pcm, tcfg.language.as_deref(), tcfg.timestamps)
             .map_err(|e| XbergError::transcription(format!("whisper inference failed: {e}")))?;
 
         let mut doc = build_audio_document(tags, &pcm, mime_type);
-        if !transcript.is_empty() {
-            doc.push_element(InternalElement::text(ElementKind::Paragraph, &transcript, 0));
-        }
+        push_transcript_elements(&mut doc, &segments, tcfg.timestamps);
         Ok(doc)
     }
 }
@@ -380,6 +467,70 @@ mod tests {
             msg.contains("exceed") || msg.contains("limit") || msg.contains("size"),
             "unexpected: {msg}"
         );
+    }
+
+    /// Regression test for #278: `TranscriptionConfig::timeout_ms` had zero readers —
+    /// every sibling field (`max_bytes`, `max_duration_ms`, `model_cache_dir`,
+    /// `allow_network`, `verify_hash`) was enforced, but a transcription run had no
+    /// wall-clock bound at all. `apply_timeout` is the mechanism `extract_content` now
+    /// wraps the decode/model-resolution/inference pipeline in.
+    #[tokio::test]
+    async fn apply_timeout_returns_error_when_future_exceeds_timeout_ms() {
+        let result: Result<()> = apply_timeout(Some(10), async {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            Ok(())
+        })
+        .await;
+        assert!(result.is_err(), "expected timeout error, got {result:?}");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("timeout_ms"), "unexpected message: {msg}");
+    }
+
+    #[tokio::test]
+    async fn apply_timeout_passes_through_ok_when_future_finishes_in_time() {
+        let result: Result<i32> = apply_timeout(Some(5_000), async { Ok(42) }).await;
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn apply_timeout_passes_through_err_when_future_finishes_in_time() {
+        let result: Result<i32> =
+            apply_timeout(Some(5_000), async { Err(XbergError::transcription("inner failure")) }).await;
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("inner failure"), "unexpected message: {msg}");
+    }
+
+    #[tokio::test]
+    async fn apply_timeout_with_none_never_times_out() {
+        let result: Result<i32> = apply_timeout(None, async {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            Ok(7)
+        })
+        .await;
+        assert_eq!(result.unwrap(), 7);
+    }
+
+    /// End-to-end wiring check: `extract_content` must actually read
+    /// `transcription.timeout_ms` and apply it around the real pipeline, not just
+    /// have `apply_timeout` exist unused. A `timeout_ms: Some(0)` deadline elapses
+    /// before decode + model resolution can complete, so this exercises the real
+    /// call path without requiring network access to resolve a Whisper model.
+    #[tokio::test]
+    async fn extract_content_enforces_timeout_ms() {
+        let wav_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/audio/silence-1s.wav");
+        let bytes = std::fs::read(&wav_path).unwrap_or_else(|e| panic!("missing audio fixture {wav_path:?}: {e}"));
+
+        let ext = TranscriptionExtractor;
+        let tcfg = TranscriptionConfig {
+            timeout_ms: Some(0),
+            ..Default::default()
+        };
+        let cfg = config_with_transcription(tcfg);
+        let result = ext.extract_content(&bytes, "audio/wav", &cfg).await;
+        assert!(result.is_err(), "expected timeout error, got {result:?}");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("timeout_ms"), "unexpected message: {msg}");
     }
 
     fn make_pcm(duration_ms: u64) -> PcmAudio {

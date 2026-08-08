@@ -100,7 +100,14 @@ pub(crate) fn flatten_positioned_cells(
 ) -> Vec<Vec<String>> {
     let mut rows: Vec<Vec<SpanCell>> = (0..num_rows.max(1)).map(|_| Vec::new()).collect();
     for (row, row_span, col_span, content) in cells {
-        let r = (row as usize).min(rows.len().saturating_sub(1));
+        let r = row as usize;
+        // A cell whose reported row index falls outside the caller's declared
+        // `num_rows` used to be clamped onto the last row, scrambling it in as
+        // extra columns under the wrong header (xberg-io/xberg#234). Grow the
+        // grid instead so the cell keeps its own row.
+        if r >= rows.len() {
+            rows.resize_with(r + 1, Vec::new);
+        }
         rows[r].push(SpanCell::new(content, row_span, col_span));
     }
     flatten_spanned_rows(&rows)
@@ -138,6 +145,21 @@ mod tests {
         let grid = flatten_spanned_rows(&rows);
         assert_eq!(grid[0], vec!["Fuse", "", "Circuit"]);
         assert_eq!(grid[1], vec!["101", "40A", "Blower"]);
+    }
+
+    #[test]
+    fn overflow_row_grows_grid_instead_of_clamping() {
+        // num_rows under-reports the true row count (2 instead of 3); the
+        // second cell's row index (2) is out of bounds for that declared size.
+        let cells = vec![
+            (0u32, 1u32, 1u32, "Header".to_string()),
+            (2u32, 1u32, 1u32, "Orphan".to_string()),
+        ];
+        let grid = flatten_positioned_cells(1, cells.into_iter());
+        assert_eq!(grid.len(), 3, "overflow row must grow the grid, not clamp into row 0");
+        assert_eq!(grid[0], vec!["Header"]);
+        assert_eq!(grid[1], vec![""]);
+        assert_eq!(grid[2], vec!["Orphan"]);
     }
 
     #[test]

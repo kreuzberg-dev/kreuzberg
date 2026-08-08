@@ -1,6 +1,6 @@
 {
   "name": "@xberg-io/n8n-nodes-xberg",
-  "version": "1.0.14",
+  "version": "1.1.0",
   "description": "n8n community node for Xberg — extract text, tables, and metadata from 101 document formats with optional OCR.",
   "keywords": [
     "n8n-community-node-package",
@@ -44,7 +44,7 @@
     ]
   },
   "dependencies": {
-    "@xberg-io/xberg": "1.0.14"
+    "@xberg-io/xberg": "1.1.0"
   },
   "peerDependencies": {
     "n8n-workflow": "*"

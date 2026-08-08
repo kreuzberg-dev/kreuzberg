@@ -18,7 +18,10 @@
 //!
 //! # Example
 //!
-//! ```
+//! Not run as a doctest: `estimate_content_capacity` is `pub(crate)`, an allocation
+//! hint for the extractors rather than part of the public surface.
+//!
+//! ```ignore
 //! use xberg::extraction::capacity::estimate_content_capacity;
 //!
 //! let file_size = 1_000_000u64;

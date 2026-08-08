@@ -8,7 +8,7 @@
 //! appended. XFA-only forms are fully extracted.
 
 use super::OxideDocument;
-use crate::types::{BoundingBox, FormFieldType, PdfFormField};
+use crate::types::{BoundingBox, FormFieldType, PdfFormField, ProcessingWarning};
 
 /// Extract form fields from a PDF document using pdf_oxide.
 ///
@@ -29,8 +29,13 @@ use crate::types::{BoundingBox, FormFieldType, PdfFormField};
 ///
 /// A `Vec<PdfFormField>` containing all successfully extracted form fields from both layers,
 /// or an empty vector if neither AcroForm nor XFA is present or extraction fails completely.
-pub(crate) fn extract_form_fields(doc: &mut OxideDocument) -> Vec<PdfFormField> {
+/// The accompanying `Vec<ProcessingWarning>` surfaces AcroForm/XFA extraction or parsing
+/// failures (issue #73) that would otherwise make a form-bearing PDF indistinguishable from
+/// one with no form at all. A document with no AcroForm and no XFA (the common case) produces
+/// no warnings — only actual failures are reported.
+pub(crate) fn extract_form_fields(doc: &mut OxideDocument) -> (Vec<PdfFormField>, Vec<ProcessingWarning>) {
     let mut fields = Vec::new();
+    let mut warnings = Vec::new();
 
     match pdf_oxide::extractors::forms::FormExtractor::extract_fields(&doc.doc) {
         Ok(oxide_fields) => {
@@ -38,31 +43,60 @@ pub(crate) fn extract_form_fields(doc: &mut OxideDocument) -> Vec<PdfFormField> 
             tracing::debug!("extracted {} AcroForm fields", fields.len());
         }
         Err(e) => {
-            tracing::debug!("AcroForm extraction not available: {e}");
+            // `extract_fields` returns `Ok(vec![])` when the document simply has no
+            // `/AcroForm` entry, so any `Err` here is a genuine parse/extraction
+            // failure, not the (very common) absence of a form.
+            tracing::debug!("AcroForm extraction failed: {e}");
+            warnings.push(ProcessingWarning {
+                source: std::borrow::Cow::Borrowed("pdf_forms"),
+                message: std::borrow::Cow::Owned(format!("AcroForm field extraction failed: {e}")),
+            });
         }
     }
 
-    if let Some(xfa_fields) = extract_xfa_fields(doc) {
-        let known: std::collections::HashSet<String> = fields.iter().map(|f| f.name.clone()).collect();
-        let appended: Vec<PdfFormField> = xfa_fields.into_iter().filter(|f| !known.contains(&f.name)).collect();
-        if !appended.is_empty() {
-            tracing::debug!("appended {} XFA-only fields", appended.len());
-            fields.extend(appended);
+    match extract_xfa_fields(doc) {
+        Ok(Some(xfa_fields)) => {
+            let known: std::collections::HashSet<String> = fields.iter().map(|f| f.name.clone()).collect();
+            let appended: Vec<PdfFormField> = xfa_fields.into_iter().filter(|f| !known.contains(&f.name)).collect();
+            if !appended.is_empty() {
+                tracing::debug!("appended {} XFA-only fields", appended.len());
+                fields.extend(appended);
+            }
         }
+        Ok(None) => {}
+        Err(warning) => warnings.push(warning),
     }
 
-    fields
+    (fields, warnings)
 }
+
+/// pdf_oxide reports "no AcroForm"/"no XFA entry" as an `Err(Error::InvalidPdf(..))` with
+/// one of these exact messages — the overwhelmingly common case, since most PDFs have no
+/// XFA layer at all. Any other error means XFA was present but malformed/undecodable.
+const XFA_ABSENT_MESSAGES: [&str; 2] = ["No AcroForm in document", "No XFA entry in AcroForm"];
 
 /// Extract form fields from XFA layer (if present).
 ///
 /// Attempts to detect, parse, and convert XFA form data using pdf_oxide's XFA module.
-/// Returns `None` if XFA is not present or if extraction fails.
-fn extract_xfa_fields(doc: &mut OxideDocument) -> Option<Vec<PdfFormField>> {
+/// Returns `Ok(None)` if XFA is not present. Returns `Err(warning)` if XFA is present but
+/// extraction or parsing failed (issue #73), so the caller can surface the failure instead
+/// of silently treating it the same as "no XFA form".
+fn extract_xfa_fields(doc: &mut OxideDocument) -> Result<Option<Vec<PdfFormField>>, ProcessingWarning> {
     let xfa_data = match pdf_oxide::xfa::XfaExtractor::extract_xfa(&mut doc.doc) {
         Ok(data) => data,
-        Err(_) => {
-            return None;
+        Err(e) => {
+            let message = e.to_string();
+            if XFA_ABSENT_MESSAGES.iter().any(|absent| message.contains(absent)) {
+                tracing::debug!("XFA not present: {e}");
+                return Ok(None);
+            }
+            tracing::debug!("XFA extraction failed: {e}");
+            return Err(ProcessingWarning {
+                source: std::borrow::Cow::Borrowed("pdf_forms"),
+                message: std::borrow::Cow::Owned(format!(
+                    "XFA form data was present but could not be extracted: {e}; XFA fields were skipped"
+                )),
+            });
         }
     };
 
@@ -71,7 +105,12 @@ fn extract_xfa_fields(doc: &mut OxideDocument) -> Option<Vec<PdfFormField>> {
         Ok(form) => form,
         Err(e) => {
             tracing::debug!("XFA parsing failed: {e}");
-            return None;
+            return Err(ProcessingWarning {
+                source: std::borrow::Cow::Borrowed("pdf_forms"),
+                message: std::borrow::Cow::Owned(format!(
+                    "XFA form data was present but could not be parsed: {e}; XFA fields were skipped"
+                )),
+            });
         }
     };
 
@@ -82,7 +121,7 @@ fn extract_xfa_fields(doc: &mut OxideDocument) -> Option<Vec<PdfFormField>> {
         fields.push(field);
     }
 
-    Some(fields)
+    Ok(Some(fields))
 }
 
 /// Maps a single pdf_oxide FormField to a Xberg PdfFormField.

@@ -19,10 +19,13 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
-//! use xberg::utils::pool::StringBufferPool;
+//! Pools are constructed through the public factory functions; the `Pool::new`
+//! constructor itself is crate-internal.
 //!
-//! let pool = StringBufferPool::new(|| String::with_capacity(4096), 10); // 10 buffers of 4KB each
+//! ```rust,no_run
+//! use xberg::utils::pool::create_string_buffer_pool;
+//!
+//! let pool = create_string_buffer_pool(10, 4096); // 10 buffers of 4KB each
 //! let mut buffer = pool.acquire();
 //! buffer.push_str("some content");
 //! // buffer is returned to pool when dropped
@@ -125,10 +128,14 @@ impl<T: Recyclable> Pool<T> {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
-    /// use xberg::utils::pool::Pool;
+    /// This constructor is crate-internal. Callers outside the crate build pools
+    /// through [`create_string_buffer_pool`] / [`create_byte_buffer_pool`], which
+    /// wrap it:
     ///
-    /// let pool = Pool::new(|| String::new(), 10);
+    /// ```rust,no_run
+    /// use xberg::utils::pool::create_string_buffer_pool;
+    ///
+    /// let pool = create_string_buffer_pool(10, 0);
     /// ```
     pub(crate) fn new<F>(factory: F, max_size: usize) -> Self
     where

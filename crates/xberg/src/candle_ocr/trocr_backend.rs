@@ -216,15 +216,17 @@ impl OcrBackend for TrocrBackend {
             });
         }
 
-        let image_bytes = image_bytes.to_vec();
+        let image_bytes_owned = image_bytes.to_vec();
 
         let content = tokio::task::spawn_blocking(move || {
             let engine = get_or_init_engine(variant, options.device, cache_dir, revision)?;
 
-            let output = engine.process_image(&image_bytes).map_err(|e| crate::XbergError::Ocr {
-                message: format!("TrOCR inference failed: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let output = engine
+                .process_image(&image_bytes_owned)
+                .map_err(|e| crate::XbergError::Ocr {
+                    message: format!("TrOCR inference failed: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
 
             Ok::<String, crate::XbergError>(output.content)
         })
@@ -234,11 +236,13 @@ impl OcrBackend for TrocrBackend {
             source: None,
         })??;
 
-        Ok(ExtractedDocument {
+        Ok(super::ocr_result::build_ocr_document(
             content,
-            mime_type: Cow::Borrowed("text/plain"),
-            ..Default::default()
-        })
+            Vec::new(),
+            Cow::Borrowed("text/plain"),
+            image_bytes,
+            config,
+        ))
     }
 
     async fn process_image_file(&self, path: &Path, config: &OcrConfig) -> Result<ExtractedDocument> {

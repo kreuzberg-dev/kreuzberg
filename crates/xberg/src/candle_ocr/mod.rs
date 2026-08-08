@@ -6,6 +6,25 @@
 
 mod config;
 
+// Shared `ExtractedDocument` construction (metadata, tables, detected_languages)
+// used by every candle-* backend below, so the same logic isn't pasted per
+// backend (issue #179).
+//
+// Gated on the union of the concrete backends that consume it, NOT on the umbrella
+// `candle-ocr` feature. The umbrella can be enabled on its own -- `xberg-cli`'s
+// `candle-ocr` feature profile does exactly that -- which compiles this module with
+// no backend to call into it, and every item here becomes dead code under
+// `-D warnings`. Same union the device-preference helpers below use. ~keep
+#[cfg(any(
+    feature = "candle-trocr",
+    feature = "candle-paddleocr-vl",
+    all(
+        not(target_arch = "wasm32"),
+        any(feature = "candle-glm-ocr", feature = "candle-deepseek-ocr")
+    )
+))]
+mod ocr_result;
+
 #[cfg(feature = "candle-trocr")]
 pub mod trocr_backend;
 

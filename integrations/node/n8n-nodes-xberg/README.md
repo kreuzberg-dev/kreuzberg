@@ -83,8 +83,9 @@ holds the seed `url` and the discovered `urls` array.
 
 Each Extract / Extract Batch output item's JSON contains the extracted content under the configured
 field (default `text`), plus `mimeType`, `extractionMethod`, `detectedLanguages`, and `counts`
-(pages, tables, images). `formattedContent`, `qualityScore`, `entities`, and `summary` appear when
-the binding populates them. `metadata`, `tables`, and `chunks` are included when their toggles are
+(pages, tables, images). The content is already rendered in the configured **Output Format**
+(Markdown, HTML, …). `qualityScore`, `entities`, and `summary` appear when the binding populates
+them. `metadata`, `tables`, and `chunks` are included when their toggles are
 set. When **Return As Binary** is set, the content is also attached as a binary property with a
 format-appropriate MIME type and extension.
 

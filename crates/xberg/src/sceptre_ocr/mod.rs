@@ -26,14 +26,17 @@ use crate::{Result, XbergError};
 
 const BACKEND_NAME: &str = "sceptre";
 const DEFAULT_LANGUAGE: &str = "eng";
-const PROCESSED_WIDTH_KEY: &str = "ocr_processed_image_width";
-const PROCESSED_HEIGHT_KEY: &str = "ocr_processed_image_height";
+// The metadata key names come from the ungated `crate::ocr_metadata_keys` rather than
+// `crate::ocr`, which is gated on `feature = "ocr"` / `"ocr-wasm"` — neither of which a
+// Sceptre-only build implies. ~keep
+use crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY as PROCESSED_HEIGHT_KEY;
+use crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY as PROCESSED_WIDTH_KEY;
 #[cfg(auto_rotate)]
-const ORIENTATION_CONFIDENCE_KEY: &str = "orientation_confidence";
-#[cfg(auto_rotate)]
-const ORIENTATION_DEGREES_KEY: &str = "orientation_degrees";
-#[cfg(auto_rotate)]
-const AUTO_ROTATED_KEY: &str = "auto_rotated";
+use crate::ocr_metadata_keys::{
+    OCR_AUTO_ROTATED_METADATA_KEY as AUTO_ROTATED_KEY,
+    OCR_ORIENTATION_CONFIDENCE_METADATA_KEY as ORIENTATION_CONFIDENCE_KEY,
+    OCR_ORIENTATION_DEGREES_METADATA_KEY as ORIENTATION_DEGREES_KEY,
+};
 // Each reader retains multiple ONNX sessions and a worker pool. Four entries
 // cover common language/configuration reuse while bounding retained resources. ~keep
 const READER_CACHE_CAPACITY: usize = 4;
@@ -498,11 +501,104 @@ fn select_output_elements(elements: &[OcrElement], config: &OcrConfig) -> Option
     (!selected.is_empty()).then_some(selected)
 }
 
+// Matches the Tesseract backend's low-word-confidence cutoff
+// (ocr/processor/execution.rs) so downstream quality gating applies the same
+// threshold regardless of which backend produced the metadata. ~keep
+const LOW_CONFIDENCE_THRESHOLD_PCT: i64 = 50;
+
+/// Per-line confidence statistics on Tesseract's 0-100 integer percentage
+/// scale, so consumers that already gate on Tesseract's `mean_text_conf` /
+/// `median_word_conf` / `p10_word_conf` keys (e.g. `extractors/pdf/ocr.rs`,
+/// which divides `mean_text_conf` by 100.0) work unchanged against Sceptre.
+struct ConfidenceStats {
+    mean_pct: i64,
+    median_pct: i64,
+    p10_pct: i64,
+    line_count: usize,
+    low_confidence_count: usize,
+}
+
+/// Convert a Sceptre line confidence (`0.0..=1.0`) to Tesseract's `0..=100`
+/// integer percentage scale.
+fn confidence_to_percent(confidence: f32) -> i64 {
+    (f64::from(confidence).clamp(0.0, 1.0) * 100.0).round() as i64
+}
+
+/// Compute mean/median/p10 confidence and low-confidence-line count from
+/// per-line confidence values. Returns `None` when there are no lines, mirroring
+/// the Tesseract backend leaving these keys out of `metadata.additional` when it
+/// has nothing to report.
+fn compute_confidence_stats(lines: &[TextLine]) -> Option<ConfidenceStats> {
+    if lines.is_empty() {
+        return None;
+    }
+
+    let percentages: Vec<i64> = lines
+        .iter()
+        .map(|line| confidence_to_percent(line.confidence))
+        .collect();
+    let line_count = percentages.len();
+    let low_confidence_count = percentages
+        .iter()
+        .filter(|&&pct| pct < LOW_CONFIDENCE_THRESHOLD_PCT)
+        .count();
+
+    let mean_pct = percentages.iter().sum::<i64>() / line_count as i64;
+
+    let mut sorted = percentages.clone();
+    sorted.sort_unstable();
+    let median_pct = if line_count.is_multiple_of(2) {
+        (sorted[line_count / 2 - 1] + sorted[line_count / 2]) / 2
+    } else {
+        sorted[line_count / 2]
+    };
+    let p10_idx = ((line_count as f64 - 1.0) * 0.1).floor() as usize;
+    let p10_pct = sorted[p10_idx.min(line_count - 1)];
+
+    Some(ConfidenceStats {
+        mean_pct,
+        median_pct,
+        p10_pct,
+        line_count,
+        low_confidence_count,
+    })
+}
+
+/// Publish confidence statistics into `metadata.additional` using the same key
+/// names the Tesseract backend uses, so quality-gating code that reads
+/// `mean_text_conf` / `median_word_conf` / `p10_word_conf` / `word_count` /
+/// `low_conf_word_count` works against Sceptre output too (issue #186). Sceptre
+/// has no word-level detections, so line confidence is the finest granularity
+/// available and is reported under the same keys.
+fn insert_confidence_stats(metadata: &mut Metadata, lines: &[TextLine]) {
+    let Some(stats) = compute_confidence_stats(lines) else {
+        return;
+    };
+    metadata
+        .additional
+        .insert(Cow::Borrowed("mean_text_conf"), serde_json::json!(stats.mean_pct));
+    metadata
+        .additional
+        .insert(Cow::Borrowed("median_word_conf"), serde_json::json!(stats.median_pct));
+    metadata
+        .additional
+        .insert(Cow::Borrowed("p10_word_conf"), serde_json::json!(stats.p10_pct));
+    metadata
+        .additional
+        .insert(Cow::Borrowed("word_count"), serde_json::json!(stats.line_count));
+    metadata.additional.insert(
+        Cow::Borrowed("low_conf_word_count"),
+        serde_json::json!(stats.low_confidence_count),
+    );
+}
+
 fn build_metadata(languages: &[String], output: &BlockingOutput) -> Metadata {
     let mut metadata = Metadata {
         format: Some(FormatMetadata::Ocr(OcrMetadata {
             language: languages.join("+"),
-            psm: 3,
+            // Sceptre has no Tesseract-style Page Segmentation Mode; `psm: 3`
+            // (Tesseract's "fully automatic" default) would misrepresent a
+            // concept this backend does not have. Leave it at the zero default. ~keep
             output_format: "text".to_string(),
             ..Default::default()
         })),
@@ -515,6 +611,7 @@ fn build_metadata(languages: &[String], output: &BlockingOutput) -> Metadata {
     metadata
         .additional
         .insert(Cow::Borrowed(PROCESSED_HEIGHT_KEY), serde_json::json!(output.height));
+    insert_confidence_stats(&mut metadata, &output.result.lines);
     #[cfg(auto_rotate)]
     if let Some(orientation) = output.orientation {
         metadata.additional.insert(
@@ -918,6 +1015,87 @@ mod tests {
         let selected = select_output_elements(&elements, &config).expect("one selected line");
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].text, "keep");
+    }
+
+    /// Regression test for issue #186: Sceptre must publish confidence
+    /// statistics under the same keys Tesseract uses, so quality gating that
+    /// reads `mean_text_conf` / `median_word_conf` / `p10_word_conf` /
+    /// `word_count` / `low_conf_word_count` works against Sceptre output too.
+    #[test]
+    fn should_publish_confidence_statistics_in_metadata() {
+        let output = BlockingOutput {
+            result: OcrResult {
+                // percentages: 90, 80, 40, 100 -> mean 77, sorted [40,80,90,100]
+                lines: vec![line("a", 0.9), line("b", 0.8), line("c", 0.4), line("d", 1.0)],
+            },
+            width: 100,
+            height: 100,
+            #[cfg(auto_rotate)]
+            orientation: None,
+            #[cfg(auto_rotate)]
+            auto_rotated: false,
+        };
+
+        let metadata = build_metadata(&["eng".to_string()], &output);
+
+        assert_eq!(metadata.additional.get("mean_text_conf"), Some(&serde_json::json!(77)));
+        assert_eq!(
+            metadata.additional.get("median_word_conf"),
+            Some(&serde_json::json!(85))
+        );
+        assert_eq!(metadata.additional.get("p10_word_conf"), Some(&serde_json::json!(40)));
+        assert_eq!(metadata.additional.get("word_count"), Some(&serde_json::json!(4)));
+        assert_eq!(
+            metadata.additional.get("low_conf_word_count"),
+            Some(&serde_json::json!(1))
+        );
+    }
+
+    /// With no recognized lines there is nothing to report; the confidence keys
+    /// must be absent rather than fabricated zeros (matching Tesseract's
+    /// behavior of only inserting `mean_text_conf` when `>= 0`).
+    #[test]
+    fn should_omit_confidence_statistics_when_no_lines_recognized() {
+        let output = BlockingOutput {
+            result: OcrResult { lines: vec![] },
+            width: 100,
+            height: 100,
+            #[cfg(auto_rotate)]
+            orientation: None,
+            #[cfg(auto_rotate)]
+            auto_rotated: false,
+        };
+
+        let metadata = build_metadata(&["eng".to_string()], &output);
+
+        assert!(metadata.additional.get("mean_text_conf").is_none());
+        assert!(metadata.additional.get("word_count").is_none());
+    }
+
+    /// Regression test for issue #186: `psm` must not carry Tesseract's PSM-3
+    /// default, since Sceptre has no Page Segmentation Mode concept.
+    #[test]
+    fn should_not_report_tesseract_psm_for_sceptre_metadata() {
+        let output = BlockingOutput {
+            result: OcrResult {
+                lines: vec![line("hello", 0.9)],
+            },
+            width: 100,
+            height: 100,
+            #[cfg(auto_rotate)]
+            orientation: None,
+            #[cfg(auto_rotate)]
+            auto_rotated: false,
+        };
+
+        let metadata = build_metadata(&["eng".to_string()], &output);
+        let Some(FormatMetadata::Ocr(ocr_metadata)) = metadata.format else {
+            panic!("expected FormatMetadata::Ocr");
+        };
+        assert_eq!(
+            ocr_metadata.psm, 0,
+            "Sceptre has no PSM; must not claim Tesseract's PSM 3"
+        );
     }
 
     #[test]

@@ -10,6 +10,7 @@
 !Cargo.toml
 !Cargo.lock
 !crates/xberg/
+!crates/ttf-parser-compat/
 !crates/xberg-gliner/
 !crates/xberg-cli/
 !crates/xberg-tesseract/

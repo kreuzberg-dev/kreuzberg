@@ -21,6 +21,31 @@ use super::{
     },
 };
 
+/// Multipart field names accepted by `/extract` and `/extract-async`.
+///
+/// Validation is an allowlist: a field outside this set is rejected rather than
+/// silently dropped, so a typo (`configuration`, `outputFormat`) fails loudly
+/// instead of being ignored and quietly falling back to the server defaults (#248).
+const ACCEPTED_EXTRACT_MULTIPART_FIELDS: [&str; 8] = [
+    "file",
+    "files",
+    "urls",
+    "inputs",
+    "config",
+    "output_format",
+    "pdf_password",
+    "format",
+];
+
+/// Build the rejection for a multipart field name outside the allowlist.
+fn unknown_multipart_field_error(field_name: &str) -> ApiError {
+    ApiError::validation(crate::error::XbergError::validation(format!(
+        "Unknown multipart field '{}'. Accepted fields: {}",
+        field_name,
+        ACCEPTED_EXTRACT_MULTIPART_FIELDS.join(", ")
+    )))
+}
+
 /// Unified extraction input accepted by `/extract` and `/extract-async`.
 #[derive(Debug, Clone)]
 enum ApiExtractInput {
@@ -28,10 +53,12 @@ enum ApiExtractInput {
         data: Bytes,
         mime_type: String,
         file_name: Option<String>,
+        config: Option<crate::core::config::FileExtractionConfig>,
     },
     Uri {
         uri: String,
         mime_type: Option<String>,
+        config: Option<crate::core::config::FileExtractionConfig>,
     },
 }
 
@@ -42,11 +69,16 @@ impl ApiExtractInput {
                 data,
                 mime_type,
                 file_name,
-            } => ExtractInput::from_bytes(data.to_vec(), mime_type, file_name),
-            Self::Uri { uri, mime_type } => ExtractInput {
+                config,
+            } => ExtractInput {
+                config,
+                ..ExtractInput::from_bytes(data.to_vec(), mime_type, file_name)
+            },
+            Self::Uri { uri, mime_type, config } => ExtractInput {
                 kind: ExtractInputKind::Uri,
                 uri: Some(uri),
                 mime_type,
+                config,
                 ..Default::default()
             },
         }
@@ -75,7 +107,10 @@ struct JsonUnifiedExtractRequest {
 #[serde(untagged)]
 enum JsonExtractInput {
     Uri(String),
-    Object(JsonExtractInputObject),
+    // Boxed: the object form is ~6 KB, so an unboxed variant made every `JsonExtractInput`
+    // that size even for the bare-URI case. Private to this module, so this is not an API
+    // change.
+    Object(Box<JsonExtractInputObject>),
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -98,6 +133,13 @@ struct JsonExtractInputObject {
     mime_type: Option<String>,
     #[serde(default)]
     filename: Option<String>,
+    /// Per-input extraction overrides, merged over the request-level config.
+    ///
+    /// Threaded into [`ExtractInput::config`], which the engine merges via
+    /// `ExtractionConfig::with_file_overrides`. Without this the HTTP API could
+    /// only ever apply one config to every input in a batch (#247).
+    #[serde(default)]
+    config: Option<crate::core::config::FileExtractionConfig>,
 }
 
 impl<S> FromRequest<S> for UnifiedExtractRequest
@@ -208,6 +250,9 @@ where
                     data,
                     mime_type,
                     file_name,
+                    // Multipart file parts carry no per-part config; per-input
+                    // overrides are expressed through the JSON `inputs` field.
+                    config: None,
                 });
             }
             "urls" => {
@@ -260,7 +305,7 @@ where
                     use_toon = true;
                 }
             }
-            _ => {}
+            unknown => return Err(unknown_multipart_field_error(unknown)),
         }
     }
 
@@ -292,11 +337,19 @@ fn parse_urls_field(raw: &str) -> Result<Vec<ApiExtractInput>, ApiError> {
     })?;
 
     match value {
-        serde_json::Value::String(uri) => Ok(vec![ApiExtractInput::Uri { uri, mime_type: None }]),
+        serde_json::Value::String(uri) => Ok(vec![ApiExtractInput::Uri {
+            uri,
+            mime_type: None,
+            config: None,
+        }]),
         serde_json::Value::Array(values) => values
             .into_iter()
             .map(|value| match value {
-                serde_json::Value::String(uri) => Ok(ApiExtractInput::Uri { uri, mime_type: None }),
+                serde_json::Value::String(uri) => Ok(ApiExtractInput::Uri {
+                    uri,
+                    mime_type: None,
+                    config: None,
+                }),
                 _ => Err(ApiError::validation(crate::error::XbergError::validation(
                     "urls field must be a JSON string or array of strings",
                 ))),
@@ -329,8 +382,12 @@ fn parse_inputs_field(raw: &str) -> Result<Vec<ApiExtractInput>, ApiError> {
 
 fn json_input_to_api_input(input: JsonExtractInput) -> Result<ApiExtractInput, ApiError> {
     match input {
-        JsonExtractInput::Uri(uri) => Ok(ApiExtractInput::Uri { uri, mime_type: None }),
-        JsonExtractInput::Object(object) => object_to_api_input(object),
+        JsonExtractInput::Uri(uri) => Ok(ApiExtractInput::Uri {
+            uri,
+            mime_type: None,
+            config: None,
+        }),
+        JsonExtractInput::Object(object) => object_to_api_input(*object),
     }
 }
 
@@ -354,6 +411,7 @@ fn object_to_api_input(object: JsonExtractInputObject) -> Result<ApiExtractInput
                 .mime_type
                 .unwrap_or_else(|| crate::core::mime::OCTET_STREAM_MIME_TYPE.to_string()),
             file_name: object.filename,
+            config: object.config,
         });
     }
 
@@ -365,6 +423,7 @@ fn object_to_api_input(object: JsonExtractInputObject) -> Result<ApiExtractInput
             data: Bytes::from(text),
             mime_type: object.mime_type.unwrap_or_else(|| "text/plain".to_string()),
             file_name: object.filename,
+            config: object.config,
         });
     }
 
@@ -372,6 +431,7 @@ fn object_to_api_input(object: JsonExtractInputObject) -> Result<ApiExtractInput
         return Ok(ApiExtractInput::Uri {
             uri,
             mime_type: object.mime_type,
+            config: object.config,
         });
     }
 
@@ -461,6 +521,50 @@ pub(crate) async fn info_handler() -> Json<InfoResponse> {
     })
 }
 
+/// Prometheus metrics endpoint handler.
+///
+/// GET /metrics
+///
+/// Returns the current OTel extraction metrics in the Prometheus text exposition format
+/// (`text/plain; version=0.0.4`). Requires the `prometheus` feature.
+///
+/// The `SdkMeterProvider` backing these metrics is installed by
+/// [`crate::telemetry::init_prometheus`] before this router's extraction service is built
+/// (see `create_router_with_limits_and_server_config`), so every extraction handled by this
+/// router is reflected here. If a caller embeds a custom extraction pipeline instead of this
+/// router, they must call `init_prometheus()` themselves before their first extraction, or
+/// this endpoint scrapes an empty registry.
+#[cfg(feature = "prometheus")]
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "health",
+    responses(
+        (status = 200, description = "Prometheus text-format extraction metrics", content_type = "text/plain"),
+    )
+)]
+#[cfg_attr(feature = "otel", tracing::instrument(name = "api.metrics", skip(state)))]
+pub(crate) async fn metrics_handler(
+    State(state): State<ApiState>,
+) -> Result<axum::response::Response<axum::body::Body>, ApiError> {
+    use prometheus::Encoder;
+
+    let metric_families = state.prometheus_registry.gather();
+    let encoder = prometheus::TextEncoder::new();
+    let mut buffer = Vec::new();
+    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
+        ApiError::internal(crate::error::XbergError::Other(format!(
+            "Failed to encode Prometheus metrics: {}",
+            e
+        )))
+    })?;
+
+    Ok(axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, prometheus::TEXT_FORMAT)
+        .body(axum::body::Body::from(buffer))
+        .expect("valid response"))
+}
+
 /// Check whether TOON wire format was requested via the `Accept` header.
 fn wants_toon(headers: &HeaderMap) -> bool {
     headers
@@ -516,6 +620,7 @@ fn toon_response(results: &ExtractionResult) -> Result<axum::response::Response<
         (status = 200, description = "Extraction successful", body = crate::core::config::ExtractionResult),
         (status = 400, description = "Bad request", body = crate::api::types::ErrorResponse),
         (status = 413, description = "Payload too large", body = crate::api::types::ErrorResponse),
+        (status = 415, description = "Unsupported Content-Type", body = crate::api::types::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::api::types::ErrorResponse),
     )
 )]
@@ -872,6 +977,7 @@ pub(crate) async fn cache_manifest_handler() -> Json<ManifestResponse> {
     responses(
         (status = 200, description = "Models warmed", body = WarmResponse),
         (status = 400, description = "Bad request - unknown or empty model name, or requested warmer feature is unavailable", body = crate::api::types::ErrorResponse),
+        (status = 415, description = "Unsupported Content-Type", body = crate::api::types::ErrorResponse),
         (status = 422, description = "Unprocessable entity - invalid JSON body", body = crate::api::types::ErrorResponse),
         (status = 500, description = "Internal server error", body = crate::api::types::ErrorResponse),
         (status = 502, description = "Bad gateway - upstream model download failed", body = crate::api::types::ErrorResponse),
@@ -1054,6 +1160,11 @@ fn resolve_cache_base() -> std::path::PathBuf {
         (status = 202, description = "Job accepted", body = AsyncJobResponse),
         (status = 400, description = "Bad request", body = crate::api::types::ErrorResponse),
         (status = 413, description = "Payload too large", body = crate::api::types::ErrorResponse),
+        (status = 415, description = "Unsupported Content-Type", body = crate::api::types::ErrorResponse),
+        // Returned below when MAX_ACTIVE_JOBS is reached. Declared for the same reason as
+        // 415: an undeclared status that the handler can actually return is a contract
+        // violation, and the API conformance suite fails on it. ~keep
+        (status = 429, description = "Too many active jobs", body = crate::api::types::ErrorResponse),
     )
 )]
 pub(crate) async fn extract_async_handler(
@@ -1257,6 +1368,8 @@ mod tests {
             extraction_service: std::sync::Arc::new(std::sync::Mutex::new(extraction_service)),
             #[cfg(feature = "api")]
             job_store: std::sync::Arc::new(crate::api::jobs::JobStore::new()),
+            #[cfg(feature = "prometheus")]
+            prometheus_registry: crate::telemetry::init_prometheus(),
         };
         #[allow(unused_mut)]
         let mut router = Router::new()
@@ -1271,6 +1384,116 @@ mod tests {
             .route("/jobs/{job_id}", get(job_status_handler).delete(cancel_job_handler));
 
         router.with_state(state)
+    }
+
+    /// Build a `multipart/form-data` request carrying a single named text field.
+    fn multipart_request_with_field(boundary: &str, field_name: &str, value: &str) -> Request<Body> {
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"{field_name}\"\r\n\r\n{value}\r\n--{boundary}--\r\n"
+        );
+        Request::builder()
+            .method("POST")
+            .uri("/extract")
+            .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+            .body(Body::from(body))
+            .expect("valid multipart request")
+    }
+
+    /// An unknown multipart field must be rejected, not silently dropped (#248).
+    ///
+    /// Before the fix the catch-all match arm was `_ => {}`, so a misspelled
+    /// field name (`configuration` instead of `config`) was discarded and the
+    /// request quietly succeeded against the server defaults — the caller's
+    /// settings vanished with no signal at all.
+    #[tokio::test]
+    async fn should_reject_unknown_multipart_field_naming_the_offending_field() {
+        let request = multipart_request_with_field("unknownfieldboundary", "configuration", "{}");
+
+        let error = UnifiedExtractRequest::from_request(request, &())
+            .await
+            .expect_err("an unknown multipart field must be rejected");
+
+        assert_eq!(error.status, StatusCode::BAD_REQUEST);
+        assert_eq!(error.body.status_code, 400);
+        assert_eq!(error.body.error_type, "ValidationError");
+        assert_eq!(
+            error.body.message,
+            "Validation error: Unknown multipart field 'configuration'. \
+             Accepted fields: file, files, urls, inputs, config, output_format, pdf_password, format"
+        );
+    }
+
+    /// Every allowlisted multipart field name must still be accepted (#248).
+    ///
+    /// Guards the rejection above against over-reach — a stricter boundary is
+    /// only correct if it does not break the documented field names.
+    #[tokio::test]
+    async fn should_accept_every_allowlisted_multipart_field_name() {
+        for field_name in ACCEPTED_EXTRACT_MULTIPART_FIELDS {
+            // Give each field a payload its own parser accepts.
+            let value = match field_name {
+                "urls" | "inputs" => "[]",
+                "config" => "{}",
+                "output_format" => "markdown",
+                _ => "x",
+            };
+            let request = multipart_request_with_field("allowlistboundary", field_name, value);
+
+            // Assert on the *name* check specifically: a payload-level complaint
+            // would be a different (and legitimate) error, but no allowlisted
+            // name may ever be rejected as unknown.
+            if let Err(error) = UnifiedExtractRequest::from_request(request, &()).await {
+                assert!(
+                    !error.body.message.contains("Unknown multipart field"),
+                    "allowlisted field '{field_name}' was rejected as unknown: {}",
+                    error.body.message
+                );
+            }
+        }
+    }
+
+    /// A per-input `config` must reach that input's `ExtractInput::config` (#247).
+    ///
+    /// The engine merges `ExtractInput::config` over the request config via
+    /// `ExtractionConfig::with_file_overrides`, but the HTTP layer never populated
+    /// it, so one config was forced onto every input in a batch. The second input
+    /// asserts the override stays scoped to the input that declared it.
+    #[tokio::test]
+    async fn should_thread_per_input_config_override_into_core_input() {
+        let body = serde_json::json!({
+            "inputs": [
+                {"uri": "https://example.com/scanned.pdf", "config": {"force_ocr": true}},
+                {"uri": "https://example.com/plain.pdf"}
+            ]
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/extract")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("request body serializes")))
+            .expect("valid json request");
+
+        let parsed = UnifiedExtractRequest::from_request(request, &())
+            .await
+            .expect("per-input config must parse");
+
+        let core_inputs: Vec<ExtractInput> = parsed
+            .inputs
+            .into_iter()
+            .map(ApiExtractInput::into_core_input)
+            .collect();
+
+        assert_eq!(core_inputs.len(), 2, "both inputs must survive parsing");
+        assert_eq!(
+            core_inputs[0].config.as_ref().and_then(|config| config.force_ocr),
+            Some(true),
+            "the first input's force_ocr override must reach ExtractInput::config"
+        );
+        assert!(
+            core_inputs[1].config.is_none(),
+            "an input that declared no config must not inherit its sibling's override"
+        );
     }
 
     #[tokio::test]

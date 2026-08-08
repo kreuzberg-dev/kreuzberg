@@ -38,6 +38,24 @@ jobs:
         variant: [core, full, cli]
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # scripts/ci/docker/test_docker.py mounts test_documents/ as /data:ro inside the
+      # container. Without this the submodule is an empty directory, /data is empty, and
+      # every variant fails identically on "File not found: '/data/pdf/searchable.pdf'".
+      # Scoped to the six prefixes the suite actually reads (see the /data/... paths in
+      # test_docker.py) rather than the whole corpus. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            doc/**
+            docx/**
+            html/**
+            images/**
+            pdf/**
+            text/**
 
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1

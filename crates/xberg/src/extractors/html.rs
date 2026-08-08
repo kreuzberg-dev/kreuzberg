@@ -20,6 +20,10 @@ use html_to_markdown_rs::InlineImageFormat;
 use std::borrow::Cow;
 #[cfg(feature = "tokio-runtime")]
 use std::path::Path;
+
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+const HTML_WARNING_SOURCE: &str = "html";
+
 #[cfg_attr(alef, alef(skip))]
 /// HTML document extractor using html-to-markdown.
 pub struct HtmlExtractor;
@@ -233,12 +237,29 @@ fn push_link_uris_from_annotations(annotations: &[TextAnnotation], text: &str, b
             if url.is_empty() {
                 continue;
             }
-            let label = if ann.start < ann.end && (ann.end as usize) <= text.len() {
-                let slice = &text[ann.start as usize..ann.end as usize];
-                if slice.is_empty() {
-                    None
+            let start = ann.start as usize;
+            let end = ann.end as usize;
+            let label = if ann.start < ann.end && end <= text.len() {
+                if text.is_char_boundary(start) && text.is_char_boundary(end) {
+                    let slice = &text[start..end];
+                    if slice.is_empty() {
+                        None
+                    } else {
+                        Some(slice.to_string())
+                    }
                 } else {
-                    Some(slice.to_string())
+                    // A non-ASCII document can have an annotation span whose byte
+                    // offsets land mid-codepoint; slicing on that would panic.
+                    // Degrade gracefully instead: drop the label but keep the URI.
+                    b.add_warning(crate::core::diagnostics::warning(
+                        HTML_WARNING_SOURCE,
+                        format!(
+                            "A link annotation ({start}..{end}) did not align with a character \
+                             boundary in the source text; its label text was dropped, though the \
+                             link URL was preserved"
+                        ),
+                    ));
+                    None
                 }
             } else {
                 None
@@ -262,6 +283,120 @@ fn push_link_uris_from_annotations(annotations: &[TextAnnotation], text: &str, b
 ///
 /// This function normalizes all three issues. Only called when `pre_rendered_content`
 /// is about to be stored as the Markdown output of an HTML extraction.
+/// Matches a `<math>...</math>` subtree (case-insensitive, spanning newlines) anywhere in
+/// raw HTML, mirroring the allowlist already used by `extraction::html::structure` for
+/// EPUB/email content.
+#[cfg(feature = "office")]
+static MATH_TAG_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<math\b[^>]*>.*?</math>").unwrap());
+
+/// Matches the `<!-- MathML: ... -->` comment that `html-to-markdown-rs` emits inline for
+/// every `<math>` element it converts (see `handle_math` in that crate). The comment
+/// serializes the raw MathML XML and leaks straight into `pre_rendered_content`/plain text
+/// output; it carries no value once the equation has been recovered as LaTeX below, so it
+/// is stripped.
+static MATHML_COMMENT_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<!--\s*MathML:.*?-->\s*").unwrap());
+
+/// Recover MathML equations as LaTeX `Formula` elements (issue #129).
+///
+/// `html-to-markdown-rs`'s `DocumentStructure` has no dedicated node kind for `<math>`
+/// content: a `<math>` outside a paragraph is dropped entirely by its structure walker, and
+/// one nested inside a paragraph is flattened into concatenated token text (`mn`/`mo`/`mi`
+/// text with no operators). The library's markdown/plain-text conversion pass additionally
+/// leaks a raw `<!-- MathML: ... -->` comment into the rendered output. Neither problem can
+/// be fixed inside the extractor's mapped `DocumentStructure`, since the information is
+/// already lost by the time it gets there — so this re-scans the original HTML directly,
+/// using the same MathML-to-LaTeX converter the EPUB/email HTML structure builder already
+/// calls (`crate::extraction::mathml::convert_mathml_str_to_latex`), and appends one
+/// `ElementKind::Formula` element per recovered equation.
+fn recover_mathml_formulas(html: &str, doc: &mut InternalDocument) {
+    doc.pre_rendered_content = doc
+        .pre_rendered_content
+        .take()
+        .map(|content| MATHML_COMMENT_RE.replace_all(&content, "").into_owned());
+
+    #[cfg(feature = "office")]
+    {
+        let mut budget = crate::extractors::security::SecurityBudget::from_limits(
+            &crate::extractors::security::SecurityLimits::default(),
+        );
+        for m in MATH_TAG_RE.find_iter(html) {
+            if let Ok(latex) = crate::extraction::mathml::convert_mathml_str_to_latex(m.as_str(), &mut budget)
+                && !latex.trim().is_empty()
+            {
+                doc.push_element(crate::types::internal::InternalElement::text(
+                    crate::types::internal::ElementKind::Formula,
+                    latex,
+                    0,
+                ));
+            }
+        }
+    }
+
+    // MathML-to-LaTeX conversion needs `roxmltree`, gated behind the `office` feature (see
+    // `crate::extraction::mathml`). Without it, equations are dropped rather than mangled.
+    #[cfg(not(feature = "office"))]
+    let _ = html;
+}
+
+/// Matches a `<caption>...</caption>` element's inner content (case-insensitive, spanning
+/// newlines), wherever it appears in the raw HTML.
+static TABLE_CAPTION_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<caption\b[^>]*>(.*?)</caption>").unwrap());
+
+/// Matches any HTML tag, used to strip inline markup out of a captured `<caption>` body.
+static ANY_TAG_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<[^>]+>").unwrap());
+
+/// Recover `<table><caption>` text as a paragraph immediately preceding its table (issue
+/// #146).
+///
+/// `html-to-markdown-rs`'s `TableGrid` (the structure the extractor's `HC::Table { grid }`
+/// arm consumes) has no caption field at all, so a table's caption text never reaches
+/// `map_document_structure` through the normal walk — it is dropped before the extractor
+/// ever sees it. This re-scans the original HTML for `<caption>` elements (in document
+/// order) and inserts one immediately before its corresponding `Table` element, so the
+/// caption text at least reaches the element stream rather than vanishing outright.
+///
+/// This is a best-effort, order-based correlation (Nth caption -> Nth table): it has no way
+/// to know a `<table>` had no `<caption>` at all when a *later* table does, since that
+/// association is exactly the information the upstream library discards. For the common
+/// case (each table has at most one caption, in document order) this is correct.
+fn recover_table_captions(html: &str, doc: &mut InternalDocument) {
+    let captions: Vec<String> = TABLE_CAPTION_RE
+        .captures_iter(html)
+        .filter_map(|c| c.get(1).map(|m| m.as_str()))
+        .map(|inner| ANY_TAG_RE.replace_all(inner, "").trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if captions.is_empty() {
+        return;
+    }
+
+    let table_positions: Vec<usize> = doc
+        .elements
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| matches!(e.kind, crate::types::internal::ElementKind::Table { .. }))
+        .map(|(i, _)| i)
+        .collect();
+
+    for (pos, caption) in table_positions
+        .iter()
+        .zip(captions.iter())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+    {
+        doc.elements.insert(
+            *pos,
+            crate::types::internal::InternalElement::text(crate::types::internal::ElementKind::Paragraph, caption, 0),
+        );
+    }
+}
+
 pub(crate) fn normalize_html_markdown(raw: String) -> String {
     let lines: Vec<&str> = raw.lines().collect();
     let mut pass1: Vec<String> = Vec::with_capacity(lines.len());
@@ -375,9 +510,13 @@ impl SyncExtractor for HtmlExtractor {
     fn extract_sync(&self, content: &[u8], mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let _span = tracing::debug_span!("extract_html", element_count = tracing::field::Empty,).entered();
 
-        let html = utf8_validation::from_utf8(content)
-            .map(|s| s.to_string())
-            .unwrap_or_else(|_| String::from_utf8_lossy(content).into_owned());
+        // A non-UTF-8 page still extracts, but every undecodable byte has already become
+        // U+FFFD by the time anything downstream sees it. Remember that here so the caller
+        // is told the text was mangled instead of being handed silent mojibake (#171).
+        let (html, decoded_lossily) = match utf8_validation::from_utf8(content) {
+            Ok(valid) => (valid.to_string(), false),
+            Err(_) => (String::from_utf8_lossy(content).into_owned(), true),
+        };
 
         let html_options =
             apply_content_filter_to_html_options(config.html_options.clone(), config.content_filter.as_ref());
@@ -444,6 +583,14 @@ impl SyncExtractor for HtmlExtractor {
             InternalDocumentBuilder::new("html").build()
         };
 
+        if decoded_lossily {
+            crate::core::diagnostics::push_lossy_decode_warning(
+                &mut doc.processing_warnings,
+                HTML_WARNING_SOURCE,
+                "HTML source",
+            );
+        }
+
         doc.metadata = Metadata {
             title: meta_title,
             authors: meta_authors,
@@ -456,6 +603,8 @@ impl SyncExtractor for HtmlExtractor {
         };
         doc.mime_type = mime_type.to_string();
         doc.pre_rendered_content = pre_rendered;
+        recover_mathml_formulas(&html, &mut doc);
+        recover_table_captions(&html, &mut doc);
 
         let should_extract_images = config.needs_image_data();
 
@@ -633,6 +782,52 @@ mod tests {
         assert_eq!(table.page_number, 1);
         assert!(table.markdown.contains("Header1"));
         assert!(table.markdown.contains("Row1Col1"));
+    }
+
+    /// A non-ASCII document whose link annotation lands mid-codepoint must not panic
+    /// `push_link_uris_from_annotations`. `text` is "café" (5 bytes: c, a, f, then the
+    /// 2-byte UTF-8 encoding of 'é'); an annotation ending at byte 4 splits that 'é' and
+    /// is not a valid `&str` slice boundary. The link's label must be dropped (not sliced)
+    /// while the URI itself is still recorded, and a `ProcessingWarning` must name the drop.
+    #[test]
+    fn should_not_panic_and_should_warn_when_link_annotation_splits_a_codepoint() {
+        use crate::types::document_structure::AnnotationKind;
+
+        let text = "caf\u{00e9}";
+        assert_eq!(
+            text.len(),
+            5,
+            "'café' must be 5 UTF-8 bytes for this test to be meaningful"
+        );
+        assert!(!text.is_char_boundary(4), "byte 4 must split the 2-byte 'é' encoding");
+
+        let annotations = vec![TextAnnotation {
+            start: 0,
+            end: 4,
+            kind: AnnotationKind::Link {
+                url: "https://example.com".to_string(),
+                title: None,
+            },
+        }];
+
+        let mut builder = InternalDocumentBuilder::new("html");
+        push_link_uris_from_annotations(&annotations, text, &mut builder);
+        let doc = builder.build();
+
+        assert_eq!(doc.uris.len(), 1, "the URI must still be recorded");
+        assert_eq!(doc.uris[0].url, "https://example.com");
+        assert_eq!(
+            doc.uris[0].label, None,
+            "label must be dropped, not sliced mid-codepoint"
+        );
+
+        assert_eq!(doc.processing_warnings.len(), 1);
+        assert_eq!(doc.processing_warnings[0].source, HTML_WARNING_SOURCE);
+        assert!(
+            doc.processing_warnings[0].message.contains("character boundary"),
+            "warning message was: {}",
+            doc.processing_warnings[0].message
+        );
     }
 
     #[test]

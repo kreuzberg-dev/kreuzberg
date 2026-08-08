@@ -10,6 +10,90 @@ use crate::types::{Chunk, ChunkMetadata, HeadingContext, PageBoundary};
 use super::boundaries::{calculate_page_range, calculate_page_spans};
 use super::classifier::classify_chunk;
 
+#[cfg(feature = "chunking-tokenizers")]
+use crate::chunking::text_splitter::ChunkSizer;
+#[cfg(feature = "chunking-tokenizers")]
+use crate::plugins::TokenizerBackend;
+#[cfg(feature = "chunking-tokenizers")]
+use std::sync::Arc;
+
+/// Adapts a registered [`crate::plugins::TokenizerBackend`] to the splitter's
+/// [`ChunkSizer`] interface: chunk size is the backend's token count.
+///
+/// A backend reporting zero tokens for non-empty text is not trusted: a zero
+/// count would make every span appear to fit any budget and silently produce
+/// oversized chunks. Host-language bridges surface backend exceptions as a
+/// zero count, so this is also the failure mode of a backend that starts
+/// erroring mid-run. The sizer falls back to the character count — tokens
+/// don't exceed characters for practical tokenizers, so the budget degrades
+/// to the conservative `max_characters` semantics instead of an unbounded
+/// chunk — and logs the substitution.
+#[cfg(feature = "chunking-tokenizers")]
+pub(crate) struct TokenizerBackendSizer(pub(crate) Arc<dyn TokenizerBackend>);
+
+#[cfg(feature = "chunking-tokenizers")]
+impl ChunkSizer for TokenizerBackendSizer {
+    fn size(&self, chunk: &str) -> usize {
+        let count = self.0.count_tokens(chunk);
+        if count == 0 && !chunk.is_empty() {
+            tracing::warn!(
+                backend = self.0.name(),
+                chunk_len = chunk.len(),
+                "Tokenizer backend reported zero tokens for non-empty text; using character count instead"
+            );
+            return chunk.chars().count();
+        }
+        count
+    }
+}
+
+/// A function that counts "tokens" in a text span, per whatever tokenizer
+/// [`resolve_token_counter`] resolved from a [`crate::core::config::ChunkSizing`].
+pub(crate) type TokenCounter = Box<dyn Fn(&str) -> usize>;
+
+/// Resolve a token-counting function for `sizing`, if it specifies a tokenizer.
+///
+/// Returns `None` for [`crate::core::config::ChunkSizing::Characters`] — character-based
+/// sizing has no meaningful "token count" to report — or when the `chunking-tokenizers`
+/// feature is not compiled in. When `sizing` is
+/// [`crate::core::config::ChunkSizing::Tokenizer`], resolves a registered
+/// [`TokenizerBackend`] by name first, falling back to a HuggingFace tokenizer id (see
+/// [`super::tokenizer_cache::get_or_init_tokenizer`]). A resolution failure (unknown
+/// model, no network) is logged and treated as "no counter available" rather than
+/// aborting the caller's chunking run — `token_count` simply stays `None` for that run,
+/// matching the existing best-effort semantics of `ChunkMetadata`'s other optional fields.
+pub(crate) fn resolve_token_counter(sizing: &crate::core::config::ChunkSizing) -> Option<TokenCounter> {
+    match sizing {
+        crate::core::config::ChunkSizing::Characters => None,
+        #[cfg(feature = "chunking-tokenizers")]
+        crate::core::config::ChunkSizing::Tokenizer { model, .. } => resolve_tokenizer_counter(model),
+    }
+}
+
+#[cfg(feature = "chunking-tokenizers")]
+fn resolve_tokenizer_counter(model: &str) -> Option<TokenCounter> {
+    if let Some(backend) = crate::plugins::registry::get_tokenizer_backend_registry()
+        .read()
+        .lookup(model)
+    {
+        return Some(Box::new(move |text: &str| {
+            TokenizerBackendSizer(backend.clone()).size(text)
+        }));
+    }
+
+    match super::tokenizer_cache::get_or_init_tokenizer(model) {
+        Ok(tokenizer) => Some(Box::new(move |text: &str| tokenizer.size(text))),
+        Err(e) => {
+            tracing::warn!(
+                model,
+                error = %e,
+                "Failed to resolve tokenizer for chunk token_count; leaving token_count unset"
+            );
+            None
+        }
+    }
+}
+
 /// Derive `heading_path` from a `HeadingContext`.
 ///
 /// Returns the heading texts in outermost-first order (h1 → h2 → … → deepest).
@@ -122,6 +206,8 @@ where
             content: chunk_text.to_string(),
             chunk_type: classify_chunk(chunk_text, None),
             embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
             metadata: ChunkMetadata {
                 byte_start,
                 byte_end,

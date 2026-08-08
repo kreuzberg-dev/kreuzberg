@@ -91,6 +91,7 @@ mod download {
         model_dir: &str,
         file_name: &str,
         cache_directory: Option<&Path>,
+        progress: crate::core::config::DownloadProgress,
         manifest: &[(String, String)],
     ) -> crate::Result<(PathBuf, String)> {
         let candidates: Vec<String> = if model_dir.is_empty() {
@@ -109,12 +110,13 @@ mod download {
                 last_err = format!("SHA-256 manifest does not list {candidate}");
                 continue;
             }
-            match crate::model_download::hf_resolve_file(
+            match crate::model_download::hf_resolve_file_with_progress(
                 repo_name,
                 &candidate,
                 Some(super::super::EMBEDDING_MODEL_REVISION),
                 cache_directory,
                 expected,
+                progress,
             ) {
                 Ok(resolved) => return Ok((resolved, candidate)),
                 Err(e) => last_err = e,
@@ -134,6 +136,7 @@ mod download {
         repo_name: &str,
         model_file: &str,
         cache_directory: Option<&Path>,
+        progress: crate::core::config::DownloadProgress,
     ) -> crate::Result<StaticEmbeddingEngine> {
         let model_dir = Path::new(model_file)
             .parent()
@@ -153,12 +156,32 @@ mod download {
             Ok(())
         };
 
-        let (model_path, model_rel) = fetch(repo_name, model_dir, model_file_name, cache_directory, &manifest)?;
+        let (model_path, model_rel) = fetch(
+            repo_name,
+            model_dir,
+            model_file_name,
+            cache_directory,
+            progress,
+            &manifest,
+        )?;
         verify(&model_rel, &model_path)?;
-        let (tokenizer_path, tokenizer_rel) =
-            fetch(repo_name, model_dir, "tokenizer.json", cache_directory, &manifest)?;
+        let (tokenizer_path, tokenizer_rel) = fetch(
+            repo_name,
+            model_dir,
+            "tokenizer.json",
+            cache_directory,
+            progress,
+            &manifest,
+        )?;
         verify(&tokenizer_rel, &tokenizer_path)?;
-        let (config_path, config_rel) = fetch(repo_name, model_dir, "config.json", cache_directory, &manifest)?;
+        let (config_path, config_rel) = fetch(
+            repo_name,
+            model_dir,
+            "config.json",
+            cache_directory,
+            progress,
+            &manifest,
+        )?;
         verify(&config_rel, &config_path)?;
 
         let model_bytes = std::fs::read(&model_path)
@@ -185,6 +208,7 @@ pub(crate) fn download_and_build(
     repo_name: &str,
     _model_file: &str,
     _cache_directory: Option<&std::path::Path>,
+    _progress: crate::core::config::DownloadProgress,
 ) -> crate::Result<StaticEmbeddingEngine> {
     Err(crate::XbergError::embedding(format!(
         "Static embedding model download ({repo_name}) is not available on this target (WASM); \

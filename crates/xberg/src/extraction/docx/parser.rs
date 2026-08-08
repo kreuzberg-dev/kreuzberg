@@ -51,6 +51,11 @@ pub(crate) struct Document {
     pub image_relationships: AHashMap<String, String>,
     /// Track-changes revisions captured from `w:ins`, `w:del`, and `w:rPrChange` elements.
     pub revisions: Vec<crate::types::revisions::DocumentRevision>,
+    /// Comments parsed from `word/comments.xml`, joined to the body via
+    /// `w:commentRangeStart`/`w:commentRangeEnd` and `w:commentReference` (#82).
+    pub comments: Vec<Comment>,
+    /// Non-fatal degradation warnings accumulated while parsing (#171).
+    pub warnings: Vec<crate::types::ProcessingWarning>,
 }
 
 /// A DOCX paragraph containing formatted text runs.
@@ -186,6 +191,21 @@ pub enum NoteType {
     Endnote,
 }
 
+/// A comment from `word/comments.xml` (#82).
+///
+/// Joined to the body text via `w:commentRangeStart`/`w:commentRangeEnd` (anchors,
+/// not carrying content) and `w:commentReference` (the marker matched to this `id`).
+#[cfg_attr(alef, alef(skip))]
+#[derive(Debug, Clone, Default)]
+pub struct Comment {
+    /// Comment identifier matching `w:commentReference/@w:id`.
+    pub id: String,
+    /// Comment author, if present.
+    pub author: Option<String>,
+    /// Paragraphs of comment content.
+    pub paragraphs: Vec<Paragraph>,
+}
+
 /// Check if a formatting element is enabled (not explicitly set to false/0/none).
 fn is_format_enabled(e: &BytesStart) -> bool {
     for attr in e.attributes().flatten() {
@@ -220,6 +240,26 @@ fn get_val_attr_string(e: &BytesStart) -> Option<String> {
         }
     }
     None
+}
+
+/// Extract the target URL from a `HYPERLINK` field instruction (#88, #239).
+///
+/// Matches instruction text such as `HYPERLINK "https://example.com"` or
+/// `HYPERLINK "https://example.com" \o "tooltip"` (from a `w:fldSimple/@w:instr`
+/// attribute or accumulated `w:instrText` run text), returning the first quoted
+/// argument. Returns `None` for other field types (PAGE, REF, TOC, ...) or
+/// malformed instructions.
+fn extract_hyperlink_field_url(instr: &str) -> Option<String> {
+    let trimmed = instr.trim();
+    let head = trimmed.get(..9)?;
+    if !head.eq_ignore_ascii_case("HYPERLINK") {
+        return None;
+    }
+    let rest = trimmed.get(9..)?.trim_start();
+    let rest = rest.strip_prefix('"')?;
+    let end = rest.find('"')?;
+    let url = rest[..end].trim();
+    if url.is_empty() { None } else { Some(url.to_string()) }
 }
 
 /// Collect the standard revision-mark attributes from a `w:ins`, `w:del`, or
@@ -1057,6 +1097,26 @@ impl TableContext {
     }
 }
 
+/// Output of [`DocxParser::parse_body_elements`], the element-dispatch loop shared by
+/// the main document body, headers/footers, and footnotes/endnotes (#85).
+///
+/// Callers pick the fields relevant to their content type; e.g. `HeaderFooter` only
+/// keeps `paragraphs`/`tables`, while `Note` keeps just `paragraphs` (any top-level
+/// table content is flattened into it, matching how a table nested in a table cell
+/// is already flattened elsewhere in this parser).
+#[derive(Debug, Default)]
+struct BodyParseOutputs {
+    paragraphs: Vec<Paragraph>,
+    tables: Vec<Table>,
+    drawings: Vec<super::drawing::Drawing>,
+    elements: Vec<DocumentElement>,
+    sections: Vec<super::section::SectionProperties>,
+    revisions: Vec<crate::types::revisions::DocumentRevision>,
+    /// `w:id` values from `w:commentReference` markers encountered in this content,
+    /// for validation against `word/comments.xml` (#82).
+    comment_ref_ids: Vec<String>,
+}
+
 /// Apply run-level formatting from run property child elements.
 ///
 /// Handles `<w:b>`, `<w:i>`, `<w:u>`, `<w:strike>`, `<w:dstrike>`,
@@ -1229,7 +1289,7 @@ fn finalize_run_property_changes(
 }
 
 fn push_format_revision(
-    document: &mut Document,
+    revisions: &mut Vec<crate::types::revisions::DocumentRevision>,
     attrs: (Option<String>, Option<String>, Option<String>),
     property_changes: Vec<crate::types::revisions::PropertyChange>,
     current_run: Option<&Run>,
@@ -1243,7 +1303,7 @@ fn push_format_revision(
         fallback
     });
 
-    document.revisions.push(crate::types::revisions::DocumentRevision {
+    revisions.push(crate::types::revisions::DocumentRevision {
         revision_id,
         author,
         timestamp,
@@ -1278,6 +1338,136 @@ fn apply_paragraph_property(
             b"w:ilvl" => para.numbering_level = get_val_attr(e),
             b"w:numId" => para.numbering_id = get_val_attr(e),
             _ => {}
+        }
+    }
+}
+
+/// Push a run into whichever paragraph is currently open: a table cell's last
+/// paragraph, an in-progress table-cell paragraph, or the top-level paragraph.
+/// Shared by math-formula runs and by the `</w:r>` end-tag handler.
+fn push_run_to_current(table_stack: &mut [TableContext], current_paragraph: &mut Option<Paragraph>, run: Run) {
+    if let Some(ctx) = table_stack.last_mut() {
+        if let Some(ref mut para) = ctx.paragraph {
+            para.add_run(run);
+        } else if let Some(ref mut cell) = ctx.current_cell {
+            if cell.paragraphs.is_empty() {
+                cell.paragraphs.push(Paragraph::new());
+            }
+            if let Some(para) = cell.paragraphs.last_mut() {
+                para.add_run(run);
+            }
+        }
+    } else if let Some(para) = current_paragraph {
+        para.add_run(run);
+    }
+}
+
+/// Handle a `<w:fldChar>` event (identical whether it arrives as `Event::Start` or
+/// `Event::Empty`; `w:fldChar` never has children).
+///
+/// Tracks the begin/separate/end field-character state machine and, on `separate`,
+/// extracts a `HYPERLINK` field's URL from the instruction text accumulated in
+/// `field_instruction` so the following result run(s) pick it up via
+/// `current_hyperlink_url`, the same mechanism `<w:hyperlink>` uses (#88, #239).
+fn apply_fld_char(
+    e: &BytesStart,
+    in_field_instruction: &mut bool,
+    field_instruction: &mut String,
+    current_hyperlink_url: &mut Option<String>,
+    field_hyperlink_stack: &mut Vec<Option<String>>,
+) {
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref() == b"w:fldCharType" {
+            match attr.value.as_ref() as &[u8] {
+                b"begin" => {
+                    *in_field_instruction = true;
+                    field_instruction.clear();
+                }
+                b"separate" => {
+                    *in_field_instruction = false;
+                    let url = extract_hyperlink_field_url(field_instruction);
+                    field_hyperlink_stack.push(current_hyperlink_url.clone());
+                    if url.is_some() {
+                        *current_hyperlink_url = url;
+                    }
+                }
+                b"end" => {
+                    *in_field_instruction = false;
+                    if let Some(saved) = field_hyperlink_stack.pop() {
+                        *current_hyperlink_url = saved;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Handle a `<w:br>` event (`Event::Start` or `Event::Empty`).
+///
+/// A `page`-type break outside a table records a `DocumentElement::PageBreak`; any
+/// other break type (`column`, `textWrapping`, or no `w:type` at all) inserts a
+/// newline into the current run instead (#224).
+fn apply_break(
+    e: &BytesStart,
+    table_stack: &[TableContext],
+    current_run: &mut Option<Run>,
+    elements: &mut Vec<DocumentElement>,
+) {
+    let mut is_page_break = false;
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref() == b"w:type" && attr.value.as_ref() == b"page" {
+            is_page_break = true;
+            break;
+        }
+    }
+
+    if is_page_break && table_stack.is_empty() {
+        elements.push(DocumentElement::PageBreak);
+    } else if !is_page_break && let Some(run) = current_run {
+        run.text.push('\n');
+    }
+}
+
+/// Handle a `<w:sym w:font="…" w:char="…"/>` element (#224).
+///
+/// `w:char` is a hex code point, interpreted against the named symbol font's own
+/// glyph mapping (commonly the U+F0xx Private Use Area for fonts like Wingdings or
+/// Symbol). Without per-font glyph tables, the hex value is mapped directly to a
+/// Unicode scalar; when that's not a valid scalar, a placeholder is inserted and a
+/// `ProcessingWarning` records the degradation (#171).
+fn apply_symbol(e: &BytesStart, current_run: &mut Option<Run>, warnings: &mut Vec<crate::types::ProcessingWarning>) {
+    let mut font: Option<String> = None;
+    let mut code: Option<String> = None;
+    for attr in e.attributes().flatten() {
+        match attr.key.as_ref() {
+            b"w:font" => font = std::str::from_utf8(&attr.value).ok().map(String::from),
+            b"w:char" => code = std::str::from_utf8(&attr.value).ok().map(String::from),
+            _ => {}
+        }
+    }
+
+    let mapped = code
+        .as_deref()
+        .and_then(|c| u32::from_str_radix(c.trim_start_matches("0x").trim_start_matches("0X"), 16).ok())
+        .and_then(char::from_u32);
+
+    let Some(run) = current_run else {
+        return;
+    };
+
+    match mapped {
+        Some(ch) => run.text.push(ch),
+        None => {
+            run.text.push('\u{FFFD}');
+            crate::core::diagnostics::push_warning(
+                warnings,
+                "docx",
+                format!(
+                    "Could not map w:sym character code {:?} in font {:?}; inserted a placeholder",
+                    code, font
+                ),
+            );
         }
     }
 }
@@ -1324,6 +1514,21 @@ fn validate_archive_security(archive: &mut zip::ZipArchive<impl Read + Seek>) ->
     }
 
     Ok(())
+}
+
+/// Recognise a conventionally-named header/footer part, e.g. `word/header2.xml`.
+///
+/// Returns `(is_header, index)`. Used only as the fallback sweep in
+/// [`DocxParser::parse_headers_footers`], for parts no relationship declares.
+fn conventional_header_footer_part(name: &str) -> Option<(bool, u32)> {
+    let stem = name.strip_prefix("word/")?.strip_suffix(".xml")?;
+    let (is_header, digits) = match stem.strip_prefix("header") {
+        Some(rest) => (true, rest),
+        None => (false, stem.strip_prefix("footer")?),
+    };
+    // Reject `word/headerReference.xml` and friends: only a bare numeric suffix is
+    // the conventional part naming.
+    digits.parse::<u32>().ok().map(|index| (is_header, index))
 }
 
 #[derive(Debug)]
@@ -1385,7 +1590,25 @@ impl<R: Read + Seek> DocxParser<R> {
         }
 
         let document_xml = self.read_file("word/document.xml")?;
-        self.parse_document_xml(&document_xml, &mut document, budget)?;
+        let comment_ref_ids = self.parse_document_xml(&document_xml, &mut document, budget)?;
+
+        if let Ok(comments_xml) = self.read_file("word/comments.xml") {
+            self.parse_comments(&comments_xml, &mut document.comments, budget, &mut document.warnings)?;
+        }
+        if !comment_ref_ids.is_empty() {
+            let known_ids: ahash::AHashSet<&str> = document.comments.iter().map(|c| c.id.as_str()).collect();
+            for id in &comment_ref_ids {
+                if !known_ids.contains(id.as_str()) {
+                    crate::core::diagnostics::push_warning(
+                        &mut document.warnings,
+                        "docx",
+                        format!(
+                            "Comment reference id {id} has no matching entry in comments.xml; the comment text was dropped"
+                        ),
+                    );
+                }
+            }
+        }
 
         if let Ok(numbering_xml) = self.read_file("word/numbering.xml") {
             let numbering_defs = self.parse_numbering(&numbering_xml, budget)?;
@@ -1395,11 +1618,23 @@ impl<R: Read + Seek> DocxParser<R> {
         self.parse_headers_footers(&mut document, budget)?;
 
         if let Ok(footnotes_xml) = self.read_file("word/footnotes.xml") {
-            self.parse_notes(&footnotes_xml, &mut document.footnotes, NoteType::Footnote, budget)?;
+            self.parse_notes(
+                &footnotes_xml,
+                &mut document.footnotes,
+                NoteType::Footnote,
+                budget,
+                &mut document.warnings,
+            )?;
         }
 
         if let Ok(endnotes_xml) = self.read_file("word/endnotes.xml") {
-            self.parse_notes(&endnotes_xml, &mut document.endnotes, NoteType::Endnote, budget)?;
+            self.parse_notes(
+                &endnotes_xml,
+                &mut document.endnotes,
+                NoteType::Endnote,
+                budget,
+                &mut document.warnings,
+            )?;
         }
 
         document.style_catalog = self.styles.take();
@@ -1469,26 +1704,77 @@ impl<R: Read + Seek> DocxParser<R> {
         Ok(contents)
     }
 
+    /// Parse `word/document.xml`'s body content and populate `document` from it.
+    ///
+    /// Delegates to [`Self::parse_body_elements`] (shared with headers/footers and
+    /// footnotes/endnotes/comments, #85) for the element vocabulary common to all
+    /// DOCX body-like content, then additionally keeps the page-break/section/
+    /// revision output that's only meaningful at the main-body level.
+    ///
+    /// Returns the `w:commentReference` ids seen in the body, for the caller to
+    /// validate against `word/comments.xml`.
     fn parse_document_xml(
         &self,
         xml: &str,
         document: &mut Document,
         budget: &mut SecurityBudget,
-    ) -> Result<(), DocxParseError> {
+    ) -> Result<Vec<String>, DocxParseError> {
+        let mut reader = Reader::from_str(xml);
+        reader.config_mut().trim_text(false);
+        let out = self.parse_body_elements(&mut reader, None, budget, &mut document.warnings)?;
+        document.paragraphs = out.paragraphs;
+        document.tables = out.tables;
+        document.drawings = out.drawings;
+        document.elements = out.elements;
+        document.sections = out.sections;
+        document.revisions = out.revisions;
+        Ok(out.comment_ref_ids)
+    }
+
+    /// Shared element-dispatch loop for DOCX body-like content (#85): paragraphs,
+    /// runs and their formatting, tables, hyperlinks, drawings — including
+    /// DrawingML text boxes and the VML `v:textbox` fallback (#81) — field codes
+    /// (`HYPERLINK` via both `w:fldSimple` and `w:fldChar`/`w:instrText`, #88/#239),
+    /// symbols and non-breaking hyphens (#224), and footnote/endnote/comment
+    /// reference markers (#82).
+    ///
+    /// Used by the main document body, headers/footers, and footnotes/endnotes/
+    /// comments so all four content types recognize the same element vocabulary
+    /// instead of drifting through separately-maintained reduced copies.
+    ///
+    /// `reader` must already be positioned at the first event *inside* the content
+    /// to parse (e.g. right after `<w:document><w:body>`, or right after a
+    /// `<w:footnote w:id="…">`/`<w:comment w:id="…">` start tag). When `stop_tag` is
+    /// `Some(name)`, the loop returns as soon as the matching (depth-tracked)
+    /// `</name>` end tag is consumed — used to carve one footnote/comment subtree
+    /// out of a shared reader without a two-pass parse. When `stop_tag` is `None`,
+    /// the loop runs to `Event::Eof` — used for whole-part parses (document body,
+    /// headers, footers).
+    fn parse_body_elements(
+        &self,
+        reader: &mut Reader<&[u8]>,
+        stop_tag: Option<&[u8]>,
+        budget: &mut SecurityBudget,
+        warnings: &mut Vec<crate::types::ProcessingWarning>,
+    ) -> Result<BodyParseOutputs, DocxParseError> {
         use crate::types::revisions::{
             DiffLine, DocumentRevision, PropertyChange, RevisionAnchor, RevisionDelta, RevisionKind,
         };
 
-        let mut reader = Reader::from_str(xml);
-        reader.config_mut().trim_text(false);
+        let mut out = BodyParseOutputs::default();
 
         let mut buf = Vec::new();
         let mut current_paragraph: Option<Paragraph> = None;
         let mut current_run: Option<Run> = None;
         let mut in_text = false;
         let mut in_field_instruction = false;
+        let mut in_instr_text = false;
+        let mut field_instruction = String::new();
+        let mut field_hyperlink_stack: Vec<Option<String>> = Vec::new();
         let mut current_hyperlink_url: Option<String> = None;
         let mut table_stack: Vec<TableContext> = Vec::new();
+        let mut mc_fallback_depth: u32 = 0;
+        let mut stop_depth: u32 = if stop_tag.is_some() { 1 } else { 0 };
 
         let mut revision_kind: Option<RevisionKind> = None;
         let mut revision_attrs: (Option<String>, Option<String>, Option<String>) = (None, None, None);
@@ -1505,12 +1791,16 @@ impl<R: Read + Seek> DocxParser<R> {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
                     budget.enter()?;
-                    match e.name().as_ref() as &[u8] {
+                    let name = e.name();
+                    if Some(name.as_ref()) == stop_tag {
+                        stop_depth += 1;
+                    }
+                    match name.as_ref() as &[u8] {
                         b"w:p" => {
                             if let Some(ctx) = table_stack.last_mut() {
                                 ctx.paragraph = Some(Paragraph::new());
                             } else {
-                                current_paragraph_index = document.paragraphs.len();
+                                current_paragraph_index = out.paragraphs.len();
                                 current_paragraph = Some(Paragraph::new());
                             }
                         }
@@ -1525,61 +1815,71 @@ impl<R: Read + Seek> DocxParser<R> {
                             in_text = true;
                         }
                         b"w:fldChar" => {
-                            for attr in e.attributes().flatten() {
-                                if attr.key.as_ref() == b"w:fldCharType" {
-                                    match attr.value.as_ref() as &[u8] {
-                                        b"begin" => in_field_instruction = true,
-                                        b"separate" | b"end" => in_field_instruction = false,
-                                        _ => {}
-                                    }
-                                }
+                            apply_fld_char(
+                                e,
+                                &mut in_field_instruction,
+                                &mut field_instruction,
+                                &mut current_hyperlink_url,
+                                &mut field_hyperlink_stack,
+                            );
+                        }
+                        b"w:instrText" => {
+                            in_instr_text = true;
+                        }
+                        b"w:fldSimple" => {
+                            // Normalized, not raw: Word writes the instruction's quotes
+                            // as `&quot;`, and the URL extractor looks for real quote
+                            // characters. OOXML parts are XML 1.0.
+                            let instr = e
+                                .attributes()
+                                .flatten()
+                                .find(|a| a.key.as_ref() == b"w:instr")
+                                .and_then(|a| {
+                                    a.normalized_value(quick_xml::XmlVersion::Explicit1_0)
+                                        .ok()
+                                        .map(|v| v.into_owned())
+                                });
+                            let url = instr.as_deref().and_then(extract_hyperlink_field_url);
+                            field_hyperlink_stack.push(current_hyperlink_url.clone());
+                            if url.is_some() {
+                                current_hyperlink_url = url;
                             }
                         }
-                        b"w:instrText" => {}
+                        b"mc:Fallback" => {
+                            mc_fallback_depth += 1;
+                        }
+                        b"w:pict" => {
+                            // `parse_vml_pict` now threads `budget` through and balances
+                            // its own `</w:pict>` end tag against the `enter()` above
+                            // internally, so no manual `budget.leave()` is needed here.
+                            let parsed = super::drawing::parse_vml_pict(reader, budget)?;
+                            if mc_fallback_depth == 0
+                                && let Some(drawing) = parsed
+                                && drawing.text_box_content.is_some()
+                            {
+                                let idx = out.drawings.len();
+                                out.drawings.push(drawing);
+                                out.elements.push(DocumentElement::Drawing(idx));
+                            }
+                        }
                         b"m:oMathPara" => {
-                            let latex = super::math::collect_and_convert_omath_para(&mut reader, budget)?;
+                            let latex = super::math::collect_and_convert_omath_para(reader, budget)?;
                             if !latex.is_empty() {
                                 let run = Run {
                                     math_latex: Some((latex, true)),
                                     ..Default::default()
                                 };
-                                if let Some(ctx) = table_stack.last_mut() {
-                                    if let Some(ref mut para) = ctx.paragraph {
-                                        para.add_run(run);
-                                    } else if let Some(ref mut cell) = ctx.current_cell {
-                                        if cell.paragraphs.is_empty() {
-                                            cell.paragraphs.push(Paragraph::new());
-                                        }
-                                        if let Some(para) = cell.paragraphs.last_mut() {
-                                            para.add_run(run);
-                                        }
-                                    }
-                                } else if let Some(ref mut para) = current_paragraph {
-                                    para.add_run(run);
-                                }
+                                push_run_to_current(&mut table_stack, &mut current_paragraph, run);
                             }
                         }
                         b"m:oMath" => {
-                            let latex = super::math::collect_and_convert_omath(&mut reader, budget)?;
+                            let latex = super::math::collect_and_convert_omath(reader, budget)?;
                             if !latex.is_empty() {
                                 let run = Run {
                                     math_latex: Some((latex, false)),
                                     ..Default::default()
                                 };
-                                if let Some(ctx) = table_stack.last_mut() {
-                                    if let Some(ref mut para) = ctx.paragraph {
-                                        para.add_run(run);
-                                    } else if let Some(ref mut cell) = ctx.current_cell {
-                                        if cell.paragraphs.is_empty() {
-                                            cell.paragraphs.push(Paragraph::new());
-                                        }
-                                        if let Some(para) = cell.paragraphs.last_mut() {
-                                            para.add_run(run);
-                                        }
-                                    }
-                                } else if let Some(ref mut para) = current_paragraph {
-                                    para.add_run(run);
-                                }
+                                push_run_to_current(&mut table_stack, &mut current_paragraph, run);
                             }
                         }
                         b"w:tbl" => {
@@ -1587,12 +1887,15 @@ impl<R: Read + Seek> DocxParser<R> {
                         }
                         b"w:tblPr" => {
                             if let Some(ctx) = table_stack.last_mut() {
-                                ctx.table.properties = Some(super::table::parse_table_properties(&mut reader));
+                                // `parse_table_properties` now threads `budget` through and
+                                // balances its own `</w:tblPr>` end tag against the `enter()`
+                                // above internally, so no manual `budget.leave()` is needed here.
+                                ctx.table.properties = Some(super::table::parse_table_properties(reader, budget)?);
                             }
                         }
                         b"w:tblGrid" => {
                             if let Some(ctx) = table_stack.last_mut() {
-                                ctx.table.grid = Some(super::table::parse_table_grid(&mut reader));
+                                ctx.table.grid = Some(super::table::parse_table_grid(reader, budget)?);
                             }
                         }
                         b"w:tr" => {
@@ -1604,7 +1907,7 @@ impl<R: Read + Seek> DocxParser<R> {
                             if let Some(ctx) = table_stack.last_mut()
                                 && let Some(ref mut row) = ctx.current_row
                             {
-                                row.properties = Some(super::table::parse_row_properties(&mut reader));
+                                row.properties = Some(super::table::parse_row_properties(reader, budget)?);
                             }
                         }
                         b"w:tc" => {
@@ -1616,7 +1919,7 @@ impl<R: Read + Seek> DocxParser<R> {
                             if let Some(ctx) = table_stack.last_mut()
                                 && let Some(ref mut cell) = ctx.current_cell
                             {
-                                cell.properties = Some(super::table::parse_cell_properties(&mut reader));
+                                cell.properties = Some(super::table::parse_cell_properties(reader, budget)?);
                             }
                         }
                         b"w:b" | b"w:i" | b"w:u" | b"w:strike" | b"w:dstrike" | b"w:vertAlign" | b"w:sz"
@@ -1640,32 +1943,27 @@ impl<R: Read + Seek> DocxParser<R> {
                             }
                         }
                         b"w:drawing" => {
-                            let drawing = super::drawing::parse_drawing(&mut reader);
-                            let idx = document.drawings.len();
-                            document.drawings.push(drawing);
-                            document.elements.push(DocumentElement::Drawing(idx));
+                            // `parse_drawing` now threads `budget` through and balances its
+                            // own `</w:drawing>` end tag against the `enter()` above
+                            // internally, so no manual `budget.leave()` is needed here.
+                            let drawing = super::drawing::parse_drawing(reader, budget)?;
+                            let idx = out.drawings.len();
+                            out.drawings.push(drawing);
+                            out.elements.push(DocumentElement::Drawing(idx));
                         }
                         b"w:br" => {
-                            let mut is_page_break = false;
-                            for attr in e.attributes().flatten() {
-                                if attr.key.as_ref() == b"w:type" && attr.value.as_ref() == b"page" {
-                                    is_page_break = true;
-                                    break;
-                                }
-                            }
-
-                            if is_page_break && table_stack.is_empty() {
-                                document.elements.push(DocumentElement::PageBreak);
-                            } else if !is_page_break && let Some(ref mut run) = current_run {
-                                run.text.push('\n');
-                            }
+                            apply_break(e, &table_stack, &mut current_run, &mut out.elements);
                         }
                         b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
-                            document.elements.push(DocumentElement::PageBreak);
+                            out.elements.push(DocumentElement::PageBreak);
                         }
                         b"w:sectPr" => {
-                            let sect_props = super::section::parse_section_properties_streaming(&mut reader);
-                            document.sections.push(sect_props);
+                            // `parse_section_properties_streaming` now threads `budget`
+                            // through and balances its own `</w:sectPr>` end tag against the
+                            // `enter()` above internally, so no manual `budget.leave()` is
+                            // needed here.
+                            let sect_props = super::section::parse_section_properties_streaming(reader, budget)?;
+                            out.sections.push(sect_props);
                         }
                         b"w:ins" => {
                             revision_kind = Some(RevisionKind::Insertion);
@@ -1688,96 +1986,110 @@ impl<R: Read + Seek> DocxParser<R> {
                         _ => {}
                     }
                 }
-                Ok(Event::Empty(ref e)) => match e.name().as_ref() as &[u8] {
-                    b"w:fldChar" => {
-                        for attr in e.attributes().flatten() {
-                            if attr.key.as_ref() == b"w:fldCharType" {
-                                match attr.value.as_ref() as &[u8] {
-                                    b"begin" => in_field_instruction = true,
-                                    b"separate" | b"end" => in_field_instruction = false,
-                                    _ => {}
+                Ok(Event::Empty(ref e)) => {
+                    let name = e.name();
+                    match name.as_ref() as &[u8] {
+                        b"w:fldChar" => {
+                            apply_fld_char(
+                                e,
+                                &mut in_field_instruction,
+                                &mut field_instruction,
+                                &mut current_hyperlink_url,
+                                &mut field_hyperlink_stack,
+                            );
+                        }
+                        b"w:b" | b"w:i" | b"w:u" | b"w:strike" | b"w:dstrike" | b"w:vertAlign" | b"w:sz"
+                        | b"w:color" | b"w:highlight" => {
+                            if in_run_property_change {
+                                collect_run_property_change(e, &mut pending_property_changes);
+                            } else {
+                                apply_run_formatting(e, &mut current_run);
+                            }
+                        }
+                        b"w:pStyle" | b"w:ilvl" | b"w:numId" => {
+                            apply_paragraph_property(e, &mut table_stack, &mut current_paragraph);
+                        }
+                        b"w:br" => {
+                            apply_break(e, &table_stack, &mut current_run, &mut out.elements);
+                        }
+                        b"w:tab" => {
+                            if let Some(ref mut run) = current_run {
+                                run.text.push('\t');
+                            }
+                        }
+                        b"w:noBreakHyphen" => {
+                            if let Some(ref mut run) = current_run {
+                                run.text.push('\u{2011}');
+                            }
+                        }
+                        b"w:sym" => {
+                            apply_symbol(e, &mut current_run, warnings);
+                        }
+                        b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
+                            out.elements.push(DocumentElement::PageBreak);
+                        }
+                        b"w:footnoteReference" | b"w:endnoteReference" => {
+                            if let Some(ref mut run) = current_run {
+                                for attr in e.attributes().flatten() {
+                                    if attr.key.as_ref() == b"w:id"
+                                        && let Ok(id) = std::str::from_utf8(&attr.value)
+                                        && id != "0"
+                                        && id != "1"
+                                    {
+                                        run.text.push_str(&format!("[^{}]", id));
+                                    }
                                 }
                             }
                         }
-                    }
-                    b"w:b" | b"w:i" | b"w:u" | b"w:strike" | b"w:dstrike" | b"w:vertAlign" | b"w:sz" | b"w:color"
-                    | b"w:highlight" => {
-                        if in_run_property_change {
-                            collect_run_property_change(e, &mut pending_property_changes);
-                        } else {
-                            apply_run_formatting(e, &mut current_run);
-                        }
-                    }
-                    b"w:pStyle" | b"w:ilvl" | b"w:numId" => {
-                        apply_paragraph_property(e, &mut table_stack, &mut current_paragraph);
-                    }
-                    b"w:br" => {
-                        let mut is_page_break = false;
-                        for attr in e.attributes().flatten() {
-                            if attr.key.as_ref() == b"w:type" && attr.value.as_ref() == b"page" {
-                                is_page_break = true;
-                                break;
-                            }
-                        }
-
-                        if is_page_break && table_stack.is_empty() {
-                            document.elements.push(DocumentElement::PageBreak);
-                        } else if !is_page_break && let Some(ref mut run) = current_run {
-                            run.text.push('\n');
-                        }
-                    }
-                    b"w:tab" => {
-                        if let Some(ref mut run) = current_run {
-                            run.text.push('\t');
-                        }
-                    }
-                    b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
-                        document.elements.push(DocumentElement::PageBreak);
-                    }
-                    b"w:footnoteReference" | b"w:endnoteReference" => {
-                        if let Some(ref mut run) = current_run {
+                        b"w:commentReference" => {
                             for attr in e.attributes().flatten() {
                                 if attr.key.as_ref() == b"w:id"
                                     && let Ok(id) = std::str::from_utf8(&attr.value)
-                                    && id != "0"
-                                    && id != "1"
                                 {
-                                    run.text.push_str(&format!("[^{}]", id));
+                                    out.comment_ref_ids.push(id.to_string());
+                                    if let Some(ref mut run) = current_run {
+                                        run.text.push_str(&format!("[cmt:{}]", id));
+                                    }
                                 }
                             }
                         }
-                    }
-                    b"w:sectPr" => {
-                        document.sections.push(super::section::SectionProperties::default());
-                    }
-                    b"w:tblPr" => {
-                        if let Some(ctx) = table_stack.last_mut() {
-                            ctx.table.properties = Some(super::table::TableProperties::default());
+                        b"w:sectPr" => {
+                            out.sections.push(super::section::SectionProperties::default());
                         }
-                    }
-                    b"w:tblGrid" => {
-                        if let Some(ctx) = table_stack.last_mut() {
-                            ctx.table.grid = Some(super::table::TableGrid::default());
+                        b"w:tblPr" => {
+                            if let Some(ctx) = table_stack.last_mut() {
+                                ctx.table.properties = Some(super::table::TableProperties::default());
+                            }
                         }
-                    }
-                    b"w:trPr" => {
-                        if let Some(ctx) = table_stack.last_mut()
-                            && let Some(ref mut row) = ctx.current_row
-                        {
-                            row.properties = Some(super::table::RowProperties::default());
+                        b"w:tblGrid" => {
+                            if let Some(ctx) = table_stack.last_mut() {
+                                ctx.table.grid = Some(super::table::TableGrid::default());
+                            }
                         }
-                    }
-                    b"w:tcPr" => {
-                        if let Some(ctx) = table_stack.last_mut()
-                            && let Some(ref mut cell) = ctx.current_cell
-                        {
-                            cell.properties = Some(super::table::CellProperties::default());
+                        b"w:trPr" => {
+                            if let Some(ctx) = table_stack.last_mut()
+                                && let Some(ref mut row) = ctx.current_row
+                            {
+                                row.properties = Some(super::table::RowProperties::default());
+                            }
                         }
+                        b"w:tcPr" => {
+                            if let Some(ctx) = table_stack.last_mut()
+                                && let Some(ref mut cell) = ctx.current_cell
+                            {
+                                cell.properties = Some(super::table::CellProperties::default());
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 Ok(Event::Text(e)) => {
-                    if in_text && let Some(ref mut run) = current_run {
+                    if in_instr_text {
+                        let text = e.decode()?;
+                        budget.check_entity(&text)?;
+                        budget.account_text(text.len())?;
+                        field_instruction.push_str(&text);
+                    } else if in_text && let Some(ref mut run) = current_run {
                         let text = e.decode()?;
                         budget.check_entity(&text)?;
                         budget.account_text(text.len())?;
@@ -1808,9 +2120,24 @@ impl<R: Read + Seek> DocxParser<R> {
                 }
                 Ok(Event::End(ref e)) => {
                     budget.leave();
-                    match e.name().as_ref() as &[u8] {
+                    let name = e.name();
+                    if Some(name.as_ref()) == stop_tag {
+                        stop_depth = stop_depth.saturating_sub(1);
+                    }
+                    match name.as_ref() as &[u8] {
                         b"w:t" => {
                             in_text = false;
+                        }
+                        b"w:instrText" => {
+                            in_instr_text = false;
+                        }
+                        b"w:fldSimple" => {
+                            if let Some(saved) = field_hyperlink_stack.pop() {
+                                current_hyperlink_url = saved;
+                            }
+                        }
+                        b"mc:Fallback" => {
+                            mc_fallback_depth = mc_fallback_depth.saturating_sub(1);
                         }
                         b"w:rPrChange" => {
                             in_run_property_change = false;
@@ -1818,7 +2145,7 @@ impl<R: Read + Seek> DocxParser<R> {
                         b"w:rPr" if !in_run_property_change => {
                             if let Some(attrs) = pending_format_revision_attrs.take() {
                                 push_format_revision(
-                                    document,
+                                    &mut out.revisions,
                                     attrs,
                                     std::mem::take(&mut pending_property_changes),
                                     current_run.as_ref(),
@@ -1830,7 +2157,7 @@ impl<R: Read + Seek> DocxParser<R> {
                         b"w:r" => {
                             if let Some(attrs) = pending_format_revision_attrs.take() {
                                 push_format_revision(
-                                    document,
+                                    &mut out.revisions,
                                     attrs,
                                     std::mem::take(&mut pending_property_changes),
                                     current_run.as_ref(),
@@ -1839,20 +2166,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                 );
                             }
                             if let Some(run) = current_run.take() {
-                                if let Some(ctx) = table_stack.last_mut() {
-                                    if let Some(ref mut para) = ctx.paragraph {
-                                        para.add_run(run);
-                                    } else if let Some(ref mut cell) = ctx.current_cell {
-                                        if cell.paragraphs.is_empty() {
-                                            cell.paragraphs.push(Paragraph::new());
-                                        }
-                                        if let Some(para) = cell.paragraphs.last_mut() {
-                                            para.add_run(run);
-                                        }
-                                    }
-                                } else if let Some(ref mut para) = current_paragraph {
-                                    para.add_run(run);
-                                }
+                                push_run_to_current(&mut table_stack, &mut current_paragraph, run);
                             }
                         }
                         b"w:p" => {
@@ -1863,9 +2177,9 @@ impl<R: Read + Seek> DocxParser<R> {
                                     cell.paragraphs.push(para);
                                 }
                             } else if let Some(para) = current_paragraph.take() {
-                                let idx = document.paragraphs.len();
-                                document.paragraphs.push(para);
-                                document.elements.push(DocumentElement::Paragraph(idx));
+                                let idx = out.paragraphs.len();
+                                out.paragraphs.push(para);
+                                out.elements.push(DocumentElement::Paragraph(idx));
                             }
                         }
                         b"w:tc" => {
@@ -1898,9 +2212,9 @@ impl<R: Read + Seek> DocxParser<R> {
                                         }
                                     }
                                 } else {
-                                    let idx = document.tables.len();
-                                    document.tables.push(completed_table);
-                                    document.elements.push(DocumentElement::Table(idx));
+                                    let idx = out.tables.len();
+                                    out.tables.push(completed_table);
+                                    out.elements.push(DocumentElement::Table(idx));
                                 }
                             }
                         }
@@ -1926,7 +2240,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                     ..Default::default()
                                 }
                             };
-                            document.revisions.push(DocumentRevision {
+                            out.revisions.push(DocumentRevision {
                                 revision_id,
                                 author: author_opt,
                                 timestamp: date_opt,
@@ -1958,7 +2272,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                     ..Default::default()
                                 }
                             };
-                            document.revisions.push(DocumentRevision {
+                            out.revisions.push(DocumentRevision {
                                 revision_id,
                                 author: author_opt,
                                 timestamp: date_opt,
@@ -1976,15 +2290,29 @@ impl<R: Read + Seek> DocxParser<R> {
                         }
                         _ => {}
                     }
+                    if stop_tag.is_some() && stop_depth == 0 {
+                        break;
+                    }
                 }
-                Ok(Event::Eof) => break,
+                Ok(Event::Eof) => {
+                    if in_field_instruction {
+                        crate::core::diagnostics::push_warning(
+                            warnings,
+                            "docx",
+                            "A DOCX field instruction (w:fldChar begin) was never closed with a \
+                             matching separate/end; trailing body content may have been treated \
+                             as field instruction text and dropped",
+                        );
+                    }
+                    break;
+                }
                 Err(e) => return Err(e.into()),
                 _ => {}
             }
             buf.clear();
         }
 
-        Ok(())
+        Ok(out)
     }
 
     fn parse_numbering(
@@ -2113,99 +2441,109 @@ impl<R: Read + Seek> DocxParser<R> {
         Ok(numbering_defs)
     }
 
+    /// Discover and parse every header/footer part in the package (#83).
+    ///
+    /// Earlier versions of this parser only looked for `word/header{1,2,3}.xml` and
+    /// `word/footer{1,2,3}.xml`, silently dropping any part beyond index 3. The
+    /// relationships in `word/_rels/document.xml.rels` are the authoritative index, so
+    /// they are read first and in declaration order.
+    ///
+    /// The conventional filenames are then swept as a *fallback*, not a replacement:
+    /// a package can carry a header/footer part that no relationship points at, and
+    /// dropping those would trade one silent loss (index > 3) for another (unreferenced
+    /// part). Anything already named by a relationship is skipped, so a well-formed
+    /// document is unaffected.
     fn parse_headers_footers(
         &mut self,
         document: &mut Document,
         budget: &mut SecurityBudget,
     ) -> Result<(), DocxParseError> {
-        for i in 1..=3 {
-            let header_path = format!("word/header{}.xml", i);
-            if let Ok(header_xml) = self.read_file(&header_path) {
-                let mut header = HeaderFooter::default();
-                self.parse_header_footer_content(&header_xml, &mut header, budget)?;
-                document.headers.push(header);
-            }
+        let rels_xml = self.read_file("word/_rels/document.xml.rels").unwrap_or_default();
+        let mut targets = Self::parse_header_footer_relationship_targets(&rels_xml);
 
-            let footer_path = format!("word/footer{}.xml", i);
-            if let Ok(footer_xml) = self.read_file(&footer_path) {
-                let mut footer = HeaderFooter::default();
-                self.parse_header_footer_content(&footer_xml, &mut footer, budget)?;
-                document.footers.push(footer);
+        // Collect before touching `self.archive` mutably in the read loop below.
+        let mut orphans: Vec<(bool, u32, String)> = self
+            .archive
+            .file_names()
+            .filter_map(|name| {
+                let (is_header, index) = conventional_header_footer_part(name)?;
+                (!targets.iter().any(|(_, seen)| seen == name)).then(|| (is_header, index, name.to_string()))
+            })
+            .collect();
+        // Headers before footers, each in numeric order, so output does not depend on
+        // the order the zip central directory happens to list parts in.
+        orphans.sort_by_key(|(is_header, index, _)| (!is_header, *index));
+        targets.extend(orphans.into_iter().map(|(is_header, _, path)| (is_header, path)));
+
+        for (is_header, path) in targets {
+            match self.read_file(&path) {
+                Ok(xml) => {
+                    let mut header_footer = HeaderFooter::default();
+                    self.parse_header_footer_content(&xml, &mut header_footer, budget, &mut document.warnings)?;
+                    if is_header {
+                        document.headers.push(header_footer);
+                    } else {
+                        document.footers.push(header_footer);
+                    }
+                }
+                Err(_) => {
+                    crate::core::diagnostics::push_warning(
+                        &mut document.warnings,
+                        "docx",
+                        format!(
+                            "{} relationship target '{}' could not be read; that {} was dropped",
+                            if is_header { "Header" } else { "Footer" },
+                            path,
+                            if is_header { "header" } else { "footer" }
+                        ),
+                    );
+                }
             }
         }
 
         Ok(())
     }
 
-    fn parse_header_footer_content(
-        &self,
-        xml: &str,
-        header_footer: &mut HeaderFooter,
-        budget: &mut SecurityBudget,
-    ) -> Result<(), DocxParseError> {
+    /// Scan a relationships XML document for header/footer part targets.
+    ///
+    /// Returns `(is_header, resolved_zip_path)` pairs in document order. Relationship
+    /// targets are resolved relative to `word/` (the directory containing
+    /// `document.xml`, per OPC convention), or treated as package-root-absolute when
+    /// they start with `/`.
+    fn parse_header_footer_relationship_targets(xml: &str) -> Vec<(bool, String)> {
+        let mut targets = Vec::new();
         let mut reader = Reader::from_str(xml);
-        reader.config_mut().trim_text(false);
-
+        reader.config_mut().trim_text(true);
         let mut buf = Vec::new();
-        let mut current_paragraph: Option<Paragraph> = None;
-        let mut current_run: Option<Run> = None;
-        let mut in_text = false;
 
         loop {
-            budget.step()?;
             match reader.read_event_into(&mut buf) {
-                Ok(Event::Start(ref e)) => {
-                    budget.enter()?;
-                    match e.name().as_ref() as &[u8] {
-                        b"w:p" => current_paragraph = Some(Paragraph::new()),
-                        b"w:r" => current_run = Some(Run::default()),
-                        b"w:t" => in_text = true,
-                        b"w:b" | b"w:i" | b"w:u" | b"w:strike" | b"w:dstrike" | b"w:vertAlign" | b"w:sz"
-                        | b"w:color" | b"w:highlight" => {
-                            apply_run_formatting(e, &mut current_run);
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(Event::Empty(ref e)) => match e.name().as_ref() as &[u8] {
-                    b"w:b" | b"w:i" | b"w:u" | b"w:strike" | b"w:dstrike" | b"w:vertAlign" | b"w:sz" | b"w:color"
-                    | b"w:highlight" => {
-                        apply_run_formatting(e, &mut current_run);
-                    }
-                    _ => {}
-                },
-                Ok(Event::Text(e)) => {
-                    if in_text && let Some(ref mut run) = current_run {
-                        let text = e.decode()?;
-                        budget.check_entity(&text)?;
-                        budget.account_text(text.len())?;
-                        run.text.push_str(&text);
-                    }
-                }
-                Ok(Event::GeneralRef(e)) => {
-                    if in_text && let Some(ref mut run) = current_run {
-                        let text = crate::utils::xml_utils::resolve_general_ref(&e);
-                        budget.account_text(text.len())?;
-                        run.text.push_str(&text);
-                    }
-                }
-                Ok(Event::End(ref e)) => {
-                    budget.leave();
-                    match e.name().as_ref() as &[u8] {
-                        b"w:t" => in_text = false,
-                        b"w:r" => {
-                            if let Some(run) = current_run.take()
-                                && let Some(ref mut para) = current_paragraph
-                            {
-                                para.add_run(run);
+                Ok(Event::Empty(ref e)) | Ok(Event::Start(ref e)) if e.name().as_ref() as &[u8] == b"Relationship" => {
+                    let mut target: Option<String> = None;
+                    let mut kind: Option<bool> = None;
+                    for attr in e.attributes().flatten() {
+                        match attr.key.as_ref() {
+                            b"Target" => target = std::str::from_utf8(&attr.value).ok().map(String::from),
+                            b"Type" => {
+                                kind = std::str::from_utf8(&attr.value).ok().and_then(|t| {
+                                    if t.ends_with("/header") {
+                                        Some(true)
+                                    } else if t.ends_with("/footer") {
+                                        Some(false)
+                                    } else {
+                                        None
+                                    }
+                                });
                             }
+                            _ => {}
                         }
-                        b"w:p" => {
-                            if let Some(para) = current_paragraph.take() {
-                                header_footer.paragraphs.push(para);
-                            }
-                        }
-                        _ => {}
+                    }
+                    if let (Some(target), Some(is_header)) = (target, kind) {
+                        let resolved = match target.strip_prefix('/') {
+                            Some(stripped) => stripped.to_string(),
+                            None => format!("word/{}", target),
+                        };
+                        targets.push((is_header, resolved));
                     }
                 }
                 Ok(Event::Eof) => break,
@@ -2214,119 +2552,128 @@ impl<R: Read + Seek> DocxParser<R> {
             buf.clear();
         }
 
+        targets
+    }
+
+    /// Parse one header or footer part, sharing the same element vocabulary as the
+    /// main document body and footnotes/endnotes (#85).
+    fn parse_header_footer_content(
+        &self,
+        xml: &str,
+        header_footer: &mut HeaderFooter,
+        budget: &mut SecurityBudget,
+        warnings: &mut Vec<crate::types::ProcessingWarning>,
+    ) -> Result<(), DocxParseError> {
+        let mut reader = Reader::from_str(xml);
+        reader.config_mut().trim_text(false);
+        let out = self.parse_body_elements(&mut reader, None, budget, warnings)?;
+        header_footer.paragraphs = out.paragraphs;
+        header_footer.tables = out.tables;
         Ok(())
     }
 
+    /// Parse `word/footnotes.xml` or `word/endnotes.xml`, delegating each individual
+    /// `<w:footnote>`/`<w:endnote>` subtree to the shared body element loop (#85) so
+    /// notes recognize the same tables/hyperlinks/fields/symbols as the main body.
+    ///
+    /// A top-level table inside a note (rare, but structurally possible) is
+    /// flattened into the note's paragraph list, the same way a table nested inside
+    /// a table cell is flattened by the shared loop itself.
     fn parse_notes(
         &self,
         xml: &str,
         notes: &mut Vec<Note>,
         note_type: NoteType,
         budget: &mut SecurityBudget,
+        warnings: &mut Vec<crate::types::ProcessingWarning>,
     ) -> Result<(), DocxParseError> {
         let mut reader = Reader::from_str(xml);
         reader.config_mut().trim_text(false);
-
         let mut buf = Vec::new();
-        let mut current_note: Option<Note> = None;
-        let mut current_paragraph: Option<Paragraph> = None;
-        let mut current_run: Option<Run> = None;
-        let mut in_text = false;
 
         loop {
             budget.step()?;
             match reader.read_event_into(&mut buf) {
-                Ok(Event::Start(ref e)) => {
-                    budget.enter()?;
-                    match e.name().as_ref() as &[u8] {
-                        b"w:footnote" | b"w:endnote" => {
-                            let mut id = String::new();
-                            for attr in e.attributes().flatten() {
-                                if attr.key.as_ref() == b"w:id" {
-                                    id = String::from_utf8_lossy(&attr.value).to_string();
+                Ok(Event::Start(ref e)) if matches!(e.name().as_ref() as &[u8], b"w:footnote" | b"w:endnote") => {
+                    let mut id = String::new();
+                    for attr in e.attributes().flatten() {
+                        if attr.key.as_ref() == b"w:id" {
+                            id = String::from_utf8_lossy(&attr.value).to_string();
+                        }
+                    }
+                    let stop_tag = e.name().as_ref().to_vec();
+                    let out = self.parse_body_elements(&mut reader, Some(stop_tag.as_slice()), budget, warnings)?;
+
+                    if id != "-1" && id != "0" && id != "1" {
+                        let mut paragraphs = out.paragraphs;
+                        for table in out.tables {
+                            for row in table.rows {
+                                for cell in row.cells {
+                                    paragraphs.extend(cell.paragraphs);
                                 }
                             }
-                            current_note = Some(Note {
-                                id,
-                                note_type,
-                                paragraphs: Vec::new(),
-                            });
                         }
-                        b"w:p" => current_paragraph = Some(Paragraph::new()),
-                        b"w:r" => current_run = Some(Run::default()),
-                        b"w:t" => in_text = true,
-                        b"w:b" => {
-                            if let Some(ref mut run) = current_run {
-                                run.bold = is_format_enabled(e);
-                            }
-                        }
-                        b"w:i" => {
-                            if let Some(ref mut run) = current_run {
-                                run.italic = is_format_enabled(e);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(Event::Empty(ref e)) => match e.name().as_ref() as &[u8] {
-                    b"w:b" => {
-                        if let Some(ref mut run) = current_run {
-                            run.bold = is_format_enabled(e);
-                        }
-                    }
-                    b"w:i" => {
-                        if let Some(ref mut run) = current_run {
-                            run.italic = is_format_enabled(e);
-                        }
-                    }
-                    _ => {}
-                },
-                Ok(Event::Text(e)) => {
-                    if in_text && let Some(ref mut run) = current_run {
-                        let text = e.decode()?;
-                        budget.check_entity(&text)?;
-                        budget.account_text(text.len())?;
-                        run.text.push_str(&text);
-                    }
-                }
-                Ok(Event::GeneralRef(e)) => {
-                    if in_text && let Some(ref mut run) = current_run {
-                        let text = crate::utils::xml_utils::resolve_general_ref(&e);
-                        budget.account_text(text.len())?;
-                        run.text.push_str(&text);
-                    }
-                }
-                Ok(Event::End(ref e)) => {
-                    budget.leave();
-                    match e.name().as_ref() as &[u8] {
-                        b"w:t" => in_text = false,
-                        b"w:r" => {
-                            if let Some(run) = current_run.take()
-                                && let Some(ref mut para) = current_paragraph
-                            {
-                                para.add_run(run);
-                            }
-                        }
-                        b"w:p" => {
-                            if let Some(para) = current_paragraph.take()
-                                && let Some(ref mut note) = current_note
-                            {
-                                note.paragraphs.push(para);
-                            }
-                        }
-                        b"w:footnote" | b"w:endnote" => {
-                            if let Some(note) = current_note.take()
-                                && note.id != "-1"
-                                && note.id != "0"
-                                && note.id != "1"
-                            {
-                                notes.push(note);
-                            }
-                        }
-                        _ => {}
+                        notes.push(Note {
+                            id,
+                            note_type,
+                            paragraphs,
+                        });
                     }
                 }
                 Ok(Event::Eof) => break,
+                Err(e) => return Err(e.into()),
+                _ => {}
+            }
+            buf.clear();
+        }
+
+        Ok(())
+    }
+
+    /// Parse `word/comments.xml`, delegating each `<w:comment>` subtree to the
+    /// shared body element loop (#82, #85).
+    fn parse_comments(
+        &self,
+        xml: &str,
+        comments: &mut Vec<Comment>,
+        budget: &mut SecurityBudget,
+        warnings: &mut Vec<crate::types::ProcessingWarning>,
+    ) -> Result<(), DocxParseError> {
+        let mut reader = Reader::from_str(xml);
+        reader.config_mut().trim_text(false);
+        let mut buf = Vec::new();
+
+        loop {
+            budget.step()?;
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(ref e)) if e.name().as_ref() as &[u8] == b"w:comment" => {
+                    let mut id = String::new();
+                    let mut author: Option<String> = None;
+                    for attr in e.attributes().flatten() {
+                        match attr.key.as_ref() {
+                            b"w:id" => id = String::from_utf8_lossy(&attr.value).to_string(),
+                            b"w:author" => {
+                                author = std::str::from_utf8(&attr.value)
+                                    .ok()
+                                    .map(String::from)
+                                    .filter(|s| !s.is_empty());
+                            }
+                            _ => {}
+                        }
+                    }
+                    let out = self.parse_body_elements(&mut reader, Some(b"w:comment".as_slice()), budget, warnings)?;
+                    let mut paragraphs = out.paragraphs;
+                    for table in out.tables {
+                        for row in table.rows {
+                            for cell in row.cells {
+                                paragraphs.extend(cell.paragraphs);
+                            }
+                        }
+                    }
+                    comments.push(Comment { id, author, paragraphs });
+                }
+                Ok(Event::Eof) => break,
+                Err(e) => return Err(e.into()),
                 _ => {}
             }
             buf.clear();
@@ -2900,8 +3247,9 @@ mod tests {
         let mut notes = Vec::new();
         {
             let mut budget = crate::extractors::security::SecurityBudget::with_defaults();
+            let mut warnings = Vec::new();
             parser_struct
-                .parse_notes(xml, &mut notes, NoteType::Footnote, &mut budget)
+                .parse_notes(xml, &mut notes, NoteType::Footnote, &mut budget, &mut warnings)
                 .unwrap();
         }
 
@@ -3375,6 +3723,555 @@ mod tests {
                 .unwrap();
         }
         document
+    }
+
+    /// Helper: parse document XML through DocxParser, threading a caller-supplied
+    /// budget instead of a fresh default one, so the caller can inspect the budget's
+    /// residual state (e.g. leaked nesting depth, GH#1395) after parsing completes.
+    fn parse_xml_with_budget(xml: &str, budget: &mut SecurityBudget) -> Document {
+        let parser_struct = DocxParser {
+            archive: zip::ZipArchive::new(std::io::Cursor::new(create_minimal_zip())).unwrap(),
+            relationships: AHashMap::new(),
+            styles: None,
+            theme: None,
+        };
+        let mut document = Document::new();
+        parser_struct.parse_document_xml(xml, &mut document, budget).unwrap();
+        document
+    }
+
+    /// Helper: parse document XML through DocxParser, returning the raw `Result`
+    /// instead of unwrapping (GH#384) — needed to assert on the exact error variant
+    /// produced once nesting inside a delegating helper's subtree trips the depth cap.
+    fn try_parse_xml_with_budget(xml: &str, budget: &mut SecurityBudget) -> Result<Document, DocxParseError> {
+        let parser_struct = DocxParser {
+            archive: zip::ZipArchive::new(std::io::Cursor::new(create_minimal_zip())).unwrap(),
+            relationships: AHashMap::new(),
+            styles: None,
+            theme: None,
+        };
+        let mut document = Document::new();
+        parser_struct.parse_document_xml(xml, &mut document, budget)?;
+        Ok(document)
+    }
+
+    /// Test-only probe (GH#1395): count how many more `budget.enter()` calls succeed
+    /// before the depth cap trips. A freshly-built budget accepts exactly `max_depth`
+    /// more entries; if parsing leaked N depth levels, only `max_depth - N` succeed.
+    /// This makes the *value* of the private depth counter observable through the
+    /// budget's existing public API, without touching `extractors/security.rs`.
+    fn probe_remaining_depth(budget: &mut SecurityBudget, max_depth: usize) -> usize {
+        let mut successes = 0usize;
+        for _ in 0..=max_depth {
+            if budget.enter().is_ok() {
+                successes += 1;
+            } else {
+                break;
+            }
+        }
+        successes
+    }
+
+    /// GH#1395: a single `w:tblPr` inside a table must not leave the depth counter
+    /// above zero after parsing — `parse_table_properties` consumes its own
+    /// `</w:tblPr>`, so the outer loop's `Event::End` arm never runs for it.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_tblpr() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:tbl>
+                <w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
+                <w:tr><w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc></w:tr>
+            </w:tbl>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:tblPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: same as `w:tblPr` — `parse_table_grid` consumes its own `</w:tblGrid>`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_tblgrid() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:tbl>
+                <w:tblGrid><w:gridCol w:w="2500"/></w:tblGrid>
+                <w:tr><w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc></w:tr>
+            </w:tbl>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:tblGrid must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `parse_row_properties` consumes its own `</w:trPr>`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_trpr() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:tbl>
+                <w:tr>
+                    <w:trPr><w:tblHeader/></w:trPr>
+                    <w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc>
+                </w:tr>
+            </w:tbl>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:trPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `parse_cell_properties` consumes its own `</w:tcPr>`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_tcpr() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:tbl>
+                <w:tr>
+                    <w:tc>
+                        <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
+                        <w:p><w:r><w:t>x</w:t></w:r></w:p>
+                    </w:tc>
+                </w:tr>
+            </w:tbl>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:tcPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `parse_drawing` consumes its own `</w:drawing>`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_drawing() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:p><w:r>
+                <w:drawing>
+                    <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                        <wp:extent cx="914400" cy="914400"/>
+                        <wp:docPr id="1" name="Picture 1"/>
+                    </wp:inline>
+                </w:drawing>
+            </w:r></w:p>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:drawing must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `parse_section_properties_streaming` consumes its own `</w:sectPr>`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_sectpr() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Content</w:t></w:r></w:p>
+            <w:sectPr>
+                <w:pgSz w:w="12240" w:h="15840"/>
+            </w:sectPr>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:sectPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `m:oMath` and `m:oMathPara` already thread `budget` through to
+    /// `collect_and_convert_omath{,_para}`, which recursively balance every
+    /// `enter()`/`leave()` pair themselves — including the enter made by the
+    /// outer loop for the `m:oMath`/`m:oMathPara` start tag itself, refunded when
+    /// the recursive `collect_children` consumes the matching end tag. Confirm
+    /// they are NOT double-leaking (over-refunding would also be a bug: it would
+    /// silently mask genuinely deep documents by under-counting).
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_omath_para() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:p><w:r>
+                <m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+                    <m:oMath>
+                        <m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t></m:r>
+                        <m:sSup>
+                            <m:e><m:r><m:t>y</m:t></m:r></m:e>
+                            <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+                        </m:sSup>
+                    </m:oMath>
+                </m:oMathPara>
+            </w:r></w:p>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "m:oMathPara/m:oMath (with nested m:rPr and m:sSup) must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: the reporter's reproducer — a flat one-column table whose real
+    /// nesting depth is small (~8) leaked `2*rows + 3` levels because every row's
+    /// `w:tcPr` and `w:trPr` each leaked one level. At 600 rows that is 1203 leaked
+    /// levels, enough to trip the default 1024-level cap outright with no partial
+    /// result. Assert the fixed parser extracts the full table at both 400 and 600
+    /// rows, with identical, exact structural counts — proving the row count no
+    /// longer influences whether extraction succeeds.
+    #[test]
+    fn should_extract_full_table_regardless_of_row_count_after_fixing_depth_leak() {
+        fn build_table_xml(rows: usize) -> String {
+            // Deliberately `<w:tblPr></w:tblPr>` (Start+End events), not the
+            // self-closing `<w:tblPr/>` form (a single Empty event) — only the
+            // Start/End form goes through the leaking `parse_table_properties`
+            // delegation path this test is guarding against.
+            let mut body = String::from("<w:tbl><w:tblPr></w:tblPr><w:tblGrid><w:gridCol w:w=\"2500\"/></w:tblGrid>");
+            for i in 0..rows {
+                body.push_str(&format!(
+                    "<w:tr><w:trPr></w:trPr><w:tc><w:tcPr></w:tcPr><w:p><w:r><w:t>row{i}</w:t></w:r></w:p></w:tc></w:tr>"
+                ));
+            }
+            body.push_str("</w:tbl>");
+            wrap_body(&body)
+        }
+
+        for rows in [400usize, 600usize] {
+            let mut budget = SecurityBudget::with_defaults();
+            let xml = build_table_xml(rows);
+            let doc = parse_xml_with_budget(&xml, &mut budget);
+
+            assert_eq!(doc.tables.len(), 1, "rows={rows}: expected exactly 1 table");
+            assert_eq!(doc.tables[0].rows.len(), rows, "rows={rows}: row count mismatch");
+            assert_eq!(
+                doc.elements.len(),
+                1,
+                "rows={rows}: a single top-level table must yield exactly 1 document element"
+            );
+            assert_eq!(
+                probe_remaining_depth(&mut budget, 1024),
+                1024,
+                "rows={rows}: depth counter must return to zero after a {rows}-row table"
+            );
+        }
+    }
+
+    /// GH#384: the GH#1395 fix only stopped the depth counter from *leaking* at each
+    /// delegating call site — it left the content *inside* those helpers completely
+    /// unmeasured. `parse_drawing` is one of them: before this fix it read through its
+    /// own `</w:drawing>` without ever calling `budget.enter()`/`leave()` for anything
+    /// nested inside. Confirm a genuinely deeply-nested drawing subtree now trips the
+    /// depth cap instead of sailing through unaccounted, and that the exact error
+    /// variant surfaces (not just "parsing failed somehow").
+    #[test]
+    fn should_trip_nesting_too_deep_when_drawing_subtree_nests_beyond_the_depth_cap() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 10,
+            max_xml_depth: 10,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+
+        let nest_depth = 20;
+        let mut inner = String::from("<a:sp>");
+        for _ in 0..nest_depth {
+            inner.push_str("<a:grp>");
+        }
+        for _ in 0..nest_depth {
+            inner.push_str("</a:grp>");
+        }
+        inner.push_str("</a:sp>");
+
+        let xml = wrap_body(&format!(
+            "<w:p><w:r><w:drawing><wp:inline>{inner}</wp:inline></w:drawing></w:r></w:p>"
+        ));
+
+        let result = try_parse_xml_with_budget(&xml, &mut budget);
+
+        match result {
+            Err(DocxParseError::SecurityLimit(msg)) => {
+                assert!(
+                    msg.contains("Nesting too deep"),
+                    "expected a nesting-depth security error, got: {msg}"
+                );
+            }
+            other => {
+                panic!("expected Err(DocxParseError::SecurityLimit(_)) for a deeply-nested drawing, got {other:?}")
+            }
+        }
+    }
+
+    /// GH#384: same gap as `parse_drawing`, but for `parse_cell_properties` — nesting
+    /// inside a `w:tcPr` subtree was completely invisible to the depth budget before
+    /// this fix. Confirm it now trips the depth cap with the exact `SecurityLimit`
+    /// error variant.
+    #[test]
+    fn should_trip_nesting_too_deep_when_tcpr_subtree_nests_beyond_the_depth_cap() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 10,
+            max_xml_depth: 10,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+
+        let nest_depth = 20;
+        let mut inner = String::new();
+        for _ in 0..nest_depth {
+            inner.push_str("<evil>");
+        }
+        for _ in 0..nest_depth {
+            inner.push_str("</evil>");
+        }
+
+        let xml = wrap_body(&format!(
+            "<w:tbl><w:tr><w:tc><w:tcPr>{inner}</w:tcPr><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+        ));
+
+        let result = try_parse_xml_with_budget(&xml, &mut budget);
+
+        match result {
+            Err(DocxParseError::SecurityLimit(msg)) => {
+                assert!(
+                    msg.contains("Nesting too deep"),
+                    "expected a nesting-depth security error, got: {msg}"
+                );
+            }
+            other => panic!("expected Err(DocxParseError::SecurityLimit(_)) for a deeply-nested tcPr, got {other:?}"),
+        }
+    }
+
+    /// a25335db0a threaded `budget` through every DOCX delegating helper except
+    /// `parse_vml_pict`: it consumes its own `</w:pict>` end tag with a private
+    /// `depth` counter, so the main loop's `Event::End` arm never sees the closing
+    /// tag and `budget.leave()` is never called for it. Confirm the fixed parser
+    /// leaves the depth counter at exactly zero after parsing a single `w:pict`.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_pict() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: 64,
+            max_xml_depth: 64,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+        let xml = wrap_body(
+            r#"<w:p><w:r>
+                <w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent>
+                    <w:p><w:r><w:t>Legacy VML text box.</w:t></w:r></w:p>
+                </w:txbxContent></v:textbox></v:shape></w:pict>
+            </w:r></w:p>"#,
+        );
+        parse_xml_with_budget(&xml, &mut budget);
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "w:pict must not leak a depth level"
+        );
+    }
+
+    /// Regression test for the `w:pict` depth leak (a25335db0a): before this fix,
+    /// each `<w:pict>` element permanently leaked one depth unit (the main loop's
+    /// `enter()` for its opening tag was never matched by a `leave()`), even though
+    /// each element's *real* nesting is trivial and never overlaps with the next.
+    /// Legacy `.doc`-to-`.docx` conversions and documents saved by older Word
+    /// versions commonly contain many `w:pict` elements, so this leak would
+    /// eventually trip `SecurityError::NestingTooDeep` on a perfectly legitimate
+    /// document. Use a count comfortably above the default `max_nesting_depth`
+    /// (1024) so the unfixed code genuinely fails this test.
+    #[test]
+    fn should_extract_all_pict_textboxes_regardless_of_element_count_after_fixing_depth_leak() {
+        fn build_pict_xml(count: usize) -> String {
+            let mut body = String::new();
+            for i in 0..count {
+                body.push_str(&format!(
+                    r#"<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent>
+                        <w:p><w:r><w:t>pict{i}</w:t></w:r></w:p>
+                    </w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>"#
+                ));
+            }
+            wrap_body(&body)
+        }
+
+        let count = 1500;
+        let mut budget = SecurityBudget::with_defaults();
+        let xml = build_pict_xml(count);
+        let doc = try_parse_xml_with_budget(&xml, &mut budget)
+            .expect("legacy VML w:pict content must not trip the depth cap");
+
+        assert_eq!(
+            doc.drawings.len(),
+            count,
+            "expected exactly {count} extracted text boxes"
+        );
+        assert_eq!(
+            doc.paragraphs.len(),
+            count,
+            "each w:pict is wrapped in its own top-level w:p, so paragraph count must match"
+        );
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 1024),
+            1024,
+            "depth counter must return to zero after {count} w:pict elements"
+        );
+    }
+
+    /// GH#384-style gap for `w:pict`: before this fix, none of `parse_vml_pict`,
+    /// `parse_vml_textbox`, or `collect_txbx_content_text` called `budget.step()`,
+    /// so content nested inside a `w:pict` was completely exempt from the
+    /// iteration-count limit — a single `w:pict` padded with many trivial elements
+    /// was processed with zero budget enforcement. Confirm the fixed parser now
+    /// trips `SecurityError::TooManyIterations` once padding inside `w:pict`
+    /// exceeds the configured cap, with the exact error variant surfaced.
+    #[test]
+    fn should_trip_too_many_iterations_when_pict_subtree_is_padded_beyond_the_iteration_cap() {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_iterations: 50,
+            ..Default::default()
+        };
+        let mut budget = SecurityBudget::from_limits(&limits);
+
+        let padding_count = 200;
+        let mut inner = String::new();
+        for _ in 0..padding_count {
+            inner.push_str("<v:fill/>");
+        }
+
+        let xml = wrap_body(&format!(
+            r#"<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml">
+                {inner}
+            </v:shape></w:pict></w:r></w:p>"#
+        ));
+
+        let result = try_parse_xml_with_budget(&xml, &mut budget);
+
+        match result {
+            Err(DocxParseError::SecurityLimit(msg)) => {
+                assert!(
+                    msg.contains("Too many iterations"),
+                    "expected an iteration-count security error, got: {msg}"
+                );
+            }
+            other => {
+                panic!("expected Err(DocxParseError::SecurityLimit(_)) for a padded w:pict subtree, got {other:?}")
+            }
+        }
+    }
+
+    /// GH#384: threading `budget` into the table/drawing/section delegating helpers
+    /// must not turn ordinary, real-world-shaped documents into false rejections.
+    /// Parses a table with populated `tblPr`/`tblGrid`/`trPr`/`tcPr`, an inline
+    /// drawing, and a section — all well within the default depth cap — and asserts
+    /// the structural results are still fully populated, not just that parsing
+    /// returned `Ok`.
+    #[test]
+    fn should_extract_realistic_table_and_drawing_without_false_rejection() {
+        let xml = wrap_body(
+            r#"<w:tbl>
+                <w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="dxa"/></w:tblPr>
+                <w:tblGrid><w:gridCol w:w="2500"/><w:gridCol w:w="2500"/></w:tblGrid>
+                <w:tr>
+                    <w:trPr><w:tblHeader/></w:trPr>
+                    <w:tc>
+                        <w:tcPr>
+                            <w:tcW w:w="2500" w:type="dxa"/>
+                            <w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/>
+                        </w:tcPr>
+                        <w:p><w:r><w:t>Header A</w:t></w:r></w:p>
+                    </w:tc>
+                    <w:tc>
+                        <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
+                        <w:p><w:r><w:t>Header B</w:t></w:r></w:p>
+                    </w:tc>
+                </w:tr>
+                <w:tr>
+                    <w:tc>
+                        <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
+                        <w:p><w:r><w:t>Row 1</w:t></w:r></w:p>
+                    </w:tc>
+                    <w:tc>
+                        <w:tcPr><w:tcW w:w="2500" w:type="dxa"/></w:tcPr>
+                        <w:p><w:r><w:t>Value</w:t></w:r></w:p>
+                    </w:tc>
+                </w:tr>
+            </w:tbl>
+            <w:p><w:r>
+                <w:drawing>
+                    <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+                        <wp:extent cx="914400" cy="457200"/>
+                        <wp:docPr id="1" name="Picture 1"/>
+                    </wp:inline>
+                </w:drawing>
+            </w:r></w:p>
+            <w:sectPr>
+                <w:pgSz w:w="12240" w:h="15840"/>
+                <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"
+                         w:header="720" w:footer="720" w:gutter="0"/>
+            </w:sectPr>"#,
+        );
+
+        let mut budget = SecurityBudget::with_defaults();
+        let doc = try_parse_xml_with_budget(&xml, &mut budget)
+            .expect("a realistic table + drawing + section must not trip the default depth cap");
+
+        assert_eq!(doc.tables.len(), 1, "expected exactly one table");
+        assert_eq!(doc.tables[0].rows.len(), 2, "expected a header row and a data row");
+        assert!(
+            doc.tables[0].properties.is_some(),
+            "table properties must still be populated"
+        );
+        assert!(doc.tables[0].grid.is_some(), "table grid must still be populated");
+        assert_eq!(doc.drawings.len(), 1, "expected exactly one drawing");
+        assert_eq!(doc.sections.len(), 1, "expected exactly one section");
+        assert_eq!(
+            doc.sections[0].page_width_twips,
+            Some(12240),
+            "section properties must still be populated"
+        );
     }
 
     /// Helper: parse document XML with custom relationships.
@@ -4091,6 +4988,7 @@ mod tests {
                 description: Some("alt text".to_string()),
             }),
             image_ref: Some("rId1".to_string()),
+            text_box_content: None,
         };
         let d_idx = doc.drawings.len();
         doc.drawings.push(drawing);
@@ -4125,6 +5023,7 @@ mod tests {
                 description: Some("alt text".to_string()),
             }),
             image_ref: Some("rId1".to_string()),
+            text_box_content: None,
         };
         let d_idx = doc.drawings.len();
         doc.drawings.push(drawing);

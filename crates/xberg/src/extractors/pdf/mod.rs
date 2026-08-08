@@ -95,10 +95,17 @@ enum PdfDocumentOrigin {
     Ocr,
 }
 
+/// Flat paragraph document for PDF text that arrived without structure.
+///
+/// `text` is whichever of native or OCR text won the extraction-method decision, and
+/// neither is guaranteed LF-only: `crate::pdf::text::fix_pdf_control_chars` explicitly
+/// whitelists `\r` as a character to preserve, and the VLM OCR backend returns model
+/// markdown verbatim from an HTTP response. Normalize before splitting (#316).
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 fn flat_pdf_document(text: &str, mime_type: &str) -> InternalDocument {
     let mut doc = InternalDocument::new("pdf");
     doc.mime_type = mime_type.to_string();
+    let text = crate::extraction::transform::normalize_line_endings(text);
     for paragraph in text.split("\n\n").map(str::trim).filter(|text| !text.is_empty()) {
         doc.push_element(InternalElement::text(ElementKind::Paragraph, paragraph, 0));
     }
@@ -162,6 +169,43 @@ fn inject_unrepresented_table_elements(doc: &mut InternalDocument, allow_injecti
 
     for table_index in 0..doc.tables.len() as u32 {
         doc.push_element(InternalElement::text(ElementKind::Table { table_index }, "", 0));
+    }
+}
+
+/// Surface filled AcroForm/XFA field values in rendered content (issue #64).
+///
+/// `doc.form_fields` already reaches the typed `ExtractedDocument.form_fields`
+/// API, but nothing renders it into `content`. For the plain-text path this is
+/// usually harmless: `oxide::text`'s `append_missing_widget_values` already
+/// splices Widget `/V` values into the flat native text before it is chopped
+/// into `Paragraph` elements. But the *structured* path (Markdown/HTML/Djot,
+/// built from `pdf::oxide::hierarchy`'s span segments) never sees that
+/// splice — a filled, non-flattened form renders with none of its entered
+/// values.
+///
+/// Follows `inject_unrepresented_table_elements`'s pattern: push one
+/// `ElementKind::Paragraph` per field that has a non-empty value and isn't
+/// already present verbatim somewhere in the document (the containment check
+/// is what keeps the plain-text path, which already has the value, from
+/// getting a duplicate).
+fn inject_unrepresented_form_field_elements(doc: &mut InternalDocument, form_fields: &[crate::types::PdfFormField]) {
+    for field in form_fields {
+        let Some(value) = field.value.as_ref().filter(|v| !v.is_empty()) else {
+            continue;
+        };
+        if doc.elements.iter().any(|element| element.text.contains(value.as_str())) {
+            continue;
+        }
+        let display_name = if field.full_name.is_empty() {
+            field.name.as_str()
+        } else {
+            field.full_name.as_str()
+        };
+        doc.push_element(InternalElement::text(
+            ElementKind::Paragraph,
+            format!("{display_name}: {value}"),
+            0,
+        ));
     }
 }
 
@@ -359,11 +403,20 @@ async fn run_ocr_with_layout(
     Vec<crate::types::Formula>,
     OcrLayoutGateDecisions,
     Option<crate::types::ProcessingWarning>,
+    Vec<crate::types::ProcessingWarning>,
 )> {
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let mut layout_warning = None;
     #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
     let layout_warning = None;
+
+    // `pdf_oxide` glyph-drop warnings captured while the layout pass rendered
+    // its pages (#353); populated only on the layout-detection path, since
+    // that is the only render call site routed through `spawn_blocking`.
+    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+    let mut layout_glyph_drop_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
+    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
+    let layout_glyph_drop_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
 
     #[cfg(all(feature = "pdf", feature = "layout-detection"))]
     let mut ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
@@ -378,30 +431,38 @@ async fn run_ocr_with_layout(
         if let Some(layout_config) = config.resolved_layout_config() {
             let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
             match layout_runner::run_layout_for_ocr(content, layout_config.as_ref(), thread_budget).await {
-                Ok(layout_runner::LayoutAttempt {
-                    output:
-                        layout_runner::LayoutRunOutput {
-                            data: Some(layout),
-                            gate_decisions,
-                        },
-                    acceleration_override,
-                    warning,
-                }) => {
+                Ok((
+                    layout_runner::LayoutAttempt {
+                        output:
+                            layout_runner::LayoutRunOutput {
+                                data: Some(layout),
+                                gate_decisions,
+                            },
+                        acceleration_override,
+                        warning,
+                    },
+                    glyph_drop_warnings,
+                )) => {
                     layout_acceleration_override = acceleration_override;
                     layout_warning = warning;
+                    layout_glyph_drop_warnings = glyph_drop_warnings;
                     ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
                     Some(layout)
                 }
-                Ok(layout_runner::LayoutAttempt {
-                    output:
-                        layout_runner::LayoutRunOutput {
-                            data: None,
-                            gate_decisions,
-                        },
-                    acceleration_override: _,
-                    warning,
-                }) => {
+                Ok((
+                    layout_runner::LayoutAttempt {
+                        output:
+                            layout_runner::LayoutRunOutput {
+                                data: None,
+                                gate_decisions,
+                            },
+                        acceleration_override: _,
+                        warning,
+                    },
+                    glyph_drop_warnings,
+                )) => {
                     layout_warning = warning;
+                    layout_glyph_drop_warnings = glyph_drop_warnings;
                     tracing::info!("OCR layout: auto gate skipped every page, continuing without layout assembly");
                     ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
                     None
@@ -474,6 +535,7 @@ async fn run_ocr_with_layout(
             pipeline_formulas,
             ocr_layout_gate_decisions,
             layout_warning,
+            layout_glyph_drop_warnings,
         ));
     }
 
@@ -501,6 +563,7 @@ async fn run_ocr_with_layout(
         formulas,
         ocr_layout_gate_decisions,
         layout_warning,
+        layout_glyph_drop_warnings,
     ))
 }
 
@@ -609,6 +672,7 @@ impl PdfExtractor {
             markdown_layout_gate_decisions,
             markdown_layout_warning,
             mut markdown_layout_acceleration_override,
+            markdown_layout_glyph_drop_warnings,
         ) = layout_runner::maybe_run_layout_for_markdown(content, config).await;
 
         #[cfg(all(feature = "pdf", feature = "layout-detection"))]
@@ -651,6 +715,8 @@ impl PdfExtractor {
             pdf_annotations,
             mut extracted_images,
             pdf_form_fields,
+            mut pdf_extraction_warnings,
+            pdf_page_labels,
         ) = extract_all_from_oxide_document(
             oxide_document,
             config,
@@ -765,6 +831,7 @@ impl PdfExtractor {
                 formulas,
                 gate_audit,
                 layout_warning,
+                layout_glyph_drop_warnings,
             ) = run_ocr_with_layout(
                 content,
                 config,
@@ -778,6 +845,9 @@ impl PdfExtractor {
             )
             .await?;
             if let Some(warning) = layout_warning {
+                crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
+            }
+            for warning in layout_glyph_drop_warnings {
                 crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
             }
             ocr_layout_gate_audit = gate_audit;
@@ -953,8 +1023,12 @@ impl PdfExtractor {
                                 formulas,
                                 gate_audit,
                                 layout_warning,
+                                layout_glyph_drop_warnings,
                             )) => {
                                 if let Some(warning) = layout_warning {
+                                    crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
+                                }
+                                for warning in layout_glyph_drop_warnings {
                                     crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
                                 }
                                 ocr_layout_gate_audit = gate_audit;
@@ -1190,11 +1264,45 @@ impl PdfExtractor {
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         doc.processing_warnings.append(&mut ocr_fallback_warnings);
 
+        doc.processing_warnings.append(&mut pdf_extraction_warnings);
+
+        // #340: drain any pdf_oxide glyph-drop warnings captured while this
+        // document's pages were rendered on *this* thread (OCR rasterization
+        // and any other call routed through `render_page_capturing_glyph_drops`
+        // in `crate::pdf::render` that runs inline on the extracting task's
+        // thread). The drain is unconditionally cheap and correct even when
+        // nothing was ever captured: `install_pdf_render_diagnostics` is
+        // opt-in and only an embedding application calls it (a library must
+        // not seize the process-global `log` backend on its own — see
+        // `pdf::render` for why), so this buffer stays empty for every caller
+        // that has not opted in and this loop is a no-op `Vec::is_empty`
+        // check. Deduped because a multi-page document can hit the identical
+        // pdf_oxide cause on many pages.
+        //
+        // Layout-detection rasterization runs inside `tokio::task::spawn_blocking`
+        // on a different OS thread, so this drain never sees those warnings —
+        // `layout_runner::run_layout_for_pdf_pages_async` drains them itself
+        // from inside that closure and threads them back through its return
+        // value instead (#353); they are merged below via
+        // `markdown_layout_glyph_drop_warnings` (markdown path) and were
+        // already folded into `ocr_fallback_warnings` above (OCR path).
+        for pdf_render_warning in crate::pdf::render::take_pdf_oxide_render_warnings() {
+            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, pdf_render_warning);
+        }
+
         // Surface a hard layout-inference failure (e.g. CoreML kernel error) so
         // degraded no-layout output is never silent to the caller (#1344). Runs
         // whenever layout-detection is on, independent of OCR.
         #[cfg(all(feature = "pdf", feature = "layout-detection"))]
         if let Some(warning) = markdown_layout_warning {
+            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
+        }
+
+        // #353: merge `pdf_oxide` glyph-drop warnings captured while the
+        // markdown layout pass rendered its pages off-thread inside
+        // `spawn_blocking` (see the drain comment above).
+        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
+        for warning in markdown_layout_glyph_drop_warnings {
             crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
         }
 
@@ -1238,6 +1346,20 @@ impl PdfExtractor {
             serde_json::Value::String(extraction_method.as_str().to_string()),
         );
 
+        // Issue #66: `/PageLabels` — one display label per page, index-aligned
+        // with `pdf_metadata.page_structure`/`PageBoundary::page_number`.
+        // `PdfMetadata` is an alef-listed type (no new public fields), so this
+        // rides in `additional` instead.
+        if let Some(labels) = pdf_page_labels {
+            doc.metadata
+                .additional
+                .insert(std::borrow::Cow::Borrowed("page_labels"), serde_json::json!(labels));
+        }
+
+        // Issue #64: surface filled field values in rendered content for
+        // output shapes (Markdown/HTML/Djot) that the plain-text widget
+        // splice in `oxide::text` never touches.
+        inject_unrepresented_form_field_elements(&mut doc, &pdf_form_fields);
         doc.form_fields = pdf_form_fields;
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]

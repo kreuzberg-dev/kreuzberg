@@ -98,6 +98,9 @@ ocr = ["legacy-base", "ocr-surface", "xberg/ocr"]
 api = ["legacy-base", "xberg/api"]
 mcp = ["legacy-base", "xberg/mcp"]
 mcp-http = ["legacy-base", "xberg/mcp-http"]
+# Opt-in Prometheus `/metrics` endpoint (#1391). Passthrough only: xberg/prometheus already
+# pulls in xberg/api + xberg/otel.
+prometheus = ["legacy-base", "xberg/prometheus"]
 embeddings = ["legacy-base", "xberg/embeddings"]
 paddle-ocr = ["legacy-base", "ocr-surface", "xberg/paddle-ocr"]
 sceptre-ocr = ["legacy-base", "ocr-surface", "xberg/sceptre-ocr"]

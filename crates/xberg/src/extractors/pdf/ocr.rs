@@ -226,7 +226,10 @@ impl NativeTextStats {
     }
 
     /// Convenience method using default thresholds.
-    #[cfg(test)]
+    // Gated to `ocr` to match its only callers, which live in the
+    // `#[cfg(all(test, feature = "ocr"))]` test module below. `ocr-pipeline`
+    // alone (pulled in by `liter-llm`) compiles this file but not them. ~keep
+    #[cfg(all(test, feature = "ocr"))]
     pub(crate) fn from(text: &str) -> Self {
         Self::compute(text, &OcrQualityThresholds::default())
     }
@@ -488,7 +491,9 @@ pub(crate) fn evaluate_per_page_ocr(
 ///
 /// `page_indices` are 0-indexed. Only the requested pages are rendered,
 /// returned as `(page_index, image)` pairs.
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+// Gated to `ocr` rather than `any(ocr, ocr-pipeline)` to match its only
+// callers in the `#[cfg(all(test, feature = "ocr"))]` test module. ~keep
+#[cfg(all(test, feature = "ocr", feature = "pdf"))]
 pub(crate) fn render_selected_pages_for_ocr(
     content: &[u8],
     page_indices: &[usize],
@@ -647,6 +652,86 @@ fn assemble_mixed_ocr_page_document(
 
     normalize_mixed_ocr_document_page(&mut doc, page_number);
     doc
+}
+
+/// Flat OCR-text document for a page whose backend produced tables or OCR elements
+/// but no structured document.
+///
+/// Mirrors the paragraph shape of the raw-text fallback in `append_ocr_replacements`
+/// so the page reads identically, while giving its assets a document to travel in.
+///
+/// OCR page text is normalized to LF first: backend output is not uniformly LF-only.
+/// Tesseract emits LF, but the VLM backend (`crate::llm::vlm_ocr`) returns the model's
+/// markdown verbatim out of an HTTP JSON body, which routinely carries `\r\n`. Splitting
+/// raw would fold the entire page into a single block element (#316).
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn flat_ocr_page_document(text: &str) -> crate::types::internal::InternalDocument {
+    use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+    use crate::types::ocr_elements::OcrElementLevel;
+
+    let mut doc = InternalDocument::new("pdf");
+    let text = crate::extraction::transform::normalize_line_endings(text);
+    for paragraph in text
+        .split("\n\n")
+        .map(str::trim)
+        .filter(|paragraph| !paragraph.is_empty())
+    {
+        doc.push_element(InternalElement::text(
+            ElementKind::OcrText {
+                level: OcrElementLevel::Block,
+            },
+            paragraph,
+            0,
+        ));
+    }
+    doc
+}
+
+/// Attach a page's OCR tables and OCR elements to its structured document.
+///
+/// The mixed route used to discard both (#60): only `ocr_internal_document` was kept,
+/// so tables recognised on an OCR'd page and every word-level bounding box were lost.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn attach_page_ocr_payload(
+    doc: &mut crate::types::internal::InternalDocument,
+    tables: Vec<crate::types::Table>,
+    elements: Vec<crate::types::OcrElement>,
+    page_number: u32,
+) {
+    if doc.tables.is_empty() {
+        doc.tables = tables;
+    }
+    if !elements.is_empty() {
+        let mut elements = elements;
+        for element in &mut elements {
+            element.page_number = page_number;
+        }
+        doc.prebuilt_ocr_elements.get_or_insert_with(Vec::new).extend(elements);
+    }
+}
+
+/// Build the per-page structured document for the single-backend mixed OCR route,
+/// carrying the backend's tables and OCR elements instead of dropping them (#60).
+///
+/// Returns `None` only when the backend produced nothing structured at all, which
+/// keeps the raw-text replacement path unchanged for plain-text pages.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn build_mixed_ocr_page_document(
+    result: &mut crate::types::ExtractedDocument,
+    page_number: u32,
+    page_height: u32,
+) -> Option<crate::types::internal::InternalDocument> {
+    let backend_tables = std::mem::take(&mut result.tables);
+    let backend_elements = result.ocr_elements.take().unwrap_or_default();
+    let mut doc = match result.ocr_internal_document.take() {
+        Some(doc) => doc,
+        None if backend_tables.is_empty() && backend_elements.is_empty() => return None,
+        None => flat_ocr_page_document(&result.content),
+    };
+    attach_page_ocr_payload(&mut doc, backend_tables, Vec::new(), page_number);
+    let mut assembled = assemble_mixed_ocr_page_document(doc, page_number, page_height);
+    attach_page_ocr_payload(&mut assembled, Vec::new(), backend_elements, page_number);
+    Some(assembled)
 }
 
 /// Build mixed text from native extraction and per-page OCR results.
@@ -812,18 +897,11 @@ pub(crate) async fn extract_mixed_ocr_native(
                         message: format!("OCR pipeline task panicked: {}", e),
                         plugin_name: "ocr".to_string(),
                     })?;
-                    let (text, _tables, _elements, doc, usage, page_texts, _rasters, formulas) = result?;
+                    let (text, tables, elements, doc, usage, page_texts, _rasters, formulas) = result?;
                     accumulated_llm_usage.extend(usage);
-                    if let Some(mut d) = doc {
-                        crate::core::diagnostics::dedup_extend_warnings(
-                            &mut accumulated_warnings,
-                            std::mem::take(&mut d.processing_warnings),
-                        );
-                        normalize_mixed_ocr_document_page(&mut d, (page_idx + 1) as u32);
-                        structured_ocr_pages.insert((page_idx + 1) as u32, d);
-                    }
+                    let page_number = (page_idx + 1) as u32;
                     for mut formula in formulas {
-                        formula.page = (page_idx + 1) as u32;
+                        formula.page = page_number;
                         accumulated_formulas.push(formula);
                     }
                     // `run_ocr_pipeline`/`extract_with_ocr` assemble `text` as if this
@@ -832,13 +910,29 @@ pub(crate) async fn extract_mixed_ocr_native(
                     // `page_texts` entry has no marker injected at that layer, so prefer
                     // fall back to `text` only if the backend returned no page_texts.
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
-                    ocr_results.insert((page_idx + 1) as u32, page_text);
+                    // The pipeline's tables and OCR elements used to be dropped here (#60);
+                    // they now ride along on the page's structured document.
+                    let page_doc = match doc {
+                        Some(doc) => Some(doc),
+                        None if tables.is_empty() && elements.is_empty() => None,
+                        None => Some(flat_ocr_page_document(&page_text)),
+                    };
+                    if let Some(mut d) = page_doc {
+                        attach_page_ocr_payload(&mut d, tables, elements, page_number);
+                        crate::core::diagnostics::dedup_extend_warnings(
+                            &mut accumulated_warnings,
+                            std::mem::take(&mut d.processing_warnings),
+                        );
+                        normalize_mixed_ocr_document_page(&mut d, page_number);
+                        structured_ocr_pages.insert(page_number, d);
+                    }
+                    ocr_results.insert(page_number, page_text);
                 }
             }
             #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
             {
                 for (page_idx, image) in &page_images {
-                    let (text, _tables, _elements, doc, usage, page_texts, _rasters, formulas) =
+                    let (text, tables, elements, doc, usage, page_texts, _rasters, formulas) =
                         Box::pin(run_ocr_pipeline(
                             None,
                             Some(std::slice::from_ref(image.as_ref())),
@@ -850,20 +944,27 @@ pub(crate) async fn extract_mixed_ocr_native(
                         ))
                         .await?;
                     accumulated_llm_usage.extend(usage);
-                    if let Some(mut d) = doc {
+                    let page_number = (*page_idx + 1) as u32;
+                    for mut formula in formulas {
+                        formula.page = page_number;
+                        accumulated_formulas.push(formula);
+                    }
+                    let page_text = page_texts.into_iter().next().unwrap_or(text);
+                    let page_doc = match doc {
+                        Some(doc) => Some(doc),
+                        None if tables.is_empty() && elements.is_empty() => None,
+                        None => Some(flat_ocr_page_document(&page_text)),
+                    };
+                    if let Some(mut d) = page_doc {
+                        attach_page_ocr_payload(&mut d, tables, elements, page_number);
                         crate::core::diagnostics::dedup_extend_warnings(
                             &mut accumulated_warnings,
                             std::mem::take(&mut d.processing_warnings),
                         );
-                        normalize_mixed_ocr_document_page(&mut d, (*page_idx + 1) as u32);
-                        structured_ocr_pages.insert((*page_idx + 1) as u32, d);
+                        normalize_mixed_ocr_document_page(&mut d, page_number);
+                        structured_ocr_pages.insert(page_number, d);
                     }
-                    for mut formula in formulas {
-                        formula.page = (*page_idx + 1) as u32;
-                        accumulated_formulas.push(formula);
-                    }
-                    let page_text = page_texts.into_iter().next().unwrap_or(text);
-                    ocr_results.insert((*page_idx + 1) as u32, page_text);
+                    ocr_results.insert(page_number, page_text);
                 }
             }
             if capture_rasters {
@@ -960,15 +1061,23 @@ pub(crate) async fn extract_mixed_ocr_native(
                     formula.page = (page_idx + 1) as u32;
                     accumulated_formulas.push(formula);
                 }
-                if let Some(doc) = extraction_result.ocr_internal_document.take() {
-                    let height = encoded
-                        .iter()
-                        .find(|(encoded_page, ..)| *encoded_page == page_idx)
-                        .map_or(0, |(_, _, _, height)| *height);
-                    structured_ocr_pages.insert(
-                        (page_idx + 1) as u32,
-                        assemble_mixed_ocr_page_document(doc, (page_idx + 1) as u32, height),
+                // The backend's own warnings used to be dropped on this route (#60).
+                crate::core::diagnostics::dedup_extend_warnings(
+                    &mut accumulated_warnings,
+                    std::mem::take(&mut extraction_result.processing_warnings),
+                );
+                let height = encoded
+                    .iter()
+                    .find(|(encoded_page, ..)| *encoded_page == page_idx)
+                    .map_or(0, |(_, _, _, height)| *height);
+                if let Some(mut page_doc) =
+                    build_mixed_ocr_page_document(&mut extraction_result, (page_idx + 1) as u32, height)
+                {
+                    crate::core::diagnostics::dedup_extend_warnings(
+                        &mut accumulated_warnings,
+                        std::mem::take(&mut page_doc.processing_warnings),
                     );
+                    structured_ocr_pages.insert((page_idx + 1) as u32, page_doc);
                 }
                 ocr_results.insert((page_idx + 1) as u32, extraction_result.content);
             }
@@ -984,11 +1093,18 @@ pub(crate) async fn extract_mixed_ocr_native(
                     formula.page = (*page_idx + 1) as u32;
                     accumulated_formulas.push(formula);
                 }
-                if let Some(doc) = extraction_result.ocr_internal_document.take() {
-                    structured_ocr_pages.insert(
-                        (*page_idx + 1) as u32,
-                        assemble_mixed_ocr_page_document(doc, (*page_idx + 1) as u32, *height),
+                crate::core::diagnostics::dedup_extend_warnings(
+                    &mut accumulated_warnings,
+                    std::mem::take(&mut extraction_result.processing_warnings),
+                );
+                if let Some(mut page_doc) =
+                    build_mixed_ocr_page_document(&mut extraction_result, (*page_idx + 1) as u32, *height)
+                {
+                    crate::core::diagnostics::dedup_extend_warnings(
+                        &mut accumulated_warnings,
+                        std::mem::take(&mut page_doc.processing_warnings),
                     );
+                    structured_ocr_pages.insert((*page_idx + 1) as u32, page_doc);
                 }
                 ocr_results.insert((*page_idx + 1) as u32, extraction_result.content);
             }
@@ -1025,7 +1141,9 @@ pub(crate) async fn extract_mixed_ocr_native(
 /// skipped rather than applied: an empty OCR result must never overwrite a page's
 /// native text, or a page whose backend produced nothing would silently lose its
 /// already-extracted content.
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+// Gated to `ocr` rather than `any(ocr, ocr-pipeline)` to match its only
+// callers in the `#[cfg(all(test, feature = "ocr"))]` test module. ~keep
+#[cfg(all(test, feature = "ocr"))]
 pub(crate) fn merge_ocr_pages_into_native(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -1151,10 +1269,64 @@ pub(crate) fn merge_structured_ocr_pages_into_internal_document(
 
     let containers = analyze_container_markers(&doc.elements);
     let anchors = replacement_anchors(&doc.elements, &containers.inferred_pages, &replacements);
-    let planned = plan_merged_elements(&doc.elements, &containers, &replacements, structured_pages, &anchors);
+    // Assets carried by a per-page OCR document are re-indexed into the parent's
+    // collections instead of being discarded. Discarding them used to force the
+    // raw-text fallback in `append_ocr_replacements`, which dropped every table the
+    // OCR'd page produced (#57) and destroyed the asset-to-page association (#59).
+    let mut assets = MergedOcrAssets::new(doc.tables.len() as u32, doc.images.len() as u32);
+    let planned = plan_merged_elements(
+        &doc.elements,
+        &containers,
+        &replacements,
+        structured_pages,
+        &anchors,
+        &mut assets,
+    );
     let (rebuilt, old_to_new) = rebuild_planned_elements(planned, doc.elements.len());
     remap_relationships(&mut doc.relationships, &old_to_new, &rebuilt);
     doc.elements = rebuilt;
+    doc.tables.extend(assets.tables);
+    doc.images.extend(assets.images);
+    if !assets.ocr_elements.is_empty() {
+        doc.prebuilt_ocr_elements
+            .get_or_insert_with(Vec::new)
+            .extend(assets.ocr_elements);
+    }
+}
+
+/// Tables, images and OCR elements lifted out of per-page OCR documents and
+/// re-indexed into the parent document's collections.
+///
+/// `table_base` / `image_base` are the parent's collection lengths before the
+/// merge, so a page-local index `i` becomes `base + already_merged + i`.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+struct MergedOcrAssets {
+    table_base: u32,
+    image_base: u32,
+    tables: Vec<crate::types::Table>,
+    images: Vec<crate::types::ExtractedImage>,
+    ocr_elements: Vec<crate::types::OcrElement>,
+}
+
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+impl MergedOcrAssets {
+    fn new(table_base: u32, image_base: u32) -> Self {
+        Self {
+            table_base,
+            image_base,
+            tables: Vec::new(),
+            images: Vec::new(),
+            ocr_elements: Vec::new(),
+        }
+    }
+
+    fn next_table_index(&self) -> u32 {
+        self.table_base + self.tables.len() as u32
+    }
+
+    fn next_image_index(&self) -> u32 {
+        self.image_base + self.images.len() as u32
+    }
 }
 
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
@@ -1193,12 +1365,13 @@ fn plan_merged_elements(
     replacements: &std::collections::BTreeMap<u32, &str>,
     structured_pages: &ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
     anchors: &std::collections::BTreeMap<usize, Vec<(u32, &str)>>,
+    assets: &mut MergedOcrAssets,
 ) -> Vec<PlannedOcrElement> {
     use crate::types::internal::ElementKind;
 
     let mut planned = Vec::with_capacity(elements.len() + replacements.len());
     for (old_index, element) in elements.iter().enumerate() {
-        append_ocr_replacements(&mut planned, anchors.get(&old_index), structured_pages);
+        append_ocr_replacements(&mut planned, anchors.get(&old_index), structured_pages, assets);
         if containers.drop_marker[old_index] {
             continue;
         }
@@ -1222,7 +1395,7 @@ fn plan_merged_elements(
             page,
         });
     }
-    append_ocr_replacements(&mut planned, anchors.get(&elements.len()), structured_pages);
+    append_ocr_replacements(&mut planned, anchors.get(&elements.len()), structured_pages, assets);
     planned
 }
 
@@ -1231,45 +1404,33 @@ fn append_ocr_replacements(
     planned: &mut Vec<PlannedOcrElement>,
     replacements: Option<&Vec<(u32, &str)>>,
     structured_pages: &ahash::AHashMap<u32, crate::types::internal::InternalDocument>,
+    assets: &mut MergedOcrAssets,
 ) {
     use crate::types::internal::{ElementKind, InternalElement};
     use crate::types::ocr_elements::OcrElementLevel;
 
     for &(page, text) in replacements.into_iter().flatten() {
-        let structured_elements = structured_pages.get(&page).and_then(|doc| {
-            // TODO: Reindex structured page table/image collections into the parent before using
-            // their elements; until then, flat replacement preserves their rendered content. ~keep
-            let has_unmerged_assets = !doc.tables.is_empty()
+        // Usability is decided before re-indexing so a rejected page never leaks its
+        // tables/images into `assets`.
+        let structured_page = structured_pages.get(&page).filter(|doc| {
+            !doc.tables.is_empty()
                 || !doc.images.is_empty()
                 || doc
                     .elements
                     .iter()
-                    .any(|element| matches!(element.kind, ElementKind::Table { .. } | ElementKind::Image { .. }));
-            if has_unmerged_assets {
-                return None;
-            }
-
-            Some(
-                doc.elements
-                    .iter()
-                    .filter(|element| !matches!(element.kind, ElementKind::PageBreak))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-            )
+                    .any(|element| !matches!(element.kind, ElementKind::PageBreak) && !element.text.trim().is_empty())
         });
-        if let Some(elements) =
-            structured_elements.filter(|elements| elements.iter().any(|element| !element.text.trim().is_empty()))
-        {
-            planned.extend(elements.into_iter().map(|mut element| {
-                element.page = Some(page);
-                PlannedOcrElement {
-                    element,
-                    old_index: None,
-                    page: Some(page),
-                }
+        if let Some(structured_page) = structured_page {
+            let elements = reindex_structured_ocr_page(structured_page, page, assets);
+            planned.extend(elements.into_iter().map(|element| PlannedOcrElement {
+                element,
+                old_index: None,
+                page: Some(page),
             }));
             continue;
         }
+        // Backend text verbatim (see `flat_ocr_page_document`): normalize before splitting.
+        let text = crate::extraction::transform::normalize_line_endings(text);
         for paragraph in text.split("\n\n").map(str::trim).filter(|text| !text.is_empty()) {
             let element = InternalElement::text(
                 ElementKind::OcrText {
@@ -1286,6 +1447,111 @@ fn append_ocr_replacements(
             });
         }
     }
+}
+
+/// Move an OCR'd page's tables, images and OCR elements into the parent document's
+/// collections and rewrite the page's element references to the new parent indices.
+///
+/// Page-local `Table { table_index }` / `Image { image_index }` references are only
+/// meaningful against the page document's own collections, so they must be rebased
+/// before the elements are spliced into the parent (#59). Assets the page document
+/// carries but never references from its element list still get a reference emitted,
+/// so a table produced by OCR cannot silently vanish (#57).
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+fn reindex_structured_ocr_page(
+    page_doc: &crate::types::internal::InternalDocument,
+    page: u32,
+    assets: &mut MergedOcrAssets,
+) -> Vec<crate::types::internal::InternalElement> {
+    use crate::types::internal::{ElementKind, InternalElement};
+
+    let table_base = assets.next_table_index();
+    let image_base = assets.next_image_index();
+
+    for table in &page_doc.tables {
+        let mut table = table.clone();
+        table.page_number = page;
+        assets.tables.push(table);
+    }
+    for (local_index, image) in page_doc.images.iter().enumerate() {
+        let mut image = image.clone();
+        image.page_number = Some(page);
+        image.image_index = image_base + local_index as u32;
+        assets.images.push(image);
+    }
+    if let Some(page_ocr_elements) = page_doc.prebuilt_ocr_elements.as_ref() {
+        assets
+            .ocr_elements
+            .extend(page_ocr_elements.iter().cloned().map(|mut element| {
+                element.page_number = page;
+                element
+            }));
+    }
+
+    let mut referenced_tables = vec![false; page_doc.tables.len()];
+    let mut referenced_images = vec![false; page_doc.images.len()];
+    let mut elements = Vec::with_capacity(page_doc.elements.len());
+    for element in &page_doc.elements {
+        if matches!(element.kind, ElementKind::PageBreak) {
+            continue;
+        }
+        let mut element = element.clone();
+        match element.kind {
+            ElementKind::Table { table_index } => {
+                let Some(referenced) = referenced_tables.get_mut(table_index as usize) else {
+                    // Dangling page-local reference: the table it points at does not exist.
+                    continue;
+                };
+                *referenced = true;
+                element.kind = ElementKind::Table {
+                    table_index: table_base + table_index,
+                };
+            }
+            ElementKind::Image { image_index } => {
+                let Some(referenced) = referenced_images.get_mut(image_index as usize) else {
+                    continue;
+                };
+                *referenced = true;
+                element.kind = ElementKind::Image {
+                    image_index: image_base + image_index,
+                };
+            }
+            _ => {}
+        }
+        element.page = Some(page);
+        elements.push(element);
+    }
+
+    for (local_index, referenced) in referenced_tables.iter().enumerate() {
+        if !*referenced {
+            elements.push(
+                InternalElement::text(
+                    ElementKind::Table {
+                        table_index: table_base + local_index as u32,
+                    },
+                    "",
+                    0,
+                )
+                .with_page(page),
+            );
+        }
+    }
+    for (local_index, referenced) in referenced_images.iter().enumerate() {
+        if !*referenced {
+            elements.push(
+                InternalElement::text(
+                    ElementKind::Image {
+                        image_index: image_base + local_index as u32,
+                    },
+                    "",
+                    0,
+                )
+                .with_page(page),
+            );
+        }
+    }
+
+    elements
 }
 
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
@@ -1407,14 +1673,19 @@ fn analyze_container_markers(elements: &[crate::types::internal::InternalElement
     analysis
 }
 
-// locally because this PDF OCR path also compiles under `ocr-pipeline` (VLM OCR, e.g.
-// the `binstall` CLI) where the `ocr` module — gated on `ocr`/`ocr-wasm` — is absent.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-const OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY: &str = "ocr_processed_image_width";
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-const OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY: &str = "ocr_processed_image_height";
+// The OCR metadata keys come from `crate::ocr_metadata_keys`, which is ungated, rather
+// than from `crate::ocr`: this PDF OCR path also compiles under `ocr-pipeline` (VLM OCR,
+// e.g. the `binstall` CLI) or under `layout-detection` alone (layout without any OCR
+// backend enabled), where the `ocr` module — gated on `ocr`/`ocr-wasm` — is absent.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+use crate::ocr_metadata_keys::{OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY, OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY};
+// Same rationale, scoped to `layout-detection` only: `resolved_ocr_correction_degrees` and
+// `transform_ocr_elements_to_render_space` (both `layout-detection`-only) are the sole
+// readers of these two key names in this file.
+#[cfg(feature = "layout-detection")]
+use crate::ocr_metadata_keys::{OCR_AUTO_ROTATED_METADATA_KEY, OCR_ORIENTATION_DEGREES_METADATA_KEY};
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
 fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     let value = value.as_f64()?;
     if !value.is_finite() || value <= 0.0 || value > u32::MAX as f64 || value.fract() != 0.0 {
@@ -1423,7 +1694,7 @@ fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     Some(value as u32)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
 fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<(u32, u32)> {
     let width = metadata
         .additional
@@ -1477,7 +1748,7 @@ fn scale_detection_to_dimensions(
 fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata) -> Option<u16> {
     if !metadata
         .additional
-        .get(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY)
+        .get(OCR_AUTO_ROTATED_METADATA_KEY)
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false)
     {
@@ -1485,7 +1756,7 @@ fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata) -> Option<
     }
     let orientation = metadata
         .additional
-        .get(crate::ocr::OCR_ORIENTATION_DEGREES_METADATA_KEY)
+        .get(OCR_ORIENTATION_DEGREES_METADATA_KEY)
         .and_then(serde_json::Value::as_i64)?;
     if !matches!(orientation, 0 | 90 | 180 | 270) {
         return None;
@@ -1649,7 +1920,7 @@ fn transform_ocr_elements_to_render_space(
     };
     let auto_rotated = metadata
         .additional
-        .get(crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY)
+        .get(OCR_AUTO_ROTATED_METADATA_KEY)
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let correction_degrees = resolved_ocr_correction_degrees(metadata);
@@ -1706,6 +1977,35 @@ fn fill_unstructured_ocr_pages(
                 *paragraphs = Some(fallback);
             }
         }
+    }
+}
+
+/// Convert a TATR-recognized table into the public [`crate::types::Table`],
+/// carrying over its `detection_bbox` and assigning a deterministic `table_id`.
+///
+/// `table_index` is the table's 0-based position in the document's push order
+/// (see the caller), so the id is `"table-{table_index + 1}"` — never derived
+/// from randomness or wall-clock time, so the same input document always
+/// produces the same id. See [`crate::types::Table::table_id`] for the shared
+/// scheme doc.
+#[cfg(feature = "layout-detection")]
+fn recognized_table_to_public_table(
+    recognized: &crate::RecognizedTable,
+    page_number: u32,
+    table_index: usize,
+) -> crate::types::Table {
+    crate::types::Table {
+        cells: recognized.cells.clone(),
+        markdown: recognized.markdown.clone(),
+        page_number,
+        bounding_box: Some(crate::types::BoundingBox {
+            x0: recognized.detection_bbox.x1 as f64,
+            y0: recognized.detection_bbox.y1 as f64,
+            x1: recognized.detection_bbox.x2 as f64,
+            y1: recognized.detection_bbox.y2 as f64,
+        }),
+        table_id: Some(format!("table-{}", table_index + 1)),
+        columns: recognized.cells.first().cloned(),
     }
 }
 
@@ -2119,13 +2419,11 @@ pub(crate) async fn extract_with_ocr(
 
                 for rt in &recognized_tables {
                     if !rt.markdown.is_empty() {
-                        collected_tables.push(crate::types::Table {
-                            cells: rt.cells.clone(),
-                            markdown: rt.markdown.clone(),
-                            page_number: (page_idx + 1) as u32,
-                            bounding_box: None,
-                            ..Default::default()
-                        });
+                        // The id is this table's 1-based position in `collected_tables`;
+                        // pages are processed strictly in increasing `page_idx` order
+                        // above, so push order is deterministic document order.
+                        let table_index = collected_tables.len();
+                        collected_tables.push(recognized_table_to_public_table(rt, (page_idx + 1) as u32, table_index));
                     }
                 }
 
@@ -2439,6 +2737,8 @@ fn attach_ocr_pipeline_stage_warnings(
 
     let retained_doc = doc.get_or_insert_with(|| {
         let mut doc = crate::types::internal::InternalDocument::new("pdf");
+        // Backend text verbatim (see `flat_ocr_page_document`): normalize before splitting.
+        let text = crate::extraction::transform::normalize_line_endings(text);
         for paragraph in text.split("\n\n").map(str::trim).filter(|text| !text.is_empty()) {
             doc.push_element(crate::types::internal::InternalElement::text(
                 crate::types::internal::ElementKind::Paragraph,
@@ -2488,6 +2788,8 @@ fn attach_ocr_fallback_warnings(
 
     let retained_doc = doc.get_or_insert_with(|| {
         let mut doc = crate::types::internal::InternalDocument::new("pdf");
+        // Backend text verbatim (see `flat_ocr_page_document`): normalize before splitting.
+        let text = crate::extraction::transform::normalize_line_endings(text);
         for paragraph in text.split("\n\n").map(str::trim).filter(|text| !text.is_empty()) {
             doc.push_element(crate::types::internal::InternalElement::text(
                 crate::types::internal::ElementKind::Paragraph,
@@ -2720,6 +3022,9 @@ pub(crate) async fn run_ocr_pipeline(
             );
             let mut doc = doc.unwrap_or_else(|| {
                 let mut d = crate::types::internal::InternalDocument::new("pdf");
+                // Backend text verbatim (see `flat_ocr_page_document`). This best-effort arm
+                // is where `PreferLastNonEmpty` lands VLM output, the most likely CR source.
+                let text = crate::extraction::transform::normalize_line_endings(&text);
                 for paragraph in text.split("\n\n") {
                     let trimmed = paragraph.trim();
                     if !trimmed.is_empty() {
@@ -2869,6 +3174,33 @@ mod tests {
     #[cfg(feature = "ocr")]
     fn t() -> OcrQualityThresholds {
         OcrQualityThresholds::default()
+    }
+
+    /// Issue #181: TATR tables recognized during full-document OCR must carry a
+    /// deterministic `table_id`, `columns`, and `bounding_box` derived from
+    /// `detection_bbox` — not `..Default::default()` blanks.
+    #[cfg(all(feature = "ocr", feature = "layout-detection"))]
+    #[test]
+    fn recognized_table_to_public_table_assigns_id_columns_and_bounding_box() {
+        let recognized = crate::RecognizedTable {
+            detection_bbox: crate::layout::BBox::new(10.0, 20.0, 110.0, 220.0),
+            cells: vec![
+                vec!["Name".to_string(), "Age".to_string()],
+                vec!["Alice".to_string(), "30".to_string()],
+            ],
+            markdown: "| Name | Age |\n|---|---|\n| Alice | 30 |".to_string(),
+        };
+
+        let table = recognized_table_to_public_table(&recognized, 3, 1);
+
+        assert_eq!(table.page_number, 3);
+        assert_eq!(table.table_id.as_deref(), Some("table-2"));
+        assert_eq!(table.columns, Some(vec!["Name".to_string(), "Age".to_string()]));
+        let bbox = table.bounding_box.expect("bounding box must be populated");
+        assert_eq!(bbox.x0, 10.0);
+        assert_eq!(bbox.y0, 20.0);
+        assert_eq!(bbox.x1, 110.0);
+        assert_eq!(bbox.y1, 220.0);
     }
 
     #[cfg(feature = "ocr")]
@@ -3407,8 +3739,11 @@ mod tests {
         }));
     }
 
+    /// A structured OCR page carrying assets is merged structurally, not flattened
+    /// back to raw text (#57/#59). This previously asserted the opposite: the flat
+    /// fallback ran and the page's table was lost.
     #[test]
-    fn test_structured_mixed_merge_uses_flat_fallback_for_pages_with_assets() {
+    fn test_structured_mixed_merge_reindexes_pages_with_assets() {
         use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
 
         let mut native = InternalDocument::new("pdf");
@@ -3433,15 +3768,34 @@ mod tests {
 
         merge_structured_ocr_pages_into_internal_document(&mut native, &replacements, &structured_pages);
 
-        assert!(native.elements.iter().any(|element| {
-            element.text.contains("| retained |") && matches!(element.kind, ElementKind::OcrText { .. })
-        }));
+        assert_eq!(
+            native.tables.len(),
+            1,
+            "the page's table must be merged into the parent"
+        );
+        assert_eq!(native.tables[0].markdown, "| value |\n| --- |\n| retained |");
+        assert_eq!(native.tables[0].page_number, 2);
+        assert!(
+            native.elements.iter().any(|element| {
+                element.text == "heading before table" && matches!(element.kind, ElementKind::Heading { level: 2 })
+            }),
+            "the structured heading must survive instead of being flattened to OCR text"
+        );
+        assert!(
+            native
+                .elements
+                .iter()
+                .any(|element| matches!(element.kind, ElementKind::Table { table_index: 0 })),
+            "the table reference must be rebased onto the parent's collection"
+        );
         assert!(
             !native
                 .elements
                 .iter()
-                .any(|element| matches!(element.kind, ElementKind::Heading { .. }))
+                .any(|element| matches!(element.kind, ElementKind::OcrText { .. })),
+            "the raw-text fallback must not run for a structurally merged page"
         );
+        assert!(!native.elements.iter().any(|element| element.text == "stale page"));
     }
 
     #[test]
@@ -5520,11 +5874,11 @@ Name: ___
     fn ocr_layout_dimensions_use_valid_processed_image_metadata() {
         let mut metadata = crate::types::Metadata::default();
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
             serde_json::json!(2000),
         );
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
             serde_json::json!(3000),
         );
 
@@ -5536,23 +5890,23 @@ Name: ___
     fn ocr_layout_dimensions_fall_back_for_incomplete_or_invalid_metadata() {
         let mut metadata = crate::types::Metadata::default();
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
             serde_json::json!(0),
         );
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
             serde_json::json!(3000),
         );
 
         assert_eq!(resolved_ocr_layout_dimensions(&metadata, 1000, 1500), (1000, 1500));
 
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
             serde_json::json!(2000),
         );
         metadata
             .additional
-            .remove(crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY);
+            .remove(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY);
 
         assert_eq!(resolved_ocr_layout_dimensions(&metadata, 1000, 1500), (1000, 1500));
     }
@@ -5589,19 +5943,19 @@ Name: ___
     fn rotated_ocr_metadata(final_width: u32, final_height: u32, orientation_degrees: i32) -> crate::types::Metadata {
         let mut metadata = crate::types::Metadata::default();
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY.into(),
             serde_json::json!(final_width),
         );
         metadata.additional.insert(
-            crate::ocr::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY.into(),
             serde_json::json!(final_height),
         );
         metadata.additional.insert(
-            crate::ocr::OCR_AUTO_ROTATED_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY.into(),
             serde_json::json!(true),
         );
         metadata.additional.insert(
-            crate::ocr::OCR_ORIENTATION_DEGREES_METADATA_KEY.into(),
+            crate::ocr_metadata_keys::OCR_ORIENTATION_DEGREES_METADATA_KEY.into(),
             serde_json::json!(orientation_degrees),
         );
         metadata
@@ -5728,5 +6082,269 @@ Name: ___
         let transformed = transform_ocr_elements_to_render_space(std::slice::from_ref(&element), &metadata, 100, 200);
 
         assert_eq!(transformed[0].geometry, element.geometry);
+    }
+
+    // ---------------------------------------------------------------------
+    // #57 / #59 / #60 — the mixed PDF OCR path must not drop what it rebuilds.
+    // ---------------------------------------------------------------------
+
+    /// Native two-page document: page 1 native prose, page 2 native prose.
+    fn native_two_page_document() -> crate::types::internal::InternalDocument {
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+
+        let mut doc = InternalDocument::new("pdf");
+        doc.mime_type = "application/pdf".to_string();
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "native page one", 0).with_page(1));
+        doc.push_element(InternalElement::text(ElementKind::PageBreak, "", 0));
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "native page two", 0).with_page(2));
+        doc
+    }
+
+    fn ocr_table(markdown: &str, page_number: u32) -> crate::types::Table {
+        crate::types::Table {
+            cells: vec![vec!["a".to_string(), "b".to_string()]],
+            markdown: markdown.to_string(),
+            page_number,
+            bounding_box: None,
+            ..Default::default()
+        }
+    }
+
+    /// Structured OCR result for one page: a paragraph plus a table it references.
+    fn structured_ocr_page_with_table(page: u32) -> crate::types::internal::InternalDocument {
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+        use crate::types::ocr_elements::OcrElementLevel;
+
+        let mut doc = InternalDocument::new("pdf");
+        doc.push_element(
+            InternalElement::text(
+                ElementKind::OcrText {
+                    level: OcrElementLevel::Block,
+                },
+                "ocr prose",
+                0,
+            )
+            .with_page(page),
+        );
+        let table_index = doc.push_table(ocr_table("| a | b |", page));
+        doc.push_element(InternalElement::text(ElementKind::Table { table_index }, "", 0).with_page(page));
+        doc
+    }
+
+    /// #57 — a table recognised on an OCR-replaced page must survive the merge into
+    /// the parent document, both as a `tables` entry and as a referencing element.
+    #[test]
+    fn should_keep_ocr_page_tables_when_page_is_replaced_by_ocr() {
+        use crate::types::internal::ElementKind;
+
+        let mut doc = native_two_page_document();
+        let mut ocr_results = ahash::AHashMap::new();
+        ocr_results.insert(2u32, "ocr prose".to_string());
+        let mut structured = ahash::AHashMap::new();
+        structured.insert(2u32, structured_ocr_page_with_table(2));
+
+        merge_structured_ocr_pages_into_internal_document(&mut doc, &ocr_results, &structured);
+
+        assert_eq!(doc.tables.len(), 1, "the OCR'd page's table must survive the merge");
+        assert_eq!(doc.tables[0].markdown, "| a | b |");
+        assert_eq!(doc.tables[0].page_number, 2);
+
+        let table_indices: Vec<u32> = doc
+            .elements
+            .iter()
+            .filter_map(|element| match element.kind {
+                ElementKind::Table { table_index } => Some(table_index),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            table_indices,
+            vec![0],
+            "exactly one table element, re-indexed into the parent's table collection"
+        );
+        assert!(
+            doc.elements.iter().any(|element| element.text == "ocr prose"),
+            "the structured OCR text must be used, not the raw-text fallback"
+        );
+        assert!(
+            !doc.elements.iter().any(|element| element.text == "native page two"),
+            "the replaced page's native prose must be gone"
+        );
+    }
+
+    /// #59 — page assets are re-indexed against the parent's collections instead of
+    /// falling back to splitting raw text, so the asset-to-page association survives.
+    #[test]
+    fn should_reindex_ocr_page_assets_against_parent_collections() {
+        use crate::types::internal::ElementKind;
+
+        let mut doc = native_two_page_document();
+        // Parent already owns one table and one image; the OCR page's assets must be
+        // appended after them, and their references rebased accordingly.
+        doc.push_table(ocr_table("| pre-existing |", 1));
+        doc.push_image(crate::types::ExtractedImage {
+            image_index: 0,
+            page_number: Some(1),
+            ..Default::default()
+        });
+
+        let mut page_doc = structured_ocr_page_with_table(2);
+        let image_index = page_doc.push_image(crate::types::ExtractedImage {
+            image_index: 0,
+            page_number: None,
+            ..Default::default()
+        });
+        page_doc.push_element(
+            crate::types::internal::InternalElement::text(ElementKind::Image { image_index }, "", 0).with_page(2),
+        );
+
+        let mut ocr_results = ahash::AHashMap::new();
+        ocr_results.insert(2u32, "ocr prose".to_string());
+        let mut structured = ahash::AHashMap::new();
+        structured.insert(2u32, page_doc);
+
+        merge_structured_ocr_pages_into_internal_document(&mut doc, &ocr_results, &structured);
+
+        assert_eq!(doc.tables.len(), 2);
+        assert_eq!(doc.tables[0].markdown, "| pre-existing |");
+        assert_eq!(doc.tables[1].markdown, "| a | b |");
+        assert_eq!(doc.images.len(), 2);
+        assert_eq!(doc.images[1].image_index, 1, "merged image must be re-indexed to 1");
+        assert_eq!(
+            doc.images[1].page_number,
+            Some(2),
+            "merged image must stay associated with its OCR page"
+        );
+
+        let merged_table_index = doc.elements.iter().find_map(|element| match element.kind {
+            ElementKind::Table { table_index } => Some(table_index),
+            _ => None,
+        });
+        let merged_image_index = doc.elements.iter().find_map(|element| match element.kind {
+            ElementKind::Image { image_index } => Some(image_index),
+            _ => None,
+        });
+        assert_eq!(
+            merged_table_index,
+            Some(1),
+            "table reference rebased onto parent index 1"
+        );
+        assert_eq!(
+            merged_image_index,
+            Some(1),
+            "image reference rebased onto parent index 1"
+        );
+    }
+
+    /// #59 — a page document carrying a table that its own element list never
+    /// references still contributes a reference, so the table is reachable.
+    #[test]
+    fn should_emit_reference_for_unreferenced_ocr_page_table() {
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+        use crate::types::ocr_elements::OcrElementLevel;
+
+        let mut page_doc = InternalDocument::new("pdf");
+        page_doc.push_element(
+            InternalElement::text(
+                ElementKind::OcrText {
+                    level: OcrElementLevel::Block,
+                },
+                "ocr prose",
+                0,
+            )
+            .with_page(2),
+        );
+        page_doc.push_table(ocr_table("| orphan |", 2));
+
+        let mut doc = native_two_page_document();
+        let mut ocr_results = ahash::AHashMap::new();
+        ocr_results.insert(2u32, "ocr prose".to_string());
+        let mut structured = ahash::AHashMap::new();
+        structured.insert(2u32, page_doc);
+
+        merge_structured_ocr_pages_into_internal_document(&mut doc, &ocr_results, &structured);
+
+        assert_eq!(doc.tables.len(), 1);
+        assert_eq!(doc.tables[0].markdown, "| orphan |");
+        let table_indices: Vec<u32> = doc
+            .elements
+            .iter()
+            .filter_map(|element| match element.kind {
+                ElementKind::Table { table_index } => Some(table_index),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(table_indices, vec![0]);
+    }
+
+    /// #60 — `prebuilt_ocr_elements` carried by an OCR page reach the parent document.
+    #[test]
+    fn should_carry_ocr_page_elements_into_parent_document() {
+        let mut page_doc = structured_ocr_page_with_table(2);
+        page_doc.prebuilt_ocr_elements = Some(vec![crate::types::OcrElement {
+            text: "word".to_string(),
+            page_number: 1,
+            ..Default::default()
+        }]);
+
+        let mut doc = native_two_page_document();
+        let mut ocr_results = ahash::AHashMap::new();
+        ocr_results.insert(2u32, "ocr prose".to_string());
+        let mut structured = ahash::AHashMap::new();
+        structured.insert(2u32, page_doc);
+
+        merge_structured_ocr_pages_into_internal_document(&mut doc, &ocr_results, &structured);
+
+        let elements = doc.prebuilt_ocr_elements.expect("OCR elements must reach the parent");
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].text, "word");
+        assert_eq!(elements[0].page_number, 2, "element must be renumbered onto its page");
+    }
+
+    /// #60 — the single-backend mixed route must carry the backend's tables and OCR
+    /// elements onto the page document instead of discarding them.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn should_collect_backend_tables_and_elements_on_mixed_ocr_page() {
+        let mut result = crate::types::ExtractedDocument {
+            content: "scanned prose".to_string(),
+            tables: vec![ocr_table("| x | y |", 0)],
+            ocr_elements: Some(vec![crate::types::OcrElement {
+                text: "word".to_string(),
+                page_number: 1,
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        let page_doc = build_mixed_ocr_page_document(&mut result, 3, 1000)
+            .expect("a backend result with tables must produce a page document");
+
+        assert_eq!(page_doc.tables.len(), 1, "backend table must be kept");
+        assert_eq!(page_doc.tables[0].markdown, "| x | y |");
+        assert_eq!(page_doc.tables[0].page_number, 3, "table renumbered onto its page");
+        let elements = page_doc
+            .prebuilt_ocr_elements
+            .expect("backend OCR elements must be kept");
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].text, "word");
+        assert_eq!(elements[0].page_number, 3);
+        assert!(
+            result.tables.is_empty() && result.ocr_elements.is_none(),
+            "payload is moved, not copied"
+        );
+    }
+
+    /// #60 — a backend result with nothing structured keeps the previous behaviour:
+    /// no page document, so the raw-text replacement path still applies.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn should_not_fabricate_page_document_when_backend_returns_only_text() {
+        let mut result = crate::types::ExtractedDocument {
+            content: "scanned prose".to_string(),
+            ..Default::default()
+        };
+
+        assert!(build_mixed_ocr_page_document(&mut result, 3, 1000).is_none());
     }
 }

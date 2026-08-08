@@ -18,8 +18,7 @@ use tempfile::TempDir;
 
 /// Get the path to the xberg binary.
 fn get_binary_path() -> String {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    format!("{}/../../target/debug/xberg", manifest_dir)
+    env!("CARGO_BIN_EXE_xberg").to_string()
 }
 
 /// Get the test_documents directory path.
@@ -34,16 +33,6 @@ fn get_test_file(relative_path: &str) -> String {
         .join(relative_path)
         .to_string_lossy()
         .to_string()
-}
-
-/// Build the binary before running tests (runs once per test).
-fn build_binary() {
-    let status = Command::new("cargo")
-        .args(["build", "--bin", "xberg"])
-        .status()
-        .expect("Failed to build xberg binary");
-
-    assert!(status.success(), "Failed to build xberg binary");
 }
 
 /// Helper to create a temporary config file with specified content.
@@ -90,8 +79,6 @@ fn to_base64(input: &str) -> String {
 
 #[test]
 fn test_cli_config_json_inline() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -120,8 +107,6 @@ fn test_cli_config_json_inline() {
 
 #[test]
 fn test_cli_config_json_base64() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -153,8 +138,6 @@ fn test_cli_config_json_base64() {
 
 #[test]
 fn test_cli_flag_precedence() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -192,8 +175,6 @@ max_chars = 1024
 
 #[test]
 fn test_cli_output_format_all_variants() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -222,8 +203,6 @@ fn test_cli_output_format_all_variants() {
 
 #[test]
 fn test_cli_result_format() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -285,8 +264,6 @@ fn test_cli_result_format() {
 
 #[test]
 fn test_cli_content_format_deprecated_warning() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -308,8 +285,6 @@ fn test_cli_content_format_deprecated_warning() {
 
 #[test]
 fn test_cli_config_merge_scenarios() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -347,8 +322,6 @@ max_chars = 1024
 
 #[test]
 fn test_cli_invalid_json_error() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -376,8 +349,6 @@ fn test_cli_invalid_json_error() {
 
 #[test]
 fn test_cli_conflicts() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -410,8 +381,6 @@ fn test_cli_conflicts() {
 
 #[test]
 fn test_cli_real_extraction() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -462,8 +431,6 @@ fn test_cli_real_extraction() {
 
 #[test]
 fn test_cli_empty_config_json() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -480,8 +447,6 @@ fn test_cli_empty_config_json() {
 
 #[test]
 fn test_cli_multiple_output_format_variants() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);
@@ -498,8 +463,6 @@ fn test_cli_multiple_output_format_variants() {
 
 #[test]
 fn test_cli_config_json_with_nested_objects() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         eprintln!("Skipping test: {} not found", test_file);

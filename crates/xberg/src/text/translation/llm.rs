@@ -38,7 +38,12 @@ fn render_prompt(config: &TranslationConfig, text: &str, preserve_markup: bool) 
 }
 
 /// Translate a single segment, collecting any usage entry produced.
-async fn translate_segment(
+///
+/// `pub(super)` so the sibling [`super::fields`] module — which translates
+/// every secondary text field (tables, pages, metadata, elements, document
+/// structure) — can reuse it for fields that are naturally singular (page
+/// content, table markdown) rather than duplicating this logic.
+pub(super) async fn translate_segment(
     config: &TranslationConfig,
     text: &str,
     preserve_markup: bool,
@@ -60,7 +65,10 @@ async fn translate_segment(
 ///
 /// Populates `result.translation` with the translated `content`, optionally the
 /// translated `formatted_content` (when `preserve_markup = true`), and rewrites
-/// every chunk's `content` field. Every LLM call's usage is appended to
+/// every chunk's `content` field. It also rewrites every other text-bearing
+/// field — tables, pages, metadata, semantic elements, and the structured
+/// document tree — via [`super::fields::translate_secondary_fields`]
+/// (xberg-io/xberg#254). Every LLM call's usage is appended to
 /// `result.llm_usage`.
 pub async fn translate_result(result: &mut ExtractedDocument, config: &TranslationConfig) -> crate::Result<()> {
     if config.target_lang.trim().is_empty() {
@@ -89,6 +97,8 @@ pub async fn translate_result(result: &mut ExtractedDocument, config: &Translati
             chunk.content = translated;
         }
     }
+
+    super::fields::translate_secondary_fields(result, config, &mut usages).await?;
 
     result.translation = Some(Translation {
         target_lang: config.target_lang.clone(),
@@ -140,5 +150,86 @@ mod tests {
     fn render_prompt_preserves_markup_clause_when_enabled() {
         let prompt = render_prompt(&cfg(), "**hi**", true).unwrap();
         assert!(prompt.contains("Markdown"));
+    }
+
+    /// Regression test for xberg-io/xberg#254: `translate_result` used to
+    /// rewrite only `content`, `formatted_content`, and chunk content,
+    /// leaving every other text-bearing field (tables, pages, metadata, the
+    /// structured document tree) in the source language. This drives
+    /// `translate_result` end-to-end against a table cell — a field
+    /// `translate_result` never touched before the fix — through a local
+    /// loopback HTTP stub (no real network call), and asserts both the exact
+    /// translated value and that exactly one LLM call was made for the one
+    /// non-empty secondary field present, which is the call-volume contract
+    /// documented in `super::fields`.
+    #[cfg(feature = "api")]
+    #[tokio::test]
+    async fn translate_result_translates_table_cells_via_secondary_fields() {
+        use crate::types::Table;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let call_count_handler = call_count.clone();
+
+        let app = axum::Router::new().fallback(axum::routing::post(move || {
+            let call_count = call_count_handler.clone();
+            async move {
+                call_count.fetch_add(1, Ordering::SeqCst);
+                axum::response::Json(serde_json::json!({
+                    "id": "test",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "test",
+                    "choices": [{
+                        "index": 0,
+                        "message": { "role": "assistant", "content": "[\"CELDA TRADUCIDA\"]" },
+                        "finish_reason": "stop"
+                    }]
+                }))
+            }
+        }));
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let base_url = format!("http://{addr}/v1/");
+        let config = TranslationConfig {
+            target_lang: "es".to_string(),
+            source_lang: None,
+            preserve_markup: false,
+            llm: LlmConfig {
+                model: "openai/gpt-4o-mini".to_string(),
+                api_key: Some("test-key".to_string()),
+                base_url: Some(base_url),
+                ..Default::default()
+            },
+        };
+
+        // `content` is left empty so the only field this document has to
+        // translate is the single table cell — isolating the assertion to
+        // the field `translate_result` used to skip.
+        let mut result = ExtractedDocument {
+            content: String::new(),
+            mime_type: std::borrow::Cow::Borrowed("text/plain"),
+            tables: vec![Table {
+                cells: vec![vec!["hola".to_string()]],
+                markdown: String::new(),
+                ..Table::default()
+            }],
+            ..Default::default()
+        };
+
+        translate_result(&mut result, &config).await.unwrap();
+
+        assert_eq!(result.tables[0].cells[0][0], "CELDA TRADUCIDA");
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            1,
+            "expected exactly one batched LLM call for the one non-empty table cell, not one call per field"
+        );
     }
 }

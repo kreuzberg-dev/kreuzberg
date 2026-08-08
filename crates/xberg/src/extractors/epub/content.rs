@@ -370,9 +370,78 @@ const BLOCK_ELEMENTS: &[&str] = &[
 ///
 /// `math` is handled separately (see `render_math_element`): its subtree is
 /// converted to LaTeX rather than skipped, so it is deliberately absent here.
-const SKIP_ELEMENTS: &[&str] = &[
-    "head", "script", "style", "svg", "video", "audio", "source", "track", "object", "embed", "iframe",
-];
+///
+/// `svg` is also handled separately (see `visit_svg_node`): its subtree is walked
+/// selectively rather than skipped outright, so real alt-text (`<title>`/`<desc>`) is
+/// not lost (issue #140). `object`, `embed`, and `iframe` are likewise absent: their
+/// fallback content (`<object><p>fallback</p></object>`) is ordinary child markup, so
+/// letting the generic recursion below visit their children recovers it for free.
+const SKIP_ELEMENTS: &[&str] = &["head", "script", "style", "video", "audio", "source", "track"];
+
+/// SVG descendant tags that carry real, human-authored text: the visible `<text>`/
+/// `<tspan>`/`<textPath>` content and the accessible `<title>`/`<desc>` alt-text.
+/// Mirrors the allowlist already used by the standalone SVG/XML extractor
+/// (`extractors::xml`). Every other SVG element (`path`, `rect`, `circle`, `g`, ...) is
+/// pure drawing geometry with no meaningful text of its own.
+const SVG_TEXT_ELEMENTS: &[&str] = &["title", "desc", "text", "tspan", "textpath"];
+
+/// Walk an `<svg>` subtree, extracting text only from [`SVG_TEXT_ELEMENTS`] descendants.
+///
+/// Unlike the generic block-element walk, this never emits text from arbitrary elements —
+/// only once `in_text_context` has been set by entering an allowed tag — so drawing
+/// primitives (`path`, `rect`, ...) can never leak stray text even if a producer ever puts
+/// whitespace or comments between their tags.
+fn visit_svg_node(
+    node: roxmltree::Node<'_, '_>,
+    output: &mut String,
+    in_text_context: bool,
+    budget: Option<&mut SecurityBudget>,
+) {
+    let mut budget = budget;
+    match node.node_type() {
+        roxmltree::NodeType::Text if in_text_context => {
+            let text = node.text().unwrap_or("");
+            if let Some(b) = budget.as_deref_mut()
+                && b.check_entity(text).is_err()
+            {
+                return;
+            }
+            let normalised = normalise_inline_whitespace(text);
+            if normalised.is_empty() {
+                return;
+            }
+            let fragment = if output.is_empty() || output.ends_with('\n') {
+                normalised.trim_start().to_string()
+            } else {
+                normalised
+            };
+            if fragment.is_empty() {
+                return;
+            }
+            if let Some(b) = budget.as_deref_mut()
+                && b.account_text(fragment.len()).is_err()
+            {
+                return;
+            }
+            output.push_str(&fragment);
+        }
+        roxmltree::NodeType::Element => {
+            let tag = node.tag_name().name().to_ascii_lowercase();
+            let entering_text_tag = SVG_TEXT_ELEMENTS.contains(&tag.as_str());
+            let child_in_text_context = in_text_context || entering_text_tag;
+            if entering_text_tag && !output.is_empty() && !output.ends_with('\n') {
+                output.push('\n');
+            }
+            for child in node.children() {
+                visit_svg_node(child, output, child_in_text_context, budget.as_deref_mut());
+            }
+            if entering_text_tag && !output.is_empty() && !output.ends_with('\n') {
+                output.push('\n');
+            }
+        }
+        _ => {}
+    }
+}
 
 /// Convert a `<math>` element to LaTeX and append it to `output` as its own
 /// `$$...$$` block, isolated by blank lines so it survives the `\n\n` paragraph
@@ -570,6 +639,13 @@ fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String) {
                 render_math_element(node, output, &mut budget);
                 return;
             }
+            // Issue #140: `<svg>` used to be a whole-subtree skip, dropping its real
+            // `<title>`/`<desc>` alt-text along with the (harmless to lose) drawing
+            // geometry. Walk it selectively instead of skipping outright.
+            if tag == "svg" {
+                visit_svg_node(node, output, false, None);
+                return;
+            }
             if SKIP_ELEMENTS.iter().any(|&s| s == tag) {
                 return;
             }
@@ -632,6 +708,10 @@ fn visit_node_budgeted(node: roxmltree::Node<'_, '_>, output: &mut String, budge
             let tag = node.tag_name().name().to_ascii_lowercase();
             if tag == "math" {
                 render_math_element(node, output, budget);
+                return;
+            }
+            if tag == "svg" {
+                visit_svg_node(node, output, false, Some(budget));
                 return;
             }
             if SKIP_ELEMENTS.iter().any(|&s| s == tag) {

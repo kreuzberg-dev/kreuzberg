@@ -361,8 +361,8 @@ fn capture_repository(start_directory: &Path) -> RepositoryProvenance {
     // `dirty` answers "was the source under test modified relative to HEAD", so it deliberately ignores
     // both submodule work-tree state and untracked files. Two kinds of benign CI-generated churn would
     // otherwise falsely flag every run: (1) the reference corpus lives in the `test_documents` submodule,
-    // where CI stages derived cache files and runs `git lfs pull` (actions/checkout does not smudge submodule
-    // LFS, so every pulled fixture reads back as "modified") — handled by `--ignore-submodules=dirty`; and
+    // where CI stages derived cache files and materialises the document binaries from the public bucket
+    // into the submodule work tree — handled by `--ignore-submodules=dirty`; and
     // (2) the ONNX Runtime setup copies `libonnxruntime.so*` into `crates/xberg-node/`, a path deliberately
     // un-ignored in .gitignore so npm packaging can bundle the dylib, so those staged libs surface as
     // untracked files — handled by `--untracked-files=no`. The benchmarked binary is built in a separate
@@ -611,11 +611,11 @@ mod tests {
 
         assert_eq!(capture_repository(&superproject).dirty, Some(false));
 
-        // Simulate CI staging + `git lfs pull`: the submodule work tree gets modified and gains untracked
-        // files. This must NOT flag the source checkout as dirty.
+        // Simulate CI staging + fetching the corpus from the bucket: the submodule work tree gets
+        // modified and gains untracked files. This must NOT flag the source checkout as dirty.
         std::fs::write(
             superproject.join("test_documents").join("fixture.txt"),
-            b"real lfs content",
+            b"fetched document bytes",
         )
         .unwrap();
         std::fs::write(superproject.join("test_documents").join("staged.bin"), b"derived cache").unwrap();

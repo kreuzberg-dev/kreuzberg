@@ -125,35 +125,6 @@ fn extract_inputs_schema(generator: &mut schemars::SchemaGenerator) -> schemars:
     })
 }
 
-#[allow(dead_code)]
-#[derive(Debug, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
-pub struct DownloadGrammarsParams {
-    /// Specific languages to download (e.g., ["python", "rust", "javascript"]).
-    /// If not provided, must specify groups or all.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub languages: Option<Vec<String>>,
-
-    /// Language groups to download (e.g., ["web", "systems", "scripting"]).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub groups: Option<Vec<String>>,
-
-    /// Download all available languages.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub all: Option<bool>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
-pub struct ListGrammarsParams {
-    /// Only show downloaded/cached languages (default: false, shows all available).
-    #[serde(default)]
-    pub downloaded_only: bool,
-
-    /// Filter languages by name substring.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub filter: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

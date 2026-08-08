@@ -210,6 +210,10 @@ impl InternalDocumentExtractor for BibtexExtractor {
             Err(_err) => {
                 #[cfg(feature = "otel")]
                 tracing::warn!("BibTeX parsing failed, returning raw content: {}", _err);
+                builder.add_warning(crate::core::diagnostics::warning(
+                    "bibtex",
+                    "BibTeX parsing failed; returning raw text as a fallback",
+                ));
                 formatted_entries = bibtex_str.to_string();
                 builder.push_code(&formatted_entries, None, None, None);
             }

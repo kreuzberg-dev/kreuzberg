@@ -64,8 +64,15 @@ where
     T: InternalRenderer + ?Sized,
 {
     fn render_result(&self, result: &ExtractedDocument) -> Result<String> {
-        let doc = InternalDocument::from(result.clone());
-        InternalRenderer::render(self, &doc)
+        // `ExtractedDocument` carries no element tree of its own: `InternalDocument::from`
+        // produces a document with zero elements, and rendering that emits an empty
+        // document shell instead of the document's content. Render from the preserved
+        // `internal_document` when the caller supplied one; otherwise fall back to the
+        // `Renderer` default of returning the already-rendered text verbatim.
+        match result.internal_document.as_ref() {
+            Some(doc) => InternalRenderer::render(self, doc),
+            None => Ok(result.content.clone()),
+        }
     }
 }
 
@@ -161,6 +168,50 @@ mod tests {
 
         unregister_renderer("test-fmt-a").unwrap();
         assert!(!list_renderers().unwrap().contains(&"test-fmt-a".to_string()));
+    }
+
+    /// Regression test for defect #51.
+    ///
+    /// The blanket `impl<T: InternalRenderer> Renderer for T` used to round-trip through
+    /// `InternalDocument::from(result.clone())`, which yields a document with zero
+    /// elements, so every native renderer reached through the public `render_result`
+    /// entry point emitted an empty shell instead of the document's content.
+    #[test]
+    fn render_result_renders_from_the_preserved_internal_document() {
+        use crate::types::internal::{ElementKind, InternalElement};
+
+        let renderer = MockRenderer { format: "test-fmt-c" };
+
+        let mut doc = InternalDocument::new("text/plain");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "one", 0));
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "two", 0));
+
+        let mut result = ExtractedDocument {
+            content: "one\n\ntwo".to_string(),
+            ..Default::default()
+        };
+        result.internal_document = Some(doc);
+
+        assert_eq!(
+            Renderer::render_result(&renderer, &result).unwrap(),
+            "mock-test-fmt-c-2"
+        );
+    }
+
+    /// Regression test for defect #51: without a preserved `InternalDocument` there is no
+    /// element tree to render from, so the blanket impl must fall back to the documented
+    /// `Renderer` default (return the already-rendered text) rather than render an empty
+    /// document.
+    #[test]
+    fn render_result_falls_back_to_content_without_an_internal_document() {
+        let renderer = MockRenderer { format: "test-fmt-d" };
+
+        let result = ExtractedDocument {
+            content: "already rendered".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(Renderer::render_result(&renderer, &result).unwrap(), "already rendered");
     }
 
     #[test]

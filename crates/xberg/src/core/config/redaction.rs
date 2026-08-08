@@ -14,7 +14,7 @@ use std::collections::HashSet;
 /// Configuration for the redaction post-processor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct RedactionConfig {
     /// Categories to redact. Empty means "every category supported by the engine."
     #[serde(default)]

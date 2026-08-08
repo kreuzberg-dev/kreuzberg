@@ -366,12 +366,40 @@ fn render_elements(doc: &InternalDocument, p: &str, buf: &mut String) {
                 )
                 .unwrap();
             }
+            ElementKind::CommentDefinition => {
+                let anchor = elem.anchor.as_deref().unwrap_or("");
+                write!(
+                    buf,
+                    r#"<aside class="{p}comment" id="fn-{}">{}</aside>"#,
+                    esc(anchor),
+                    render_inline(doc, elem, p)
+                )
+                .unwrap();
+            }
+            ElementKind::CommentRef => {
+                let anchor = elem.anchor.as_deref().unwrap_or("");
+                write!(
+                    buf,
+                    r##"<sup class="{p}comment-ref"><a href="#fn-{}">{}</a></sup>"##,
+                    esc(anchor),
+                    esc(&elem.text)
+                )
+                .unwrap();
+            }
             ElementKind::Citation => {
                 write!(buf, r#"<cite class="{p}citation">{}</cite>"#, esc(&elem.text)).unwrap();
             }
 
             ElementKind::Slide { number } => {
+                // `Slide` is a marker, not a container: there is no `SlideEnd` element kind, so
+                // an unbalanced opening tag would leave every slide deck's HTML malformed. Match
+                // the djot and comrak renderers, which emit a break followed by the slide title
+                // as a level-2 heading, and keep the `slide`/`data-slide` hooks for styling.
                 write!(buf, r#"<section class="{p}slide" data-slide="{number}">"#).unwrap();
+                if !elem.text.is_empty() {
+                    write!(buf, r#"<h2 class="{p}h {p}h2">{}</h2>"#, render_inline(doc, elem, p)).unwrap();
+                }
+                buf.push_str("</section>");
             }
 
             ElementKind::DefinitionTerm => {

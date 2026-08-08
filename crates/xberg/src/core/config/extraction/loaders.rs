@@ -2,6 +2,12 @@
 //!
 //! This module provides methods for loading extraction configuration from
 //! TOML, YAML, and JSON files.
+//!
+//! Loading here is entirely generic (`toml`/`serde_yaml_ng`/`serde_json` deserializing
+//! straight into `ExtractionConfig`) — it never names individual fields, including
+//! nested ones like `ChunkingConfig::breadcrumb_target`. New `#[serde(default)]`
+//! fields on any nested config (e.g. #337's `breadcrumb_target`) are picked up
+//! automatically with no change required in this file.
 
 use crate::{Result, XbergError};
 use std::path::Path;
@@ -18,8 +24,10 @@ impl ExtractionConfig {
         let path = path.as_ref();
         let content = std::fs::read_to_string(path)
             .map_err(|e| XbergError::validation(format!("Failed to read config file {}: {}", path.display(), e)))?;
-        toml::from_str(&content)
-            .map_err(|e| XbergError::validation(format!("Invalid TOML in {}: {}", path.display(), e)))
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| XbergError::validation(format!("Invalid TOML in {}: {}", path.display(), e)))?;
+        config.validate()?;
+        Ok(config)
     }
 
     /// Load configuration from a YAML file.
@@ -27,8 +35,10 @@ impl ExtractionConfig {
         let path = path.as_ref();
         let content = std::fs::read_to_string(path)
             .map_err(|e| XbergError::validation(format!("Failed to read config file {}: {}", path.display(), e)))?;
-        serde_yaml_ng::from_str(&content)
-            .map_err(|e| XbergError::validation(format!("Invalid YAML in {}: {}", path.display(), e)))
+        let config: Self = serde_yaml_ng::from_str(&content)
+            .map_err(|e| XbergError::validation(format!("Invalid YAML in {}: {}", path.display(), e)))?;
+        config.validate()?;
+        Ok(config)
     }
 
     /// Load configuration from a JSON file.
@@ -36,8 +46,10 @@ impl ExtractionConfig {
         let path = path.as_ref();
         let content = std::fs::read_to_string(path)
             .map_err(|e| XbergError::validation(format!("Failed to read config file {}: {}", path.display(), e)))?;
-        serde_json::from_str(&content)
-            .map_err(|e| XbergError::validation(format!("Invalid JSON in {}: {}", path.display(), e)))
+        let config: Self = serde_json::from_str(&content)
+            .map_err(|e| XbergError::validation(format!("Invalid JSON in {}: {}", path.display(), e)))?;
+        config.validate()?;
+        Ok(config)
     }
 
     /// Load configuration from a file, auto-detecting format by extension.

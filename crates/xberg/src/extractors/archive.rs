@@ -17,6 +17,9 @@ use async_trait::async_trait;
 use std::borrow::Cow;
 use std::io::Cursor;
 
+/// `ProcessingWarning::source` used for every degradation reported by the archive extractors.
+const ARCHIVE_WARNING_SOURCE: &str = "archive";
+
 /// Build an `InternalDocument` from archive metadata and text contents.
 ///
 /// Shared inner function — takes pre-computed children and warnings.
@@ -81,7 +84,24 @@ fn build_archive_doc_inner(
     doc.push_element(InternalElement::text(ElementKind::Paragraph, &file_list, 0).with_index(idx));
     idx += 1;
 
-    for (path, content) in &text_contents {
+    // `text_contents` is an `AHashMap`, and aHash randomizes iteration order per process, so
+    // extracting the same archive twice produced the members in a different order each run.
+    // Emit them in the archive's own order instead, which also makes the bodies agree with the
+    // "Files:" listing printed just above. Members the listing does not cover sort after it by
+    // path, so the ordering stays total even if the two disagree (#121).
+    let listing_order: AHashMap<&str, usize> = extraction_metadata
+        .file_list
+        .iter()
+        .enumerate()
+        .map(|(position, entry)| (entry.path.as_str(), position))
+        .collect();
+    let mut members: Vec<(&String, &String)> = text_contents.iter().collect();
+    members.sort_by(|(left, _), (right, _)| {
+        let rank = |path: &String| listing_order.get(path.as_str()).copied().unwrap_or(usize::MAX);
+        rank(left).cmp(&rank(right)).then_with(|| left.cmp(right))
+    });
+
+    for (path, content) in members {
         let text = format!("=== {} ===\n{}", path, content);
         doc.push_element(InternalElement::text(ElementKind::Paragraph, &text, 0).with_index(idx));
         idx += 1;
@@ -152,12 +172,32 @@ async fn build_archive_doc(
 ) -> InternalDocument {
     let mut children = Vec::new();
     let mut processing_warnings = Vec::new();
-    let mut filtered_count = 0u32;
+    let mut filtered_paths: Vec<String> = Vec::new();
+
+    // A non-directory entry that the archive index lists but whose bytes never made it
+    // into `file_bytes` failed to decompress (bad CRC, truncated deflate stream, ...).
+    // It is absent from the text contents *and* from `children`, so name it instead of
+    // letting the document look complete (#114, #115).
+    let unreadable_entries: Vec<String> = extraction_metadata
+        .file_list
+        .iter()
+        .filter(|entry| !entry.is_dir && !file_bytes.contains_key(&entry.path))
+        .map(|entry| entry.path.clone())
+        .collect();
+    if !unreadable_entries.is_empty() {
+        let message = format!(
+            "Skipped {} archive entr{} that could not be read: {}",
+            unreadable_entries.len(),
+            if unreadable_entries.len() == 1 { "y" } else { "ies" },
+            crate::core::diagnostics::format_entry_list(&unreadable_entries)
+        );
+        crate::core::diagnostics::push_warning(&mut processing_warnings, ARCHIVE_WARNING_SOURCE, message);
+    }
 
     if config.max_archive_depth > current_depth && !file_bytes.is_empty() {
         for (path, bytes) in &file_bytes {
             if is_archive_metadata_path(path) {
-                filtered_count += 1;
+                filtered_paths.push(path.clone());
                 continue;
             }
 
@@ -179,7 +219,7 @@ async fn build_archive_doc(
             };
 
             if file_mime == "application/octet-stream" {
-                filtered_count += 1;
+                filtered_paths.push(path.clone());
                 continue;
             }
 
@@ -204,15 +244,18 @@ async fn build_archive_doc(
         }
     }
 
-    if filtered_count > 0 {
-        processing_warnings.push(ProcessingWarning {
-            source: Cow::Borrowed("archive"),
-            message: Cow::Owned(format!(
-                "Filtered {} bookkeeping/binary entr{} (e.g. .DS_Store, __MACOSX, __pycache__, .pyc) from archive children",
-                filtered_count,
-                if filtered_count == 1 { "y" } else { "ies" }
-            )),
-        });
+    if !filtered_paths.is_empty() {
+        // `file_bytes` is a hash map, so its iteration order is not stable; sort so the
+        // warning text is deterministic for a given archive.
+        filtered_paths.sort();
+        let message = format!(
+            "Filtered {} bookkeeping/binary entr{} (e.g. .DS_Store, __MACOSX, __pycache__, .pyc) \
+             from archive children: {}",
+            filtered_paths.len(),
+            if filtered_paths.len() == 1 { "y" } else { "ies" },
+            crate::core::diagnostics::format_entry_list(&filtered_paths)
+        );
+        crate::core::diagnostics::push_warning(&mut processing_warnings, ARCHIVE_WARNING_SOURCE, message);
     }
 
     build_archive_doc_inner(
@@ -655,6 +698,60 @@ mod tests {
         };
         assert_eq!(archive_meta.format, "ZIP");
         assert_eq!(archive_meta.file_count, 1);
+    }
+
+    /// Regression test for #121: member bodies were emitted by iterating an `AHashMap`, whose
+    /// order aHash randomizes per process, so the same archive rendered differently on every run.
+    ///
+    /// The member names below are deliberately anti-alphabetical, so this also pins *which*
+    /// deterministic order was chosen: archive order, matching the "Files:" listing — a plain
+    /// `sort()` would have produced alpha/middle/zebra and failed here.
+    #[tokio::test]
+    async fn should_emit_archive_members_in_archive_order_not_hash_order() {
+        let extractor = ZipExtractor::new();
+
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut cursor);
+            let options = FileOptions::<'_, ()>::default();
+
+            for (name, body) in [
+                ("zebra.txt", "zebra body"),
+                ("alpha.txt", "alpha body"),
+                ("middle.txt", "middle body"),
+            ] {
+                zip.start_file(name, options).unwrap();
+                zip.write_all(body.as_bytes()).unwrap();
+            }
+
+            zip.finish().unwrap();
+        }
+
+        let bytes = cursor.into_inner();
+        let config = ExtractionConfig::default();
+
+        let result = extractor
+            .extract_content(&bytes, "application/zip", &config)
+            .await
+            .unwrap();
+        let result =
+            crate::extraction::derive::derive_extraction_result(result, true, crate::core::config::OutputFormat::Plain);
+
+        let positions: Vec<usize> = ["=== zebra.txt ===", "=== alpha.txt ===", "=== middle.txt ==="]
+            .iter()
+            .map(|marker| {
+                result
+                    .content
+                    .find(marker)
+                    .unwrap_or_else(|| panic!("{marker} missing from {:?}", result.content))
+            })
+            .collect();
+
+        assert!(
+            positions[0] < positions[1] && positions[1] < positions[2],
+            "members must appear in archive order (zebra, alpha, middle); got offsets {positions:?} in {:?}",
+            result.content
+        );
     }
 
     #[tokio::test]

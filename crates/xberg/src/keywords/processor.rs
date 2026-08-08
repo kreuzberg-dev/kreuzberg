@@ -7,6 +7,16 @@ use crate::plugins::{Plugin, PostProcessor, ProcessingStage};
 use crate::{ExtractedDocument, ExtractionConfig, Result, XbergError};
 use async_trait::async_trait;
 
+/// Documents shorter than this word count are skipped: RAKE/YAKE candidate
+/// scoring needs enough co-occurrence signal to be meaningful.
+const MIN_WORD_COUNT_FOR_KEYWORDS: usize = 10;
+
+/// Name under which [`KeywordExtractor`] registers with the global
+/// post-processor registry. Shared with `keywords::ensure_initialized` so the
+/// self-healing re-registration check and the plugin's own [`Plugin::name`]
+/// can never drift apart.
+pub(crate) const KEYWORD_PROCESSOR_NAME: &str = "keyword-extraction";
+
 /// Post-processor that extracts keywords from document content.
 ///
 /// This processor:
@@ -30,7 +40,7 @@ pub struct KeywordExtractor;
 
 impl Plugin for KeywordExtractor {
     fn name(&self) -> &str {
-        "keyword-extraction"
+        KEYWORD_PROCESSOR_NAME
     }
 
     fn version(&self) -> String {
@@ -56,7 +66,15 @@ impl PostProcessor for KeywordExtractor {
         };
 
         let word_count = result.content.split_whitespace().count();
-        if word_count < 10 {
+        if word_count < MIN_WORD_COUNT_FOR_KEYWORDS {
+            crate::core::diagnostics::push_warning(
+                &mut result.processing_warnings,
+                "keyword_extraction",
+                format!(
+                    "Document has {word_count} word(s), below the {MIN_WORD_COUNT_FOR_KEYWORDS}-word minimum; \
+                     keyword extraction was skipped"
+                ),
+            );
             return Ok(());
         }
 
@@ -170,6 +188,31 @@ machine learning that uses neural networks with multiple layers.
         processor.process(&mut result, &config).await.unwrap();
 
         assert!(result.extracted_keywords.is_none());
+        assert_eq!(result.processing_warnings.len(), 1);
+        assert_eq!(result.processing_warnings[0].source, "keyword_extraction");
+        assert_eq!(
+            result.processing_warnings[0].message,
+            "Document has 2 word(s), below the 10-word minimum; keyword extraction was skipped"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_keyword_processor_no_warning_when_document_meets_word_count() {
+        let processor = KeywordExtractor;
+        let config = ExtractionConfig {
+            keywords: Some(KeywordConfig::default()),
+            ..Default::default()
+        };
+
+        let mut result = ExtractedDocument {
+            content: TEST_TEXT.to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            ..Default::default()
+        };
+
+        processor.process(&mut result, &config).await.unwrap();
+
+        assert!(result.processing_warnings.is_empty());
     }
 
     #[test]

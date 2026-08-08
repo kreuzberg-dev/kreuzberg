@@ -2,6 +2,7 @@
 
 use crate::Result;
 use crate::core::config::ExtractionConfig;
+use crate::extraction::transform::normalize_line_endings;
 use crate::extractors::SyncExtractor;
 use crate::extractors::security::SecurityBudget;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
@@ -73,8 +74,29 @@ impl EmailExtractor {
         if !email_result.cc_emails.is_empty() {
             header_entries.push(("CC".to_string(), email_result.cc_emails.join(", ")));
         }
+        if !email_result.bcc_emails.is_empty() {
+            header_entries.push(("BCC".to_string(), email_result.bcc_emails.join(", ")));
+        }
+        if let Some(reply_to) = email_result.metadata.get("reply_to") {
+            header_entries.push(("Reply-To".to_string(), reply_to.clone()));
+        }
         if let Some(ref date) = email_result.date {
             header_entries.push(("Date".to_string(), date.clone()));
+        }
+        if let Some(ref message_id) = email_result.message_id {
+            header_entries.push(("Message-ID".to_string(), message_id.clone()));
+        }
+        if let Some(in_reply_to) = email_result.metadata.get("in_reply_to") {
+            header_entries.push(("In-Reply-To".to_string(), in_reply_to.clone()));
+        }
+        if let Some(references) = email_result.metadata.get("references") {
+            header_entries.push(("References".to_string(), references.clone()));
+        }
+        if let Some(list_id) = email_result.metadata.get("list_id") {
+            header_entries.push(("List-Id".to_string(), list_id.clone()));
+        }
+        if let Some(list_unsubscribe) = email_result.metadata.get("list_unsubscribe") {
+            header_entries.push(("List-Unsubscribe".to_string(), list_unsubscribe.clone()));
         }
         if !header_entries.is_empty() {
             builder.push_metadata_block(&header_entries, None);
@@ -88,7 +110,14 @@ impl EmailExtractor {
                 }
             }
         } else {
-            for paragraph in email_result.content.split("\n\n") {
+            // RFC 5322 mandates CRLF line endings, and `mail-parser` hands back the
+            // decoded body verbatim (both the 7bit/8bit and quoted-printable decoders
+            // preserve `\r\n`). Without normalizing first, `\r\n\r\n` never matches the
+            // `"\n\n"` paragraph boundary and every plain-text email collapses into a
+            // single paragraph carrying stray carriage returns (#316, same defect class
+            // as #227).
+            let normalized = normalize_line_endings(&email_result.content);
+            for paragraph in normalized.split("\n\n") {
                 let trimmed = paragraph.trim();
                 if !trimmed.is_empty() {
                     builder.push_paragraph(trimmed, vec![], None, None);
@@ -362,28 +391,53 @@ impl InternalDocumentExtractor for EmailExtractor {
     ) -> Result<InternalDocument> {
         tracing::debug!(format = "email", size_bytes = content.len(), "extraction starting");
         let fallback_codepage = config.email.as_ref().and_then(|email| email.msg_fallback_codepage);
+        let security_limits = config.security_limits.clone().unwrap_or_default();
         let parsed = if config.max_archive_depth > 0 {
             crate::extraction::email::extract_email_content_with_nested(
                 content,
                 mime_type,
                 fallback_codepage,
                 config.max_embedded_file_bytes,
+                &security_limits,
             )?
         } else {
             crate::extraction::email::ParsedEmailContent {
                 result: crate::extraction::email::extract_email_content(content, mime_type, fallback_codepage)?,
                 nested_messages: Vec::new(),
+                nested_embedded_messages: Vec::new(),
+                warnings: Vec::new(),
             }
         };
         let mut children = Vec::new();
-        let mut warnings = Vec::new();
+        let mut warnings = parsed.warnings;
 
         if config.max_archive_depth > 0 {
-            (children, warnings) = extract_attachment_children(&parsed.result.attachments, config).await;
+            let (attachment_children, attachment_warnings) =
+                extract_attachment_children(&parsed.result.attachments, config).await;
+            children = attachment_children;
+            warnings.extend(attachment_warnings);
+
+            // An `afEmbeddedMessage` attachment is an attachment of the parent
+            // message, so its recovered text is inlined into the parent exactly
+            // like any other extracted attachment (heading + body, accounted
+            // against the same `SecurityBudget`). This must happen *before*
+            // `build_extracted_document`, which is what performs the inlining;
+            // appending afterwards would leave the embedded body reachable only
+            // through `doc.children` and absent from the parent's rendered
+            // content (#307, #153).
+            if !parsed.nested_embedded_messages.is_empty() {
+                let (embedded_children, embedded_warnings) =
+                    extract_nested_embedded_message_children(&parsed.nested_embedded_messages, config).await;
+                children.extend(embedded_children);
+                warnings.extend(embedded_warnings);
+            }
         }
 
         let mut doc = Self::build_extracted_document(&parsed.result, mime_type, config, &children)?;
 
+        // MIME `message/rfc822` sub-parts are a body structure, not an
+        // attachment, so they stay children-only and are deliberately not
+        // inlined into the parent's elements.
         if config.max_archive_depth > 0 && mime_type == "message/rfc822" {
             let (nested_children, nested_warnings) =
                 extract_nested_message_children(&parsed.nested_messages, config).await;
@@ -447,16 +501,25 @@ pub(crate) async fn extract_attachment_children(
             continue;
         }
 
-        let bytes = match &attachment.data {
-            Some(data) if !data.is_empty() => data,
-            _ => continue,
-        };
-
         let filename = attachment
             .filename
             .clone()
             .or_else(|| attachment.name.clone())
             .unwrap_or_else(|| format!("attachment_{}", idx));
+
+        let bytes = match &attachment.data {
+            Some(data) if !data.is_empty() => data,
+            _ => {
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("email_attachment_extraction"),
+                    message: Cow::Owned(format!(
+                        "Skipped attachment '{}': no attachment data available",
+                        filename
+                    )),
+                });
+                continue;
+            }
+        };
 
         let detected_mime = crate::core::mime::detect_mime_type_from_bytes(bytes)
             .ok()
@@ -471,7 +534,16 @@ pub(crate) async fn extract_attachment_children(
 
         let file_mime = match detected_mime {
             Some(m) if m != "application/octet-stream" => m,
-            _ => continue,
+            _ => {
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("email_attachment_extraction"),
+                    message: Cow::Owned(format!(
+                        "Skipped attachment '{}': could not determine MIME type",
+                        filename
+                    )),
+                });
+                continue;
+            }
         };
 
         if config
@@ -559,6 +631,81 @@ async fn extract_nested_message_children(
                 warnings.push(ProcessingWarning {
                     source: Cow::Borrowed("nested_message_extraction"),
                     message: Cow::Owned(format!("Failed to extract '{}': {}", filename, e)),
+                });
+            }
+        }
+    }
+
+    (children, warnings)
+}
+
+/// Recursively route `.msg`-in-`.msg` embedded messages (`afEmbeddedMessage`
+/// attachments) through this same extractor, producing a real `ArchiveEntry`
+/// child (subject, body, its own attachments) instead of leaving the embedded
+/// message as an opaque, unextracted attachment placeholder.
+///
+/// The returned entries are handed to `build_extracted_document` alongside the
+/// ordinary attachment children, so the embedded message's text is inlined into
+/// the parent document under a level-two heading as well as being reachable as
+/// a child.
+///
+/// `nested_embedded_messages` is the flat list `extraction::email` already
+/// parsed while walking the CFB tree, bounded by the `SecurityLimits`
+/// nesting-depth cap shared with every other format (see
+/// `extraction::email::extract_msg_from_cfb_at`); a cap warning it raised is
+/// already carried in `ParsedEmailContent::warnings`, so this function only
+/// ever re-extracts messages that were actually parsed.
+async fn extract_nested_embedded_message_children(
+    nested_embedded_messages: &[crate::types::EmailExtractionResult],
+    config: &ExtractionConfig,
+) -> (Vec<ArchiveEntry>, Vec<ProcessingWarning>) {
+    let mut children = Vec::new();
+    let mut warnings = Vec::new();
+
+    for (idx, nested) in nested_embedded_messages.iter().enumerate() {
+        let filename = format!("embedded_message_{idx}.msg");
+
+        let mut child_config = config.clone();
+        child_config.max_archive_depth = config.max_archive_depth.saturating_sub(1);
+
+        let (grandchildren, grandchild_warnings) =
+            extract_attachment_children(&nested.attachments, &child_config).await;
+        warnings.extend(grandchild_warnings);
+
+        let mut internal_doc = match EmailExtractor::build_extracted_document(
+            nested,
+            "application/vnd.ms-outlook",
+            &child_config,
+            &grandchildren,
+        ) {
+            Ok(doc) => doc,
+            Err(e) => {
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("msg_embedded_message_extraction"),
+                    message: Cow::Owned(format!("Failed to extract embedded message '{}': {}", filename, e)),
+                });
+                continue;
+            }
+        };
+        // The embedded message's own attachments are inlined into its text by
+        // `build_extracted_document`; keep them addressable as structured
+        // children too, exactly as a top-level message's attachments are.
+        if !grandchildren.is_empty() {
+            internal_doc.children = Some(grandchildren);
+        }
+
+        match crate::core::pipeline::run_pipeline(internal_doc, &child_config).await {
+            Ok(result) => {
+                children.push(ArchiveEntry {
+                    path: filename,
+                    mime_type: "application/vnd.ms-outlook".to_string(),
+                    result: Box::new(result),
+                });
+            }
+            Err(e) => {
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("msg_embedded_message_extraction"),
+                    message: Cow::Owned(format!("Failed to extract embedded message '{}': {}", filename, e)),
                 });
             }
         }
@@ -846,6 +993,7 @@ Attachment body\r\n\
             "message/rfc822",
             None,
             config.max_embedded_file_bytes,
+            &crate::extractors::security::SecurityLimits::default(),
         )
         .unwrap();
 

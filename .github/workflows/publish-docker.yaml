@@ -82,7 +82,6 @@ jobs:
           ref: ${{ steps.meta.outputs.checkout_ref }}
           fetch-depth: 0
           submodules: recursive
-          lfs: true
 
       - name: Show metadata
         env:
@@ -187,7 +186,6 @@ jobs:
           ref: ${{ needs.prepare.outputs.checkout_ref }}
           fetch-depth: 0
           submodules: recursive
-          lfs: true
 
       - name: Free up disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
@@ -196,8 +194,16 @@ jobs:
         if: ${{ needs.prepare.outputs.target_sha != '' }}
         run: git checkout --progress --force ${{ needs.prepare.outputs.target_sha }}
 
-      - name: Pull LFS objects in submodules
-        run: git submodule foreach --recursive 'git lfs pull'
+      # scripts/ci/docker/test_docker.py bind-mounts test_documents at /data and exercises
+      # /data/{pdf,docx,images,doc}/* fixtures across the core/full/cli container tests. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            pdf/**
+            docx/**
+            images/**
+            doc/**
 
       - name: Decide whether to build
         id: gate
@@ -339,6 +345,11 @@ jobs:
 
       - name: Download digests
         if: ${{ steps.gate.outputs.go == 'true' }}
+        # A variant whose build legs were all cancelled/failed (rc.36 #1299) has zero
+        # matching digest-* artifacts, which makes download-artifact error even though that
+        # is a legitimate "skip this variant" outcome. The very next step (Verify digests
+        # present) is the real gate: it counts what came down and fails loudly if the count
+        # is nonzero-but-incomplete, so a genuine partial failure still fails the job. ~keep
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:

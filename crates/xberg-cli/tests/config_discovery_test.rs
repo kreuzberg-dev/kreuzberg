@@ -11,18 +11,7 @@ use tempfile::tempdir;
 
 /// Get the path to the xberg binary.
 fn get_binary_path() -> String {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    format!("{}/../../target/debug/xberg", manifest_dir)
-}
-
-/// Build the binary before running tests.
-fn build_binary() {
-    let status = Command::new("cargo")
-        .args(["build", "--bin", "xberg"])
-        .status()
-        .expect("Failed to build xberg binary");
-
-    assert!(status.success(), "Failed to build xberg binary");
+    env!("CARGO_BIN_EXE_xberg").to_string()
 }
 
 /// Get the test_documents directory path.
@@ -41,8 +30,6 @@ fn get_test_file(relative_path: &str) -> String {
 
 #[test]
 fn test_discover_xberg_toml_in_current_directory() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join(".xberg.toml");
 
@@ -76,8 +63,6 @@ enable_quality_processing = false
 
 #[test]
 fn test_discover_xberg_yaml_in_current_directory() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join(".xberg.yaml");
 
@@ -111,8 +96,6 @@ enable_quality_processing: false
 
 #[test]
 fn test_discover_xberg_yml_in_current_directory() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join(".xberg.yaml");
 
@@ -146,8 +129,6 @@ enable_quality_processing: false
 
 #[test]
 fn test_discover_xberg_json_in_current_directory() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join(".xberg.json");
 
@@ -181,8 +162,6 @@ fn test_discover_xberg_json_in_current_directory() {
 
 #[test]
 fn test_case_insensitive_toml_extension() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom.TOML");
 
@@ -217,8 +196,6 @@ use_cache = false
 
 #[test]
 fn test_case_insensitive_yaml_extension() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom.Yaml");
 
@@ -253,8 +230,6 @@ use_cache: false
 
 #[test]
 fn test_case_insensitive_yml_extension() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom.YML");
 
@@ -289,8 +264,6 @@ use_cache: false
 
 #[test]
 fn test_case_insensitive_json_extension() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom.JSON");
 
@@ -325,8 +298,6 @@ fn test_case_insensitive_json_extension() {
 
 #[test]
 fn test_explicit_config_path_toml() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom_config.toml");
 
@@ -361,8 +332,6 @@ enable_quality_processing = false
 
 #[test]
 fn test_explicit_config_path_yaml() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom_config.yaml");
 
@@ -397,8 +366,6 @@ enable_quality_processing: false
 
 #[test]
 fn test_explicit_config_path_json() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("custom_config.json");
 
@@ -433,8 +400,6 @@ fn test_explicit_config_path_json() {
 
 #[test]
 fn test_invalid_config_extension() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("config.txt");
 
@@ -464,8 +429,6 @@ fn test_invalid_config_extension() {
 
 #[test]
 fn test_malformed_toml_config() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("bad_config.toml");
 
@@ -489,8 +452,6 @@ fn test_malformed_toml_config() {
 
 #[test]
 fn test_malformed_yaml_config() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("bad_config.yaml");
 
@@ -514,8 +475,6 @@ fn test_malformed_yaml_config() {
 
 #[test]
 fn test_malformed_json_config() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("bad_config.json");
 
@@ -539,8 +498,6 @@ fn test_malformed_json_config() {
 
 #[test]
 fn test_nonexistent_config_file() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("nonexistent.toml");
 
@@ -562,8 +519,6 @@ fn test_nonexistent_config_file() {
 
 #[test]
 fn test_default_config_when_no_file_found() {
-    build_binary();
-
     let dir = tempdir().unwrap();
 
     let test_file = get_test_file("text/simple.txt");
@@ -587,8 +542,6 @@ fn test_default_config_when_no_file_found() {
 
 #[test]
 fn test_no_config_discovery_skips_invalid_project_config() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("xberg.toml"), "use_cache = \"not_a_bool\"\n").unwrap();
 
@@ -608,8 +561,6 @@ fn test_no_config_discovery_skips_invalid_project_config() {
 
 #[test]
 fn test_normal_config_discovery_still_loads_project_config() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("xberg.toml"), "use_cache = \"not_a_bool\"\n").unwrap();
 
@@ -633,8 +584,6 @@ fn test_normal_config_discovery_still_loads_project_config() {
 
 #[test]
 fn test_no_config_discovery_still_applies_config_json() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("xberg.toml"), "use_cache = \"not_a_bool\"\n").unwrap();
 
@@ -664,8 +613,6 @@ fn test_no_config_discovery_still_applies_config_json() {
 
 #[test]
 fn test_invalid_config_values() {
-    build_binary();
-
     let dir = tempdir().unwrap();
     let config_path = dir.path().join("invalid.toml");
 

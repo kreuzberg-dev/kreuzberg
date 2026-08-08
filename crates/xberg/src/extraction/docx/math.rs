@@ -196,7 +196,11 @@ fn collect_children(
                         nodes.push(MathNode::Group { children: inner });
                     }
                     _ => {
+                        // `skip_to_end` reads through its own matching end tag directly,
+                        // so the `Event::End` arm below never sees it. Refund the enter
+                        // above or every unrecognized OMML tag leaks one depth level.
                         skip_to_end(reader, &tag);
+                        budget.leave();
                     }
                 }
             }
@@ -228,7 +232,11 @@ fn collect_run(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resul
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:t" => in_text = true,
-                    b"m:rPr" => skip_to_end(reader, b"m:rPr"),
+                    b"m:rPr" => {
+                        // Consumes its own `</m:rPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:rPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -275,7 +283,11 @@ fn collect_ssup(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => base = collect_children(reader, b"m:e", budget)?,
                     b"m:sup" => sup = collect_children(reader, b"m:sup", budget)?,
-                    b"m:sSupPr" => skip_to_end(reader, b"m:sSupPr"),
+                    b"m:sSupPr" => {
+                        // Consumes its own `</m:sSupPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:sSupPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -308,7 +320,11 @@ fn collect_ssub(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => base = collect_children(reader, b"m:e", budget)?,
                     b"m:sub" => sub = collect_children(reader, b"m:sub", budget)?,
-                    b"m:sSubPr" => skip_to_end(reader, b"m:sSubPr"),
+                    b"m:sSubPr" => {
+                        // Consumes its own `</m:sSubPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:sSubPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -343,7 +359,11 @@ fn collect_ssubsup(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> R
                     b"m:e" => base = collect_children(reader, b"m:e", budget)?,
                     b"m:sub" => sub = collect_children(reader, b"m:sub", budget)?,
                     b"m:sup" => sup = collect_children(reader, b"m:sup", budget)?,
-                    b"m:sSubSupPr" => skip_to_end(reader, b"m:sSubSupPr"),
+                    b"m:sSubSupPr" => {
+                        // Consumes its own `</m:sSubSupPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:sSubSupPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -376,7 +396,10 @@ fn collect_frac(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:fPr" => {
+                        // `collect_frac_pr` reads through its own `</m:fPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         frac_type = collect_frac_pr(reader, budget)?;
+                        budget.leave();
                     }
                     b"m:num" => num = collect_children(reader, b"m:num", budget)?,
                     b"m:den" => den = collect_children(reader, b"m:den", budget)?,
@@ -444,7 +467,10 @@ fn collect_rad(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resul
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:radPr" => {
+                        // `collect_rad_pr` reads through its own `</m:radPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         deg_hide = collect_rad_pr(reader, budget)?;
+                        budget.leave();
                     }
                     b"m:deg" => deg = collect_children(reader, b"m:deg", budget)?,
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
@@ -506,7 +532,10 @@ fn collect_nary(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:naryPr" => {
+                        // `collect_nary_pr` reads through its own `</m:naryPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         collect_nary_pr(reader, &mut chr, &mut sub_hide, &mut sup_hide, budget)?;
+                        budget.leave();
                     }
                     b"m:sub" => sub = collect_children(reader, b"m:sub", budget)?,
                     b"m:sup" => sup = collect_children(reader, b"m:sup", budget)?,
@@ -590,7 +619,10 @@ fn collect_delim(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Res
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:dPr" => {
+                        // `collect_delim_pr` reads through its own `</m:dPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         collect_delim_pr(reader, &mut begin_chr, &mut end_chr, &mut sep_chr, budget)?;
+                        budget.leave();
                     }
                     b"m:e" => {
                         elements.push(collect_children(reader, b"m:e", budget)?);
@@ -675,7 +707,11 @@ fn collect_func(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                 match e.name().as_ref() as &[u8] {
                     b"m:fName" => name = collect_children(reader, b"m:fName", budget)?,
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
-                    b"m:funcPr" => skip_to_end(reader, b"m:funcPr"),
+                    b"m:funcPr" => {
+                        // Consumes its own `</m:funcPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:funcPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -707,7 +743,10 @@ fn collect_acc(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resul
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:accPr" => {
+                        // `collect_acc_pr` reads through its own `</m:accPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         collect_acc_pr(reader, &mut chr, budget)?;
+                        budget.leave();
                     }
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
                     _ => {}
@@ -770,7 +809,11 @@ fn collect_eqarr(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Res
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => rows.push(collect_children(reader, b"m:e", budget)?),
-                    b"m:eqArrPr" => skip_to_end(reader, b"m:eqArrPr"),
+                    b"m:eqArrPr" => {
+                        // Consumes its own `</m:eqArrPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:eqArrPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -803,7 +846,11 @@ fn collect_limlow(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Re
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
                     b"m:lim" => lim = collect_children(reader, b"m:lim", budget)?,
-                    b"m:limLowPr" => skip_to_end(reader, b"m:limLowPr"),
+                    b"m:limLowPr" => {
+                        // Consumes its own `</m:limLowPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:limLowPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -836,7 +883,11 @@ fn collect_limupp(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Re
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
                     b"m:lim" => lim = collect_children(reader, b"m:lim", budget)?,
-                    b"m:limUppPr" => skip_to_end(reader, b"m:limUppPr"),
+                    b"m:limUppPr" => {
+                        // Consumes its own `</m:limUppPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:limUppPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -868,7 +919,10 @@ fn collect_bar(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resul
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:barPr" => {
+                        // `collect_bar_pr` reads through its own `</m:barPr>` without
+                        // calling `budget.leave()`; refund the enter above.
                         top = collect_bar_pr(reader, budget)?;
+                        budget.leave();
                     }
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
                     _ => {}
@@ -928,7 +982,11 @@ fn collect_borderbox(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) ->
                 budget.enter()?;
                 match e.name().as_ref() as &[u8] {
                     b"m:e" => body = collect_children(reader, b"m:e", budget)?,
-                    b"m:borderBoxPr" => skip_to_end(reader, b"m:borderBoxPr"),
+                    b"m:borderBoxPr" => {
+                        // Consumes its own `</m:borderBoxPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:borderBoxPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -961,7 +1019,11 @@ fn collect_matrix(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Re
                     b"m:mr" => {
                         rows.push(collect_matrix_row(reader, budget)?);
                     }
-                    b"m:mPr" => skip_to_end(reader, b"m:mPr"),
+                    b"m:mPr" => {
+                        // Consumes its own `</m:mPr>`; refund the enter above.
+                        skip_to_end(reader, b"m:mPr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -1026,7 +1088,11 @@ fn collect_spre(reader: &mut Reader<&[u8]>, budget: &mut SecurityBudget) -> Resu
                     b"m:e" => base = collect_children(reader, b"m:e", budget)?,
                     b"m:sub" => sub = collect_children(reader, b"m:sub", budget)?,
                     b"m:sup" => sup = collect_children(reader, b"m:sup", budget)?,
-                    b"m:sPrePr" => skip_to_end(reader, b"m:sPrePr"),
+                    b"m:sPrePr" => {
+                        // Consumes its own `</m:sPrePr>`; refund the enter above.
+                        skip_to_end(reader, b"m:sPrePr");
+                        budget.leave();
+                    }
                     _ => {}
                 }
             }
@@ -1061,11 +1127,15 @@ fn collect_element_body(
                 budget.enter()?;
                 let tag = (e.name().as_ref() as &[u8]).to_vec();
                 if tag.ends_with(b"Pr") {
+                    // Consumes its own matching end tag; refund the enter above.
                     skip_to_end(reader, &tag);
+                    budget.leave();
                 } else if tag == b"m:e" {
                     children.extend(collect_children(reader, b"m:e", budget)?);
                 } else {
+                    // Same as the `*Pr` branch: consumes its own matching end tag.
                     skip_to_end(reader, &tag);
+                    budget.leave();
                 }
             }
             Ok(Event::End(ref e)) => {
@@ -1457,6 +1527,126 @@ mod tests {
         }
         let mut budget = SecurityBudget::with_defaults();
         collect_and_convert_omath(&mut reader, &mut budget).unwrap_or_default()
+    }
+
+    /// Helper (GH#1395): parse an OMML fragment through `collect_and_convert_omath`
+    /// using a caller-supplied budget, so the caller can inspect the budget's
+    /// residual depth state after conversion completes.
+    fn omml_with_budget(xml: &str, budget: &mut SecurityBudget) {
+        let wrapped = format!("<m:oMath>{}</m:oMath>", xml);
+        let mut reader = Reader::from_str(&wrapped);
+        reader.config_mut().trim_text(false);
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(ref e)) if e.name().as_ref() as &[u8] == b"m:oMath" => break,
+                Ok(Event::Eof) => panic!("unexpected EOF before <m:oMath>"),
+                _ => {}
+            }
+            buf.clear();
+        }
+        collect_and_convert_omath(&mut reader, budget).expect("conversion ok");
+    }
+
+    /// Test-only probe (GH#1395): count how many more `budget.enter()` calls succeed
+    /// before the depth cap trips. A freshly-built budget accepts exactly `max_depth`
+    /// more entries; if the OMML conversion leaked N depth levels, only
+    /// `max_depth - N` succeed. This makes the depth counter observable through
+    /// `SecurityBudget`'s existing public API without touching `extractors/security.rs`.
+    fn probe_remaining_depth(budget: &mut SecurityBudget, max_depth: usize) -> usize {
+        let mut successes = 0usize;
+        for _ in 0..=max_depth {
+            if budget.enter().is_ok() {
+                successes += 1;
+            } else {
+                break;
+            }
+        }
+        successes
+    }
+
+    fn budget_with_max_depth(max_depth: usize) -> SecurityBudget {
+        let limits = crate::extractors::security::SecurityLimits {
+            max_nesting_depth: max_depth,
+            max_xml_depth: max_depth,
+            ..Default::default()
+        };
+        SecurityBudget::from_limits(&limits)
+    }
+
+    /// GH#1395: `m:rPr` is skipped via `skip_to_end`, which reads through its own
+    /// `</m:rPr>` directly — the outer loop's `Event::End` arm never sees it, so
+    /// the `budget.enter()` made for `m:rPr`'s start tag must be refunded at the
+    /// call site or every run with formatting properties leaks one depth level.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_run_with_rpr() {
+        let mut budget = budget_with_max_depth(64);
+        omml_with_budget(
+            r#"<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t></m:r>"#,
+            &mut budget,
+        );
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "m:rPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: same `skip_to_end` shape as `m:rPr`, but on a `*Pr` sibling that
+    /// hangs off a different element (`m:sSup`).
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_ssup_with_ssuppr() {
+        let mut budget = budget_with_max_depth(64);
+        omml_with_budget(
+            r#"<m:sSup>
+                <m:sSupPr><m:ctrlPr/></m:sSupPr>
+                <m:e><m:r><m:t>x</m:t></m:r></m:e>
+                <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+            </m:sSup>"#,
+            &mut budget,
+        );
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "m:sSupPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: `m:fPr` is handled by `collect_frac_pr`, a dedicated recursive
+    /// parser (not `skip_to_end`) that also reads through its own `</m:fPr>`
+    /// without calling `budget.leave()` — same leak shape, different mechanism.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_frac_with_fpr() {
+        let mut budget = budget_with_max_depth(64);
+        omml_with_budget(
+            r#"<m:f>
+                <m:fPr><m:type m:val="noBar"/></m:fPr>
+                <m:num><m:r><m:t>n</m:t></m:r></m:num>
+                <m:den><m:r><m:t>k</m:t></m:r></m:den>
+            </m:f>"#,
+            &mut budget,
+        );
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "m:fPr must not leak a depth level"
+        );
+    }
+
+    /// GH#1395: an unrecognized OMML tag falls into `collect_children`'s `_` arm,
+    /// which also delegates to `skip_to_end` and must refund the same way.
+    #[test]
+    fn should_reset_depth_counter_to_zero_after_parsing_unrecognized_tag() {
+        let mut budget = budget_with_max_depth(64);
+        omml_with_budget(
+            r#"<m:groupChr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:groupChr>"#,
+            &mut budget,
+        );
+        assert_eq!(
+            probe_remaining_depth(&mut budget, 64),
+            64,
+            "an unrecognized OMML tag (skip_to_end fallback) must not leak a depth level"
+        );
     }
 
     #[test]

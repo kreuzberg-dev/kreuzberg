@@ -108,6 +108,50 @@ pub struct PptxAppProperties {
     pub slide_titles: Vec<String>,
 }
 
+/// Metadata key carrying the raw, undecoded `DocSecurity` integer.
+pub(crate) const DOC_SECURITY_KEY: &str = "doc_security";
+
+/// Decode a `DocSecurity` bit field into named boolean flags.
+///
+/// `DocSecurity` (ECMA-376 Part 1 §22.2.2.7, as clarified by MS-OI29500) packs four
+/// independent restrictions into one integer: `1` = password protected, `2` = read-only
+/// recommended, `4` = read-only enforced, `8` = locked for annotation. `doc_security` (see
+/// [`DocxAppProperties::doc_security`] and its XLSX/PPTX equivalents) is parsed and stored
+/// as that raw integer; extractors decode it here so consumers see named flags in
+/// `Metadata::additional` rather than an opaque bit field (#230).
+///
+/// The pairs are returned in ascending bit order. Higher-order bits beyond `8` are not part
+/// of the schema and are ignored.
+///
+/// All four flags are always returned, including when `raw` is `0`: an explicit `false`
+/// records that the document *declares* no security restrictions, as opposed to the
+/// `doc_security: None` case (no `DocSecurity` element at all), where nothing should be
+/// decoded because there is no data to decode. Security-relevant booleans are exactly the
+/// kind of value where "absent" and "false" must not be conflated by convention.
+///
+/// Returns `(key, value)` pairs; the keys are stable strings suitable for use in a
+/// `Metadata::additional` map.
+#[cfg_attr(alef, alef(skip))]
+pub fn decode_doc_security_flags(raw: i32) -> [(&'static str, bool); 4] {
+    const PASSWORD_PROTECTED_BIT: i32 = 1;
+    const READ_ONLY_RECOMMENDED_BIT: i32 = 2;
+    const READ_ONLY_ENFORCED_BIT: i32 = 4;
+    const LOCKED_FOR_ANNOTATIONS_BIT: i32 = 8;
+
+    [
+        ("doc_security_password_protected", raw & PASSWORD_PROTECTED_BIT != 0),
+        (
+            "doc_security_read_only_recommended",
+            raw & READ_ONLY_RECOMMENDED_BIT != 0,
+        ),
+        ("doc_security_read_only_enforced", raw & READ_ONLY_ENFORCED_BIT != 0),
+        (
+            "doc_security_locked_for_annotations",
+            raw & LOCKED_FOR_ANNOTATIONS_BIT != 0,
+        ),
+    ]
+}
+
 /// Extract DOCX application properties from an Office Open XML document
 ///
 /// Parses `docProps/app.xml` and extracts Word-specific metadata.
@@ -158,7 +202,7 @@ pub fn extract_xlsx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArc
 
     let root = doc.root_element();
 
-    let worksheet_names = extract_titles_of_parts(root);
+    let worksheet_names = titles_for_heading(root, "worksheet");
 
     Ok(XlsxAppProperties {
         application: super::parse_xml_text(root, "Application"),
@@ -188,7 +232,7 @@ pub fn extract_pptx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArc
 
     let root = doc.root_element();
 
-    let slide_titles = extract_titles_of_parts(root);
+    let slide_titles = titles_for_heading(root, "slide");
 
     let presentation_format = super::parse_xml_text(root, "PresentationFormat");
 
@@ -211,26 +255,91 @@ pub fn extract_pptx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArc
     })
 }
 
-/// Extract titles from TitlesOfParts vt:vector element
+/// Parse every `vt:lpstr` under `TitlesOfParts`'s `vt:vector`, in document order.
 ///
-/// Handles the vt:vector/vt:lpstr structure used for worksheet/slide names.
-fn extract_titles_of_parts(root: Node) -> Vec<String> {
+/// `TitlesOfParts` is a single flat vector that concatenates *several* logical groups
+/// (e.g. worksheet names followed by named ranges, or theme names followed by slide
+/// titles); the group boundaries are declared separately in the sibling `HeadingPairs`
+/// element (see [`parse_heading_pairs`]). Entries are kept in raw form (including empty
+/// strings) here so that slicing by `HeadingPairs` counts stays correctly aligned;
+/// filtering happens after slicing in [`titles_for_heading`].
+fn parse_titles_of_parts_raw(root: Node) -> Vec<String> {
     let mut titles = Vec::new();
 
     if let Some(titles_node) = root.descendants().find(|n| n.has_tag_name("TitlesOfParts"))
         && let Some(vector_node) = titles_node.descendants().find(|n| n.has_tag_name("vector"))
     {
-        for lpstr_node in vector_node.descendants().filter(|n| n.has_tag_name("lpstr")) {
-            if let Some(text) = lpstr_node.text() {
-                let text = text.trim();
-                if !text.is_empty() {
-                    titles.push(text.to_string());
-                }
-            }
+        for lpstr_node in vector_node.children().filter(|n| n.has_tag_name("lpstr")) {
+            titles.push(lpstr_node.text().unwrap_or("").trim().to_string());
         }
     }
 
     titles
+}
+
+/// Parse `HeadingPairs` into an ordered list of `(group name, entry count)` pairs.
+///
+/// `HeadingPairs` is a `vt:vector` of `vt:variant` pairs: a name (`vt:lpstr`, e.g.
+/// `"Worksheets"` or `"Named Ranges"`) immediately followed by a count (`vt:i4`) of how
+/// many consecutive entries in `TitlesOfParts` belong to that group. Malformed or
+/// incomplete pairs are skipped rather than aborting the whole parse.
+fn parse_heading_pairs(root: Node) -> Vec<(String, usize)> {
+    let Some(heading_node) = root.descendants().find(|n| n.has_tag_name("HeadingPairs")) else {
+        return Vec::new();
+    };
+    let Some(vector_node) = heading_node.descendants().find(|n| n.has_tag_name("vector")) else {
+        return Vec::new();
+    };
+
+    let variants: Vec<Node> = vector_node.children().filter(|n| n.has_tag_name("variant")).collect();
+
+    let mut pairs = Vec::new();
+    let mut iter = variants.into_iter();
+    while let (Some(name_variant), Some(count_variant)) = (iter.next(), iter.next()) {
+        let name = name_variant
+            .children()
+            .find(|n| n.has_tag_name("lpstr"))
+            .and_then(|n| n.text())
+            .map(|s| s.trim().to_string());
+        let count = count_variant
+            .children()
+            .find(|n| n.has_tag_name("i4"))
+            .and_then(|n| n.text())
+            .and_then(|s| s.trim().parse::<usize>().ok());
+
+        if let (Some(name), Some(count)) = (name, count) {
+            pairs.push((name, count));
+        }
+    }
+
+    pairs
+}
+
+/// Return the `TitlesOfParts` entries belonging to the `HeadingPairs` group whose name
+/// contains `needle` (case-insensitive), e.g. `"worksheet"` or `"slide"`.
+///
+/// Falls back to returning all non-empty titles when `HeadingPairs` is absent, matching
+/// the pre-#231 behavior for documents that omit it. When `HeadingPairs` is present but no
+/// group name matches `needle`, returns an empty list rather than guessing.
+fn titles_for_heading(root: Node, needle: &str) -> Vec<String> {
+    let titles = parse_titles_of_parts_raw(root);
+    let pairs = parse_heading_pairs(root);
+
+    if pairs.is_empty() {
+        return titles.into_iter().filter(|t| !t.is_empty()).collect();
+    }
+
+    let mut offset = 0usize;
+    for (name, count) in &pairs {
+        let start = offset.min(titles.len());
+        let end = (offset + count).min(titles.len());
+        if name.to_lowercase().contains(needle) {
+            return titles[start..end].iter().filter(|t| !t.is_empty()).cloned().collect();
+        }
+        offset = end;
+    }
+
+    Vec::new()
 }
 
 #[cfg(test)]
@@ -374,7 +483,157 @@ mod tests {
         </Properties>"#;
 
         let doc = roxmltree::Document::parse(xml).unwrap();
-        let titles = extract_titles_of_parts(doc.root_element());
+        let titles = titles_for_heading(doc.root_element(), "worksheet");
         assert_eq!(titles, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_titles_for_heading_slices_by_heading_pairs() {
+        let xml = r#"<Properties xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+            <HeadingPairs>
+                <vt:vector size="4" baseType="variant">
+                    <vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant>
+                    <vt:variant><vt:i4>2</vt:i4></vt:variant>
+                    <vt:variant><vt:lpstr>Named Ranges</vt:lpstr></vt:variant>
+                    <vt:variant><vt:i4>1</vt:i4></vt:variant>
+                </vt:vector>
+            </HeadingPairs>
+            <TitlesOfParts>
+                <vt:vector size="3" baseType="lpstr">
+                    <vt:lpstr>Sheet1</vt:lpstr>
+                    <vt:lpstr>Sheet2</vt:lpstr>
+                    <vt:lpstr>Print_Area</vt:lpstr>
+                </vt:vector>
+            </TitlesOfParts>
+        </Properties>"#;
+
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        assert_eq!(
+            titles_for_heading(doc.root_element(), "worksheet"),
+            vec!["Sheet1".to_string(), "Sheet2".to_string()]
+        );
+        assert_eq!(
+            titles_for_heading(doc.root_element(), "named range"),
+            vec!["Print_Area".to_string()]
+        );
+    }
+
+    #[test]
+    fn should_decode_zero_doc_security_as_all_flags_false() {
+        assert_eq!(
+            decode_doc_security_flags(0),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", false),
+                ("doc_security_read_only_enforced", false),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_map_each_doc_security_bit_to_its_ecma376_meaning() {
+        // ECMA-376 §22.2.2.7: 1 = password protected, 2 = read-only recommended,
+        // 4 = read-only enforced, 8 = locked for annotation. Bits 1 and 2 are
+        // adjacent and easy to transpose, so each is pinned individually.
+        assert_eq!(
+            decode_doc_security_flags(1),
+            [
+                ("doc_security_password_protected", true),
+                ("doc_security_read_only_recommended", false),
+                ("doc_security_read_only_enforced", false),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+        assert_eq!(
+            decode_doc_security_flags(2),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", true),
+                ("doc_security_read_only_enforced", false),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+        assert_eq!(
+            decode_doc_security_flags(4),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", false),
+                ("doc_security_read_only_enforced", true),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+        assert_eq!(
+            decode_doc_security_flags(8),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", false),
+                ("doc_security_read_only_enforced", false),
+                ("doc_security_locked_for_annotations", true),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_decode_combined_read_only_recommended_and_enforced_bits() {
+        // 6 = 2 (read-only recommended) + 4 (read-only enforced)
+        assert_eq!(
+            decode_doc_security_flags(6),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", true),
+                ("doc_security_read_only_enforced", true),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_decode_all_doc_security_bits_when_all_set() {
+        // 15 = 1 + 2 + 4 + 8, all four restrictions active
+        assert_eq!(
+            decode_doc_security_flags(15),
+            [
+                ("doc_security_password_protected", true),
+                ("doc_security_read_only_recommended", true),
+                ("doc_security_read_only_enforced", true),
+                ("doc_security_locked_for_annotations", true),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_ignore_doc_security_bits_outside_the_ecma376_schema() {
+        // Bit 16 (0x10) is outside the DocSecurity schema and must not be
+        // surfaced as, or conflated with, any of the four named flags.
+        assert_eq!(
+            decode_doc_security_flags(16),
+            [
+                ("doc_security_password_protected", false),
+                ("doc_security_read_only_recommended", false),
+                ("doc_security_read_only_enforced", false),
+                ("doc_security_locked_for_annotations", false),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_titles_for_heading_no_match_returns_empty() {
+        let xml = r#"<Properties xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+            <HeadingPairs>
+                <vt:vector size="2" baseType="variant">
+                    <vt:variant><vt:lpstr>Fonts Used</vt:lpstr></vt:variant>
+                    <vt:variant><vt:i4>1</vt:i4></vt:variant>
+                </vt:vector>
+            </HeadingPairs>
+            <TitlesOfParts>
+                <vt:vector size="1" baseType="lpstr">
+                    <vt:lpstr>Arial</vt:lpstr>
+                </vt:vector>
+            </TitlesOfParts>
+        </Properties>"#;
+
+        let doc = roxmltree::Document::parse(xml).unwrap();
+        assert_eq!(titles_for_heading(doc.root_element(), "slide"), Vec::<String>::new());
     }
 }

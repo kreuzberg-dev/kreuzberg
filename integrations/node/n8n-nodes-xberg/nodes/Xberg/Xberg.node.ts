@@ -57,7 +57,6 @@ const OUTPUT_EXTENSIONS: Record<string, string> = {
 // aliases; the node only reads a documented subset. ~keep
 interface XbergDocument {
   content?: string;
-  formattedContent?: string;
   mimeType?: string;
   extractionMethod?: string;
   detectedLanguages?: string[];
@@ -126,9 +125,6 @@ function documentToJson(document: XbergDocument, options: IDataObject): IDataObj
     counts: document.counts as IDataObject,
   };
 
-  if (document.formattedContent) {
-    json.formattedContent = document.formattedContent;
-  }
   if (typeof document.qualityScore === "number") {
     json.qualityScore = document.qualityScore;
   }

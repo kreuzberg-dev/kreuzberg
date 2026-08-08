@@ -11,7 +11,8 @@ use crate::core::config::concurrency::LayoutBatchWorkload;
 #[tokio::test]
 async fn extract_bytes_input_returns_envelope() {
     let config = ExtractionConfig::default();
-    let output = extract(ExtractInput::from_bytes(b"hello".to_vec(), "text/plain", None), &config)
+    let output = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_bytes(b"hello".to_vec(), "text/plain", None), &config)
         .await
         .unwrap();
 
@@ -28,7 +29,8 @@ async fn extract_local_uri_returns_envelope() {
     File::create(&path).unwrap().write_all(b"hello path").unwrap();
 
     let config = ExtractionConfig::default();
-    let output = extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
+    let output = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
         .await
         .unwrap();
 
@@ -43,7 +45,8 @@ async fn extract_file_uri_returns_envelope() {
     File::create(&path).unwrap().write_all(b"hello file uri").unwrap();
 
     let config = ExtractionConfig::default();
-    let output = extract(ExtractInput::from_uri(format!("file://{}", path.display())), &config)
+    let output = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri(format!("file://{}", path.display())), &config)
         .await
         .unwrap();
 
@@ -59,7 +62,8 @@ async fn extract_rejects_local_path_when_policy_disallows_it() {
 
     let mut config = ExtractionConfig::default();
     config.url.allow_local_file_inputs = false;
-    let error = extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
+    let error = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
         .await
         .unwrap_err();
 
@@ -69,7 +73,8 @@ async fn extract_rejects_local_path_when_policy_disallows_it() {
 #[tokio::test]
 async fn extract_rejects_non_local_file_uri_host() {
     let config = ExtractionConfig::default();
-    let error = extract(ExtractInput::from_uri("file://evilhost/tmp/doc.txt"), &config)
+    let error = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri("file://evilhost/tmp/doc.txt"), &config)
         .await
         .unwrap_err();
 
@@ -86,12 +91,13 @@ async fn extract_file_uri_accepts_localhost_host() {
         .unwrap();
 
     let config = ExtractionConfig::default();
-    let output = extract(
-        ExtractInput::from_uri(format!("file://localhost{}", path.display())),
-        &config,
-    )
-    .await
-    .unwrap();
+    let output = crate::engine::Engine::new_default()
+        .extract(
+            ExtractInput::from_uri(format!("file://localhost{}", path.display())),
+            &config,
+        )
+        .await
+        .unwrap();
 
     assert_eq!(output.results.len(), 1);
     assert_eq!(output.results[0].content.trim(), "hello localhost file uri");
@@ -100,7 +106,8 @@ async fn extract_file_uri_accepts_localhost_host() {
 #[tokio::test]
 async fn extract_rejects_unsupported_scheme() {
     let config = ExtractionConfig::default();
-    let error = extract(ExtractInput::from_uri("s3://bucket/file.txt"), &config)
+    let error = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri("s3://bucket/file.txt"), &config)
         .await
         .unwrap_err();
 
@@ -618,7 +625,8 @@ async fn extract_py_local_uri_returns_source_code_mime() {
         ..Default::default()
     };
 
-    let output = extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
+    let output = crate::engine::Engine::new_default()
+        .extract(ExtractInput::from_uri(path.to_string_lossy()), &config)
         .await
         .unwrap();
 

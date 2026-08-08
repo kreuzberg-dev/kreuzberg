@@ -47,6 +47,7 @@ fn test_include_headers_produces_at_least_as_many_words_as_default() {
         content_filter: Some(ContentFilterConfig {
             include_headers: true,
             include_footers: true,
+            include_footnotes: false,
             strip_repeating_text: false,
             include_watermarks: false,
         }),

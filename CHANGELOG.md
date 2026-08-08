@@ -9,11 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency bumps: `crawlberg` 1.1.4, `liter-llm` 1.16.0, `sceptre` 0.4.0,
+  `tree-sitter-language-pack` 1.14.3.
+- `LlmConfig` now passes through liter-llm's full configuration surface instead of a hand-tracked
+  subset: `providers`, `cache`, `budget`, `rate_limit`, `cost_tracking`, `tracing`,
+  `cooldown_secs`, and `health_check_secs`. `providers` round-trips as configuration but is not
+  wired to a live client — liter-llm's own builder ignores it too — and `cache`, `budget`,
+  `rate_limit`, `cost_tracking`, `tracing`, `cooldown_secs`, and `health_check_secs` only take
+  effect when liter-llm's `tower` feature is compiled in; otherwise they are accepted but unused.
+- The OpenAPI document now declares the `415 Unsupported Media Type` response on `/extract`,
+  `/extract-async`, and `/cache/warm`, and the `429 Too Many Requests` response on
+  `/extract-async`. These responses were already possible at runtime; clients generated from the
+  spec previously had no typed way to handle them.
+- **Breaking (Rust API):** `EmbeddingModelType::Llm` and `RerankerModelType::Llm` now hold
+  `Box<LlmConfig>` instead of `LlmConfig`. Code that constructs either variant directly in Rust
+  must wrap the config in `Box::new(..)`; `match` arms are unaffected.
+
+### Fixed
+
+- Two-column PDF reading order is now detected per horizontal band instead of per page. Page
+  furniture (running headers/footers, titles, rules) used to make the whole page look
+  single-column to the repair heuristic, so genuinely two-column pages kept their columns
+  interleaved line-by-line; furniture also now emits at its true position between bands rather
+  than between the two columns.
+- The Python and PHP bindings' `StructuredDataResult` gain the `value` and `flattened` fields already
+  present in the other language bindings, restoring parity after a binding regeneration gap.
+- The Dart package passes `dart analyze` again: the generated `xberg.dart` exported `traits.dart`
+  without importing it, leaving every plugin-trait doc reference unresolvable, and also carried an
+  unused `dart:typed_data` import; `bin/download_libs.dart` reached into `lib/` by relative path.
+- DOCX documents with many legacy VML `w:pict` picture elements are no longer falsely rejected for
+  exceeding the nesting-depth limit: each `w:pict` was leaking one extra level of nesting budget,
+  and content inside it was also exempt from the iteration cap.
+- Archive, AsciiDoc, VTT, and XML extraction now report when a decode lost bytes to a U+FFFD
+  replacement, instead of silently returning mangled text. The XML declared-encoding path also
+  gained the mojibake repair already applied by every other extractor.
+
+## [1.1.0] - 2026-08-07
+
 ### Added
 
-- New `xberg-ttf-parser` crate: a vendored copy of `ttf-parser` 0.25.1 carrying the fix above.
-  Upstream is currently unmaintained, so vendoring lets us ship font parser fixes without waiting
-  on a release. The crate tracks which upstream pull requests it carries in its README.
+- The `ttf-parser` used when rendering PDF pages is redirected onto `xberg-ttf-parser`, a fork of
+  upstream 0.25.1 carrying the fix above plus eight other correctness and DoS fixes that are merged
+  upstream but unreleased. It is consumed from crates.io; only a small name-compatibility shim
+  (`crates/ttf-parser-compat`) lives in this repo, because Cargo matches `[patch.crates-io]` on
+  package name alone. No first-party code calls the parser directly.
 - New `xberg doctor` command and `doctor()` API probe the configured OCR backend, layout
   detection, and caches, then report pass / warn / fail / skip with a one-line reason —
   answering "is it my document or my environment?" before the first document, with no
@@ -25,6 +66,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ocr.backend = "sceptre"` or `--ocr-backend sceptre`; it returns line quadrilaterals and
   recognition confidence, supports all eight Gen2 model groups, and accepts tuning under
   `backend_options`.
+- `Chunk` gains `sparse_embedding` and `late_interaction` fields, populated when sparse or
+  ColBERT-style multi-vector embedding generation is configured for chunking and omitted from
+  the wire otherwise. Both compile on every feature combination, including default features.
+- New `ChunkingConfig::breadcrumb_target` selects where the heading breadcrumb goes: `Content`
+  (default, unchanged) prepends it into chunk `content`, which is right for dense retrieval where
+  each chunk should be a self-contained passage. `Metadata` leaves `content` clean and relies on
+  `heading_path` instead, for lexical indexes (BM25/TF-IDF): prepending the same breadcrumb into
+  every chunk under a heading inflates that term's document frequency and collapses its IDF
+  toward zero. There is deliberately no `Both` mode — `heading_path` is populated either way.
+  `render_heading_breadcrumb` is now public so `Metadata`-mode consumers can render the same
+  breadcrumb on demand (#1393).
+- New opt-in Prometheus `/metrics` endpoint for the API server, backed by a real
+  `opentelemetry_sdk` meter provider instead of the OTel no-op meter, so metrics registered
+  anywhere in the process are actually exported when scraped (#1391).
+- `LlmConfig` gains a `bedrock` table (region, cross-region routing prefix, and explicit
+  credentials) for `bedrock/`-prefixed models. Credentials are never printed: `Debug` on
+  `LlmConfig` and `BedrockConfig` redacts every credential field.
+- New `CsvOptions` config lets callers set an explicit delimiter and comment-line prefixes for
+  CSV/TSV extraction instead of relying solely on auto-detection.
+- DOCX comments parsed from `word/comments.xml` now get their own `Comment` element kind when
+  joined to the body, instead of being folded into surrounding content.
+- `xberg tree-sitter` gains `--from-config`, loading `cache_dir`, `languages`, and `groups` from
+  the resolved Xberg configuration instead of requiring them all on the command line.
+- Dense-table and other complex-layout PDF regions can now be routed to a configured VLM for
+  extraction instead of only the native/OCR pipeline.
+- Language detection results (`LanguageConfidence`) now report per-language confidence, document
+  proportion, and script, not just a single detected language.
+- `code_intelligence` is now populated from `tree_sitter_language_pack`'s `ProcessResult` for
+  code extraction instead of always being `None` (#259).
+- PDF annotations preserve their real subtype (highlight, underline, strikeout, squiggly, link,
+  stamp, text/free text, etc.) instead of being collapsed into one generic type, and are now
+  rendered onto the page.
+- Applications can now capture `pdf_oxide`'s glyph-drop warnings as a `ProcessingWarning` when its
+  rasterizer silently drops a glyph it cannot paint, instead of the gap going unreported (#1364).
+- The batch-level extraction counter and duration histogram are now emitted, closing four metrics
+  that were declared but never recorded (#332).
+
+### Changed
+
+- Extracted PDF pages now reflect reading-order reordering per page instead of only in the
+  joined document text, so `AUTO` and `ALWAYS` reading-order modes no longer return
+  byte-identical `pages[].content` (#292).
+- A batch's worker thread cap now honors a real Linux cgroup CPU quota larger than the
+  hardcoded serverless default (8) instead of clamping it down, so containers with a higher
+  quota use the cores they were actually granted (#1392).
+
+### Removed
+
+- **Breaking (bindings):** `ExtractedDocument.formatted_content` / `formattedContent` is no longer
+  exposed by any language binding (Python, Node, Ruby, PHP, Go, Java, C#, Elixir, Dart, Swift,
+  Kotlin, Zig, WASM, C FFI), and the C symbol `xberg_extracted_document_formatted_content` is gone.
+  The field is pipeline-internal scratch space: `apply_output_format` moves it into `content` as the
+  last pipeline step, so every document a binding could ever observe carried `null` there. Read the
+  rendering from `content` — it is already in the configured `output_format`. The field remains
+  `pub` on the Rust type, where extractor and post-processor plugins legitimately use it.
+
+### Security
+
+- `biblib` moves from the exact pin `=0.4.3` to `0.8`, taking the citation parser off `quick-xml`
+  0.37 and onto 0.41. That clears RUSTSEC-2026-0194 (quadratic duplicate-attribute checking) and
+  RUSTSEC-2026-0195 (unbounded namespace-declaration allocation), both scored 7.5, which reached
+  every downstream consumer of the `office` feature. The old pin existed because biblib 0.4.4 called
+  a `quick-xml` API that had been removed; 0.8 no longer does. Its `regex` feature is gone —
+  matching is now unconditional `regex-lite` — and its RIS parser keeps records that earlier
+  versions rejected, so RIS input that used to fail to parse now yields a citation.
 
 ### Fixed
 
@@ -44,6 +150,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exponential work. Both now carry a total visit budget.
 - Fonts at the maximum 65535 glyphs now parse. The glyph offset table needs 65536 entries at that
   size, which overflowed a counter and dropped the table, leaving the font with no outlines at all.
+- DOCX extraction no longer truncates tables nested inside other constructs. `w:tblPr`,
+  `w:tblGrid`, `w:trPr`, `w:tcPr`, `w:drawing`, `w:sectPr`, and several OMML branches each
+  consumed their own closing tag without releasing the `SecurityLimits` nesting-depth budget
+  they had claimed, so the leaked depth eventually tripped the limit and cut extraction short
+  partway through a document's tables (#1395).
+- Consecutive numbered subsection headings in PDF structure detection (e.g. `1.1`, `1.2`, `1.3`)
+  are no longer merged into a single paragraph, while prose that happens to start with a bare
+  year or a Roman-numeral/ALL-CAPS heading still merges correctly (#1386).
+- The native `xberg-ffi` build (desktop/server Linux and macOS-arm64, used by the C, C#, Go, and
+  Java bindings) no longer silently drops excel, hwp, hwpx, iwork, wordperfect, mdx, xml, and
+  QR-code support while still advertising those formats as supported. The advertised format
+  catalogue is now filtered through the extractor registry actually compiled into the binary, so
+  a feature-flag gap can no longer make a binding claim a format it cannot extract (#1387).
+- Windows MSVC builds linking `xberg` no longer fail with `LNK2038: RuntimeLibrary mismatch`
+  between `esaxx-rs`'s C++ static runtime (`MT_StaticRelease`) and the Tesseract capi object's
+  dynamic one (`MD_DynamicRelease`). `model2vec-rs`'s tokenizer dependency now takes
+  `fancy-regex` directly instead of pulling in `tokenizers/esaxx_fast`, which only accelerated
+  BPE training and was never needed for inference (#1389).
+- Rotated PDF text (90/180/270-degree runs, most visibly sideways tables) is now assembled along
+  each run's own rotated reading axis instead of page-x order, so a rotated run's words and lines
+  no longer come out glued together or out of order (#293).
+- OCR pipeline scratch metadata (`word_iterator_skipped_count`, `auto_rotate_unavailable`) no
+  longer leaks into the user-visible `Metadata::additional` map. Both are consumed internally to
+  produce `ProcessingWarning`s and are now stripped before the result is returned.
+- Standalone and embedded image OCR preprocessing now honors the caller's
+  `ImageExtractionConfig` dimension and auto-adjust limits, instead of silently falling back to
+  defaults whenever a Tesseract-specific `target_dpi` was also set (#209).
+- Post-processors that rewrite `content` (redaction, summarisation, translation) no longer have
+  their changes silently discarded from Markdown/Djot/HTML/JSON/Custom output.
+  `formatted_content` is rendered from the extractor's element tree before post-processors run,
+  then substituted into `content` at the end of the pipeline; a processor that rewrote `content`
+  without also updating `formatted_content` previously had its stale, pre-processing rendering
+  win — with redaction configured, the returned document could be the *unredacted* rendering. The
+  stale rendering is now discarded in favor of the post-processed plain text, with a
+  `ProcessingWarning` explaining the downgrade (#331).
+- The browser WASM demo's upload cap is raised to 10MB, covering the formats that carry
+  meaningful content at that size without risking the demo's 30-second in-browser worker timeout;
+  the library itself imposes no upload ceiling.
 
 ## [1.0.14] - 2026-08-04
 

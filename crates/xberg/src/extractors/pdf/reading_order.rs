@@ -14,6 +14,11 @@ use crate::pdf::structure::types::{LayoutHint, LayoutHintClass, LayoutRegionPath
 const COLUMN_MERGE_THRESHOLD_PTS: f32 = 20.0;
 
 /// A text span with bounding box information.
+///
+/// `x`/`y`/`width`/`height` are always the page-space bbox pdf_oxide reports:
+/// for a rotated run the origin is in page coordinates but `width`/`height`
+/// are flattened onto the run's own (rotated) axis — see
+/// [`upright_reading_origin`] for why ordering must account for this.
 #[derive(Debug, Clone)]
 pub struct TextSpan {
     pub text: String,
@@ -21,56 +26,10 @@ pub struct TextSpan {
     pub y: f32,
     pub width: f32,
     pub height: f32,
-}
-
-/// Detect columns by clustering region x-centers.
-///
-/// Analyzes the horizontal positions of regions (using their x-centers) to
-/// identify distinct columns. Uses k-means-like clustering with a distance
-/// threshold to group regions that belong to the same column.
-///
-/// Returns a Vec of column assignments, one per region, mapping region index
-/// to column ID (0 = leftmost column).
-fn detect_columns(regions: &[RegionProjection]) -> Vec<usize> {
-    if regions.is_empty() {
-        return Vec::new();
-    }
-
-    let mut x_centers: Vec<f32> = regions.iter().map(|r| (r.left + r.right) / 2.0).collect();
-
-    x_centers.sort_by(|a, b| a.total_cmp(b));
-
-    let mut unique_centers: Vec<f32> = Vec::new();
-    let merge_threshold: f32 = COLUMN_MERGE_THRESHOLD_PTS;
-
-    for &center in &x_centers {
-        if let Some(&last) = unique_centers.last() {
-            if (center - last).abs() > merge_threshold {
-                unique_centers.push(center);
-            }
-        } else {
-            unique_centers.push(center);
-        }
-    }
-
-    let mut assignments = vec![0usize; regions.len()];
-    for (i, region) in regions.iter().enumerate() {
-        let center = (region.left + region.right) / 2.0;
-        let mut best_col = 0;
-        let mut best_dist = f32::INFINITY;
-
-        for (col_id, &cluster_center) in unique_centers.iter().enumerate() {
-            let dist = (center - cluster_center).abs();
-            if dist < best_dist {
-                best_dist = dist;
-                best_col = col_id;
-            }
-        }
-
-        assignments[i] = best_col;
-    }
-
-    assignments
+    /// Text-matrix rotation in degrees, as reported by pdf_oxide
+    /// (`TextSpan::rotation_degrees`). Zero for the overwhelming majority of
+    /// (unrotated) spans.
+    pub rotation_degrees: f32,
 }
 
 /// A region projection: layout region with indices of spans it contains.
@@ -495,6 +454,37 @@ fn strict_segments_union_block(
     let mut union = None;
     for index in indices {
         let block = segment_block(&segments[*index])?;
+        union = Some(union.map_or(block, |current| union_order_blocks(current, block)));
+    }
+    union
+}
+
+/// [`OrderBlock`] for a single [`TextSpan`], or `None` for degenerate/non-finite geometry.
+///
+/// Mirrors [`segment_block`] so span runs can be ordered with the same
+/// predecessor-graph machinery the segment path uses (#194).
+fn span_block(span: &TextSpan) -> Option<OrderBlock> {
+    let coordinates = [span.x, span.y, span.width, span.height];
+    if coordinates.iter().any(|coordinate| !coordinate.is_finite()) || span.width <= 0.0 || span.height <= 0.0 {
+        return None;
+    }
+    let block = OrderBlock {
+        left: span.x,
+        bottom: span.y,
+        right: span.x + span.width,
+        top: span.y + span.height,
+    };
+    let edges = [block.left, block.bottom, block.right, block.top];
+    (edges.iter().all(|edge| edge.is_finite()) && block_area(&block).is_finite() && block_area(&block) > 0.0)
+        .then_some(block)
+}
+
+/// Union [`OrderBlock`] covering every span in `indices`, or `None` if any span
+/// in the run has degenerate/non-finite geometry.
+fn spans_union_block(indices: &[usize], spans: &[TextSpan]) -> Option<OrderBlock> {
+    let mut union = None;
+    for index in indices {
+        let block = span_block(&spans[*index])?;
         union = Some(union.map_or(block, |current| union_order_blocks(current, block)));
     }
     union
@@ -1259,10 +1249,46 @@ pub(crate) fn reorder_segments_by_layout(
         .collect()
 }
 
+/// Rotate a span's page-space origin into its own upright reading frame.
+///
+/// Mirrors [`crate::pdf::oxide::span_geometry::upright_origin`] (which
+/// operates on `pdf_oxide::layout::TextSpan`) for the simpler geometry this
+/// module works with. Returns `(advance, cross)`: `advance` is the position
+/// along the span's own reading direction and `cross` is the position along
+/// the axis lines stack on. For unrotated spans (`rotation_degrees == 0`,
+/// the overwhelming majority) this is the identity `(x, y)`.
+fn upright_reading_origin(span: &TextSpan) -> (f32, f32) {
+    if span.rotation_degrees == 0.0 {
+        return (span.x, span.y);
+    }
+    let (sin, cos) = (-span.rotation_degrees).to_radians().sin_cos();
+    (span.x * cos - span.y * sin, span.x * sin + span.y * cos)
+}
+
+/// `(advance_start, cross_top)` for ordering spans within a reading-order
+/// group: descending `cross_top` walks rows in the span's own reading
+/// direction (top-to-bottom for unrotated text; the equivalent "downward"
+/// step in the run's own frame for rotated text), then ascending
+/// `advance_start` reads left-to-right along that same axis. Identical to
+/// `(x, y + height)` when `rotation_degrees == 0`.
+fn reading_order_key(span: &TextSpan) -> (f32, f32) {
+    let (advance_start, cross_start) = upright_reading_origin(span);
+    (advance_start, cross_start + span.height)
+}
+
 /// Reorder spans using purely geometric column detection (no layout hints needed).
 ///
 /// Detects columns by clustering span x-centers, then orders spans
 /// left-to-right across columns, and top-to-bottom within each column.
+///
+/// This geometric fallback only runs when no layout hints are available at
+/// all (whole-page multi-column detection); it is intentionally left on raw
+/// page x/y rather than each span's own upright frame — unlike a single
+/// detected table region (see [`reading_order_key`], used by
+/// [`reorder_spans_by_layout`]'s per-region sort), a page-wide set of
+/// same-rotation spans has no single well-defined "reading flow" to rotate
+/// into, so the safer, verified fix targets the layout-hint path where a
+/// rotated table's spans are known to form one region.
 ///
 /// Returns a Vec of span indices in reading order.
 fn reorder_spans_geometric(spans: &[TextSpan]) -> Vec<usize> {
@@ -1307,13 +1333,35 @@ fn reorder_spans_geometric(spans: &[TextSpan]) -> Vec<usize> {
     span_columns.into_iter().map(|(_, _, idx)| idx).collect()
 }
 
-/// Reorder spans based on layout regions and column detection.
+/// Groups a maximal run of layout-uncovered spans (in original span order)
+/// into its own block, mirroring [`uncovered_group`]'s batching on the
+/// segment path: consecutive uncovered spans travel together, and a covered
+/// span in between starts a new run.
+fn push_uncovered_run(
+    run: Vec<usize>,
+    spans: &[TextSpan],
+    groups: &mut Vec<Vec<usize>>,
+    blocks: &mut Vec<Option<OrderBlock>>,
+    first_indices: &mut Vec<usize>,
+) {
+    first_indices.push(*run.iter().min().expect("non-empty run"));
+    blocks.push(spans_union_block(&run, spans));
+    groups.push(run);
+}
+
+/// Reorder spans based on layout regions.
 ///
 /// Given a set of spans with bounding boxes and layout-detected regions:
-/// 1. Project spans onto regions
-/// 2. Detect columns from region x-centers
-/// 3. Sort regions by (column_id, top-to-bottom within column)
-/// 4. Emit spans in the order of their sorted regions
+/// 1. Project spans onto regions (`project_spans_to_regions`); spans a region
+///    does not contain (a marginal note, or a span whose center falls outside
+///    every region) are grouped into maximal uncovered runs instead of being
+///    dropped.
+/// 2. Sort spans within each region top-to-bottom, then left-to-right.
+/// 3. Order every region and every uncovered run together with the same
+///    predecessor-graph reading-order algorithm the segment path uses
+///    (`ordered_indices`), so uncovered material is interleaved by position
+///    rather than relocated to the end of the page (#194) — this is the same
+///    helper `plan_segment_groups_by_layout` calls via `order_planned_groups`.
 ///
 /// When layout hints are unavailable, falls back to geometric column detection.
 ///
@@ -1327,51 +1375,191 @@ pub(crate) fn reorder_spans_by_layout(spans: &[TextSpan], hints: &[LayoutHint]) 
         return reorder_spans_geometric(spans);
     }
 
-    let regions = project_spans_to_regions(spans, hints);
+    let mut regions = project_spans_to_regions(spans, hints);
     if regions.is_empty() {
         return (0..spans.len()).collect();
     }
 
-    let column_assignments = detect_columns(&regions);
+    for region in &mut regions {
+        region.span_indices.sort_by(|&a, &b| {
+            let (advance_a, cross_top_a) = reading_order_key(&spans[a]);
+            let (advance_b, cross_top_b) = reading_order_key(&spans[b]);
+            cross_top_b
+                .total_cmp(&cross_top_a)
+                .then_with(|| advance_a.total_cmp(&advance_b))
+        });
+    }
 
-    let mut sorted_regions: Vec<(usize, f32, usize)> = regions
+    let projected_spans: std::collections::HashSet<usize> = regions
         .iter()
-        .enumerate()
-        .map(|(region_idx, region)| {
-            let col_id = column_assignments[region_idx];
-            let top_y = region.top;
-            (col_id, top_y, region_idx)
-        })
+        .flat_map(|region| region.span_indices.iter().copied())
         .collect();
 
-    sorted_regions.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.total_cmp(&a.1)));
-
-    let mut result = Vec::new();
-    let mut projected_spans = std::collections::HashSet::new();
-
-    for (_, _, region_idx) in sorted_regions {
-        let mut sorted_span_indices: Vec<usize> = regions[region_idx].span_indices.clone();
-        sorted_span_indices.sort_by(|&a, &b| {
-            let span_a = &spans[a];
-            let span_b = &spans[b];
-            let top_a = span_a.y + span_a.height;
-            let top_b = span_b.y + span_b.height;
-            top_b.total_cmp(&top_a).then_with(|| span_a.x.total_cmp(&span_b.x))
-        });
-
-        for &span_idx in &sorted_span_indices {
-            result.push(span_idx);
-            projected_spans.insert(span_idx);
-        }
+    let mut groups: Vec<Vec<usize>> = Vec::with_capacity(regions.len());
+    let mut blocks: Vec<Option<OrderBlock>> = Vec::with_capacity(regions.len());
+    let mut first_indices: Vec<usize> = Vec::with_capacity(regions.len());
+    for region in &regions {
+        first_indices.push(
+            *region
+                .span_indices
+                .iter()
+                .min()
+                .expect("project_spans_to_regions drops empty regions"),
+        );
+        blocks.push(Some(OrderBlock {
+            left: region.left,
+            bottom: region.bottom,
+            right: region.right,
+            top: region.top,
+        }));
+        groups.push(region.span_indices.clone());
     }
 
+    let mut uncovered_run: Vec<usize> = Vec::new();
     for span_idx in 0..spans.len() {
-        if !projected_spans.contains(&span_idx) {
-            result.push(span_idx);
+        if projected_spans.contains(&span_idx) {
+            if !uncovered_run.is_empty() {
+                push_uncovered_run(
+                    std::mem::take(&mut uncovered_run),
+                    spans,
+                    &mut groups,
+                    &mut blocks,
+                    &mut first_indices,
+                );
+            }
+        } else {
+            uncovered_run.push(span_idx);
         }
     }
+    if !uncovered_run.is_empty() {
+        push_uncovered_run(uncovered_run, spans, &mut groups, &mut blocks, &mut first_indices);
+    }
 
-    result
+    ordered_indices(&blocks, &first_indices, false, None)
+        .into_iter()
+        .flat_map(|index| groups[index].clone())
+        .collect()
+}
+
+/// Cross-axis spans within this fraction of the taller span's `height` are
+/// treated as the same rotated-frame "line" rather than a new row. Mirrors
+/// [`FALSE_PICTURE_BASELINE_TOLERANCE_RATIO`]'s baseline-clustering role, but
+/// expressed on the rotated upright frame [`upright_reading_origin`] produces.
+const ROTATED_LINE_CROSS_TOLERANCE_RATIO: f32 = 0.5;
+
+/// Assemble spans — already row-ordered by [`reorder_spans_by_layout`] (or any
+/// other producer of a span-index order) — into page text.
+///
+/// Plain concatenation of `spans[i].text` in index order is correct only when
+/// every span shares the page's own upright axis: pdf_oxide bakes word gaps
+/// into a rotated run's *own* baseline, not into page-x, so naive
+/// concatenation of a 90/180/270-degree-rotated run's fragments both glues
+/// adjacent words together (no separator survives reordering) and can read
+/// the fragments out of order (a rotated run's local word order is only
+/// well-defined along its own advance axis, [`upright_reading_origin`], not
+/// along whatever order pdf_oxide happened to emit fragments in).
+///
+/// This groups `order` into maximal same-rotation runs first — a mixed page
+/// (rotated body text beside an upright footer, for example) must not have
+/// one frame forced across the boundary — then, for a rotated run, further
+/// splits it into "lines" using cross-axis proximity (spans within
+/// [`ROTATED_LINE_CROSS_TOLERANCE_RATIO`] of the run's own font extent count
+/// as the same line), sorts each line strictly by advance-axis position, and
+/// inserts a space wherever the advance-axis gap between consecutive spans
+/// exceeds the same kerning cutoff [`ATOMIC_FRAGMENT_GAP_RATIO`] uses
+/// elsewhere in this module.
+///
+/// Unrotated spans take the old code path verbatim (back-to-back
+/// concatenation, no reordering, no inserted separators), so this function is
+/// a byte-identical no-op whenever every span in `order` has
+/// `rotation_degrees == 0.0` — the overwhelming majority of pages.
+pub(crate) fn assemble_reading_order_text(spans: &[TextSpan], order: &[usize]) -> String {
+    let mut text = String::new();
+    let mut run_start = 0;
+    while run_start < order.len() {
+        let rotation = span_rotation(spans, order[run_start]);
+        let mut run_end = run_start + 1;
+        while run_end < order.len() && span_rotation(spans, order[run_end]) == rotation {
+            run_end += 1;
+        }
+        append_run(&mut text, spans, &order[run_start..run_end], rotation);
+        run_start = run_end;
+    }
+    text
+}
+
+fn span_rotation(spans: &[TextSpan], index: usize) -> f32 {
+    spans.get(index).map_or(0.0, |span| span.rotation_degrees)
+}
+
+/// Append one maximal same-rotation run to `text`. `rotation == 0.0` is the
+/// exact legacy path; any other rotation goes through line-clustering,
+/// advance-axis sorting, and gap-based space insertion.
+fn append_run(text: &mut String, spans: &[TextSpan], indices: &[usize], rotation: f32) {
+    if rotation == 0.0 {
+        for &index in indices {
+            if let Some(span) = spans.get(index) {
+                text.push_str(&span.text);
+            }
+        }
+        return;
+    }
+
+    let mut line_start = 0;
+    let mut first_line = true;
+    while line_start < indices.len() {
+        let Some(anchor) = spans.get(indices[line_start]) else {
+            line_start += 1;
+            continue;
+        };
+        let (_, anchor_cross) = upright_reading_origin(anchor);
+        let mut line_end = line_start + 1;
+        while line_end < indices.len() {
+            let Some(candidate) = spans.get(indices[line_end]) else {
+                break;
+            };
+            let (_, candidate_cross) = upright_reading_origin(candidate);
+            let tolerance = anchor.height.max(candidate.height).max(f32::EPSILON) * ROTATED_LINE_CROSS_TOLERANCE_RATIO;
+            if (candidate_cross - anchor_cross).abs() > tolerance {
+                break;
+            }
+            line_end += 1;
+        }
+
+        if !first_line && !text.is_empty() && !text.ends_with(char::is_whitespace) {
+            text.push(' ');
+        }
+        first_line = false;
+        append_rotated_line(text, spans, &indices[line_start..line_end]);
+        line_start = line_end;
+    }
+}
+
+/// Sort one rotated-frame line by advance-axis position and join it,
+/// inserting a space wherever the advance-axis gap between consecutive spans
+/// looks like a real word boundary rather than kerning.
+fn append_rotated_line(text: &mut String, spans: &[TextSpan], indices: &[usize]) {
+    let mut ordered: Vec<usize> = indices.to_vec();
+    ordered.sort_by(|&a, &b| {
+        let advance_a = spans.get(a).map_or(0.0, |span| upright_reading_origin(span).0);
+        let advance_b = spans.get(b).map_or(0.0, |span| upright_reading_origin(span).0);
+        advance_a.total_cmp(&advance_b)
+    });
+
+    let mut previous_advance_end: Option<f32> = None;
+    for index in ordered {
+        let Some(span) = spans.get(index) else { continue };
+        let (advance_start, _) = upright_reading_origin(span);
+        if let Some(previous_end) = previous_advance_end {
+            let gap = advance_start - previous_end;
+            let kerning_limit = span.height.max(f32::EPSILON) * ATOMIC_FRAGMENT_GAP_RATIO;
+            if gap > kerning_limit && !text.is_empty() && !text.ends_with(char::is_whitespace) {
+                text.push(' ');
+            }
+        }
+        text.push_str(&span.text);
+        previous_advance_end = Some(advance_start + span.width);
+    }
 }
 
 #[cfg(test)]
@@ -2470,32 +2658,6 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_columns_two_column_layout() {
-        let regions = vec![
-            RegionProjection {
-                left: 100.0,
-                bottom: 100.0,
-                right: 200.0,
-                top: 500.0,
-                span_indices: vec![],
-            },
-            RegionProjection {
-                left: 400.0,
-                bottom: 100.0,
-                right: 500.0,
-                top: 500.0,
-                span_indices: vec![],
-            },
-        ];
-
-        let assignments = detect_columns(&regions);
-        assert_eq!(assignments.len(), 2);
-        assert_ne!(assignments[0], assignments[1]);
-        assert_eq!(assignments[0], 0);
-        assert_eq!(assignments[1], 1);
-    }
-
-    #[test]
     fn test_project_spans_to_regions() {
         let spans = vec![
             TextSpan {
@@ -2504,6 +2666,7 @@ mod tests {
                 y: 450.0,
                 width: 70.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "Right column".to_string(),
@@ -2511,6 +2674,7 @@ mod tests {
                 y: 450.0,
                 width: 75.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
 
@@ -2550,6 +2714,7 @@ mod tests {
                 y: 450.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "B".to_string(),
@@ -2557,6 +2722,7 @@ mod tests {
                 y: 200.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "C".to_string(),
@@ -2564,6 +2730,7 @@ mod tests {
                 y: 450.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "D".to_string(),
@@ -2571,6 +2738,7 @@ mod tests {
                 y: 200.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
 
@@ -2716,6 +2884,75 @@ mod tests {
         );
     }
 
+    /// Regression for issue #194: a span that projects into no layout region (a
+    /// marginal note sitting in the vertical gap between two stacked regions)
+    /// must be interleaved into the reading order by position, not relocated
+    /// to the end of the page. The previous implementation appended every
+    /// layout-uncovered span, in raw index order, after all projected regions
+    /// (`reorder_spans_by_layout`, old tail loop over `0..spans.len()`
+    /// pushing unfound indices last) — for this fixture that produced
+    /// `[0, 2, 1]` (top region, bottom region, uncovered-note-last) even
+    /// though the uncovered note sits directly between the two regions.
+    #[test]
+    fn test_reorder_spans_uncovered_span_interleaves_between_regions() {
+        let spans = vec![
+            TextSpan {
+                text: "TopSpan".to_string(),
+                x: 50.0,
+                y: 450.0,
+                width: 100.0,
+                height: 12.0,
+                rotation_degrees: 0.0,
+            },
+            TextSpan {
+                text: "MarginalNote".to_string(),
+                x: 50.0,
+                y: 270.0,
+                width: 100.0,
+                height: 12.0,
+                rotation_degrees: 0.0,
+            },
+            TextSpan {
+                text: "BottomSpan".to_string(),
+                x: 50.0,
+                y: 150.0,
+                width: 100.0,
+                height: 12.0,
+                rotation_degrees: 0.0,
+            },
+        ];
+
+        // Region A covers y in [300, 500]; region B covers y in [100, 250].
+        // The marginal note's center (y = 276) falls in the [250, 300] gap
+        // between them, so `project_spans_to_regions` assigns it to neither.
+        let hints = vec![
+            LayoutHint {
+                class_name: crate::pdf::structure::types::LayoutHintClass::Text,
+                confidence: 0.95,
+                left: 40.0,
+                bottom: 300.0,
+                right: 460.0,
+                top: 500.0,
+            },
+            LayoutHint {
+                class_name: crate::pdf::structure::types::LayoutHintClass::Text,
+                confidence: 0.95,
+                left: 40.0,
+                bottom: 100.0,
+                right: 460.0,
+                top: 250.0,
+            },
+        ];
+
+        let order = reorder_spans_by_layout(&spans, &hints);
+        assert_eq!(
+            order,
+            vec![0, 1, 2],
+            "uncovered span must be interleaved between the regions that surround it \
+             (top region, marginal note, bottom region), not appended after both regions"
+        );
+    }
+
     #[test]
     fn test_reorder_spans_mixed_columns() {
         let spans = vec![
@@ -2725,6 +2962,7 @@ mod tests {
                 y: 480.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "B".to_string(),
@@ -2732,6 +2970,7 @@ mod tests {
                 y: 300.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "C".to_string(),
@@ -2739,6 +2978,7 @@ mod tests {
                 y: 470.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "D".to_string(),
@@ -2746,6 +2986,7 @@ mod tests {
                 y: 300.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "E".to_string(),
@@ -2753,6 +2994,7 @@ mod tests {
                 y: 150.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "X".to_string(),
@@ -2760,6 +3002,7 @@ mod tests {
                 y: 300.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
 
@@ -2809,6 +3052,7 @@ mod tests {
                 y: 100.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "B".to_string(),
@@ -2816,6 +3060,7 @@ mod tests {
                 y: 100.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
         let hints = vec![];
@@ -2942,6 +3187,7 @@ mod tests {
                 y: 200.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "2.1.1 ErP".to_string(),
@@ -2949,6 +3195,7 @@ mod tests {
                 y: 180.0,
                 width: 60.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "2.1.2 Gas".to_string(),
@@ -2956,6 +3203,7 @@ mod tests {
                 y: 160.0,
                 width: 60.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "2 TOESTEL".to_string(),
@@ -2963,6 +3211,7 @@ mod tests {
                 y: 450.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
 
@@ -3010,6 +3259,7 @@ mod tests {
                 y: f32::NAN,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "B".to_string(),
@@ -3017,6 +3267,7 @@ mod tests {
                 y: 5.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "C".to_string(),
@@ -3024,6 +3275,7 @@ mod tests {
                 y: 10.0,
                 width: 10.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
         let order = reorder_spans_geometric(&spans);
@@ -3046,6 +3298,7 @@ mod tests {
                 y: 450.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "Left bottom".to_string(),
@@ -3053,6 +3306,7 @@ mod tests {
                 y: 200.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "Right top".to_string(),
@@ -3060,6 +3314,7 @@ mod tests {
                 y: 450.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
             TextSpan {
                 text: "Right bottom".to_string(),
@@ -3067,6 +3322,7 @@ mod tests {
                 y: 200.0,
                 width: 80.0,
                 height: 12.0,
+                rotation_degrees: 0.0,
             },
         ];
 
@@ -3077,5 +3333,302 @@ mod tests {
             "Without hints, geometric fallback should detect columns by x-center \
              and order left column (0,1) before right column (2,3), top-to-bottom"
         );
+    }
+
+    // Regression tests for issue #292/#293 (GH#1358): a sideways (rotated)
+    // table's spans were ordered by raw page x/y, which is the wrong axis for
+    // rotated text — it cuts across the table's actual rows/columns instead
+    // of walking them. `reading_order_key`/`upright_reading_origin` rotate a
+    // span's origin into its own reading frame before comparing, so ordering
+    // follows the table's real row/column structure regardless of the
+    // text-matrix rotation pdf_oxide reports.
+    mod issue_292_rotated_reading_order {
+        use super::*;
+
+        /// A `rotation_degrees = 90` span, built from the same fields the
+        /// existing unrotated `TextSpan` literals use plus the new field.
+        fn rotated_span(text: &str, x: f32, y: f32, width: f32, height: f32) -> TextSpan {
+            TextSpan {
+                text: text.to_string(),
+                x,
+                y,
+                width,
+                height,
+                rotation_degrees: 90.0,
+            }
+        }
+
+        /// Four cells of a 2-row-by-2-column table rotated 90 degrees, fed in
+        /// scrambled order. Rotating `-90` maps page `(x, y)` to
+        /// `(advance, cross) = (y, -x)`: reading advances along page-y (so
+        /// smaller y reads first within a row) and rows stack along page-x
+        /// (so smaller x is the first row). The correct reading order is
+        /// therefore row-major: `A1, A2` (x=100, ascending y) then `B1, B2`
+        /// (x=200, ascending y).
+        fn scrambled_rotated_table() -> Vec<TextSpan> {
+            vec![
+                rotated_span("B2", 200.0, 200.0, 30.0, 10.0), // index 0
+                rotated_span("A1", 100.0, 100.0, 30.0, 10.0), // index 1
+                rotated_span("B1", 200.0, 100.0, 30.0, 10.0), // index 2
+                rotated_span("A2", 100.0, 200.0, 30.0, 10.0), // index 3
+            ]
+        }
+
+        #[test]
+        fn should_order_rotated_table_along_its_own_axis_within_a_layout_region() {
+            let spans = scrambled_rotated_table();
+            // A single generous Text region covering every span's page-space
+            // center (span.x + width/2, span.y + height/2 stays well inside
+            // this box for every cell), so all four spans land in one group
+            // and the region-level sort (not the no-hints fallback) is what
+            // orders them.
+            let hints = vec![LayoutHint {
+                class_name: crate::pdf::structure::types::LayoutHintClass::Text,
+                confidence: 0.9,
+                left: 0.0,
+                bottom: 0.0,
+                right: 400.0,
+                top: 400.0,
+            }];
+
+            let order = reorder_spans_by_layout(&spans, &hints);
+
+            let texts: Vec<&str> = order.iter().map(|&index| spans[index].text.as_str()).collect();
+            assert_eq!(
+                texts,
+                vec!["A1", "A2", "B1", "B2"],
+                "within a layout region, rotated spans must still be ordered along their own axis"
+            );
+        }
+
+        #[test]
+        fn should_not_reverse_or_glue_words_within_a_rotated_row() {
+            // Same fixture and region, but assert the row-level word order
+            // specifically: "A1" must precede "A2" (both in the x=100 row),
+            // never the reverse — this is the word-order aspect of #292
+            // (rotated text reading back-to-front) as observed at the
+            // block-ordering layer.
+            let spans = scrambled_rotated_table();
+            let hints = vec![LayoutHint {
+                class_name: crate::pdf::structure::types::LayoutHintClass::Text,
+                confidence: 0.9,
+                left: 0.0,
+                bottom: 0.0,
+                right: 400.0,
+                top: 400.0,
+            }];
+
+            let order = reorder_spans_by_layout(&spans, &hints);
+            let position_of = |text: &str| order.iter().position(|&index| spans[index].text == text).unwrap();
+
+            assert!(
+                position_of("A1") < position_of("A2"),
+                "A1 must be read before A2 within the same rotated row"
+            );
+            assert!(
+                position_of("B1") < position_of("B2"),
+                "B1 must be read before B2 within the same rotated row"
+            );
+            assert!(
+                position_of("A2") < position_of("B1"),
+                "the first rotated row must fully precede the second"
+            );
+        }
+
+        /// Companion case: an ordinary unrotated two-column layout must be
+        /// completely unaffected by the rotation-aware sort key, since
+        /// `upright_reading_origin`/`reading_order_key` reduce to the
+        /// identity `(x, y + height)` when `rotation_degrees == 0`.
+        #[test]
+        fn should_leave_unrotated_reading_order_unchanged() {
+            let spans = vec![
+                TextSpan {
+                    text: "Top left".to_string(),
+                    x: 50.0,
+                    y: 400.0,
+                    width: 80.0,
+                    height: 12.0,
+                    rotation_degrees: 0.0,
+                },
+                TextSpan {
+                    text: "Bottom left".to_string(),
+                    x: 50.0,
+                    y: 200.0,
+                    width: 80.0,
+                    height: 12.0,
+                    rotation_degrees: 0.0,
+                },
+                TextSpan {
+                    text: "Top right".to_string(),
+                    x: 300.0,
+                    y: 400.0,
+                    width: 80.0,
+                    height: 12.0,
+                    rotation_degrees: 0.0,
+                },
+                TextSpan {
+                    text: "Bottom right".to_string(),
+                    x: 300.0,
+                    y: 200.0,
+                    width: 80.0,
+                    height: 12.0,
+                    rotation_degrees: 0.0,
+                },
+            ];
+
+            let order = reorder_spans_by_layout(&spans, &[]);
+
+            assert_eq!(
+                order,
+                vec![0, 1, 2, 3],
+                "unrotated geometric fallback must still order left column top-to-bottom \
+                 then right column top-to-bottom, exactly as before rotation awareness was added"
+            );
+        }
+    }
+
+    // Regression tests for issue #292/#293 (GH#1358): `reorder_spans_by_layout`
+    // already emits the correct span-index order (see
+    // `issue_292_rotated_reading_order` above), but the caller
+    // (`apply_reading_order_reordering` in extraction.rs) used to concatenate
+    // `spans[index].text` back-to-back with no separator at all. For a
+    // 90-degree-rotated run pdf_oxide bakes word gaps into the run's own
+    // (rotated) baseline, not into page-x, so naive concatenation glued
+    // adjacent words together. `assemble_reading_order_text` fixes this by
+    // grouping same-rotation runs, sorting each rotated line by its own
+    // advance axis, and inserting a space wherever the advance-axis gap looks
+    // like a real word boundary rather than kerning.
+    mod issue_292_span_assembly {
+        use super::*;
+
+        fn rotated_word(text: &str, y: f32, width: f32) -> TextSpan {
+            TextSpan {
+                text: text.to_string(),
+                x: 100.0,
+                y,
+                width,
+                height: 10.0,
+                rotation_degrees: 90.0,
+            }
+        }
+
+        /// Six words of a rotated run, built so the correct reading order
+        /// ("Engine oil need only meet the") reads along ascending
+        /// advance-axis (page-y for a 90-degree run), with real 3pt word gaps
+        /// between them (well above the kerning cutoff for a 10pt run). Fed
+        /// to `assemble_reading_order_text` in the exact reverse order to
+        /// reproduce the observed defect (#292: "the meet only need oil
+        /// Engine").
+        fn scrambled_rotated_sentence() -> Vec<TextSpan> {
+            vec![
+                rotated_word("Engine", 0.0, 36.0),
+                rotated_word("oil", 39.0, 18.0),
+                rotated_word("need", 60.0, 24.0),
+                rotated_word("only", 87.0, 24.0),
+                rotated_word("meet", 114.0, 24.0),
+                rotated_word("the", 141.0, 18.0),
+            ]
+        }
+
+        #[test]
+        fn should_reassemble_rotated_run_in_advance_order_with_word_gaps() {
+            let spans = scrambled_rotated_sentence();
+            // Fed in reverse: exactly the garbled order observed on the real
+            // fixture, where the run's fragments arrive back-to-front.
+            let order = vec![5, 4, 3, 2, 1, 0];
+
+            let text = assemble_reading_order_text(&spans, &order);
+
+            assert_eq!(
+                text, "Engine oil need only meet the",
+                "rotated-run assembly must read along the advance axis and space real word gaps"
+            );
+        }
+
+        #[test]
+        fn should_not_insert_space_for_kerning_tight_rotated_fragments() {
+            // "Eng" and "ine" are two fragments of one word pdf_oxide split,
+            // 0.5pt apart on a 10pt run — well under the kerning cutoff
+            // (10.0 * ATOMIC_FRAGMENT_GAP_RATIO = 1.5), so no space belongs
+            // between them.
+            let spans = vec![rotated_word("Eng", 0.0, 18.0), rotated_word("ine", 18.5, 18.0)];
+            let order = vec![0, 1];
+
+            let text = assemble_reading_order_text(&spans, &order);
+
+            assert_eq!(
+                text, "Engine",
+                "kerning-tight rotated fragments must glue, not space, together"
+            );
+        }
+
+        #[test]
+        fn should_not_force_one_frame_across_a_rotation_boundary() {
+            // An upright footer line sandwiched between two rotated-body
+            // fragments: the rotation boundary must isolate the footer from
+            // the rotated run's advance-axis sort, and the footer itself must
+            // take the exact legacy pass-through (no reordering, no inserted
+            // separators) regardless of position.
+            let spans = vec![
+                rotated_word("oil", 39.0, 18.0),   // 0: rotated body, second word
+                rotated_word("Engine", 0.0, 36.0), // 1: rotated body, first word
+                TextSpan {
+                    text: "Page 264".to_string(),
+                    x: 500.0,
+                    y: 10.0,
+                    width: 40.0,
+                    height: 8.0,
+                    rotation_degrees: 0.0,
+                },
+            ];
+            // Rotated run first (fed reversed, like the fixture), then the
+            // upright footer as its own trailing run.
+            let order = vec![0, 1, 2];
+
+            let text = assemble_reading_order_text(&spans, &order);
+
+            assert_eq!(
+                text, "Engine oilPage 264",
+                "the rotated run resolves to advance order internally; the upright run after it \
+                 is untouched pass-through text with no separator forced across the boundary"
+            );
+        }
+
+        /// Over-fire guard: an entirely unrotated span list must come out
+        /// byte-identical to plain `order`-indexed concatenation, with no
+        /// sorting or gap-based spacing applied — even when the given order
+        /// does not match left-to-right page position, proving the rotated
+        /// path never fires for `rotation_degrees == 0.0`.
+        #[test]
+        fn should_leave_unrotated_spans_byte_identical_to_plain_concatenation() {
+            let spans = vec![
+                TextSpan {
+                    text: "second".to_string(),
+                    x: 300.0,
+                    y: 0.0,
+                    width: 40.0,
+                    height: 10.0,
+                    rotation_degrees: 0.0,
+                },
+                TextSpan {
+                    text: "first".to_string(),
+                    x: 0.0,
+                    y: 0.0,
+                    width: 40.0,
+                    height: 10.0,
+                    rotation_degrees: 0.0,
+                },
+            ];
+            // Deliberately positionally "wrong" order (right-hand span first)
+            // — the unrotated path must reproduce it verbatim, not repair it.
+            let order = vec![0, 1];
+
+            let text = assemble_reading_order_text(&spans, &order);
+
+            assert_eq!(
+                text, "secondfirst",
+                "unrotated spans must pass through in the given order with no separators, unchanged"
+            );
+        }
     }
 }

@@ -126,6 +126,9 @@ async fn enrich_ner_with_stub_backend_populates_entities() {
     use stub_ner::StubBackend;
 
     let extraction = bare_result("Alice works at Acme Corp.");
+    // `EnrichmentConfig` gains fields under other features, so the update is
+    // load-bearing there and only redundant in this narrow combination. ~keep
+    #[allow(clippy::needless_update)]
     let config = EnrichmentConfig {
         ner: Some(NerEnrichmentConfig {
             backend: Arc::new(StubBackend),

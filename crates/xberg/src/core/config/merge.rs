@@ -50,13 +50,49 @@ pub fn merge_config_json(base: &ExtractionConfig, override_json: &str) -> Result
         }
     }
 
-    serde_json::from_value(config_json).map_err(|e| format!("Failed to deserialize merged config: {e}"))
+    let mut merged: ExtractionConfig =
+        serde_json::from_value(config_json).map_err(|e| format!("Failed to deserialize merged config: {e}"))?;
+
+    restore_skipped_fields(base, &mut merged);
+
+    merged.validate().map_err(|e| e.to_string())?;
+
+    Ok(merged)
+}
+
+/// Restore fields marked `#[serde(skip)]` that the JSON round-trip in
+/// [`merge_config_json`] cannot carry through the override.
+///
+/// These fields are never present in `override_json` (they don't serialize at
+/// all), so there is no override semantics to apply here — the caller's
+/// runtime-injected values from `base` always survive the merge unchanged:
+///
+/// - [`ExtractionConfig::cancel_token`] and [`ExtractionConfig::source_name`]
+/// - [`crate::core::config::OcrConfig::acceleration`] and
+///   [`crate::core::config::OcrConfig::tessdata_bytes`] (only when the merged
+///   config still has an `ocr` section — an override that removes it entirely
+///   has nothing to restore onto)
+/// - [`PostProcessorConfig::enabled_set`] and
+///   [`PostProcessorConfig::disabled_set`] (same caveat for `postprocessor`)
+fn restore_skipped_fields(base: &ExtractionConfig, merged: &mut ExtractionConfig) {
+    merged.cancel_token = base.cancel_token.clone();
+    merged.source_name = base.source_name.clone();
+
+    if let (Some(base_ocr), Some(merged_ocr)) = (base.ocr.as_ref(), merged.ocr.as_mut()) {
+        merged_ocr.acceleration = base_ocr.acceleration.clone();
+        merged_ocr.tessdata_bytes = base_ocr.tessdata_bytes.clone();
+    }
+
+    if let (Some(base_pp), Some(merged_pp)) = (base.postprocessor.as_ref(), merged.postprocessor.as_mut()) {
+        merged_pp.enabled_set = base_pp.enabled_set.clone();
+        merged_pp.disabled_set = base_pp.disabled_set.clone();
+    }
 }
 
 /// Build extraction config by optionally merging JSON overrides into a base config.
 ///
-/// If `override_json` is `None`, returns a clone of `base`. Otherwise delegates
-/// to [`merge_config_json`].
+/// If `override_json` is `None`, returns a clone of `base` after validating it. Otherwise
+/// delegates to [`merge_config_json`], which validates the merged result.
 #[cfg_attr(alef, alef(skip))]
 pub fn build_config_from_json(
     base: &ExtractionConfig,
@@ -64,7 +100,10 @@ pub fn build_config_from_json(
 ) -> Result<ExtractionConfig, String> {
     match override_json {
         Some(json) => merge_config_json(base, json),
-        None => Ok(base.clone()),
+        None => {
+            base.validate().map_err(|e| e.to_string())?;
+            Ok(base.clone())
+        }
     }
 }
 
@@ -146,5 +185,89 @@ mod tests {
         let base = ExtractionConfig::default();
         let result = build_config_from_json(&base, Some(r#"{"force_ocr": true}"#)).unwrap();
         assert!(result.force_ocr);
+    }
+
+    /// Regression test for #218: the JSON round-trip in `merge_config_json`
+    /// serializes `base` to `serde_json::Value`, which drops every
+    /// `#[serde(skip)]` field before the override is even applied. Before the
+    /// fix, `merged.cancel_token` / `source_name` were always `None`,
+    /// `merged.ocr.{acceleration,tessdata_bytes}` were always `None`, and
+    /// `merged.postprocessor.{enabled_set,disabled_set}` were always `None` —
+    /// regardless of what `base` held — even when the override JSON never
+    /// touched those sections at all.
+    #[test]
+    fn test_merge_preserves_serde_skip_fields() {
+        use crate::cancellation::CancellationToken;
+        use crate::core::config::{AccelerationConfig, ExecutionProviderType, OcrConfig, PostProcessorConfig};
+        use ahash::AHashSet;
+
+        let token = CancellationToken::new();
+
+        let mut postprocessor = PostProcessorConfig {
+            enabled_processors: Some(vec!["a".to_string()]),
+            disabled_processors: Some(vec!["b".to_string()]),
+            ..Default::default()
+        };
+        postprocessor.build_lookup_sets();
+
+        let base = ExtractionConfig {
+            cancel_token: Some(token.clone()),
+            source_name: Some("secret/report.pdf".to_string()),
+            ocr: Some(OcrConfig {
+                acceleration: Some(AccelerationConfig {
+                    provider: ExecutionProviderType::Cpu,
+                    device_id: 2,
+                }),
+                tessdata_bytes: Some(std::collections::HashMap::from([("eng".to_string(), vec![1u8, 2, 3])])),
+                ..Default::default()
+            }),
+            postprocessor: Some(postprocessor),
+            ..Default::default()
+        };
+
+        // Override touches an unrelated top-level field only.
+        let merged = merge_config_json(&base, r#"{"use_cache": false}"#).unwrap();
+        assert!(!merged.use_cache, "override field should still apply");
+
+        assert_eq!(
+            merged.source_name,
+            Some("secret/report.pdf".to_string()),
+            "source_name must survive the merge"
+        );
+
+        // cancel_token must be the SAME token (a clone of the same Arc), not merely
+        // present: cancelling the original must be observable through the merged copy.
+        token.cancel();
+        assert!(
+            merged
+                .cancel_token
+                .expect("cancel_token must survive merge")
+                .is_cancelled(),
+            "merged cancel_token must be a clone of base's token"
+        );
+
+        let merged_ocr = merged.ocr.expect("ocr section must survive merge");
+        assert_eq!(
+            merged_ocr.acceleration.map(|a| (a.provider, a.device_id)),
+            Some((ExecutionProviderType::Cpu, 2)),
+            "ocr.acceleration must survive merge"
+        );
+        assert_eq!(
+            merged_ocr.tessdata_bytes.and_then(|m| m.get("eng").cloned()),
+            Some(vec![1u8, 2, 3]),
+            "ocr.tessdata_bytes must survive merge"
+        );
+
+        let merged_pp = merged.postprocessor.expect("postprocessor section must survive merge");
+        assert_eq!(
+            merged_pp.enabled_set,
+            Some(AHashSet::from_iter(["a".to_string()])),
+            "postprocessor.enabled_set must survive merge"
+        );
+        assert_eq!(
+            merged_pp.disabled_set,
+            Some(AHashSet::from_iter(["b".to_string()])),
+            "postprocessor.disabled_set must survive merge"
+        );
     }
 }

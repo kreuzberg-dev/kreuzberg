@@ -8,9 +8,11 @@ use std::io::{Cursor, Read, Seek};
 use std::path::Path;
 use zip::ZipArchive;
 
-use super::elements::Slide;
+use super::elements::{Slide, SlideElement};
 use super::image_handling::get_full_image_path;
+use crate::core::diagnostics::push_warning;
 use crate::error::{Result, XbergError};
+use crate::types::ProcessingWarning;
 
 pub(super) struct PptxContainer<R: Read + Seek> {
     pub(super) archive: ZipArchive<R>,
@@ -154,24 +156,132 @@ impl<R: Read + Seek> SlideIterator<R> {
         self.total_slides
     }
 
-    pub(super) fn next_slide(&mut self) -> Result<Option<Slide>> {
-        if self.current_index >= self.total_slides {
-            return Ok(None);
+    /// Read and parse the next slide, skipping (and warning about) any slide
+    /// whose XML part could not be read or parsed rather than aborting the
+    /// whole presentation for one bad slide (#91).
+    pub(super) fn next_slide(&mut self, warnings: &mut Vec<ProcessingWarning>) -> Result<Option<Slide>> {
+        while self.current_index < self.total_slides {
+            let slide_path = self.container.slide_paths()[self.current_index].clone();
+            let slide_number = (self.current_index + 1) as u32;
+            self.current_index += 1;
+
+            let xml_data = match self.container.read_file(&slide_path) {
+                Ok(data) => data,
+                Err(e) => {
+                    push_warning(
+                        warnings,
+                        "pptx",
+                        format!(
+                            "Could not read slide {} ('{}'): {}; slide content was not extracted",
+                            slide_number, slide_path, e
+                        ),
+                    );
+                    continue;
+                }
+            };
+
+            let rels_path = self.container.get_slide_rels_path(&slide_path);
+            let rels_data = self.container.read_file(&rels_path).ok();
+
+            let mut slide = match Slide::from_xml(slide_number, &xml_data, rels_data.as_deref()) {
+                Ok(slide) => slide,
+                Err(e) => {
+                    push_warning(
+                        warnings,
+                        "pptx",
+                        format!(
+                            "Could not parse slide {} ('{}'): {}; slide content was not extracted",
+                            slide_number, slide_path, e
+                        ),
+                    );
+                    continue;
+                }
+            };
+
+            Self::resolve_graphic_frame_text(
+                &mut self.container,
+                &mut slide.elements,
+                &slide.rel_targets,
+                &slide_path,
+                warnings,
+            );
+
+            return Ok(Some(slide));
         }
 
-        let slide_path = &self.container.slide_paths()[self.current_index].clone();
-        let slide_number = (self.current_index + 1) as u32;
+        Ok(None)
+    }
 
-        let xml_data = self.container.read_file(slide_path)?;
-
-        let rels_path = self.container.get_slide_rels_path(slide_path);
-        let rels_data = self.container.read_file(&rels_path).ok();
-
-        let slide = Slide::from_xml(slide_number, &xml_data, rels_data.as_deref())?;
-
-        self.current_index += 1;
-
-        Ok(Some(slide))
+    /// Resolve chart and SmartArt/diagram text that lives in a separate ZIP
+    /// part, referenced from the slide only by relationship ID (#80). Failures
+    /// to read or parse the referenced part are surfaced as warnings rather
+    /// than silently dropping the chart/diagram's text.
+    fn resolve_graphic_frame_text(
+        container: &mut PptxContainer<R>,
+        elements: &mut [SlideElement],
+        rel_targets: &ahash::AHashMap<String, String>,
+        slide_path: &str,
+        warnings: &mut Vec<ProcessingWarning>,
+    ) {
+        for elem in elements.iter_mut() {
+            match elem {
+                SlideElement::Chart(chart_ref, _) => {
+                    let Some(target) = rel_targets.get(&chart_ref.rel_id) else {
+                        continue;
+                    };
+                    let full_path = get_full_image_path(slide_path, target);
+                    match container.read_file(&full_path) {
+                        Ok(bytes) => match super::parser::parse_chart_text(&bytes) {
+                            Ok(text) => chart_ref.resolved_text = text,
+                            Err(e) => push_warning(
+                                warnings,
+                                "pptx",
+                                format!(
+                                    "Could not parse chart part '{}': {}; chart text was not extracted",
+                                    full_path, e
+                                ),
+                            ),
+                        },
+                        Err(e) => push_warning(
+                            warnings,
+                            "pptx",
+                            format!(
+                                "Could not read chart part '{}': {}; chart text was not extracted",
+                                full_path, e
+                            ),
+                        ),
+                    }
+                }
+                SlideElement::SmartArt(diagram_ref, _) => {
+                    let Some(target) = rel_targets.get(&diagram_ref.rel_id) else {
+                        continue;
+                    };
+                    let full_path = get_full_image_path(slide_path, target);
+                    match container.read_file(&full_path) {
+                        Ok(bytes) => match super::parser::parse_diagram_text(&bytes) {
+                            Ok(text) => diagram_ref.resolved_text = text,
+                            Err(e) => push_warning(
+                                warnings,
+                                "pptx",
+                                format!(
+                                    "Could not parse SmartArt data part '{}': {}; diagram text was not extracted",
+                                    full_path, e
+                                ),
+                            ),
+                        },
+                        Err(e) => push_warning(
+                            warnings,
+                            "pptx",
+                            format!(
+                                "Could not read SmartArt data part '{}': {}; diagram text was not extracted",
+                                full_path, e
+                            ),
+                        ),
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     pub(super) fn get_slide_images(&mut self, slide: &Slide) -> Result<HashMap<String, Vec<u8>>> {

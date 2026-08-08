@@ -426,10 +426,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        cell::RefCell,
-        sync::atomic::{self, AtomicUsize},
-    };
+    // Both `RefCell` uses sit behind `chunking-tokenizers`; without the same gate the import
+    // is unused in any build without that feature, which `-D warnings` turns into an error.
+    #[cfg(feature = "chunking-tokenizers")]
+    use std::cell::RefCell;
+    use std::sync::atomic::{self, AtomicUsize};
 
     use super::super::trim::Trim;
 

@@ -20,6 +20,8 @@ use pdf_oxide::PdfDocument;
 use pdf_oxide::annotation_types::AnnotationSubtype;
 use pdf_oxide::document::ReadingOrder;
 
+use super::rules::{GRID_EDGE_ALIGN_TOLERANCE_PTS, RULED_LINE_MIN_LENGTH_PTS, count_rules};
+
 /// Pages with fewer spans than this look like slides, posters, or covers:
 /// too little text to trust geometry, so the model runs.
 const SPARSE_PAGE_MAX_SPANS: usize = 8;
@@ -41,9 +43,6 @@ const COLUMN_SIDE_MIN_SPANS: usize = 4;
 /// Each side of a gutter must span at least this fraction of the text height.
 const COLUMN_SIDE_MIN_HEIGHT_FRACTION: f32 = 0.15;
 
-/// Horizontal tolerance when clustering span edges into table column anchors.
-const GRID_EDGE_ALIGN_TOLERANCE_PTS: f32 = 3.0;
-
 /// A span edge cluster must recur on this many distinct rows to count as a
 /// table column anchor.
 const GRID_MIN_ROWS: usize = 3;
@@ -59,9 +58,6 @@ const GRID_ROW_TOLERANCE_PTS: f32 = 5.0;
 
 /// Row clustering widens to this fraction of the span height for large fonts.
 const GRID_ROW_TOLERANCE_HEIGHT_FRACTION: f32 = 0.6;
-
-/// Straight lines shorter than this are decoration, not rules, in points.
-const RULED_LINE_MIN_LENGTH_PTS: f32 = 20.0;
 
 /// Ruled-line evidence needs at least this many rules per orientation, so a
 /// single underline or divider does not select the page.
@@ -386,25 +382,6 @@ fn page_signals(doc: &PdfDocument, page_index: usize) -> Option<PageGateSignals>
         graphics_coverage: graphics_coverage(doc, page_index, &paths)?,
         has_form_widgets: has_form_widgets(doc, page_index)?,
     })
-}
-
-/// Count horizontal and vertical rules at least [`RULED_LINE_MIN_LENGTH_PTS`]
-/// long. A rule must also be thin (minor bbox dimension within
-/// [`GRID_EDGE_ALIGN_TOLERANCE_PTS`]) so long diagonals on chart-heavy pages
-/// do not count.
-fn count_rules(paths: &[pdf_oxide::elements::PathContent]) -> (usize, usize) {
-    let mut horizontal = 0usize;
-    let mut vertical = 0usize;
-    for path in paths.iter().filter(|path| path.is_straight_line()) {
-        let width = path.bbox.width.abs();
-        let height = path.bbox.height.abs();
-        if width >= RULED_LINE_MIN_LENGTH_PTS && height <= GRID_EDGE_ALIGN_TOLERANCE_PTS {
-            horizontal += 1;
-        } else if height >= RULED_LINE_MIN_LENGTH_PTS && width <= GRID_EDGE_ALIGN_TOLERANCE_PTS {
-            vertical += 1;
-        }
-    }
-    (horizontal, vertical)
 }
 
 /// Fraction of the page under raster images plus stroked or filled vector

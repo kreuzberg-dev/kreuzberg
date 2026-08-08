@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 use crate::extraction::ooxml_constants::WORDPROCESSINGML_NAMESPACE;
+use crate::extractors::security::{SecurityBudget, SecurityError};
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
 
@@ -186,17 +187,31 @@ pub(crate) fn parse_section_properties(node: &roxmltree::Node) -> SectionPropert
 ///
 /// **Important:** This function advances the reader past the closing `</w:sectPr>` tag.
 /// The caller must not attempt to process the `w:sectPr` end event again.
-pub(crate) fn parse_section_properties_streaming(reader: &mut Reader<&[u8]>) -> SectionProperties {
+///
+/// Threads `budget` through every event so nesting inside `w:sectPr` is measured
+/// against the caller's depth cap instead of passing through unaccounted (GH#384).
+pub(crate) fn parse_section_properties_streaming(
+    reader: &mut Reader<&[u8]>,
+    budget: &mut SecurityBudget,
+) -> Result<SectionProperties, SecurityError> {
     let mut props = SectionProperties::default();
     let mut buf = Vec::new();
 
     loop {
+        budget.step()?;
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) | Ok(Event::Empty(ref e)) => {
+            Ok(Event::Start(ref e)) => {
+                budget.enter()?;
                 apply_section_element(e, &mut props);
             }
-            Ok(Event::End(ref e)) if e.name().as_ref() as &[u8] == b"w:sectPr" => {
-                break;
+            Ok(Event::Empty(ref e)) => {
+                apply_section_element(e, &mut props);
+            }
+            Ok(Event::End(ref e)) => {
+                budget.leave();
+                if e.name().as_ref() as &[u8] == b"w:sectPr" {
+                    break;
+                }
             }
             Ok(Event::Eof) => break,
             Err(_) => break,
@@ -209,7 +224,7 @@ pub(crate) fn parse_section_properties_streaming(reader: &mut Reader<&[u8]>) -> 
         props.orientation = Some(Orientation::Portrait);
     }
 
-    props
+    Ok(props)
 }
 
 /// Extract section properties from a quick_xml element.
@@ -378,7 +393,8 @@ mod tests {
             buf.clear();
         }
 
-        let props = parse_section_properties_streaming(&mut reader);
+        let mut budget = SecurityBudget::with_defaults();
+        let props = parse_section_properties_streaming(&mut reader, &mut budget).unwrap();
 
         assert_eq!(props.page_width_twips, Some(11906));
         assert_eq!(props.page_height_twips, Some(16838));
@@ -409,7 +425,8 @@ mod tests {
             buf.clear();
         }
 
-        let props = parse_section_properties_streaming(&mut reader);
+        let mut budget = SecurityBudget::with_defaults();
+        let props = parse_section_properties_streaming(&mut reader, &mut budget).unwrap();
         assert_eq!(props.orientation, Some(Orientation::Landscape));
         assert_eq!(props.page_width_twips, Some(16838));
     }

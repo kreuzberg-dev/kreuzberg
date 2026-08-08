@@ -43,8 +43,7 @@ typedef struct XBERGArchiveEntry XBERGArchiveEntry;
 /**
  * Archive (ZIP/TAR/7Z) metadata.
  *
- * Extracted from compressed archive files containing file lists and size
- * information.
+ * Extracted from compressed archive files containing file lists and size information.
  */
 typedef struct XBERGArchiveMetadata XBERGArchiveMetadata;
 /**
@@ -55,8 +54,7 @@ typedef struct XBERGAssetCategory XBERGAssetCategory;
  * Audio/video file metadata.
  *
  * Populated from container tags (ID3v2, MP4 atoms, Vorbis comments, etc.) and
- * PCM decode properties. Available when the `transcription-types` feature is
- * enabled.
+ * PCM decode properties. Available when the `transcription-types` feature is enabled.
  */
 typedef struct XBERGAudioMetadata XBERGAudioMetadata;
 /**
@@ -64,10 +62,30 @@ typedef struct XBERGAudioMetadata XBERGAudioMetadata;
  */
 typedef struct XBERGAuthConfig XBERGAuthConfig;
 /**
- * Bounding box in original image coordinates (x1, y1) top-left, (x2, y2)
- * bottom-right.
+ * Bounding box in original image coordinates (x1, y1) top-left, (x2, y2) bottom-right.
  */
 typedef struct XBERGBBox XBERGBBox;
+/**
+ * AWS Bedrock configuration for `bedrock/`-prefixed models.
+ *
+ * Mirrors liter-llm's `BedrockConfig`. Every field is optional: anything left
+ * unset falls back to the standard AWS environment variables
+ * (`AWS_DEFAULT_REGION` / `AWS_REGION`, `AWS_ACCESS_KEY_ID`,
+ * `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `BEDROCK_CROSS_REGION`) and the
+ * default AWS credential chain. Leave the credential fields unset unless you
+ * have an explicit reason to pin them.
+ * \code
+ * `ocr.vlm_config`
+ * model = "bedrock/anthropic.claude-3-sonnet-20240229-v1:0"
+ *
+ * `ocr.vlm_config.bedrock`
+ * region = "eu-central-1"
+ * cross_region_prefix = "eu"
+ *
+ * `Debug` is implemented by hand so the three credential fields are never printed.
+ * \endcode
+ */
+typedef struct XBERGBedrockConfig XBERGBedrockConfig;
 /**
  * BibTeX bibliography metadata.
  */
@@ -84,6 +102,33 @@ typedef struct XBERGBoundaryReason XBERGBoundaryReason;
  * Bounding box coordinates for element positioning.
  */
 typedef struct XBERGBoundingBox XBERGBoundingBox;
+/**
+ * Where the heading-path breadcrumb is written when
+ * `ChunkingConfig::prepend_heading_context`
+ * (super::super::processing::ChunkingConfig::prepend_heading_context)
+ * is enabled for a `Markdown`-chunked document.
+ *
+ * Prepending the breadcrumb into a chunk's `content` (the default, `Content`) helps
+ * dense/embedding retrieval: each chunk becomes a self-contained passage that carries
+ * its own structural context. It actively harms lexical retrieval (BM25/TF-IDF),
+ * though â every chunk under the same section repeats the same heading tokens, so a
+ * heading word's document frequency approaches the number of chunks in that section
+ * and its IDF collapses toward zero, drowning out real match signal.
+ *
+ * `Metadata` keeps `content` free of the breadcrumb and relies solely on
+ * `ChunkMetadata::heading_path` (crate::types::ChunkMetadata::heading_path) (already
+ * populated for every chunk under a heading by
+ * `chunk_for_rag` (crate::chunking::chunk_for_rag)), which downstream lexical/hybrid
+ * pipelines can use to exclude or down-weight heading tokens directly â instead of the
+ * fragile pattern of string-stripping a breadcrumb prefix back out of `content`.
+ *
+ * There is deliberately no `Both` variant. `heading_path` is populated for every
+ * chunk under a heading regardless of this setting, so "both" is precisely what
+ * `Content` already does â a third variant would be a synonym, and one that every
+ * binding in 15 languages would have to carry and every caller would have to guess
+ * the meaning of.
+ */
+typedef struct XBERGBreadcrumbTarget XBERGBreadcrumbTarget;
 /**
  * Browser backend used for JavaScript rendering.
  */
@@ -140,8 +185,7 @@ typedef struct XBERGChunk XBERGChunk;
  * many of the configured definitions. This is the chunk-level equivalent of
  * `PageClassificationConfig`, but scoped to individual chunks
  * (`ExtractedDocument::chunks`) rather than whole pages, and built for large
- * taxonomies where each label needs its own description rather than a bare
- * name.
+ * taxonomies where each label needs its own description rather than a bare name.
  */
 typedef struct XBERGChunkClassificationConfig XBERGChunkClassificationConfig;
 /**
@@ -152,8 +196,7 @@ typedef struct XBERGChunkClassificationConfig XBERGChunkClassificationConfig;
  * label carries its own semantic description, letting the LLM disambiguate
  * similarly named labels without relying on the label string alone.
  */
-typedef struct XBERGChunkClassificationDefinition
-    XBERGChunkClassificationDefinition;
+typedef struct XBERGChunkClassificationDefinition XBERGChunkClassificationDefinition;
 /**
  * Chunk-classification enrichment knob: how to multi-label individual chunks.
  *
@@ -161,8 +204,7 @@ typedef struct XBERGChunkClassificationDefinition
  * already produced chunks (e.g. via `ExtractionConfig::chunking`) for this
  * stage to have any effect; a document with no chunks is a no-op.
  */
-typedef struct XBERGChunkClassificationEnrichmentConfig
-    XBERGChunkClassificationEnrichmentConfig;
+typedef struct XBERGChunkClassificationEnrichmentConfig XBERGChunkClassificationEnrichmentConfig;
 /**
  * Information about a single chunk.
  */
@@ -174,16 +216,15 @@ typedef struct XBERGChunkMetadata XBERGChunkMetadata;
 /**
  * How chunk size is measured.
  *
- * Defaults to `Characters` (Unicode character count). When using token-based
- * sizing, chunks are sized by token count according to the specified tokenizer.
+ * Defaults to `Characters` (Unicode character count). When using token-based sizing,
+ * chunks are sized by token count according to the specified tokenizer.
  *
- * Token-based sizing uses HuggingFace tokenizers loaded at runtime, or a
- * tokenizer backend you register yourself. Any tokenizer available on
- * HuggingFace Hub can be used, including OpenAI-compatible tokenizers (e.g.,
- * `Xenova/gpt-4o`, `Xenova/cl100k_base`). To size chunks with your own
- * tokenizer instead (llama.cpp/GGUF vocabularies, SentencePiece models, custom
- * vocabs), register a `TokenizerBackend` with `register_tokenizer_backend` and
- * set `model` to the registered name.
+ * Token-based sizing uses HuggingFace tokenizers loaded at runtime, or a tokenizer
+ * backend you register yourself. Any tokenizer available on HuggingFace Hub can be
+ * used, including OpenAI-compatible tokenizers (e.g., `Xenova/gpt-4o`,
+ * `Xenova/cl100k_base`). To size chunks with your own tokenizer instead (llama.cpp/GGUF
+ * vocabularies, SentencePiece models, custom vocabs), register a `TokenizerBackend`
+ * with `register_tokenizer_backend` and set `model` to the registered name.
  */
 typedef struct XBERGChunkSizing XBERGChunkSizing;
 /**
@@ -217,8 +258,7 @@ typedef struct XBERGChunkerType XBERGChunkerType;
  * Configures text chunking for document content, including chunk size,
  * overlap, trimming behavior, and optional embeddings.
  *
- * Use `..Default::default()` when constructing to allow for future field
- * additions:
+ * Use `..Default::default()` when constructing to allow for future field additions:
  * ```rust
  * let config = ChunkingConfig {
  *     max_characters: 500,
@@ -255,9 +295,9 @@ typedef struct XBERGCodeBlockStyle XBERGCodeBlockStyle;
 /**
  * A single structurally-meaningful code chunk produced by tree-sitter parsing.
  *
- * Purpose-built payload owned by xberg â deliberately does not expose the
- * upstream `tree_sitter_language_pack` types, so binding generators never need
- * to resolve an external crate's types across FFI/language boundaries.
+ * Purpose-built payload owned by xberg â deliberately does not expose the upstream
+ * `tree_sitter_language_pack` types, so binding generators never need to resolve an
+ * external crate's types across FFI/language boundaries.
  */
 typedef struct XBERGCodeChunkInfo XBERGCodeChunkInfo;
 /**
@@ -268,37 +308,35 @@ typedef struct XBERGCodeChunkInfo XBERGCodeChunkInfo;
  */
 typedef struct XBERGCodeContentMode XBERGCodeContentMode;
 /**
- * An XML-style attribute attached to an `Element` (CodeDataNodeKind::Element)
- * node.
+ * An XML-style attribute attached to an `Element` (CodeDataNodeKind::Element) node.
  *
- * Populated only for `CodeDataNodeKind::Element`; always empty for `KeyValue`
- * and `Sequence` nodes.
+ * Populated only for `CodeDataNodeKind::Element`; always empty for `KeyValue` and
+ * `Sequence` nodes.
  */
 typedef struct XBERGCodeDataAttribute XBERGCodeDataAttribute;
 /**
  * A node in the hierarchical data tree produced by data-format extraction.
  *
  * Purpose-built payload owned by xberg â mirrors
- * `tree_sitter_language_pack::DataNode` but flattens its `Span` down to plain
- * byte offsets, so binding generators never need to resolve an external crate's
- * types across FFI/language boundaries.
+ * `tree_sitter_language_pack::DataNode` but flattens its `Span` down to plain byte
+ * offsets, so binding generators never need to resolve an external crate's types
+ * across FFI/language boundaries.
  */
 typedef struct XBERGCodeDataNode XBERGCodeDataNode;
 /**
  * Discriminates the shape of a `CodeDataNode`.
  *
- * Purpose-built mirror of `tree_sitter_language_pack::DataNodeKind` â kept
- * as an xberg-owned type so binding generators never need to resolve the
- * upstream crate's types across FFI/language boundaries.
+ * Purpose-built mirror of `tree_sitter_language_pack::DataNodeKind` â kept as an
+ * xberg-owned type so binding generators never need to resolve the upstream crate's
+ * types across FFI/language boundaries.
  */
 typedef struct XBERGCodeDataNodeKind XBERGCodeDataNodeKind;
 /**
  * Code-format metadata: the structural chunks produced by tree-sitter parsing.
  *
- * Wrapped by `FormatMetadata.Code`. Kept as a named struct (rather than an
- * inline enum-variant body) so serde can tag it under internal tagging and
- * utoipa can emit a referenceable `CodeMetadata` component in the OpenAPI
- * schema.
+ * Wrapped by `FormatMetadata.Code`. Kept as a named struct (rather than an inline
+ * enum-variant body) so serde can tag it under internal tagging and utoipa can emit a
+ * referenceable `CodeMetadata` component in the OpenAPI schema.
  */
 typedef struct XBERGCodeMetadata XBERGCodeMetadata;
 /**
@@ -334,8 +372,7 @@ typedef struct XBERGContributorRole XBERGContributorRole;
 /**
  * Main conversion options for HTML to Markdown conversion.
  *
- * Use `ConversionOptions.builder()` to construct, or `Default.default()` for
- * defaults.
+ * Use `ConversionOptions.builder()` to construct, or `Default.default()` for defaults.
  * \code
  * use html_to_markdown_rs::{ConversionOptions, HeadingStyle};
  *
@@ -358,6 +395,22 @@ typedef struct XBERGCoreProperties XBERGCoreProperties;
  * Configuration for crawl, scrape, and map operations.
  */
 typedef struct XBERGCrawlConfig XBERGCrawlConfig;
+/**
+ * Configuration for CSV/TSV extraction.
+ *
+ * When unset (`ExtractionConfig::csv == None`), the extractor keeps its
+ * existing default behavior: the delimiter is auto-detected by sampling the
+ * file (comma, tab, pipe, or semicolon), and no line is treated as a comment.
+ * \code
+ * use xberg::core::config::CsvConfig;
+ *
+ * let config = CsvConfig {
+ *     delimiter: Some(";".to_string()),
+ *     comment_prefixes: vec!["#".to_string()],
+ * };
+ * \endcode
+ */
+typedef struct XBERGCsvConfig XBERGCsvConfig;
 /**
  * CSV/TSV file metadata.
  */
@@ -399,8 +452,7 @@ typedef struct XBERGDiffOptions XBERGDiffOptions;
  *
  * This type captures the full richness of Djot markup, including:
  * - Block-level structures (headings, lists, blockquotes, code blocks, etc.)
- * - Inline formatting (emphasis, strong, highlight, subscript, superscript,
- * etc.)
+ * - Inline formatting (emphasis, strong, highlight, subscript, superscript, etc.)
  * - Attributes (classes, IDs, key-value pairs)
  * - Links, images, footnotes
  * - Math expressions (inline and display)
@@ -464,8 +516,7 @@ typedef struct XBERGDocumentCounts XBERGDocumentCounts;
  *
  * # Thread Safety
  *
- * Extractors must be thread-safe (`Send + Sync`) to support concurrent
- * extraction.
+ * Extractors must be thread-safe (`Send + Sync`) to support concurrent extraction.
  * \code
  * use xberg::plugins::{Plugin, DocumentExtractor};
  * use xberg::{ExtractInput, ExtractionConfig, ExtractedDocument, Result};
@@ -485,11 +536,13 @@ typedef struct XBERGDocumentCounts XBERGDocumentCounts;
  *     async fn extract(&self, input: ExtractInput, _config: &ExtractionConfig)
  *         -> Result<ExtractedDocument> {
  *         let bytes = input.bytes.unwrap_or_default();
- *         Ok(ExtractedDocument {
- *             content: String::from_utf8_lossy(&bytes).to_string(),
- *             mime_type: "text/plain".into(),
- *             ..Default::default()
- *         })
+ *         // `ExtractedDocument` has private internal fields, so a struct literal with
+ *         // `..Default::default()` does not compile outside the crate. Build a default
+ *         // and assign the public fields instead.
+ *         let mut document = ExtractedDocument::default();
+ *         document.content = String::from_utf8_lossy(&bytes).to_string();
+ *         document.mime_type = "text/plain".into();
+ *         Ok(document)
  *     }
  *
  *     fn supported_mime_types(&self) -> &[&str] {
@@ -506,9 +559,8 @@ typedef struct XBERGDocumentMetadata XBERGDocumentMetadata;
 /**
  * A single node in the document tree.
  *
- * Each node has deterministic `id`, typed `content`, optional
- * `parent`/`children` for tree structure, and metadata like page number,
- * bounding box, and content layer.
+ * Each node has deterministic `id`, typed `content`, optional `parent`/`children`
+ * for tree structure, and metadata like page number, bounding box, and content layer.
  */
 typedef struct XBERGDocumentNode XBERGDocumentNode;
 /**
@@ -527,9 +579,9 @@ typedef struct XBERGDocumentRevision XBERGDocumentRevision;
 /**
  * Top-level structured document representation.
  *
- * A flat array of nodes with index-based parent/child references forming a
- * tree. Root-level nodes have `parent: None`. Use `body_roots()` and
- * `furniture_roots()` to iterate over top-level content by layer.
+ * A flat array of nodes with index-based parent/child references forming a tree.
+ * Root-level nodes have `parent: None`. Use `body_roots()` and `furniture_roots()`
+ * to iterate over top-level content by layer.
  *
  * # Validation
  *
@@ -630,8 +682,7 @@ typedef struct XBERGEmbeddedFile XBERGEmbeddedFile;
  *   validates this before returning to downstream consumers; a non-conforming
  *   backend surfaces as a `XbergError::Validation`, not a panic.
  * - `embed` may be called from any thread. Its future must be `Send`
- *   (enforced by `async_trait` when `#`async_trait`` is used on non-WASM
- * targets).
+ *   (enforced by `async_trait` when `#`async_trait`` is used on non-WASM targets).
  * - `dimensions()` is called exactly once at registration, immediately after
  *   `initialize()` succeeds. The returned value is cached by the registry and
  *   used for all subsequent shape validation. Lazy-loading implementations can
@@ -650,16 +701,16 @@ typedef struct XBERGEmbeddedFile XBERGEmbeddedFile;
  * The synchronous `embed_texts` entry uses
  * `tokio.task.block_in_place` to await the trait's async `embed`, which
  * requires a multi-thread tokio runtime. Callers running inside a
- * `current_thread` runtime (e.g. `#`tokio.test`` without `flavor =
- * "multi_thread"`, or `tokio::runtime::Builder::new_current_thread()`) must use
+ * `current_thread` runtime (e.g. `#`tokio.test`` without `flavor = "multi_thread"`,
+ * or `tokio::runtime::Builder::new_current_thread()`) must use
  * `embed_texts_async` instead, which awaits directly without `block_in_place`.
  */
 typedef struct XBERGEmbeddingBackend XBERGEmbeddingBackend;
 /**
  * Embedding configuration for text chunks.
  *
- * Configures embedding generation using ONNX models via the vendored embedding
- * engine. Requires the `embeddings` feature to be enabled.
+ * Configures embedding generation using ONNX models via the vendored embedding engine.
+ * Requires the `embeddings` feature to be enabled.
  */
 typedef struct XBERGEmbeddingConfig XBERGEmbeddingConfig;
 /**
@@ -669,10 +720,10 @@ typedef struct XBERGEmbeddingModelType XBERGEmbeddingModelType;
 /**
  * Inference backend that an `EmbeddingPreset` runs on.
  *
- * `Onnx` presets require the `embeddings` feature (ONNX Runtime, not available
- * on WASM/Android x86_64 emulator). `Static` presets require
- * `static-embeddings` (pure-Rust model2vec inference, no ORT â the only
- * dense-embedding backend available on `no-ort-target`).
+ * `Onnx` presets require the `embeddings` feature (ONNX Runtime, not available on
+ * WASM/Android x86_64 emulator). `Static` presets require `static-embeddings`
+ * (pure-Rust model2vec inference, no ORT â the only dense-embedding backend
+ * available on `no-ort-target`).
  *
  * Defaults to `Onnx` via `#`serde(default)`` so every existing preset payload
  * (which predates this field) keeps deserializing without change.
@@ -700,9 +751,8 @@ typedef struct XBERGErrorMetadata XBERGErrorMetadata;
 /**
  * Excel/spreadsheet format metadata.
  *
- * Identifies the document as a spreadsheet source via the
- * `FormatMetadata::Excel` discriminant. Sheet count and sheet names are stored
- * inside this struct.
+ * Identifies the document as a spreadsheet source via the `FormatMetadata::Excel`
+ * discriminant. Sheet count and sheet names are stored inside this struct.
  */
 typedef struct XBERGExcelMetadata XBERGExcelMetadata;
 /**
@@ -847,8 +897,7 @@ typedef struct XBERGFootnoteConfig XBERGFootnoteConfig;
 /**
  * A footnote definition from markdown text.
  *
- * Represents `[^label]: content` declarations (including multi-line
- * continuations).
+ * Represents `[^label]: content` declarations (including multi-line continuations).
  */
 typedef struct XBERGFootnoteDefinition XBERGFootnoteDefinition;
 /**
@@ -868,8 +917,7 @@ typedef struct XBERGFormatMetadata XBERGFormatMetadata;
 /**
  * Block-level element in a Djot document.
  *
- * Represents structural elements like headings, paragraphs, lists, code blocks,
- * etc.
+ * Represents structural elements like headings, paragraphs, lists, code blocks, etc.
  */
 typedef struct XBERGFormattedBlock XBERGFormattedBlock;
 /**
@@ -911,8 +959,7 @@ typedef struct XBERGHeadingStyle XBERGHeadingStyle;
  * Configuration for document chunking and analysis heuristics.
  *
  * Every threshold is a public field so callers can override any subset via
- * struct-update syntax: `HeuristicsConfig { text_layer_threshold: 0.5,
- * ..Default::default() }`.
+ * struct-update syntax: `HeuristicsConfig { text_layer_threshold: 0.5, ..Default::default() }`.
  */
 typedef struct XBERGHeuristicsConfig XBERGHeuristicsConfig;
 /**
@@ -991,9 +1038,9 @@ typedef struct XBERGImageMetadataType XBERGImageMetadataType;
  * The default (`Native`) preserves the format produced by each extractor
  * without any additional encode pass.
  *
- * Callers that need uniform output â e.g. cloud pipelines that always
- * store WebP thumbnails â set this once on
- * `ImageExtractionConfig.output_format` rather than re-encoding downstream.
+ * Callers that need uniform output â e.g. cloud pipelines that always store
+ * WebP thumbnails â set this once on `ImageExtractionConfig.output_format`
+ * rather than re-encoding downstream.
  *
  * # Serde shape
  *
@@ -1037,15 +1084,15 @@ typedef struct XBERGJatsMetadata XBERGJatsMetadata;
 /**
  * Controls how Jupyter notebook code cells are rendered during extraction.
  *
- * A code cell carries both its **source** and any **outputs** that were saved
- * in the notebook. Callers ingesting notebooks for AI agents want different
- * slices of this depending on the task. Xberg never executes cells â
- * `Outputs` and `Both` only surface outputs already stored in the `.ipynb`.
+ * A code cell carries both its **source** and any **outputs** that were saved in
+ * the notebook. Callers ingesting notebooks for AI agents want different slices of
+ * this depending on the task. Xberg never executes cells â `Outputs` and `Both`
+ * only surface outputs already stored in the `.ipynb`.
  *
  * This toggle governs a code cell's **source body** and its **saved outputs**.
- * Markdown (prose) cells and structural markers (kernel language, cell id,
- * tags, execution count) are unaffected â prose always renders and markers
- * orient the reader regardless of mode.
+ * Markdown (prose) cells and structural markers (kernel language, cell id, tags,
+ * execution count) are unaffected â prose always renders and markers orient the
+ * reader regardless of mode.
  */
 typedef struct XBERGJupyterCellRendering XBERGJupyterCellRendering;
 /**
@@ -1060,6 +1107,14 @@ typedef struct XBERGKeywordAlgorithm XBERGKeywordAlgorithm;
  * Keyword extraction configuration.
  */
 typedef struct XBERGKeywordConfig XBERGKeywordConfig;
+/**
+ * Structured per-language detection result: confidence, document share, and script â
+ * the information the ISO-code-only `detected_languages` list cannot convey (#261).
+ *
+ * Populated by `language_detection` alongside `detected_languages`, with one
+ * entry per language, in the same order as `detected_languages`.
+ */
+typedef struct XBERGLanguageConfidence XBERGLanguageConfidence;
 /**
  * Language detection configuration.
  */
@@ -1158,6 +1213,22 @@ typedef struct XBERGListIndentType XBERGListIndentType;
  */
 typedef struct XBERGListType XBERGListType;
 /**
+ * Budget enforcement configuration.
+ *
+ * Mirrors liter-llm's `LlmBudgetConfig`. Only takes effect when liter-llm's `tower`
+ * feature is compiled in; otherwise the value round-trips through configuration
+ * but is not enforced at request time.
+ */
+typedef struct XBERGLlmBudgetConfig XBERGLlmBudgetConfig;
+/**
+ * Response cache configuration.
+ *
+ * Mirrors liter-llm's `LlmCacheConfig`. Only takes effect when liter-llm's `tower`
+ * feature is compiled in; otherwise the value round-trips through configuration
+ * but is not consulted at request time.
+ */
+typedef struct XBERGLlmCacheConfig XBERGLlmCacheConfig;
+/**
  * Configuration for an LLM provider/model via liter-llm.
  *
  * Each feature (VLM OCR, VLM embeddings, structured extraction) carries
@@ -1166,9 +1237,26 @@ typedef struct XBERGListType XBERGListType;
  * `structured_extraction.llm`
  * model = "openai/gpt-4o"
  * api_key = "sk-..."  # or use XBERG_LLM_API_KEY env var
+ *
+ * `Debug` is implemented by hand so `api_key`, header values, and the AWS
+ * credentials in `BedrockConfig` are never printed.
  * \endcode
  */
 typedef struct XBERGLlmConfig XBERGLlmConfig;
+/**
+ * A custom provider configuration entry, in addition to liter-llm's built-in providers.
+ *
+ * Mirrors liter-llm's `LlmProviderConfig`.
+ */
+typedef struct XBERGLlmProviderConfig XBERGLlmProviderConfig;
+/**
+ * Per-model rate limiting configuration.
+ *
+ * Mirrors liter-llm's `LlmRateLimitConfig`. Only takes effect when liter-llm's
+ * `tower` feature is compiled in; otherwise the value round-trips through
+ * configuration but is not enforced at request time.
+ */
+typedef struct XBERGLlmRateLimitConfig XBERGLlmRateLimitConfig;
 /**
  * Token usage and cost data for a single LLM call made during extraction.
  *
@@ -1182,8 +1270,7 @@ typedef struct XBERGLlmUsage XBERGLlmUsage;
  */
 typedef struct XBERGMapResult XBERGMapResult;
 /**
- * How partial results from multiple model calls (e.g. per page batch) are
- * combined.
+ * How partial results from multiple model calls (e.g. per page batch) are combined.
  *
  * Canonical home for the merge strategy referenced by presets and by the
  * structured pipeline's post-processing. There is intentionally only one merge
@@ -1208,8 +1295,8 @@ typedef struct XBERGModelPaths XBERGModelPaths;
 /**
  * A ColBERT multi-vector embedding: one row per attention-live token.
  *
- * `data` is a flat, row-major buffer of length `num_tokens * dim` â row
- * `i` (the embedding for token `i`) occupies `data[i*dim .. (i+1)*dim]`. Flat
+ * `data` is a flat, row-major buffer of length `num_tokens * dim` â row `i`
+ * (the embedding for token `i`) occupies `data[i*dim .. (i+1)*dim]`. Flat
  * storage keeps the type FFI-friendly across binding boundaries; use
  * `MultiVectorEmbedding.rows` internally to iterate per-token slices.
  *
@@ -1237,8 +1324,7 @@ typedef struct XBERGNerConfig XBERGNerConfig;
 /**
  * Line break syntax in Markdown output.
  *
- * Controls how soft line breaks (from `<br>` or line breaks in source) are
- * rendered.
+ * Controls how soft line breaks (from `<br>` or line breaks in source) are rendered.
  */
 typedef struct XBERGNewlineStyle XBERGNewlineStyle;
 /**
@@ -1262,8 +1348,7 @@ typedef struct XBERGNodeContent XBERGNodeContent;
  *
  * # Thread Safety
  *
- * OCR backends must be thread-safe (`Send + Sync`) to support concurrent
- * processing.
+ * OCR backends must be thread-safe (`Send + Sync`) to support concurrent processing.
  * \code
  * use xberg::plugins::{Plugin, OcrBackend, OcrBackendType};
  * use xberg::{Result, OcrConfig};
@@ -1283,18 +1368,16 @@ typedef struct XBERGNodeContent XBERGNodeContent;
  *
  * #`async_trait`
  * impl OcrBackend for CustomOcrBackend {
- *     async fn process_image(&self, image_bytes: &`u8`, config: &OcrConfig) ->
- * Result<ExtractedDocument> {
+ *     async fn process_image(&self, image_bytes: &`u8`, config: &OcrConfig) -> Result<ExtractedDocument> {
  *         // Implement OCR logic here
- *         Ok(ExtractedDocument {
- *             content: "Extracted text".to_string(),
- *             mime_type: Cow::Borrowed("text/plain"),
- *             ..Default::default()
- *         })
+ *         let mut document = ExtractedDocument::default();
+ *         document.content = "Extracted text".to_string();
+ *         document.mime_type = Cow::Borrowed("text/plain");
+ *         Ok(document)
  *     }
  *
- *     async fn process_image_file(&self, path: &Path, config: &OcrConfig) ->
- * Result<ExtractedDocument> { let bytes = std::fs::read(path)?;
+ *     async fn process_image_file(&self, path: &Path, config: &OcrConfig) -> Result<ExtractedDocument> {
+ *         let bytes = std::fs::read(path)?;
  *         self.process_image(&bytes, config).await
  *     }
  *
@@ -1316,16 +1399,15 @@ typedef struct XBERGOcrBackendType XBERGOcrBackendType;
 /**
  * Bounding geometry for an OCR element.
  *
- * Supports both axis-aligned rectangles (from Tesseract) and 4-point
- * quadrilaterals (from PaddleOCR and rotated text detection).
+ * Supports both axis-aligned rectangles (from Tesseract) and 4-point quadrilaterals
+ * (from PaddleOCR and rotated text detection).
  */
 typedef struct XBERGOcrBoundingGeometry XBERGOcrBoundingGeometry;
 /**
  * Confidence scores for an OCR element.
  *
- * Separates detection confidence (how confident that text exists at this
- * location) from recognition confidence (how confident about the actual text
- * content).
+ * Separates detection confidence (how confident that text exists at this location)
+ * from recognition confidence (how confident about the actual text content).
  */
 typedef struct XBERGOcrConfidence XBERGOcrConfidence;
 /**
@@ -1335,8 +1417,8 @@ typedef struct XBERGOcrConfig XBERGOcrConfig;
 /**
  * A unified OCR element representing detected text with full metadata.
  *
- * This is the primary type for structured OCR output, preserving all
- * information from both Tesseract and PaddleOCR backends.
+ * This is the primary type for structured OCR output, preserving all information
+ * from both Tesseract and PaddleOCR backends.
  */
 typedef struct XBERGOcrElement XBERGOcrElement;
 /**
@@ -1369,12 +1451,11 @@ typedef struct XBERGOcrMetadata XBERGOcrMetadata;
  * Multi-backend OCR pipeline with quality-based fallback.
  *
  * Backends are tried in priority order (highest first). After each backend
- * produces output, quality is evaluated. If it meets
- * `quality_thresholds.pipeline_min_quality`, the result is accepted. Otherwise
- * the next backend is tried; if none clears the threshold, an internal
- * selection policy derived from the `OcrConfig` decides which stage's result is
- * returned as the best effort (`vlm_fallback` pipelines prefer their last
- * non-empty stage; explicit and classical pipelines stay score-based).
+ * produces output, quality is evaluated. If it meets `quality_thresholds.pipeline_min_quality`,
+ * the result is accepted. Otherwise the next backend is tried; if none clears the
+ * threshold, an internal selection policy derived from the `OcrConfig` decides which
+ * stage's result is returned as the best effort (`vlm_fallback` pipelines prefer their
+ * last non-empty stage; explicit and classical pipelines stay score-based).
  */
 typedef struct XBERGOcrPipelineConfig XBERGOcrPipelineConfig;
 /**
@@ -1393,8 +1474,7 @@ typedef struct XBERGOcrQualityThresholds XBERGOcrQualityThresholds;
  */
 typedef struct XBERGOcrRotation XBERGOcrRotation;
 /**
- * Which pages of a PDF get OCR'd when neither `force_ocr` nor `force_ocr_pages`
- * applies.
+ * Which pages of a PDF get OCR'd when neither `force_ocr` nor `force_ocr_pages` applies.
  * \code
  * use xberg::{ExtractionConfig, OcrStrategy};
  *
@@ -1453,8 +1533,8 @@ typedef struct XBERGPaddleLanguage XBERGPaddleLanguage;
 /**
  * Configuration for PaddleOCR backend.
  *
- * Configures PaddleOCR text detection and recognition with multi-language
- * support. Uses a builder pattern for convenient configuration.
+ * Configures PaddleOCR text detection and recognition with multi-language support.
+ * Uses a builder pattern for convenient configuration.
  * \code
  * use xberg::PaddleOcrConfig;
  *
@@ -1474,10 +1554,9 @@ typedef struct XBERGPaddleOcrConfig XBERGPaddleOcrConfig;
 /**
  * Byte offset boundary for a page.
  *
- * Tracks where a specific page's content starts and ends in the main content
- * string, enabling mapping from byte positions to page numbers. Offsets are
- * guaranteed to be at valid UTF-8 character boundaries when using standard
- * String methods (push_str, push, etc.).
+ * Tracks where a specific page's content starts and ends in the main content string,
+ * enabling mapping from byte positions to page numbers. Offsets are guaranteed to be
+ * at valid UTF-8 character boundaries when using standard String methods (push_str, push, etc.).
  */
 typedef struct XBERGPageBoundary XBERGPageBoundary;
 /**
@@ -1491,11 +1570,11 @@ typedef struct XBERGPageClassificationConfig XBERGPageClassificationConfig;
 /**
  * Page extraction and tracking configuration.
  *
- * Controls how pages are extracted, tracked, and represented in the extraction
- * results. When `None`, page tracking is disabled.
+ * Controls how pages are extracted, tracked, and represented in the extraction results.
+ * When `None`, page tracking is disabled.
  *
- * Page range tracking in chunk metadata (first_page/last_page) is automatically
- * enabled when page boundaries are available and chunking is configured.
+ * Page range tracking in chunk metadata (first_page/last_page) is automatically enabled
+ * when page boundaries are available and chunking is configured.
  */
 typedef struct XBERGPageConfig XBERGPageConfig;
 /**
@@ -1553,8 +1632,8 @@ typedef struct XBERGPageStructure XBERGPageStructure;
 /**
  * Type of paginated unit in a document.
  *
- * Distinguishes between different types of "pages" (PDF pages, presentation
- * slides, spreadsheet sheets).
+ * Distinguishes between different types of "pages" (PDF pages, presentation slides, spreadsheet
+ * sheets).
  */
 typedef struct XBERGPageUnitType XBERGPageUnitType;
 /**
@@ -1577,14 +1656,12 @@ typedef struct XBERGPdfConfig XBERGPdfConfig;
  * A form field extracted from a PDF's AcroForm or XFA structure.
  *
  * Populated by the PDF extractor when `PdfConfig.extract_form_fields` is
- * enabled and the document is a fillable form. Supports both AcroForm
- * (standard) and XFA (XML Forms Architecture) layers. When both are present,
- * AcroForm fields take priority (canonical fallback per PDF spec), and XFA-only
- * fields are appended. The collection is empty for non-form PDFs and for
- * non-PDF formats.
+ * enabled and the document is a fillable form. Supports both AcroForm (standard)
+ * and XFA (XML Forms Architecture) layers. When both are present, AcroForm fields
+ * take priority (canonical fallback per PDF spec), and XFA-only fields are appended.
+ * The collection is empty for non-form PDFs and for non-PDF formats.
  *
- * `PdfConfig.extract_form_fields`:
- * crate::core::config::PdfConfig::extract_form_fields
+ * `PdfConfig.extract_form_fields`: crate::core::config::PdfConfig::extract_form_fields
  */
 typedef struct XBERGPdfFormField XBERGPdfFormField;
 /**
@@ -1664,8 +1741,7 @@ typedef struct XBERGPlugin XBERGPlugin;
  * # Error Handling
  *
  * Post-processor errors are non-fatal by default - they're captured in metadata
- * and execution continues. To make errors fatal, return an error from
- * `process()`.
+ * and execution continues. To make errors fatal, return an error from `process()`.
  *
  * # Thread Safety
  *
@@ -1687,15 +1763,13 @@ typedef struct XBERGPlugin XBERGPlugin;
  *
  * #`async_trait`
  * impl PostProcessor for WordCountProcessor {
- *     async fn process(&self, result: &mut ExtractedDocument, config:
- * &ExtractionConfig)
+ *     async fn process(&self, result: &mut ExtractedDocument, config: &ExtractionConfig)
  *         -> Result<()> {
  *         // Count words
  *         let word_count = result.content.split_whitespace().count();
  *
  *         // Add to metadata
- *         result.metadata.additional.insert("word_count".to_string().into(),
- * serde_json::json!(word_count));
+ *         result.metadata.additional.insert("word_count".to_string().into(), serde_json::json!(word_count));
  *
  *         Ok(())
  *     }
@@ -1736,8 +1810,7 @@ typedef struct XBERGPreprocessingOptions XBERGPreprocessingOptions;
 /**
  * HTML preprocessing aggressiveness level.
  *
- * Controls the extent of cleanup performed before conversion. Higher levels
- * remove more elements.
+ * Controls the extent of cleanup performed before conversion. Higher levels remove more elements.
  */
 typedef struct XBERGPreprocessingPreset XBERGPreprocessingPreset;
 /**
@@ -1771,8 +1844,8 @@ typedef struct XBERGProbeStatus XBERGProbeStatus;
 /**
  * Processing stages for post-processors.
  *
- * Post-processors are executed in stage order (Early â Middle â
- * Late). Use stages to control the order of post-processing operations.
+ * Post-processors are executed in stage order (Early â Middle â Late).
+ * Use stages to control the order of post-processing operations.
  */
 typedef struct XBERGProcessingStage XBERGProcessingStage;
 /**
@@ -1815,9 +1888,9 @@ typedef struct XBERGRakeParams XBERGRakeParams;
  * Pre-computed table markdown for a table detection region.
  *
  * Produced by the TATR-based table structure recognizer and surfaced as part of
- * layout-aware OCR results.  The struct lives here (under `layout-types`,
- * pure-Rust) so that consumers who do not enable `layout-detection` (ORT) can
- * still reference the type in their own code.
+ * layout-aware OCR results.  The struct lives here (under `layout-types`, pure-Rust)
+ * so that consumers who do not enable `layout-detection` (ORT) can still reference
+ * the type in their own code.
  */
 typedef struct XBERGRecognizedTable XBERGRecognizedTable;
 /**
@@ -1837,14 +1910,12 @@ typedef struct XBERGRedactionFinding XBERGRedactionFinding;
  */
 typedef struct XBERGRedactionPattern XBERGRedactionPattern;
 /**
- * Audit report describing what the redaction processor found and how it
- * replaced it.
+ * Audit report describing what the redaction processor found and how it replaced it.
  *
- * The redactor returns this alongside the rewritten content so compliance,
- * replay, and audit-log consumers can see exactly what fired. Offsets are
- * relative to the *original* pre-redaction `content` and are intended for audit
- * reconstruction only â the original bytes are dropped at the end of the
- * pipeline.
+ * The redactor returns this alongside the rewritten content so compliance, replay, and
+ * audit-log consumers can see exactly what fired. Offsets are relative to the *original*
+ * pre-redaction `content` and are intended for audit reconstruction only â the original
+ * bytes are dropped at the end of the pipeline.
  */
 typedef struct XBERGRedactionReport XBERGRedactionReport;
 /**
@@ -1880,8 +1951,7 @@ typedef struct XBERGRegistry XBERGRegistry;
  */
 typedef struct XBERGRelationshipKind XBERGRelationshipKind;
 /**
- * Trait for document renderers that convert extraction results to output
- * strings.
+ * Trait for document renderers that convert extraction results to output strings.
  *
  * Renderers are typically stateless converters that transform extracted
  * content into a specific output format (Markdown, HTML, Djot, plain text,
@@ -1915,8 +1985,7 @@ typedef struct XBERGRelationshipKind XBERGRelationshipKind;
  */
 typedef struct XBERGRenderer XBERGRenderer;
 /**
- * A single document returned by the reranker, with its position in the input
- * and score.
+ * A single document returned by the reranker, with its position in the input and score.
  *
  * `index` maps back to the caller's original document list, so metadata arrays
  * (e.g. IDs, paths) can be reordered without passing them through the reranker.
@@ -2007,9 +2076,9 @@ typedef struct XBERGResolvedPreset XBERGResolvedPreset;
 /**
  * Result-shape selection for extraction results.
  *
- * Distinct from `OutputFormat` (which controls rendering â Plain,
- * Markdown, HTML, etc.). `ResultFormat` controls the *shape* of the result: a
- * unified content blob vs. an element-based decomposition.
+ * Distinct from `OutputFormat` (which controls rendering â Plain, Markdown,
+ * HTML, etc.). `ResultFormat` controls the *shape* of the result: a unified content
+ * blob vs. an element-based decomposition.
  */
 typedef struct XBERGResultFormat XBERGResultFormat;
 /**
@@ -2141,8 +2210,7 @@ typedef struct XBERGSummaryStrategy XBERGSummaryStrategy;
 /**
  * A supported document format entry.
  *
- * Represents a file extension and its corresponding MIME type that Xberg can
- * process.
+ * Represents a file extension and its corresponding MIME type that Xberg can process.
  */
 typedef struct XBERGSupportedFormat XBERGSupportedFormat;
 /**
@@ -2168,8 +2236,7 @@ typedef struct XBERGTable XBERGTable;
  */
 typedef struct XBERGTableCell XBERGTableCell;
 /**
- * Controls how markdown tables are handled when they exceed the chunk size
- * limit.
+ * Controls how markdown tables are handled when they exceed the chunk size limit.
  *
  * Only applies when `chunker_type` is `Markdown`.
  *
@@ -2205,9 +2272,9 @@ typedef struct XBERGTableModel XBERGTableModel;
 /**
  * How to resolve overlapping native vs layout (TATR/SLANeXT) tables.
  *
- * When both native oxide detection and the layout table model produce a table
- * for the same page region, one must be dropped. This controls which one wins.
- * Wire format is snake_case in all serializers (JSON, TOML, YAML).
+ * When both native oxide detection and the layout table model produce a table for
+ * the same page region, one must be dropped. This controls which one wins. Wire
+ * format is snake_case in all serializers (JSON, TOML, YAML).
  */
 typedef struct XBERGTableOverlapPreference XBERGTableOverlapPreference;
 /**
@@ -2263,8 +2330,7 @@ typedef struct XBERGTokenReductionOptions XBERGTokenReductionOptions;
  * many times per chunk, so counting must be a direct call with no async
  * dispatch. Host-language bridges (PyO3, napi-rs, etc.) invoke their host
  * callable synchronously on the calling thread; implementations should keep
- * `count_tokens` cheap â it dominates chunking time when the backend is
- * slow.
+ * `count_tokens` cheap â it dominates chunking time when the backend is slow.
  *
  * # Lifecycle
  *
@@ -2273,8 +2339,8 @@ typedef struct XBERGTokenReductionOptions XBERGTokenReductionOptions;
  * vocabulary there. After registration succeeds, `count_tokens` may be called
  * from any thread, concurrently. `shutdown()` runs on unregistration and may
  * overlap an in-flight `count_tokens` call from a chunking run that resolved
- * the backend earlier â implementations must tolerate this, e.g. by
- * keeping the resources `count_tokens` needs alive via `Arc`.
+ * the backend earlier â implementations must tolerate this, e.g. by keeping
+ * the resources `count_tokens` needs alive via `Arc`.
  *
  * # Thread safety
  *
@@ -2389,9 +2455,9 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
 /**
  * Trait for validator plugins.
  *
- * Validators check extraction results for quality, completeness, or
- * correctness. Unlike post-processors, validator errors **fail fast** - if a
- * validator returns an error, the extraction fails immediately.
+ * Validators check extraction results for quality, completeness, or correctness.
+ * Unlike post-processors, validator errors **fail fast** - if a validator returns
+ * an error, the extraction fails immediately.
  *
  * # Use Cases
  *
@@ -2403,8 +2469,8 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
  *
  * # Error Handling
  *
- * Validator errors are **fatal** - they cause the extraction to fail and bubble
- * up to the caller. Use validators for hard requirements that must be met.
+ * Validator errors are **fatal** - they cause the extraction to fail and bubble up
+ * to the caller. Use validators for hard requirements that must be met.
  *
  * For non-fatal checks, use post-processors instead.
  *
@@ -2430,8 +2496,7 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
  *
  * #`async_trait`
  * impl Validator for MinimumLengthValidator {
- *     async fn validate(&self, result: &ExtractedDocument, config:
- * &ExtractionConfig)
+ *     async fn validate(&self, result: &ExtractedDocument, config: &ExtractionConfig)
  *         -> Result<()> {
  *         if result.content.len() < self.min_length {
  *             return Err(XbergError::validation(format!(
@@ -2447,25 +2512,23 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
  */
 typedef struct XBERGValidator XBERGValidator;
 /**
- * Policy controlling when VLM (Vision Language Model) OCR is used as a
- * fallback.
+ * Policy controlling when VLM (Vision Language Model) OCR is used as a fallback.
  *
  * This knob is syntactic sugar over the explicit `OcrPipelineConfig` stage
  * ordering. When `vlm_fallback` is set and `pipeline` is `None`, an equivalent
  * pipeline is synthesised at extraction time:
  *
- * - `VlmFallbackPolicy.Disabled` â no synthesis; single-backend mode
- * (default).
- * - `VlmFallbackPolicy.OnLowQuality` â tries the classical backend first;
- * if the result scores below `quality_threshold`, tries VLM.
- * - `VlmFallbackPolicy.Always` â skips the classical backend and sends
- * every page to the VLM.
+ * - `VlmFallbackPolicy.Disabled` â no synthesis; single-backend mode (default).
+ * - `VlmFallbackPolicy.OnLowQuality` â tries the classical backend first; if the
+ *   result scores below `quality_threshold`, tries VLM.
+ * - `VlmFallbackPolicy.Always` â skips the classical backend and sends every page
+ *   to the VLM.
  *
- * When `OcrConfig.pipeline` is explicitly set, `vlm_fallback` is ignored â
- * the explicit pipeline takes precedence.
- * \note Both `OnLowQuality` and `Always` require `OcrConfig.vlm_config` to be
- * `Some`. Constructing an `OcrConfig` with one of these policies but no
- * `vlm_config` is detected by `OcrConfig::validate` and will surface as a
+ * When `OcrConfig.pipeline` is explicitly set, `vlm_fallback` is ignored â the
+ * explicit pipeline takes precedence.
+ * \note Both `OnLowQuality` and `Always` require `OcrConfig.vlm_config` to be `Some`.
+ * Constructing an `OcrConfig` with one of these policies but no `vlm_config` is
+ * detected by `OcrConfig::validate` and will surface as a
  * `Validation` error at extraction time, not a panic.
  * \code
  * use xberg::{OcrConfig, VlmFallbackPolicy, LlmConfig};
@@ -2480,8 +2543,7 @@ typedef struct XBERGValidator XBERGValidator;
  * };
  *
  * // Threshold calibration is deferred to the Stage 0 benchmark harness.
- * assert!(matches!(config.vlm_fallback, VlmFallbackPolicy::OnLowQuality { ..
- * }));
+ * assert!(matches!(config.vlm_fallback, VlmFallbackPolicy::OnLowQuality { .. }));
  * \endcode
  */
 typedef struct XBERGVlmFallbackPolicy XBERGVlmFallbackPolicy;
@@ -2496,8 +2558,7 @@ typedef struct XBERGWhisperModel XBERGWhisperModel;
 /**
  * Whitespace handling strategy during conversion.
  *
- * Determines how sequences of whitespace characters (spaces, tabs, newlines)
- * are processed.
+ * Determines how sequences of whitespace characters (spaces, tabs, newlines) are processed.
  */
 typedef struct XBERGWhitespaceMode XBERGWhitespaceMode;
 /**
@@ -2528,37 +2589,39 @@ typedef struct XBERGYakeParams XBERGYakeParams;
  */
 typedef struct XBERGYearRange XBERGYearRange;
 
+
 /**
  * VTable for C plugin bridges implementing the `OcrBackend` trait.
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergOcrBackendVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Process an image and extract text via OCR.
    *
@@ -2580,13 +2643,11 @@ typedef struct XBERGXbergOcrBackendVTable {
    * # Reading `backend_options`
    *
    * Backends that support runtime tuning can read `config.backend_options` and
-   * deserialize only the keys they care about. Unknown keys are silently
-   * ignored, so multiple backends can coexist in a pipeline without key
-   * conflicts.
+   * deserialize only the keys they care about. Unknown keys are silently ignored,
+   * so multiple backends can coexist in a pipeline without key conflicts.
    *
    * ```rust
-   * async fn process_image(&self, image_bytes: &[u8], config: &OcrConfig) ->
-   * Result<ExtractedDocument> {
+   * async fn process_image(&self, image_bytes: &[u8], config: &OcrConfig) -> Result<ExtractedDocument> {
    * // Read backend-specific options; unknown keys are silently ignored.
    * let fast_mode = config.backend_options
    * .as_ref()
@@ -2605,20 +2666,22 @@ typedef struct XBERGXbergOcrBackendVTable {
    * let text = if fast_mode {
    * "Fast OCR result".to_string()
    * } else {
-   * format!("Extracted text in language: {}", config.language)
+   * format!("Extracted text in language: {:?}", config.language)
    * };
    *
-   * Ok(ExtractedDocument {
-   * content: text,
-   * mime_type: Cow::Borrowed("text/plain"),
-   * ..Default::default()
-   * })
+   * let mut document = ExtractedDocument::default();
+   * document.content = text;
+   * document.mime_type = Cow::Borrowed("text/plain");
+   * Ok(document)
    * }
    * ```
    */
-  int32_t (*process_image)(const void *user_data, const uint8_t *image_bytes,
-                           uintptr_t image_bytes_len, const char *config,
-                           char **out_result, char **out_error);
+  int32_t (*process_image)(const void *user_data,
+                           const uint8_t *image_bytes,
+                           uintptr_t image_bytes_len,
+                           const char *config,
+                           char **out_result,
+                           char **out_error);
   /**
    * Process a file and extract text via OCR.
    *
@@ -2634,8 +2697,10 @@ typedef struct XBERGXbergOcrBackendVTable {
    *
    * Same as `process_image`, plus file I/O errors.
    */
-  int32_t (*process_image_file)(const void *user_data, const char *path,
-                                const char *config, char **out_result,
+  int32_t (*process_image_file)(const void *user_data,
+                                const char *path,
+                                const char *config,
+                                char **out_result,
                                 char **out_error);
   /**
    * Check if this backend supports a given language code.
@@ -2656,7 +2721,8 @@ typedef struct XBERGXbergOcrBackendVTable {
    * }
    * ```
    */
-  int32_t (*supports_language)(const void *user_data, const char *lang);
+  int32_t (*supports_language)(const void *user_data,
+                               const char *lang);
   /**
    * Get the backend type identifier.
    *
@@ -2672,39 +2738,36 @@ typedef struct XBERGXbergOcrBackendVTable {
    * }
    * ```
    */
-  int32_t (*backend_type)(const void *user_data, char **out_result,
+  int32_t (*backend_type)(const void *user_data,
+                          char **out_result,
                           char **out_error);
   /**
    * Optional: Get a list of all supported languages.
    *
-   * Defaults to empty list. Override to provide comprehensive language support
-   * info.
+   * Defaults to empty list. Override to provide comprehensive language support info.
    */
-  int32_t (*supported_languages)(const void *user_data, char **out_result,
+  int32_t (*supported_languages)(const void *user_data,
+                                 char **out_result,
                                  char **out_error);
   /**
    * Optional: Check if the backend supports table detection.
    *
-   * Defaults to `false`. Override if your backend can detect and extract
-   * tables.
+   * Defaults to `false`. Override if your backend can detect and extract tables.
    */
   int32_t (*supports_table_detection)(const void *user_data);
   /**
-   * Check if the backend supports direct document-level processing (e.g. for
-   * PDFs).
+   * Check if the backend supports direct document-level processing (e.g. for PDFs).
    *
-   * Defaults to `false`. Override if the backend has optimized document
-   * processing.
+   * Defaults to `false`. Override if the backend has optimized document processing.
    */
   int32_t (*supports_document_processing)(const void *user_data);
   /**
-   * Declare that this backend emits structured markdown directly (tables,
-   * headings, lists) and downstream layout reconstruction should be skipped.
+   * Declare that this backend emits structured markdown directly (tables, headings, lists)
+   * and downstream layout reconstruction should be skipped.
    *
-   * Defaults to `false` — classical OCR backends (Tesseract, PaddleOCR
-   * classical) return plain text per detected region. End-to-end VLM backends
-   * (PaddleOCR-VL, GOT-OCR 2.0) emit markdown in one forward pass and should
-   * override this to `true`.
+   * Defaults to `false` — classical OCR backends (Tesseract, PaddleOCR classical) return
+   * plain text per detected region. End-to-end VLM backends (PaddleOCR-VL, GOT-OCR 2.0)
+   * emit markdown in one forward pass and should override this to `true`.
    */
   int32_t (*emits_structured_markdown)(const void *user_data);
   /**
@@ -2717,19 +2780,19 @@ typedef struct XBERGXbergOcrBackendVTable {
    * * `path` - Path to the document file (e.g. .pdf)
    * * `config` - OCR configuration
    */
-  int32_t (*process_document)(const void *user_data, const char *_path,
-                              const char *_config, char **out_result,
+  int32_t (*process_document)(const void *user_data,
+                              const char *_path,
+                              const char *_config,
+                              char **out_result,
                               char **out_error);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergOcrBackendVTable;
 
 /**
@@ -2737,32 +2800,33 @@ typedef struct XBERGXbergOcrBackendVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergPostProcessorVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Process an extraction result.
    *
@@ -2794,15 +2858,13 @@ typedef struct XBERGXbergPostProcessorVTable {
    * # Example - Language Detection
    *
    * ```rust
-   * async fn process(&self, result: &mut ExtractedDocument, config:
-   * &ExtractionConfig)
+   * async fn process(&self, result: &mut ExtractedDocument, config: &ExtractionConfig)
    * -> Result<()> {
    * // Detect language (simplified - use real detection library in practice)
    * let language = "en"; // Placeholder detection
    *
    * // Add to metadata
-   * result.metadata.additional.insert("detected_language".to_string().into(),
-   * serde_json::json!(language));
+   * result.metadata.additional.insert("detected_language".to_string().into(), serde_json::json!(language));
    *
    * Ok(())
    * }
@@ -2811,8 +2873,7 @@ typedef struct XBERGXbergPostProcessorVTable {
    * # Example - Text Cleaning
    *
    * ```rust
-   * async fn process(&self, result: &mut ExtractedDocument, config:
-   * &ExtractionConfig)
+   * async fn process(&self, result: &mut ExtractedDocument, config: &ExtractionConfig)
    * -> Result<()> {
    * // Remove excessive whitespace
    * result.content = result
@@ -2825,8 +2886,10 @@ typedef struct XBERGXbergPostProcessorVTable {
    * }
    * ```
    */
-  int32_t (*process)(const void *user_data, const char *result,
-                     const char *config, char **out_error);
+  int32_t (*process)(const void *user_data,
+                     const char *result,
+                     const char *config,
+                     char **out_error);
   /**
    * Get the processing stage for this post-processor.
    *
@@ -2844,7 +2907,8 @@ typedef struct XBERGXbergPostProcessorVTable {
    * }
    * ```
    */
-  int32_t (*processing_stage)(const void *user_data, char **out_result,
+  int32_t (*processing_stage)(const void *user_data,
+                              char **out_result,
                               char **out_error);
   /**
    * Optional: Check if this processor should run for a given result.
@@ -2865,12 +2929,13 @@ typedef struct XBERGXbergPostProcessorVTable {
    *
    * ```rust
    * Only process PDF documents
-   * fn should_process(&self, result: &ExtractedDocument, config:
-   * &ExtractionConfig) -> bool { result.mime_type == "application/pdf"
+   * fn should_process(&self, result: &ExtractedDocument, config: &ExtractionConfig) -> bool {
+   * result.mime_type == "application/pdf"
    * }
    * ```
    */
-  int32_t (*should_process)(const void *user_data, const char *_result,
+  int32_t (*should_process)(const void *user_data,
+                            const char *_result,
                             const char *_config);
   /**
    * Optional: Estimate processing time in milliseconds.
@@ -2885,7 +2950,8 @@ typedef struct XBERGXbergPostProcessorVTable {
    *
    * Estimated processing time in milliseconds.
    */
-  uint64_t (*estimated_duration_ms)(const void *user_data, const char *_result);
+  uint64_t (*estimated_duration_ms)(const void *user_data,
+                                    const char *_result);
   /**
    * Execution priority within the processing stage.
    *
@@ -2895,15 +2961,13 @@ typedef struct XBERGXbergPostProcessorVTable {
    */
   int32_t (*priority)(const void *user_data);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergPostProcessorVTable;
 
 /**
@@ -2911,32 +2975,33 @@ typedef struct XBERGXbergPostProcessorVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergValidatorVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Validate an extraction result.
    *
@@ -2961,8 +3026,7 @@ typedef struct XBERGXbergValidatorVTable {
    * # Example - Content Length Validation
    *
    * ```rust
-   * async fn validate(&self, result: &ExtractedDocument, config:
-   * &ExtractionConfig)
+   * async fn validate(&self, result: &ExtractedDocument, config: &ExtractionConfig)
    * -> Result<()> {
    * let length = result.content.len();
    *
@@ -2987,8 +3051,7 @@ typedef struct XBERGXbergValidatorVTable {
    * # Example - Quality Score Validation
    *
    * ```rust
-   * async fn validate(&self, result: &ExtractedDocument, config:
-   * &ExtractionConfig)
+   * async fn validate(&self, result: &ExtractedDocument, config: &ExtractionConfig)
    * -> Result<()> {
    * // Check if quality_score exists in metadata
    * let score = result.metadata
@@ -3011,8 +3074,7 @@ typedef struct XBERGXbergValidatorVTable {
    * # Example - Security Validation
    *
    * ```rust
-   * async fn validate(&self, result: &ExtractedDocument, config:
-   * &ExtractionConfig)
+   * async fn validate(&self, result: &ExtractedDocument, config: &ExtractionConfig)
    * -> Result<()> {
    * // Check for blocked patterns
    * for pattern in &self.blocked_patterns {
@@ -3028,8 +3090,10 @@ typedef struct XBERGXbergValidatorVTable {
    * }
    * ```
    */
-  int32_t (*validate)(const void *user_data, const char *result,
-                      const char *config, char **out_error);
+  int32_t (*validate)(const void *user_data,
+                      const char *result,
+                      const char *config,
+                      char **out_error);
   /**
    * Optional: Check if this validator should run for a given result.
    *
@@ -3049,12 +3113,13 @@ typedef struct XBERGXbergValidatorVTable {
    *
    * ```rust
    * Only validate PDF documents
-   * fn should_validate(&self, result: &ExtractedDocument, config:
-   * &ExtractionConfig) -> bool { result.mime_type == "application/pdf"
+   * fn should_validate(&self, result: &ExtractedDocument, config: &ExtractionConfig) -> bool {
+   * result.mime_type == "application/pdf"
    * }
    * ```
    */
-  int32_t (*should_validate)(const void *user_data, const char *_result,
+  int32_t (*should_validate)(const void *user_data,
+                             const char *_result,
                              const char *_config);
   /**
    * Optional: Get the validation priority.
@@ -3079,15 +3144,13 @@ typedef struct XBERGXbergValidatorVTable {
    */
   int32_t (*priority)(const void *user_data);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergValidatorVTable;
 
 /**
@@ -3095,40 +3158,44 @@ typedef struct XBERGXbergValidatorVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergDocumentExtractorVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Binding-safe extraction entry point for foreign-language plugin bridges.
    *
    * Accepts the same unified input shape as the public extraction API and
    * returns one extracted document result.
    */
-  int32_t (*extract)(const void *user_data, const char *input,
-                     const char *config, char **out_result, char **out_error);
+  int32_t (*extract)(const void *user_data,
+                     const char *input,
+                     const char *config,
+                     char **out_result,
+                     char **out_error);
   /**
    * Get the list of MIME types supported by this extractor.
    *
@@ -3140,7 +3207,8 @@ typedef struct XBERGXbergDocumentExtractorVTable {
    *
    * A slice of MIME type strings.
    */
-  int32_t (*supported_mime_types)(const void *user_data, char **out_result,
+  int32_t (*supported_mime_types)(const void *user_data,
+                                  char **out_result,
                                   char **out_error);
   /**
    * Get the priority of this extractor.
@@ -3176,18 +3244,17 @@ typedef struct XBERGXbergDocumentExtractorVTable {
    *
    * `true` if the extractor can handle this file, `false` otherwise.
    */
-  int32_t (*can_handle)(const void *user_data, const char *_path,
+  int32_t (*can_handle)(const void *user_data,
+                        const char *_path,
                         const char *_mime_type);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergDocumentExtractorVTable;
 
 /**
@@ -3195,32 +3262,33 @@ typedef struct XBERGXbergDocumentExtractorVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergEmbeddingBackendVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Embedding vector dimension. Must be `> 0` and must match the length of
    * every vector returned by `embed`.
@@ -3235,18 +3303,18 @@ typedef struct XBERGXbergEmbeddingBackendVTable {
    * backend-specific failures. The dispatcher layers its own validation
    * (length, per-vector dimension) on top.
    */
-  int32_t (*embed)(const void *user_data, const char *texts, char **out_result,
+  int32_t (*embed)(const void *user_data,
+                   const char *texts,
+                   char **out_result,
                    char **out_error);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergEmbeddingBackendVTable;
 
 /**
@@ -3254,49 +3322,50 @@ typedef struct XBERGXbergEmbeddingBackendVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergRendererVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Binding-safe rendering entry point for foreign-language plugin bridges.
    *
    * Accepts one public extraction result and returns the rendered output.
    */
-  int32_t (*render_result)(const void *user_data, const char *result,
-                           char **out_result, char **out_error);
+  int32_t (*render_result)(const void *user_data,
+                           const char *result,
+                           char **out_result,
+                           char **out_error);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergRendererVTable;
 
 /**
@@ -3304,32 +3373,33 @@ typedef struct XBERGXbergRendererVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergRerankerBackendVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Score a list of documents against a query.
    *
@@ -3342,18 +3412,19 @@ typedef struct XBERGXbergRerankerBackendVTable {
    * backend-specific failures. The dispatcher validates the returned length
    * against `documents.len()` before sorting.
    */
-  int32_t (*rerank)(const void *user_data, const char *query,
-                    const char *documents, char **out_result, char **out_error);
+  int32_t (*rerank)(const void *user_data,
+                    const char *query,
+                    const char *documents,
+                    char **out_result,
+                    char **out_error);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergRerankerBackendVTable;
 
 /**
@@ -3361,46 +3432,46 @@ typedef struct XBERGXbergRerankerBackendVTable {
  *
  * # Safety
  *
- * All function pointers must be valid for the lifetime of any bridge created
- * from this vtable.  `free_user_data`, when non-null, is called once with
- * `user_data` when the bridge is dropped.
+ * All function pointers must be valid for the lifetime of any bridge created from
+ * this vtable.  `free_user_data`, when non-null, is called once with `user_data`
+ * when the bridge is dropped.
  */
 typedef struct XBERGXbergTokenizerBackendVTable {
   /**
-   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on
-   * success.
+   * Return a null-terminated UTF-8 name string into `out_name`; return 0 on success.
    */
-  int32_t (*name_fn)(const void *user_data, char **out_name, char **out_error);
+  int32_t (*name_fn)(const void *user_data,
+                     char **out_name,
+                     char **out_error);
   /**
-   * Return a null-terminated UTF-8 version string into `out_version`; return 0
-   * on success.
+   * Return a null-terminated UTF-8 version string into `out_version`; return 0 on success.
    */
-  int32_t (*version_fn)(const void *user_data, char **out_version,
+  int32_t (*version_fn)(const void *user_data,
+                        char **out_version,
                         char **out_error);
   /**
-   * Initialise the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Initialise the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*initialize_fn)(const void *user_data, char **out_error);
+  int32_t (*initialize_fn)(const void *user_data,
+                           char **out_error);
   /**
-   * Shut down the plugin; return 0 on success, non-zero on failure (error text
-   * in `out_error`).
+   * Shut down the plugin; return 0 on success, non-zero on failure (error text in `out_error`).
    */
-  int32_t (*shutdown_fn)(const void *user_data, char **out_error);
+  int32_t (*shutdown_fn)(const void *user_data,
+                         char **out_error);
   /**
    * Count the tokens in `text` according to this backend's tokenizer.
    */
-  uintptr_t (*count_tokens)(const void *user_data, const char *text);
+  uintptr_t (*count_tokens)(const void *user_data,
+                            const char *text);
   /**
-   * Optional string destructor: called for strings returned by vtable
-   * callbacks.
+   * Optional string destructor: called for strings returned by vtable callbacks.
    */
-  void (*free_string)(char *);
+  void (*free_string)(char*);
   /**
-   * Optional destructor: called once with `user_data` when the bridge is
-   * dropped.
+   * Optional destructor: called once with `user_data` when the bridge is dropped.
    */
-  void (*free_user_data)(void *);
+  void (*free_user_data)(void*);
 } XBERGXbergTokenizerBackendVTable;
 
 /**
@@ -3412,10 +3483,10 @@ typedef struct XBERGXbergTokenizerBackendVTable {
 int32_t xberg_last_error_code(void);
 
 /**
- * Return the last error message. The pointer is borrowed and valid until the
- * next FFI call on this thread. # Safety Caller must ensure all pointer
- * arguments are valid or null. The returned pointer is borrowed from
- * thread-local storage and must NOT be freed.
+ * Return the last error message. The pointer is borrowed and valid until the next FFI call on this thread.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * The returned pointer is borrowed from thread-local storage and must NOT be freed.
  */
 const char *xberg_last_error_context(void);
 
@@ -3428,18 +3499,20 @@ void xberg_free_string(char *ptr);
 
 /**
  * Free a byte buffer previously returned by this library via out-params.
- * `ptr`, `len`, and `cap` must match the values written by the library
- * function, or the call must pass `ptr = null` (in which case it is a no-op).
+ * `ptr`, `len`, and `cap` must match the values written by the library function,
+ * or the call must pass `ptr = null` (in which case it is a no-op).
  * # Safety
- * Pointer must have been returned by this library (via out_ptr / out_len /
- * out_cap out-params), or be null. The len and cap values must be unchanged
- * since the call.
+ * Pointer must have been returned by this library (via out_ptr / out_len / out_cap
+ * out-params), or be null. The len and cap values must be unchanged since the call.
  */
-void xberg_free_bytes(uint8_t *ptr, uintptr_t len, uintptr_t cap);
+void xberg_free_bytes(uint8_t *ptr,
+                      uintptr_t len,
+                      uintptr_t cap);
 
 /**
- * Return the library version string. The pointer is static and must NOT be
- * freed. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Return the library version string. The pointer is static and must NOT be freed.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 const char *xberg_version(void);
@@ -3530,16 +3603,14 @@ void xberg_acceleration_config_free(XBERGAccelerationConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExecutionProviderType *
-xberg_acceleration_config_provider(const XBERGAccelerationConfig *ptr);
+XBERGExecutionProviderType *xberg_acceleration_config_provider(const XBERGAccelerationConfig *ptr);
 
 /**
  * Get the `device_id` field from a `AccelerationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_acceleration_config_device_id(const XBERGAccelerationConfig *ptr);
+uint32_t xberg_acceleration_config_device_id(const XBERGAccelerationConfig *ptr);
 
 /**
  * Create a `CaptioningConfig` from a JSON string. Returns null on failure.
@@ -3583,129 +3654,118 @@ char *xberg_captioning_config_prompt(const XBERGCaptioningConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_captioning_config_min_image_area(const XBERGCaptioningConfig *ptr);
+uint32_t xberg_captioning_config_min_image_area(const XBERGCaptioningConfig *ptr);
 
 /**
- * Create a `ChunkClassificationDefinition` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
- * Returned handle must be freed with
- * `xberg_chunk_classification_definition_free`.
+ * Create a `ChunkClassificationDefinition` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_chunk_classification_definition_free`.
  */
-XBERGChunkClassificationDefinition *
-xberg_chunk_classification_definition_from_json(const char *json);
+XBERGChunkClassificationDefinition *xberg_chunk_classification_definition_from_json(const char *json);
 
 /**
- * Serialize a `ChunkClassificationDefinition` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `ChunkClassificationDefinition` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_classification_definition_to_json(
-    const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_to_json(const XBERGChunkClassificationDefinition *ptr);
 
 /**
  * Free a `ChunkClassificationDefinition` handle.
  * # Safety
  * Pointer must have been returned by this library, or be null.
  */
-void xberg_chunk_classification_definition_free(
-    XBERGChunkClassificationDefinition *ptr);
+void xberg_chunk_classification_definition_free(XBERGChunkClassificationDefinition *ptr);
 
 /**
  * Get the `label` field from a `ChunkClassificationDefinition`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_definition_label(
-    const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_label(const XBERGChunkClassificationDefinition *ptr);
 
 /**
  * Get the `description` field from a `ChunkClassificationDefinition`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_definition_description(
-    const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_description(const XBERGChunkClassificationDefinition *ptr);
 
 /**
- * Create a `ChunkClassificationConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `ChunkClassificationConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_classification_config_free`.
  */
-XBERGChunkClassificationConfig *
-xberg_chunk_classification_config_from_json(const char *json);
+XBERGChunkClassificationConfig *xberg_chunk_classification_config_from_json(const char *json);
 
 /**
- * Serialize a `ChunkClassificationConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `ChunkClassificationConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_classification_config_to_json(
-    const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_to_json(const XBERGChunkClassificationConfig *ptr);
 
 /**
  * Free a `ChunkClassificationConfig` handle.
  * # Safety
  * Pointer must have been returned by this library, or be null.
  */
-void xberg_chunk_classification_config_free(
-    XBERGChunkClassificationConfig *ptr);
+void xberg_chunk_classification_config_free(XBERGChunkClassificationConfig *ptr);
 
 /**
  * Get the `prompt_template` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_config_prompt_template(
-    const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_prompt_template(const XBERGChunkClassificationConfig *ptr);
 
 /**
  * Get the `definitions` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_config_definitions(
-    const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_definitions(const XBERGChunkClassificationConfig *ptr);
 
 /**
  * Get the `llm` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_chunk_classification_config_llm(
-    const XBERGChunkClassificationConfig *ptr);
+XBERGLlmConfig *xberg_chunk_classification_config_llm(const XBERGChunkClassificationConfig *ptr);
 
 /**
  * Get the `batch_size` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_classification_config_batch_size(
-    const XBERGChunkClassificationConfig *ptr);
+uintptr_t xberg_chunk_classification_config_batch_size(const XBERGChunkClassificationConfig *ptr);
 
 /**
  * Get the `max_concurrency` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_classification_config_max_concurrency(
-    const XBERGChunkClassificationConfig *ptr);
+uintptr_t xberg_chunk_classification_config_max_concurrency(const XBERGChunkClassificationConfig *ptr);
 
 /**
- * Create a `PageClassificationConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `PageClassificationConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_classification_config_free`.
  */
-XBERGPageClassificationConfig *
-xberg_page_classification_config_from_json(const char *json);
+XBERGPageClassificationConfig *xberg_page_classification_config_from_json(const char *json);
 
 /**
- * Serialize a `PageClassificationConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `PageClassificationConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_classification_config_to_json(
-    const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_to_json(const XBERGPageClassificationConfig *ptr);
 
 /**
  * Free a `PageClassificationConfig` handle.
@@ -3719,32 +3779,28 @@ void xberg_page_classification_config_free(XBERGPageClassificationConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_classification_config_prompt_template(
-    const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_prompt_template(const XBERGPageClassificationConfig *ptr);
 
 /**
  * Get the `labels` field from a `PageClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_classification_config_labels(
-    const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_labels(const XBERGPageClassificationConfig *ptr);
 
 /**
  * Get the `multi_label` field from a `PageClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_classification_config_multi_label(
-    const XBERGPageClassificationConfig *ptr);
+int32_t xberg_page_classification_config_multi_label(const XBERGPageClassificationConfig *ptr);
 
 /**
  * Get the `llm` field from a `PageClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *
-xberg_page_classification_config_llm(const XBERGPageClassificationConfig *ptr);
+XBERGLlmConfig *xberg_page_classification_config_llm(const XBERGPageClassificationConfig *ptr);
 
 /**
  * Create a `ContentFilterConfig` from a JSON string. Returns null on failure.
@@ -3752,8 +3808,7 @@ xberg_page_classification_config_llm(const XBERGPageClassificationConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_content_filter_config_free`.
  */
-XBERGContentFilterConfig *
-xberg_content_filter_config_from_json(const char *json);
+XBERGContentFilterConfig *xberg_content_filter_config_from_json(const char *json);
 
 /**
  * Serialize a `ContentFilterConfig` to a JSON string. Returns null on failure.
@@ -3775,38 +3830,78 @@ void xberg_content_filter_config_free(XBERGContentFilterConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_headers(
-    const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_headers(const XBERGContentFilterConfig *ptr);
 
 /**
  * Get the `include_footers` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_footers(
-    const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_footers(const XBERGContentFilterConfig *ptr);
+
+/**
+ * Get the `include_footnotes` field from a `ContentFilterConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_content_filter_config_include_footnotes(const XBERGContentFilterConfig *ptr);
 
 /**
  * Get the `strip_repeating_text` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_strip_repeating_text(
-    const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_strip_repeating_text(const XBERGContentFilterConfig *ptr);
 
 /**
  * Get the `include_watermarks` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_watermarks(
-    const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_watermarks(const XBERGContentFilterConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGContentFilterConfig *xberg_content_filter_config_default(void);
+
+/**
+ * Create a `CsvConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_csv_config_free`.
+ */
+XBERGCsvConfig *xberg_csv_config_from_json(const char *json);
+
+/**
+ * Serialize a `CsvConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_csv_config_to_json(const XBERGCsvConfig *ptr);
+
+/**
+ * Free a `CsvConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_csv_config_free(XBERGCsvConfig *ptr);
+
+/**
+ * Get the `delimiter` field from a `CsvConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_csv_config_delimiter(const XBERGCsvConfig *ptr);
+
+/**
+ * Get the `comment_prefixes` field from a `CsvConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_csv_config_comment_prefixes(const XBERGCsvConfig *ptr);
 
 /**
  * Create a `EmailConfig` from a JSON string. Returns null on failure.
@@ -3873,8 +3968,7 @@ int32_t xberg_extraction_config_use_cache(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_enable_quality_processing(
-    const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_enable_quality_processing(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `ocr` field from a `ExtractionConfig`.
@@ -3895,8 +3989,7 @@ int32_t xberg_extraction_config_force_ocr(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrStrategy *
-xberg_extraction_config_ocr_strategy(const XBERGExtractionConfig *ptr);
+XBERGOcrStrategy *xberg_extraction_config_ocr_strategy(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `force_ocr_pages` field from a `ExtractionConfig`.
@@ -3917,144 +4010,126 @@ int32_t xberg_extraction_config_disable_ocr(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkingConfig *
-xberg_extraction_config_chunking(const XBERGExtractionConfig *ptr);
+XBERGChunkingConfig *xberg_extraction_config_chunking(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `content_filter` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentFilterConfig *
-xberg_extraction_config_content_filter(const XBERGExtractionConfig *ptr);
+XBERGContentFilterConfig *xberg_extraction_config_content_filter(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `images` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageExtractionConfig *
-xberg_extraction_config_images(const XBERGExtractionConfig *ptr);
+XBERGImageExtractionConfig *xberg_extraction_config_images(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `pdf_options` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfConfig *
-xberg_extraction_config_pdf_options(const XBERGExtractionConfig *ptr);
+XBERGPdfConfig *xberg_extraction_config_pdf_options(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `token_reduction` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTokenReductionOptions *
-xberg_extraction_config_token_reduction(const XBERGExtractionConfig *ptr);
+XBERGTokenReductionOptions *xberg_extraction_config_token_reduction(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `language_detection` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLanguageDetectionConfig *
-xberg_extraction_config_language_detection(const XBERGExtractionConfig *ptr);
+XBERGLanguageDetectionConfig *xberg_extraction_config_language_detection(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `pages` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageConfig *
-xberg_extraction_config_pages(const XBERGExtractionConfig *ptr);
+XBERGPageConfig *xberg_extraction_config_pages(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `keywords` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordConfig *
-xberg_extraction_config_keywords(const XBERGExtractionConfig *ptr);
+XBERGKeywordConfig *xberg_extraction_config_keywords(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `postprocessor` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPostProcessorConfig *
-xberg_extraction_config_postprocessor(const XBERGExtractionConfig *ptr);
+XBERGPostProcessorConfig *xberg_extraction_config_postprocessor(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `html_options` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGConversionOptions *
-xberg_extraction_config_html_options(const XBERGExtractionConfig *ptr);
+XBERGConversionOptions *xberg_extraction_config_html_options(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `html_output` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlOutputConfig *
-xberg_extraction_config_html_output(const XBERGExtractionConfig *ptr);
+XBERGHtmlOutputConfig *xberg_extraction_config_html_output(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `extraction_timeout_secs` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_extraction_config_extraction_timeout_secs(
-    const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_extraction_timeout_secs(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `max_concurrent_extractions` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_config_max_concurrent_extractions(
-    const XBERGExtractionConfig *ptr);
+uintptr_t xberg_extraction_config_max_concurrent_extractions(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `result_format` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGResultFormat *
-xberg_extraction_config_result_format(const XBERGExtractionConfig *ptr);
+XBERGResultFormat *xberg_extraction_config_result_format(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `security_limits` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSecurityLimits *
-xberg_extraction_config_security_limits(const XBERGExtractionConfig *ptr);
+XBERGSecurityLimits *xberg_extraction_config_security_limits(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `max_embedded_file_bytes` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_extraction_config_max_embedded_file_bytes(
-    const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_max_embedded_file_bytes(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `output_format` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOutputFormat *
-xberg_extraction_config_output_format(const XBERGExtractionConfig *ptr);
+XBERGOutputFormat *xberg_extraction_config_output_format(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `escape_markdown` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_extraction_config_escape_markdown(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_escape_markdown(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `table_anchors` field from a `ExtractionConfig`.
@@ -4068,48 +4143,42 @@ int32_t xberg_extraction_config_table_anchors(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGJupyterCellRendering *xberg_extraction_config_jupyter_cell_rendering(
-    const XBERGExtractionConfig *ptr);
+XBERGJupyterCellRendering *xberg_extraction_config_jupyter_cell_rendering(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `layout` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutDetectionConfig *
-xberg_extraction_config_layout(const XBERGExtractionConfig *ptr);
+XBERGLayoutDetectionConfig *xberg_extraction_config_layout(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `transcription` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranscriptionConfig *
-xberg_extraction_config_transcription(const XBERGExtractionConfig *ptr);
+XBERGTranscriptionConfig *xberg_extraction_config_transcription(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `use_layout_for_markdown` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_use_layout_for_markdown(
-    const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_use_layout_for_markdown(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `include_document_structure` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_include_document_structure(
-    const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_include_document_structure(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `acceleration` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *
-xberg_extraction_config_acceleration(const XBERGExtractionConfig *ptr);
+XBERGAccelerationConfig *xberg_extraction_config_acceleration(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `cache_namespace` field from a `ExtractionConfig`.
@@ -4123,48 +4192,49 @@ char *xberg_extraction_config_cache_namespace(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_extraction_config_cache_ttl_secs(const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_cache_ttl_secs(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `email` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmailConfig *
-xberg_extraction_config_email(const XBERGExtractionConfig *ptr);
+XBERGEmailConfig *xberg_extraction_config_email(const XBERGExtractionConfig *ptr);
+
+/**
+ * Get the `csv` field from a `ExtractionConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGCsvConfig *xberg_extraction_config_csv(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `url` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionConfig *
-xberg_extraction_config_url(const XBERGExtractionConfig *ptr);
+XBERGUrlExtractionConfig *xberg_extraction_config_url(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `max_archive_depth` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_extraction_config_max_archive_depth(const XBERGExtractionConfig *ptr);
+uintptr_t xberg_extraction_config_max_archive_depth(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `tree_sitter` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterConfig *
-xberg_extraction_config_tree_sitter(const XBERGExtractionConfig *ptr);
+XBERGTreeSitterConfig *xberg_extraction_config_tree_sitter(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `structured_extraction` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredExtractionConfig *
-xberg_extraction_config_structured_extraction(const XBERGExtractionConfig *ptr);
+XBERGStructuredExtractionConfig *xberg_extraction_config_structured_extraction(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `ner` field from a `ExtractionConfig`.
@@ -4178,48 +4248,42 @@ XBERGNerConfig *xberg_extraction_config_ner(const XBERGExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionConfig *
-xberg_extraction_config_redaction(const XBERGExtractionConfig *ptr);
+XBERGRedactionConfig *xberg_extraction_config_redaction(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `summarization` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummarizationConfig *
-xberg_extraction_config_summarization(const XBERGExtractionConfig *ptr);
+XBERGSummarizationConfig *xberg_extraction_config_summarization(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `translation` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslationConfig *
-xberg_extraction_config_translation(const XBERGExtractionConfig *ptr);
+XBERGTranslationConfig *xberg_extraction_config_translation(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `page_classification` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageClassificationConfig *
-xberg_extraction_config_page_classification(const XBERGExtractionConfig *ptr);
+XBERGPageClassificationConfig *xberg_extraction_config_page_classification(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `chunk_classification` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *
-xberg_extraction_config_chunk_classification(const XBERGExtractionConfig *ptr);
+XBERGChunkClassificationConfig *xberg_extraction_config_chunk_classification(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `captioning` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCaptioningConfig *
-xberg_extraction_config_captioning(const XBERGExtractionConfig *ptr);
+XBERGCaptioningConfig *xberg_extraction_config_captioning(const XBERGExtractionConfig *ptr);
 
 /**
  * Get the `qr_codes` field from a `ExtractionConfig`.
@@ -4229,19 +4293,42 @@ xberg_extraction_config_captioning(const XBERGExtractionConfig *ptr);
 int32_t xberg_extraction_config_qr_codes(const XBERGExtractionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractionConfig *xberg_extraction_config_default(void);
 
 /**
- * Check if image processing is needed by examining OCR and image extraction
- * settings.
+ * Validate the configuration, returning an error if any settings are invalid.
+ *
+ * Checks:
+ * - `ocr`: backend name, VLM backend/model requirements, language codes, and the
+ *   `vlm_fallback` quality threshold (see `OcrConfig.validate`).
+ * - `chunking`: `max_characters` is non-zero and `overlap` is smaller than it.
+ * - `token_reduction`: `mode` is one of the recognized reduction levels.
+ * - `images`: `target_dpi`, `min_dpi`, and `max_dpi` are all positive and within the
+ *   supported range.
+ * - `language_detection`: `min_confidence` is a `[0.0, 1.0]` value.
+ * - `csv`: `delimiter`, when set, is exactly one ASCII character.
+ *
+ * Called automatically when a config is loaded from a file
+ * (`ExtractionConfig.from_file` and friends) or built from a JSON override
+ * (`crate::core::config::merge::merge_config_json`). A config assembled directly through
+ * the typed Rust API or an FFI builder is **not** automatically validated â call this
+ * method explicitly before use in that case.
+ * \note Returns `XbergError::Validation` describing the first invalid setting found.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+int32_t xberg_extraction_config_validate(const XBERGExtractionConfig *this_);
+
+/**
+ * Check if image processing is needed by examining OCR and image extraction settings.
  *
  * Returns `true` if either OCR is enabled or image extraction is configured,
  * indicating that image decompression and processing should occur.
- * Returns `false` if both are disabled, allowing optimization to skip
- * unnecessary image decompression for text-only extraction workflows.
+ * Returns `false` if both are disabled, allowing optimization to skip unnecessary
+ * image decompression for text-only extraction workflows.
  *
  * # Optimization Impact
  * For text-only extractions (no OCR, no image extraction), skipping image
@@ -4249,28 +4336,26 @@ XBERGExtractionConfig *xberg_extraction_config_default(void);
  * image I/O and processing when results won't be used.
  * Returns `true` when image binary data should be extracted.
  *
- * True when `config.images.extract_images` is set, captioning is configured, or
- * QR-code detection is enabled. Captioning and QR-code detection both require
- * image bytes regardless of whether the caller also requested image extraction.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * True when `config.images.extract_images` is set, captioning is configured, or QR-code
+ * detection is enabled. Captioning and QR-code detection both require image bytes
+ * regardless of whether the caller also requested image extraction.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-int32_t
-xberg_extraction_config_needs_image_data(const XBERGExtractionConfig *this_);
+int32_t xberg_extraction_config_needs_image_data(const XBERGExtractionConfig *this_);
 
 /**
  * Returns `true` when any image processing is needed during extraction.
  *
  * # Optimization Impact
  *
- * For text-only extractions (no OCR, no image extraction, no captioning),
- * skipping image decompression can improve CPU utilization by 5-10% by avoiding
- * wasteful image I/O and processing when results won't be used.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * For text-only extractions (no OCR, no image extraction, no captioning), skipping
+ * image decompression can improve CPU utilization by 5-10% by avoiding wasteful
+ * image I/O and processing when results won't be used.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-int32_t xberg_extraction_config_needs_image_processing(
-    const XBERGExtractionConfig *this_);
+int32_t xberg_extraction_config_needs_image_processing(const XBERGExtractionConfig *this_);
 
 /**
  * Create a `FileExtractionConfig` from a JSON string. Returns null on failure.
@@ -4278,8 +4363,7 @@ int32_t xberg_extraction_config_needs_image_processing(
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_file_extraction_config_free`.
  */
-XBERGFileExtractionConfig *
-xberg_file_extraction_config_from_json(const char *json);
+XBERGFileExtractionConfig *xberg_file_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `FileExtractionConfig` to a JSON string. Returns null on failure.
@@ -4287,8 +4371,7 @@ xberg_file_extraction_config_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_file_extraction_config_to_json(const XBERGFileExtractionConfig *ptr);
+char *xberg_file_extraction_config_to_json(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Free a `FileExtractionConfig` handle.
@@ -4302,266 +4385,231 @@ void xberg_file_extraction_config_free(XBERGFileExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_enable_quality_processing(
-    const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_enable_quality_processing(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `ocr` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrConfig *
-xberg_file_extraction_config_ocr(const XBERGFileExtractionConfig *ptr);
+XBERGOcrConfig *xberg_file_extraction_config_ocr(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `force_ocr` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_file_extraction_config_force_ocr(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_force_ocr(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `ocr_strategy` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrStrategy *
-xberg_file_extraction_config_ocr_strategy(const XBERGFileExtractionConfig *ptr);
+XBERGOcrStrategy *xberg_file_extraction_config_ocr_strategy(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `force_ocr_pages` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_file_extraction_config_force_ocr_pages(
-    const XBERGFileExtractionConfig *ptr);
+char *xberg_file_extraction_config_force_ocr_pages(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `disable_ocr` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_file_extraction_config_disable_ocr(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_disable_ocr(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `chunking` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkingConfig *
-xberg_file_extraction_config_chunking(const XBERGFileExtractionConfig *ptr);
+XBERGChunkingConfig *xberg_file_extraction_config_chunking(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `content_filter` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentFilterConfig *xberg_file_extraction_config_content_filter(
-    const XBERGFileExtractionConfig *ptr);
+XBERGContentFilterConfig *xberg_file_extraction_config_content_filter(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `images` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageExtractionConfig *
-xberg_file_extraction_config_images(const XBERGFileExtractionConfig *ptr);
+XBERGImageExtractionConfig *xberg_file_extraction_config_images(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `pdf_options` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfConfig *
-xberg_file_extraction_config_pdf_options(const XBERGFileExtractionConfig *ptr);
+XBERGPdfConfig *xberg_file_extraction_config_pdf_options(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `token_reduction` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTokenReductionOptions *xberg_file_extraction_config_token_reduction(
-    const XBERGFileExtractionConfig *ptr);
+XBERGTokenReductionOptions *xberg_file_extraction_config_token_reduction(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `language_detection` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLanguageDetectionConfig *xberg_file_extraction_config_language_detection(
-    const XBERGFileExtractionConfig *ptr);
+XBERGLanguageDetectionConfig *xberg_file_extraction_config_language_detection(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `pages` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageConfig *
-xberg_file_extraction_config_pages(const XBERGFileExtractionConfig *ptr);
+XBERGPageConfig *xberg_file_extraction_config_pages(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `keywords` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordConfig *
-xberg_file_extraction_config_keywords(const XBERGFileExtractionConfig *ptr);
+XBERGKeywordConfig *xberg_file_extraction_config_keywords(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `postprocessor` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPostProcessorConfig *xberg_file_extraction_config_postprocessor(
-    const XBERGFileExtractionConfig *ptr);
+XBERGPostProcessorConfig *xberg_file_extraction_config_postprocessor(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `html_output` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlOutputConfig *
-xberg_file_extraction_config_html_output(const XBERGFileExtractionConfig *ptr);
+XBERGHtmlOutputConfig *xberg_file_extraction_config_html_output(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `result_format` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGResultFormat *xberg_file_extraction_config_result_format(
-    const XBERGFileExtractionConfig *ptr);
+XBERGResultFormat *xberg_file_extraction_config_result_format(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `output_format` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOutputFormat *xberg_file_extraction_config_output_format(
-    const XBERGFileExtractionConfig *ptr);
+XBERGOutputFormat *xberg_file_extraction_config_output_format(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `include_document_structure` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_include_document_structure(
-    const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_include_document_structure(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `layout` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutDetectionConfig *
-xberg_file_extraction_config_layout(const XBERGFileExtractionConfig *ptr);
+XBERGLayoutDetectionConfig *xberg_file_extraction_config_layout(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `transcription` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranscriptionConfig *xberg_file_extraction_config_transcription(
-    const XBERGFileExtractionConfig *ptr);
+XBERGTranscriptionConfig *xberg_file_extraction_config_transcription(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `timeout_secs` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_file_extraction_config_timeout_secs(const XBERGFileExtractionConfig *ptr);
+uint64_t xberg_file_extraction_config_timeout_secs(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `tree_sitter` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterConfig *
-xberg_file_extraction_config_tree_sitter(const XBERGFileExtractionConfig *ptr);
+XBERGTreeSitterConfig *xberg_file_extraction_config_tree_sitter(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `structured_extraction` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredExtractionConfig *
-xberg_file_extraction_config_structured_extraction(
-    const XBERGFileExtractionConfig *ptr);
+XBERGStructuredExtractionConfig *xberg_file_extraction_config_structured_extraction(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `url` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionConfig *
-xberg_file_extraction_config_url(const XBERGFileExtractionConfig *ptr);
+XBERGUrlExtractionConfig *xberg_file_extraction_config_url(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `ner` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNerConfig *
-xberg_file_extraction_config_ner(const XBERGFileExtractionConfig *ptr);
+XBERGNerConfig *xberg_file_extraction_config_ner(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `redaction` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionConfig *
-xberg_file_extraction_config_redaction(const XBERGFileExtractionConfig *ptr);
+XBERGRedactionConfig *xberg_file_extraction_config_redaction(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `summarization` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummarizationConfig *xberg_file_extraction_config_summarization(
-    const XBERGFileExtractionConfig *ptr);
+XBERGSummarizationConfig *xberg_file_extraction_config_summarization(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `translation` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslationConfig *
-xberg_file_extraction_config_translation(const XBERGFileExtractionConfig *ptr);
+XBERGTranslationConfig *xberg_file_extraction_config_translation(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `page_classification` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageClassificationConfig *xberg_file_extraction_config_page_classification(
-    const XBERGFileExtractionConfig *ptr);
+XBERGPageClassificationConfig *xberg_file_extraction_config_page_classification(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `chunk_classification` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *
-xberg_file_extraction_config_chunk_classification(
-    const XBERGFileExtractionConfig *ptr);
+XBERGChunkClassificationConfig *xberg_file_extraction_config_chunk_classification(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `captioning` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCaptioningConfig *
-xberg_file_extraction_config_captioning(const XBERGFileExtractionConfig *ptr);
+XBERGCaptioningConfig *xberg_file_extraction_config_captioning(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Get the `qr_codes` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_file_extraction_config_qr_codes(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_qr_codes(const XBERGFileExtractionConfig *ptr);
 
 /**
  * Create a `SvgOptions` from a JSON string. Returns null on failure.
@@ -4601,8 +4649,8 @@ int32_t xberg_svg_options_sanitize(const XBERGSvgOptions *ptr);
 float xberg_svg_options_render_dpi(const XBERGSvgOptions *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGSvgOptions *xberg_svg_options_default(void);
 
@@ -4670,19 +4718,18 @@ char *xberg_extract_input_filename(const XBERGExtractInput *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFileExtractionConfig *
-xberg_extract_input_config(const XBERGExtractInput *ptr);
+XBERGFileExtractionConfig *xberg_extract_input_config(const XBERGExtractInput *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractInput *xberg_extract_input_default(void);
 
 /**
  * Build a bytes input with a MIME type and optional filename hint.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractInput *xberg_extract_input_from_bytes(const uint8_t *bytes,
                                                   uintptr_t bytes_len,
@@ -4691,8 +4738,8 @@ XBERGExtractInput *xberg_extract_input_from_bytes(const uint8_t *bytes,
 
 /**
  * Build a URI input from a local path, `file://` URI, or HTTP(S) URL.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractInput *xberg_extract_input_from_uri(const char *uri);
 
@@ -4702,8 +4749,7 @@ XBERGExtractInput *xberg_extract_input_from_uri(const char *uri);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_error_item_free`.
  */
-XBERGExtractionErrorItem *
-xberg_extraction_error_item_from_json(const char *json);
+XBERGExtractionErrorItem *xberg_extraction_error_item_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionErrorItem` to a JSON string. Returns null on failure.
@@ -4725,8 +4771,7 @@ void xberg_extraction_error_item_free(XBERGExtractionErrorItem *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_extraction_error_item_index(const XBERGExtractionErrorItem *ptr);
+uintptr_t xberg_extraction_error_item_index(const XBERGExtractionErrorItem *ptr);
 
 /**
  * Get the `code` field from a `ExtractionErrorItem`.
@@ -4740,8 +4785,7 @@ uint32_t xberg_extraction_error_item_code(const XBERGExtractionErrorItem *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extraction_error_item_error_type(const XBERGExtractionErrorItem *ptr);
+char *xberg_extraction_error_item_error_type(const XBERGExtractionErrorItem *ptr);
 
 /**
  * Get the `source` field from a `ExtractionErrorItem`.
@@ -4806,24 +4850,21 @@ uintptr_t xberg_extraction_summary_errors(const XBERGExtractionSummary *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_extraction_summary_remote_urls(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_remote_urls(const XBERGExtractionSummary *ptr);
 
 /**
  * Get the `pages_crawled` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_extraction_summary_pages_crawled(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_pages_crawled(const XBERGExtractionSummary *ptr);
 
 /**
  * Get the `documents_downloaded` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_documents_downloaded(
-    const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_documents_downloaded(const XBERGExtractionSummary *ptr);
 
 /**
  * Create a `ExtractionResult` from a JSON string. Returns null on failure.
@@ -4867,40 +4908,35 @@ char *xberg_extraction_result_errors(const XBERGExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionSummary *
-xberg_extraction_result_summary(const XBERGExtractionResult *ptr);
+XBERGExtractionSummary *xberg_extraction_result_summary(const XBERGExtractionResult *ptr);
 
 /**
  * Get the `crawl_final_urls` field from a `ExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extraction_result_crawl_final_urls(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_crawl_final_urls(const XBERGExtractionResult *ptr);
 
 /**
  * Get the `crawl_redirect_count` field from a `ExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_extraction_result_crawl_redirect_count(const XBERGExtractionResult *ptr);
+uintptr_t xberg_extraction_result_crawl_redirect_count(const XBERGExtractionResult *ptr);
 
 /**
  * Get the `crawl_unique_normalized_urls` field from a `ExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_result_crawl_unique_normalized_urls(
-    const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_crawl_unique_normalized_urls(const XBERGExtractionResult *ptr);
 
 /**
  * Build an output containing one successful result.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGExtractionResult *
-xberg_extraction_result_single(const XBERGExtractedDocument *result);
+XBERGExtractionResult *xberg_extraction_result_single(const XBERGExtractedDocument *result);
 
 /**
  * Create a `UrlExtractionConfig` from a JSON string. Returns null on failure.
@@ -4908,8 +4944,7 @@ xberg_extraction_result_single(const XBERGExtractedDocument *result);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_url_extraction_config_free`.
  */
-XBERGUrlExtractionConfig *
-xberg_url_extraction_config_from_json(const char *json);
+XBERGUrlExtractionConfig *xberg_url_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `UrlExtractionConfig` to a JSON string. Returns null on failure.
@@ -4931,60 +4966,53 @@ void xberg_url_extraction_config_free(XBERGUrlExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionMode *
-xberg_url_extraction_config_mode(const XBERGUrlExtractionConfig *ptr);
+XBERGUrlExtractionMode *xberg_url_extraction_config_mode(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `crawl` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCrawlConfig *
-xberg_url_extraction_config_crawl(const XBERGUrlExtractionConfig *ptr);
+XBERGCrawlConfig *xberg_url_extraction_config_crawl(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `document_url_pattern` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_url_extraction_config_document_url_pattern(
-    const XBERGUrlExtractionConfig *ptr);
+char *xberg_url_extraction_config_document_url_pattern(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `max_document_urls_per_result` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_url_extraction_config_max_document_urls_per_result(
-    const XBERGUrlExtractionConfig *ptr);
+uint32_t xberg_url_extraction_config_max_document_urls_per_result(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `max_total_urls` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_url_extraction_config_max_total_urls(const XBERGUrlExtractionConfig *ptr);
+uint32_t xberg_url_extraction_config_max_total_urls(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `allow_local_file_inputs` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_url_extraction_config_allow_local_file_inputs(
-    const XBERGUrlExtractionConfig *ptr);
+int32_t xberg_url_extraction_config_allow_local_file_inputs(const XBERGUrlExtractionConfig *ptr);
 
 /**
  * Get the `allow_file_uris` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_url_extraction_config_allow_file_uris(
-    const XBERGUrlExtractionConfig *ptr);
+int32_t xberg_url_extraction_config_allow_file_uris(const XBERGUrlExtractionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGUrlExtractionConfig *xberg_url_extraction_config_default(void);
 
@@ -4994,16 +5022,15 @@ XBERGUrlExtractionConfig *xberg_url_extraction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_extraction_config_free`.
  */
-XBERGImageExtractionConfig *
-xberg_image_extraction_config_from_json(const char *json);
+XBERGImageExtractionConfig *xberg_image_extraction_config_from_json(const char *json);
 
 /**
- * Serialize a `ImageExtractionConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `ImageExtractionConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_image_extraction_config_to_json(const XBERGImageExtractionConfig *ptr);
+char *xberg_image_extraction_config_to_json(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Free a `ImageExtractionConfig` handle.
@@ -5017,132 +5044,116 @@ void xberg_image_extraction_config_free(XBERGImageExtractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_extract_images(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_extract_images(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `target_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_image_extraction_config_target_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_target_dpi(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `max_image_dimension` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_max_image_dimension(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_max_image_dimension(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `inject_placeholders` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_inject_placeholders(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_inject_placeholders(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `auto_adjust_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_auto_adjust_dpi(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_auto_adjust_dpi(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `min_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_image_extraction_config_min_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_min_dpi(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `max_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_image_extraction_config_max_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_max_dpi(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `max_images_per_page` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_image_extraction_config_max_images_per_page(
-    const XBERGImageExtractionConfig *ptr);
+uint32_t xberg_image_extraction_config_max_images_per_page(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `classify` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_image_extraction_config_classify(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_classify(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `include_page_rasters` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_include_page_rasters(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_include_page_rasters(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `run_ocr_on_images` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_run_ocr_on_images(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_run_ocr_on_images(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `ocr_text_only` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_ocr_text_only(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_ocr_text_only(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `append_ocr_text` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_append_ocr_text(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_append_ocr_text(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `output_format` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageOutputFormat *xberg_image_extraction_config_output_format(
-    const XBERGImageExtractionConfig *ptr);
+XBERGImageOutputFormat *xberg_image_extraction_config_output_format(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `svg` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSvgOptions *
-xberg_image_extraction_config_svg(const XBERGImageExtractionConfig *ptr);
+XBERGSvgOptions *xberg_image_extraction_config_svg(const XBERGImageExtractionConfig *ptr);
 
 /**
  * Get the `include_data_base64` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_include_data_base64(
-    const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_include_data_base64(const XBERGImageExtractionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGImageExtractionConfig *xberg_image_extraction_config_default(void);
 
@@ -5152,16 +5163,15 @@ XBERGImageExtractionConfig *xberg_image_extraction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_token_reduction_options_free`.
  */
-XBERGTokenReductionOptions *
-xberg_token_reduction_options_from_json(const char *json);
+XBERGTokenReductionOptions *xberg_token_reduction_options_from_json(const char *json);
 
 /**
- * Serialize a `TokenReductionOptions` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `TokenReductionOptions` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_token_reduction_options_to_json(const XBERGTokenReductionOptions *ptr);
+char *xberg_token_reduction_options_to_json(const XBERGTokenReductionOptions *ptr);
 
 /**
  * Free a `TokenReductionOptions` handle.
@@ -5182,30 +5192,29 @@ char *xberg_token_reduction_options_mode(const XBERGTokenReductionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_options_preserve_important_words(
-    const XBERGTokenReductionOptions *ptr);
+int32_t xberg_token_reduction_options_preserve_important_words(const XBERGTokenReductionOptions *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTokenReductionOptions *xberg_token_reduction_options_default(void);
 
 /**
- * Create a `LanguageDetectionConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `LanguageDetectionConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_language_detection_config_free`.
  */
-XBERGLanguageDetectionConfig *
-xberg_language_detection_config_from_json(const char *json);
+XBERGLanguageDetectionConfig *xberg_language_detection_config_from_json(const char *json);
 
 /**
- * Serialize a `LanguageDetectionConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `LanguageDetectionConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_language_detection_config_to_json(
-    const XBERGLanguageDetectionConfig *ptr);
+char *xberg_language_detection_config_to_json(const XBERGLanguageDetectionConfig *ptr);
 
 /**
  * Free a `LanguageDetectionConfig` handle.
@@ -5219,28 +5228,25 @@ void xberg_language_detection_config_free(XBERGLanguageDetectionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_language_detection_config_enabled(
-    const XBERGLanguageDetectionConfig *ptr);
+int32_t xberg_language_detection_config_enabled(const XBERGLanguageDetectionConfig *ptr);
 
 /**
  * Get the `min_confidence` field from a `LanguageDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_language_detection_config_min_confidence(
-    const XBERGLanguageDetectionConfig *ptr);
+double xberg_language_detection_config_min_confidence(const XBERGLanguageDetectionConfig *ptr);
 
 /**
  * Get the `detect_multiple` field from a `LanguageDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_language_detection_config_detect_multiple(
-    const XBERGLanguageDetectionConfig *ptr);
+int32_t xberg_language_detection_config_detect_multiple(const XBERGLanguageDetectionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGLanguageDetectionConfig *xberg_language_detection_config_default(void);
 
@@ -5286,8 +5292,7 @@ char *xberg_html_output_config_css_file(const XBERGHtmlOutputConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlTheme *
-xberg_html_output_config_theme(const XBERGHtmlOutputConfig *ptr);
+XBERGHtmlTheme *xberg_html_output_config_theme(const XBERGHtmlOutputConfig *ptr);
 
 /**
  * Get the `class_prefix` field from a `HtmlOutputConfig`.
@@ -5304,8 +5309,8 @@ char *xberg_html_output_config_class_prefix(const XBERGHtmlOutputConfig *ptr);
 int32_t xberg_html_output_config_embed_css(const XBERGHtmlOutputConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGHtmlOutputConfig *xberg_html_output_config_default(void);
 
@@ -5315,16 +5320,15 @@ XBERGHtmlOutputConfig *xberg_html_output_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_config_free`.
  */
-XBERGLateInteractionConfig *
-xberg_late_interaction_config_from_json(const char *json);
+XBERGLateInteractionConfig *xberg_late_interaction_config_from_json(const char *json);
 
 /**
- * Serialize a `LateInteractionConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `LateInteractionConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_late_interaction_config_to_json(const XBERGLateInteractionConfig *ptr);
+char *xberg_late_interaction_config_to_json(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Free a `LateInteractionConfig` handle.
@@ -5338,68 +5342,60 @@ void xberg_late_interaction_config_free(XBERGLateInteractionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLateInteractionModelType *
-xberg_late_interaction_config_model(const XBERGLateInteractionConfig *ptr);
+XBERGLateInteractionModelType *xberg_late_interaction_config_model(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `batch_size` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_late_interaction_config_batch_size(const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_batch_size(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `max_length` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_late_interaction_config_max_length(const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_max_length(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `query_max_length` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_config_query_max_length(
-    const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_query_max_length(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `show_download_progress` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_late_interaction_config_show_download_progress(
-    const XBERGLateInteractionConfig *ptr);
+int32_t xberg_late_interaction_config_show_download_progress(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `cache_dir` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_late_interaction_config_cache_dir(const XBERGLateInteractionConfig *ptr);
+char *xberg_late_interaction_config_cache_dir(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `acceleration` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_late_interaction_config_acceleration(
-    const XBERGLateInteractionConfig *ptr);
+XBERGAccelerationConfig *xberg_late_interaction_config_acceleration(const XBERGLateInteractionConfig *ptr);
 
 /**
  * Get the `max_embed_duration_secs` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_late_interaction_config_max_embed_duration_secs(
-    const XBERGLateInteractionConfig *ptr);
+uint64_t xberg_late_interaction_config_max_embed_duration_secs(const XBERGLateInteractionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGLateInteractionConfig *xberg_late_interaction_config_default(void);
 
@@ -5409,16 +5405,15 @@ XBERGLateInteractionConfig *xberg_late_interaction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_layout_detection_config_free`.
  */
-XBERGLayoutDetectionConfig *
-xberg_layout_detection_config_from_json(const char *json);
+XBERGLayoutDetectionConfig *xberg_layout_detection_config_from_json(const char *json);
 
 /**
- * Serialize a `LayoutDetectionConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `LayoutDetectionConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_layout_detection_config_to_json(const XBERGLayoutDetectionConfig *ptr);
+char *xberg_layout_detection_config_to_json(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Free a `LayoutDetectionConfig` handle.
@@ -5432,61 +5427,53 @@ void xberg_layout_detection_config_free(XBERGLayoutDetectionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutStrategy *
-xberg_layout_detection_config_strategy(const XBERGLayoutDetectionConfig *ptr);
+XBERGLayoutStrategy *xberg_layout_detection_config_strategy(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `confidence_threshold` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_layout_detection_config_confidence_threshold(
-    const XBERGLayoutDetectionConfig *ptr);
+float xberg_layout_detection_config_confidence_threshold(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `apply_heuristics` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_layout_detection_config_apply_heuristics(
-    const XBERGLayoutDetectionConfig *ptr);
+int32_t xberg_layout_detection_config_apply_heuristics(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `table_model` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableModel *xberg_layout_detection_config_table_model(
-    const XBERGLayoutDetectionConfig *ptr);
+XBERGTableModel *xberg_layout_detection_config_table_model(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `table_overlap_preference` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableOverlapPreference *
-xberg_layout_detection_config_table_overlap_preference(
-    const XBERGLayoutDetectionConfig *ptr);
+XBERGTableOverlapPreference *xberg_layout_detection_config_table_overlap_preference(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `acceleration` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_layout_detection_config_acceleration(
-    const XBERGLayoutDetectionConfig *ptr);
+XBERGAccelerationConfig *xberg_layout_detection_config_acceleration(const XBERGLayoutDetectionConfig *ptr);
 
 /**
  * Get the `enable_chart_understanding` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_layout_detection_config_enable_chart_understanding(
-    const XBERGLayoutDetectionConfig *ptr);
+int32_t xberg_layout_detection_config_enable_chart_understanding(const XBERGLayoutDetectionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGLayoutDetectionConfig *xberg_layout_detection_config_default(void);
 
@@ -5577,76 +5564,380 @@ int32_t xberg_llm_config_load_env(const XBERGLlmConfig *ptr);
 char *xberg_llm_config_headers(const XBERGLlmConfig *ptr);
 
 /**
- * Create a `StructuredExtractionConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
- * Returned handle must be freed with `xberg_structured_extraction_config_free`.
+ * Get the `providers` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredExtractionConfig *
-xberg_structured_extraction_config_from_json(const char *json);
+char *xberg_llm_config_providers(const XBERGLlmConfig *ptr);
 
 /**
- * Serialize a `StructuredExtractionConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Get the `cache` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_to_json(
-    const XBERGStructuredExtractionConfig *ptr);
+XBERGLlmCacheConfig *xberg_llm_config_cache(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `budget` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGLlmBudgetConfig *xberg_llm_config_budget(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `rate_limit` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGLlmRateLimitConfig *xberg_llm_config_rate_limit(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `cost_tracking` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_llm_config_cost_tracking(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `tracing` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_llm_config_tracing(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `cooldown_secs` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint64_t xberg_llm_config_cooldown_secs(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `health_check_secs` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint64_t xberg_llm_config_health_check_secs(const XBERGLlmConfig *ptr);
+
+/**
+ * Get the `bedrock` field from a `LlmConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGBedrockConfig *xberg_llm_config_bedrock(const XBERGLlmConfig *ptr);
+
+/**
+ * Create a `LlmProviderConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_llm_provider_config_free`.
+ */
+XBERGLlmProviderConfig *xberg_llm_provider_config_from_json(const char *json);
+
+/**
+ * Serialize a `LlmProviderConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_llm_provider_config_to_json(const XBERGLlmProviderConfig *ptr);
+
+/**
+ * Free a `LlmProviderConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_llm_provider_config_free(XBERGLlmProviderConfig *ptr);
+
+/**
+ * Get the `name` field from a `LlmProviderConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_provider_config_name(const XBERGLlmProviderConfig *ptr);
+
+/**
+ * Get the `base_url` field from a `LlmProviderConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_provider_config_base_url(const XBERGLlmProviderConfig *ptr);
+
+/**
+ * Get the `auth_header` field from a `LlmProviderConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_provider_config_auth_header(const XBERGLlmProviderConfig *ptr);
+
+/**
+ * Get the `model_prefixes` field from a `LlmProviderConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_provider_config_model_prefixes(const XBERGLlmProviderConfig *ptr);
+
+/**
+ * Create a `LlmCacheConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_llm_cache_config_free`.
+ */
+XBERGLlmCacheConfig *xberg_llm_cache_config_from_json(const char *json);
+
+/**
+ * Serialize a `LlmCacheConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_llm_cache_config_to_json(const XBERGLlmCacheConfig *ptr);
+
+/**
+ * Free a `LlmCacheConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_llm_cache_config_free(XBERGLlmCacheConfig *ptr);
+
+/**
+ * Get the `max_entries` field from a `LlmCacheConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uintptr_t xberg_llm_cache_config_max_entries(const XBERGLlmCacheConfig *ptr);
+
+/**
+ * Get the `ttl_seconds` field from a `LlmCacheConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint64_t xberg_llm_cache_config_ttl_seconds(const XBERGLlmCacheConfig *ptr);
+
+/**
+ * Get the `backend` field from a `LlmCacheConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_cache_config_backend(const XBERGLlmCacheConfig *ptr);
+
+/**
+ * Get the `backend_config` field from a `LlmCacheConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_cache_config_backend_config(const XBERGLlmCacheConfig *ptr);
+
+/**
+ * Create a `LlmBudgetConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_llm_budget_config_free`.
+ */
+XBERGLlmBudgetConfig *xberg_llm_budget_config_from_json(const char *json);
+
+/**
+ * Serialize a `LlmBudgetConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_llm_budget_config_to_json(const XBERGLlmBudgetConfig *ptr);
+
+/**
+ * Free a `LlmBudgetConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_llm_budget_config_free(XBERGLlmBudgetConfig *ptr);
+
+/**
+ * Get the `global_limit` field from a `LlmBudgetConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+double xberg_llm_budget_config_global_limit(const XBERGLlmBudgetConfig *ptr);
+
+/**
+ * Get the `model_limits` field from a `LlmBudgetConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_budget_config_model_limits(const XBERGLlmBudgetConfig *ptr);
+
+/**
+ * Get the `enforcement` field from a `LlmBudgetConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_llm_budget_config_enforcement(const XBERGLlmBudgetConfig *ptr);
+
+/**
+ * Create a `LlmRateLimitConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_llm_rate_limit_config_free`.
+ */
+XBERGLlmRateLimitConfig *xberg_llm_rate_limit_config_from_json(const char *json);
+
+/**
+ * Serialize a `LlmRateLimitConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_llm_rate_limit_config_to_json(const XBERGLlmRateLimitConfig *ptr);
+
+/**
+ * Free a `LlmRateLimitConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_llm_rate_limit_config_free(XBERGLlmRateLimitConfig *ptr);
+
+/**
+ * Get the `rpm` field from a `LlmRateLimitConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint32_t xberg_llm_rate_limit_config_rpm(const XBERGLlmRateLimitConfig *ptr);
+
+/**
+ * Get the `tpm` field from a `LlmRateLimitConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint64_t xberg_llm_rate_limit_config_tpm(const XBERGLlmRateLimitConfig *ptr);
+
+/**
+ * Get the `window_seconds` field from a `LlmRateLimitConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint64_t xberg_llm_rate_limit_config_window_seconds(const XBERGLlmRateLimitConfig *ptr);
+
+/**
+ * Create a `BedrockConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_bedrock_config_free`.
+ */
+XBERGBedrockConfig *xberg_bedrock_config_from_json(const char *json);
+
+/**
+ * Serialize a `BedrockConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_bedrock_config_to_json(const XBERGBedrockConfig *ptr);
+
+/**
+ * Free a `BedrockConfig` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_bedrock_config_free(XBERGBedrockConfig *ptr);
+
+/**
+ * Get the `region` field from a `BedrockConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_bedrock_config_region(const XBERGBedrockConfig *ptr);
+
+/**
+ * Get the `cross_region_prefix` field from a `BedrockConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_bedrock_config_cross_region_prefix(const XBERGBedrockConfig *ptr);
+
+/**
+ * Get the `access_key_id` field from a `BedrockConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_bedrock_config_access_key_id(const XBERGBedrockConfig *ptr);
+
+/**
+ * Get the `secret_access_key` field from a `BedrockConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_bedrock_config_secret_access_key(const XBERGBedrockConfig *ptr);
+
+/**
+ * Get the `session_token` field from a `BedrockConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_bedrock_config_session_token(const XBERGBedrockConfig *ptr);
+
+/**
+ * Create a `StructuredExtractionConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_structured_extraction_config_free`.
+ */
+XBERGStructuredExtractionConfig *xberg_structured_extraction_config_from_json(const char *json);
+
+/**
+ * Serialize a `StructuredExtractionConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_structured_extraction_config_to_json(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Free a `StructuredExtractionConfig` handle.
  * # Safety
  * Pointer must have been returned by this library, or be null.
  */
-void xberg_structured_extraction_config_free(
-    XBERGStructuredExtractionConfig *ptr);
+void xberg_structured_extraction_config_free(XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `schema` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema(
-    const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `schema_name` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema_name(
-    const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema_name(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `schema_description` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema_description(
-    const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema_description(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `strict` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_structured_extraction_config_strict(
-    const XBERGStructuredExtractionConfig *ptr);
+int32_t xberg_structured_extraction_config_strict(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `prompt` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_prompt(
-    const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_prompt(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Get the `llm` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_structured_extraction_config_llm(
-    const XBERGStructuredExtractionConfig *ptr);
+XBERGLlmConfig *xberg_structured_extraction_config_llm(const XBERGStructuredExtractionConfig *ptr);
 
 /**
  * Create a `NerConfig` from a JSON string. Returns null on failure.
@@ -5712,8 +6003,7 @@ char *xberg_ner_config_custom_labels(const XBERGNerConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_quality_thresholds_free`.
  */
-XBERGOcrQualityThresholds *
-xberg_ocr_quality_thresholds_from_json(const char *json);
+XBERGOcrQualityThresholds *xberg_ocr_quality_thresholds_from_json(const char *json);
 
 /**
  * Serialize a `OcrQualityThresholds` to a JSON string. Returns null on failure.
@@ -5721,8 +6011,7 @@ xberg_ocr_quality_thresholds_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_ocr_quality_thresholds_to_json(const XBERGOcrQualityThresholds *ptr);
+char *xberg_ocr_quality_thresholds_to_json(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Free a `OcrQualityThresholds` handle.
@@ -5736,156 +6025,137 @@ void xberg_ocr_quality_thresholds_free(XBERGOcrQualityThresholds *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_total_non_whitespace(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_total_non_whitespace(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_non_whitespace_per_page` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_non_whitespace_per_page(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_non_whitespace_per_page(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_meaningful_word_len` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_meaningful_word_len(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_meaningful_word_len(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_meaningful_words` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_meaningful_words(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_meaningful_words(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_alnum_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_alnum_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_alnum_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_garbage_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_garbage_chars(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_garbage_chars(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `max_fragmented_word_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_max_fragmented_word_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_max_fragmented_word_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `critical_fragmented_word_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_critical_fragmented_word_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_critical_fragmented_word_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_avg_word_length` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_avg_word_length(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_avg_word_length(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_words_for_avg_length_check` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_words_for_avg_length_check(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_words_for_avg_length_check(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_consecutive_repeat_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_consecutive_repeat_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_consecutive_repeat_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_words_for_repeat_check` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_words_for_repeat_check(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_words_for_repeat_check(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `substantive_min_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_substantive_min_chars(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_substantive_min_chars(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `non_text_min_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_non_text_min_chars(
-    const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_non_text_min_chars(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `alnum_ws_ratio_threshold` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_alnum_ws_ratio_threshold(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_alnum_ws_ratio_threshold(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `pipeline_min_quality` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_pipeline_min_quality(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_pipeline_min_quality(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_undecodable_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_undecodable_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_undecodable_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `enable_provenance_ocr_routing` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_quality_thresholds_enable_provenance_ocr_routing(
-    const XBERGOcrQualityThresholds *ptr);
+int32_t xberg_ocr_quality_thresholds_enable_provenance_ocr_routing(const XBERGOcrQualityThresholds *ptr);
 
 /**
  * Get the `min_provenance_fallback_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_provenance_fallback_ratio(
-    const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_provenance_fallback_ratio(const XBERGOcrQualityThresholds *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGOcrQualityThresholds *xberg_ocr_quality_thresholds_default(void);
 
@@ -5938,32 +6208,28 @@ char *xberg_ocr_pipeline_stage_language(const XBERGOcrPipelineStage *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTesseractConfig *
-xberg_ocr_pipeline_stage_tesseract_config(const XBERGOcrPipelineStage *ptr);
+XBERGTesseractConfig *xberg_ocr_pipeline_stage_tesseract_config(const XBERGOcrPipelineStage *ptr);
 
 /**
  * Get the `paddle_ocr_config` field from a `OcrPipelineStage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_ocr_pipeline_stage_paddle_ocr_config(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_paddle_ocr_config(const XBERGOcrPipelineStage *ptr);
 
 /**
  * Get the `vlm_config` field from a `OcrPipelineStage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *
-xberg_ocr_pipeline_stage_vlm_config(const XBERGOcrPipelineStage *ptr);
+XBERGLlmConfig *xberg_ocr_pipeline_stage_vlm_config(const XBERGOcrPipelineStage *ptr);
 
 /**
  * Get the `backend_options` field from a `OcrPipelineStage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_ocr_pipeline_stage_backend_options(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_backend_options(const XBERGOcrPipelineStage *ptr);
 
 /**
  * Create a `OcrPipelineConfig` from a JSON string. Returns null on failure.
@@ -6000,8 +6266,7 @@ char *xberg_ocr_pipeline_config_stages(const XBERGOcrPipelineConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrQualityThresholds *
-xberg_ocr_pipeline_config_quality_thresholds(const XBERGOcrPipelineConfig *ptr);
+XBERGOcrQualityThresholds *xberg_ocr_pipeline_config_quality_thresholds(const XBERGOcrPipelineConfig *ptr);
 
 /**
  * Create a `OcrConfig` from a JSON string. Returns null on failure.
@@ -6052,8 +6317,7 @@ char *xberg_ocr_config_language(const XBERGOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTesseractConfig *
-xberg_ocr_config_tesseract_config(const XBERGOcrConfig *ptr);
+XBERGTesseractConfig *xberg_ocr_config_tesseract_config(const XBERGOcrConfig *ptr);
 
 /**
  * Get the `output_format` field from a `OcrConfig`.
@@ -6081,16 +6345,14 @@ char *xberg_ocr_config_backend_options(const XBERGOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrElementConfig *
-xberg_ocr_config_element_config(const XBERGOcrConfig *ptr);
+XBERGOcrElementConfig *xberg_ocr_config_element_config(const XBERGOcrConfig *ptr);
 
 /**
  * Get the `quality_thresholds` field from a `OcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrQualityThresholds *
-xberg_ocr_config_quality_thresholds(const XBERGOcrConfig *ptr);
+XBERGOcrQualityThresholds *xberg_ocr_config_quality_thresholds(const XBERGOcrConfig *ptr);
 
 /**
  * Get the `pipeline` field from a `OcrConfig`.
@@ -6111,8 +6373,7 @@ int32_t xberg_ocr_config_auto_rotate(const XBERGOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGVlmFallbackPolicy *
-xberg_ocr_config_vlm_fallback(const XBERGOcrConfig *ptr);
+XBERGVlmFallbackPolicy *xberg_ocr_config_vlm_fallback(const XBERGOcrConfig *ptr);
 
 /**
  * Get the `vlm_config` field from a `OcrConfig`.
@@ -6133,8 +6394,7 @@ char *xberg_ocr_config_vlm_prompt(const XBERGOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *
-xberg_ocr_config_acceleration(const XBERGOcrConfig *ptr);
+XBERGAccelerationConfig *xberg_ocr_config_acceleration(const XBERGOcrConfig *ptr);
 
 /**
  * Get the `tessdata_bytes` field from a `OcrConfig`.
@@ -6151,8 +6411,8 @@ char *xberg_ocr_config_tessdata_bytes(const XBERGOcrConfig *ptr);
 char *xberg_ocr_config_tessdata_path(const XBERGOcrConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGOcrConfig *xberg_ocr_config_default(void);
 
@@ -6201,8 +6461,8 @@ int32_t xberg_page_config_insert_page_markers(const XBERGPageConfig *ptr);
 char *xberg_page_config_marker_format(const XBERGPageConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPageConfig *xberg_page_config_default(void);
 
@@ -6314,8 +6574,8 @@ int32_t xberg_pdf_config_extract_form_fields(const XBERGPdfConfig *ptr);
 int32_t xberg_pdf_config_reading_order(const XBERGPdfConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPdfConfig *xberg_pdf_config_default(void);
 
@@ -6364,8 +6624,8 @@ uintptr_t xberg_hierarchy_config_k_clusters(const XBERGHierarchyConfig *ptr);
 int32_t xberg_hierarchy_config_include_bbox(const XBERGHierarchyConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGHierarchyConfig *xberg_hierarchy_config_default(void);
 
@@ -6375,8 +6635,7 @@ XBERGHierarchyConfig *xberg_hierarchy_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_post_processor_config_free`.
  */
-XBERGPostProcessorConfig *
-xberg_post_processor_config_from_json(const char *json);
+XBERGPostProcessorConfig *xberg_post_processor_config_from_json(const char *json);
 
 /**
  * Serialize a `PostProcessorConfig` to a JSON string. Returns null on failure.
@@ -6398,44 +6657,39 @@ void xberg_post_processor_config_free(XBERGPostProcessorConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_post_processor_config_enabled(const XBERGPostProcessorConfig *ptr);
+int32_t xberg_post_processor_config_enabled(const XBERGPostProcessorConfig *ptr);
 
 /**
  * Get the `enabled_processors` field from a `PostProcessorConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_enabled_processors(
-    const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_enabled_processors(const XBERGPostProcessorConfig *ptr);
 
 /**
  * Get the `disabled_processors` field from a `PostProcessorConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_disabled_processors(
-    const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_disabled_processors(const XBERGPostProcessorConfig *ptr);
 
 /**
  * Get the `enabled_set` field from a `PostProcessorConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_post_processor_config_enabled_set(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_enabled_set(const XBERGPostProcessorConfig *ptr);
 
 /**
  * Get the `disabled_set` field from a `PostProcessorConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_post_processor_config_disabled_set(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_disabled_set(const XBERGPostProcessorConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPostProcessorConfig *xberg_post_processor_config_default(void);
 
@@ -6488,16 +6742,28 @@ int32_t xberg_chunking_config_trim(const XBERGChunkingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkerType *
-xberg_chunking_config_chunker_type(const XBERGChunkingConfig *ptr);
+XBERGChunkerType *xberg_chunking_config_chunker_type(const XBERGChunkingConfig *ptr);
 
 /**
  * Get the `embedding` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddingConfig *
-xberg_chunking_config_embedding(const XBERGChunkingConfig *ptr);
+XBERGEmbeddingConfig *xberg_chunking_config_embedding(const XBERGChunkingConfig *ptr);
+
+/**
+ * Get the `sparse_embedding` field from a `ChunkingConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGSparseEmbeddingConfig *xberg_chunking_config_sparse_embedding(const XBERGChunkingConfig *ptr);
+
+/**
+ * Get the `late_interaction` field from a `ChunkingConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGLateInteractionConfig *xberg_chunking_config_late_interaction(const XBERGChunkingConfig *ptr);
 
 /**
  * Get the `preset` field from a `ChunkingConfig`.
@@ -6518,8 +6784,7 @@ XBERGChunkSizing *xberg_chunking_config_sizing(const XBERGChunkingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_chunking_config_prepend_heading_context(const XBERGChunkingConfig *ptr);
+int32_t xberg_chunking_config_prepend_heading_context(const XBERGChunkingConfig *ptr);
 
 /**
  * Get the `topic_threshold` field from a `ChunkingConfig`.
@@ -6533,12 +6798,18 @@ float xberg_chunking_config_topic_threshold(const XBERGChunkingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableChunkingMode *
-xberg_chunking_config_table_chunking(const XBERGChunkingConfig *ptr);
+XBERGTableChunkingMode *xberg_chunking_config_table_chunking(const XBERGChunkingConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * Get the `breadcrumb_target` field from a `ChunkingConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGBreadcrumbTarget *xberg_chunking_config_breadcrumb_target(const XBERGChunkingConfig *ptr);
+
+/**
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGChunkingConfig *xberg_chunking_config_default(void);
 
@@ -6570,8 +6841,7 @@ void xberg_embedding_config_free(XBERGEmbeddingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddingModelType *
-xberg_embedding_config_model(const XBERGEmbeddingConfig *ptr);
+XBERGEmbeddingModelType *xberg_embedding_config_model(const XBERGEmbeddingConfig *ptr);
 
 /**
  * Get the `normalize` field from a `EmbeddingConfig`.
@@ -6592,8 +6862,7 @@ uintptr_t xberg_embedding_config_batch_size(const XBERGEmbeddingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_embedding_config_show_download_progress(const XBERGEmbeddingConfig *ptr);
+int32_t xberg_embedding_config_show_download_progress(const XBERGEmbeddingConfig *ptr);
 
 /**
  * Get the `cache_dir` field from a `EmbeddingConfig`.
@@ -6607,28 +6876,25 @@ char *xberg_embedding_config_cache_dir(const XBERGEmbeddingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *
-xberg_embedding_config_acceleration(const XBERGEmbeddingConfig *ptr);
+XBERGAccelerationConfig *xberg_embedding_config_acceleration(const XBERGEmbeddingConfig *ptr);
 
 /**
  * Get the `max_embed_duration_secs` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_embedding_config_max_embed_duration_secs(const XBERGEmbeddingConfig *ptr);
+uint64_t xberg_embedding_config_max_embed_duration_secs(const XBERGEmbeddingConfig *ptr);
 
 /**
  * Get the `max_sequence_length` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_embedding_config_max_sequence_length(const XBERGEmbeddingConfig *ptr);
+uintptr_t xberg_embedding_config_max_sequence_length(const XBERGEmbeddingConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGEmbeddingConfig *xberg_embedding_config_default(void);
 
@@ -6667,8 +6933,7 @@ char *xberg_redaction_config_categories(const XBERGRedactionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionStrategy *
-xberg_redaction_config_strategy(const XBERGRedactionConfig *ptr);
+XBERGRedactionStrategy *xberg_redaction_config_strategy(const XBERGRedactionConfig *ptr);
 
 /**
  * Get the `ner` field from a `RedactionConfig`.
@@ -6682,8 +6947,7 @@ XBERGNerConfig *xberg_redaction_config_ner(const XBERGRedactionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_redaction_config_preserve_offsets(const XBERGRedactionConfig *ptr);
+int32_t xberg_redaction_config_preserve_offsets(const XBERGRedactionConfig *ptr);
 
 /**
  * Get the `custom_terms` field from a `RedactionConfig`.
@@ -6700,8 +6964,8 @@ char *xberg_redaction_config_custom_terms(const XBERGRedactionConfig *ptr);
 char *xberg_redaction_config_custom_patterns(const XBERGRedactionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRedactionConfig *xberg_redaction_config_default(void);
 
@@ -6713,8 +6977,8 @@ XBERGRedactionConfig *xberg_redaction_config_default(void);
  * the caller can reject the config before the redaction pipeline runs.
  * Pure terms (regex-escaped) cannot fail to compile, but the function
  * still rejects empty values to avoid degenerate zero-length matches.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_redaction_config_validate(const XBERGRedactionConfig *this_);
 
@@ -6764,15 +7028,15 @@ int32_t xberg_redaction_term_case_sensitive(const XBERGRedactionTerm *ptr);
 
 /**
  * Build a term whose label is the literal value itself (case-insensitive).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRedactionTerm *xberg_redaction_term_literal(const char *value);
 
 /**
  * Build a term with a custom label.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRedactionTerm *xberg_redaction_term_labeled(const char *label,
                                                  const char *value);
@@ -6819,13 +7083,12 @@ char *xberg_redaction_pattern_pattern(const XBERGRedactionPattern *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_redaction_pattern_case_sensitive(const XBERGRedactionPattern *ptr);
+int32_t xberg_redaction_pattern_case_sensitive(const XBERGRedactionPattern *ptr);
 
 /**
  * Build a pattern with the given label (case-insensitive by default).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRedactionPattern *xberg_redaction_pattern_labeled(const char *label,
                                                        const char *pattern);
@@ -6858,8 +7121,7 @@ void xberg_reranker_config_free(XBERGRerankerConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRerankerModelType *
-xberg_reranker_config_model(const XBERGRerankerConfig *ptr);
+XBERGRerankerModelType *xberg_reranker_config_model(const XBERGRerankerConfig *ptr);
 
 /**
  * Get the `top_k` field from a `RerankerConfig`.
@@ -6880,8 +7142,7 @@ uintptr_t xberg_reranker_config_batch_size(const XBERGRerankerConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_reranker_config_show_download_progress(const XBERGRerankerConfig *ptr);
+int32_t xberg_reranker_config_show_download_progress(const XBERGRerankerConfig *ptr);
 
 /**
  * Get the `cache_dir` field from a `RerankerConfig`.
@@ -6895,20 +7156,18 @@ char *xberg_reranker_config_cache_dir(const XBERGRerankerConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *
-xberg_reranker_config_acceleration(const XBERGRerankerConfig *ptr);
+XBERGAccelerationConfig *xberg_reranker_config_acceleration(const XBERGRerankerConfig *ptr);
 
 /**
  * Get the `max_rerank_duration_secs` field from a `RerankerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_reranker_config_max_rerank_duration_secs(const XBERGRerankerConfig *ptr);
+uint64_t xberg_reranker_config_max_rerank_duration_secs(const XBERGRerankerConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRerankerConfig *xberg_reranker_config_default(void);
 
@@ -6918,16 +7177,15 @@ XBERGRerankerConfig *xberg_reranker_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sparse_embedding_config_free`.
  */
-XBERGSparseEmbeddingConfig *
-xberg_sparse_embedding_config_from_json(const char *json);
+XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_from_json(const char *json);
 
 /**
- * Serialize a `SparseEmbeddingConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `SparseEmbeddingConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_sparse_embedding_config_to_json(const XBERGSparseEmbeddingConfig *ptr);
+char *xberg_sparse_embedding_config_to_json(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Free a `SparseEmbeddingConfig` handle.
@@ -6941,60 +7199,53 @@ void xberg_sparse_embedding_config_free(XBERGSparseEmbeddingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSparseEmbeddingModelType *
-xberg_sparse_embedding_config_model(const XBERGSparseEmbeddingConfig *ptr);
+XBERGSparseEmbeddingModelType *xberg_sparse_embedding_config_model(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `batch_size` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_sparse_embedding_config_batch_size(const XBERGSparseEmbeddingConfig *ptr);
+uintptr_t xberg_sparse_embedding_config_batch_size(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `max_length` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_sparse_embedding_config_max_length(const XBERGSparseEmbeddingConfig *ptr);
+uintptr_t xberg_sparse_embedding_config_max_length(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `show_download_progress` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_sparse_embedding_config_show_download_progress(
-    const XBERGSparseEmbeddingConfig *ptr);
+int32_t xberg_sparse_embedding_config_show_download_progress(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `cache_dir` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_sparse_embedding_config_cache_dir(const XBERGSparseEmbeddingConfig *ptr);
+char *xberg_sparse_embedding_config_cache_dir(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `acceleration` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_sparse_embedding_config_acceleration(
-    const XBERGSparseEmbeddingConfig *ptr);
+XBERGAccelerationConfig *xberg_sparse_embedding_config_acceleration(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
  * Get the `max_embed_duration_secs` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_sparse_embedding_config_max_embed_duration_secs(
-    const XBERGSparseEmbeddingConfig *ptr);
+uint64_t xberg_sparse_embedding_config_max_embed_duration_secs(const XBERGSparseEmbeddingConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_default(void);
 
@@ -7004,8 +7255,7 @@ XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_summarization_config_free`.
  */
-XBERGSummarizationConfig *
-xberg_summarization_config_from_json(const char *json);
+XBERGSummarizationConfig *xberg_summarization_config_from_json(const char *json);
 
 /**
  * Serialize a `SummarizationConfig` to a JSON string. Returns null on failure.
@@ -7027,24 +7277,21 @@ void xberg_summarization_config_free(XBERGSummarizationConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummaryStrategy *
-xberg_summarization_config_strategy(const XBERGSummarizationConfig *ptr);
+XBERGSummaryStrategy *xberg_summarization_config_strategy(const XBERGSummarizationConfig *ptr);
 
 /**
  * Get the `max_tokens` field from a `SummarizationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_summarization_config_max_tokens(const XBERGSummarizationConfig *ptr);
+uint32_t xberg_summarization_config_max_tokens(const XBERGSummarizationConfig *ptr);
 
 /**
  * Get the `llm` field from a `SummarizationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *
-xberg_summarization_config_llm(const XBERGSummarizationConfig *ptr);
+XBERGLlmConfig *xberg_summarization_config_llm(const XBERGSummarizationConfig *ptr);
 
 /**
  * Create a `TranscriptionConfig` from a JSON string. Returns null on failure.
@@ -7052,8 +7299,7 @@ xberg_summarization_config_llm(const XBERGSummarizationConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_transcription_config_free`.
  */
-XBERGTranscriptionConfig *
-xberg_transcription_config_from_json(const char *json);
+XBERGTranscriptionConfig *xberg_transcription_config_from_json(const char *json);
 
 /**
  * Serialize a `TranscriptionConfig` to a JSON string. Returns null on failure.
@@ -7082,8 +7328,7 @@ int32_t xberg_transcription_config_enabled(const XBERGTranscriptionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGWhisperModel *
-xberg_transcription_config_model(const XBERGTranscriptionConfig *ptr);
+XBERGWhisperModel *xberg_transcription_config_model(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `language` field from a `TranscriptionConfig`.
@@ -7097,60 +7342,53 @@ char *xberg_transcription_config_language(const XBERGTranscriptionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_transcription_config_timestamps(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_timestamps(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `max_duration_ms` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_transcription_config_max_duration_ms(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_max_duration_ms(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `max_bytes` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_transcription_config_max_bytes(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_max_bytes(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `timeout_ms` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_transcription_config_timeout_ms(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_timeout_ms(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `model_cache_dir` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_transcription_config_model_cache_dir(const XBERGTranscriptionConfig *ptr);
+char *xberg_transcription_config_model_cache_dir(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `allow_network` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_transcription_config_allow_network(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_allow_network(const XBERGTranscriptionConfig *ptr);
 
 /**
  * Get the `verify_hash` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_transcription_config_verify_hash(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_verify_hash(const XBERGTranscriptionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTranscriptionConfig *xberg_transcription_config_default(void);
 
@@ -7196,8 +7434,7 @@ char *xberg_translation_config_source_lang(const XBERGTranslationConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_translation_config_preserve_markup(const XBERGTranslationConfig *ptr);
+int32_t xberg_translation_config_preserve_markup(const XBERGTranslationConfig *ptr);
 
 /**
  * Get the `llm` field from a `TranslationConfig`.
@@ -7262,30 +7499,29 @@ char *xberg_tree_sitter_config_groups(const XBERGTreeSitterConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterProcessConfig *
-xberg_tree_sitter_config_process(const XBERGTreeSitterConfig *ptr);
+XBERGTreeSitterProcessConfig *xberg_tree_sitter_config_process(const XBERGTreeSitterConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTreeSitterConfig *xberg_tree_sitter_config_default(void);
 
 /**
- * Create a `TreeSitterProcessConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `TreeSitterProcessConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_tree_sitter_process_config_free`.
  */
-XBERGTreeSitterProcessConfig *
-xberg_tree_sitter_process_config_from_json(const char *json);
+XBERGTreeSitterProcessConfig *xberg_tree_sitter_process_config_from_json(const char *json);
 
 /**
- * Serialize a `TreeSitterProcessConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `TreeSitterProcessConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_tree_sitter_process_config_to_json(
-    const XBERGTreeSitterProcessConfig *ptr);
+char *xberg_tree_sitter_process_config_to_json(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Free a `TreeSitterProcessConfig` handle.
@@ -7299,84 +7535,74 @@ void xberg_tree_sitter_process_config_free(XBERGTreeSitterProcessConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_structure(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_structure(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `imports` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_imports(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_imports(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `exports` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_exports(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_exports(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `comments` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_comments(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_comments(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `docstrings` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_docstrings(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_docstrings(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `symbols` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_symbols(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_symbols(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `diagnostics` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_diagnostics(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_diagnostics(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `data_extraction` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_data_extraction(
-    const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_data_extraction(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `chunk_max_size` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_tree_sitter_process_config_chunk_max_size(
-    const XBERGTreeSitterProcessConfig *ptr);
+uintptr_t xberg_tree_sitter_process_config_chunk_max_size(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
  * Get the `content_mode` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeContentMode *xberg_tree_sitter_process_config_content_mode(
-    const XBERGTreeSitterProcessConfig *ptr);
+XBERGCodeContentMode *xberg_tree_sitter_process_config_content_mode(const XBERGTreeSitterProcessConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTreeSitterProcessConfig *xberg_tree_sitter_process_config_default(void);
 
@@ -7466,27 +7692,25 @@ char *xberg_server_config_cors_origins(const XBERGServerConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_server_config_max_request_body_bytes(const XBERGServerConfig *ptr);
+uintptr_t xberg_server_config_max_request_body_bytes(const XBERGServerConfig *ptr);
 
 /**
  * Get the `max_multipart_field_bytes` field from a `ServerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_server_config_max_multipart_field_bytes(const XBERGServerConfig *ptr);
+uintptr_t xberg_server_config_max_multipart_field_bytes(const XBERGServerConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGServerConfig *xberg_server_config_default(void);
 
 /**
  * Get the server listen address (host:port).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::ServerConfig;
  *
@@ -7501,8 +7725,8 @@ char *xberg_server_config_listen_addr(const XBERGServerConfig *this_);
  *
  * Returns `true` if the `cors_origins` vector is empty, meaning all origins
  * are allowed. Returns `false` if specific origins are configured.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::ServerConfig;
  *
@@ -7522,8 +7746,8 @@ int32_t xberg_server_config_cors_allows_all(const XBERGServerConfig *this_);
  * - CORS allows all origins (empty origins list), or
  * - The given origin is in the allowed origins list
  * \param origin The origin to check (e.g., "<https://example.com>")
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::ServerConfig;
  *
@@ -7540,8 +7764,8 @@ int32_t xberg_server_config_is_origin_allowed(const XBERGServerConfig *this_,
 
 /**
  * Get maximum request body size in megabytes (rounded up).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::ServerConfig;
  *
@@ -7549,13 +7773,12 @@ int32_t xberg_server_config_is_origin_allowed(const XBERGServerConfig *this_,
  * assert_eq!(config.max_request_body_mb(), 100);
  * \endcode
  */
-uintptr_t
-xberg_server_config_max_request_body_mb(const XBERGServerConfig *this_);
+uintptr_t xberg_server_config_max_request_body_mb(const XBERGServerConfig *this_);
 
 /**
  * Get maximum multipart field size in megabytes (rounded up).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::ServerConfig;
  *
@@ -7563,8 +7786,7 @@ xberg_server_config_max_request_body_mb(const XBERGServerConfig *this_);
  * assert_eq!(config.max_multipart_field_mb(), 100);
  * \endcode
  */
-uintptr_t
-xberg_server_config_max_multipart_field_mb(const XBERGServerConfig *this_);
+uintptr_t xberg_server_config_max_multipart_field_mb(const XBERGServerConfig *this_);
 
 /**
  * Create a `StructuredDataResult` from a JSON string. Returns null on failure.
@@ -7572,8 +7794,7 @@ xberg_server_config_max_multipart_field_mb(const XBERGServerConfig *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_structured_data_result_free`.
  */
-XBERGStructuredDataResult *
-xberg_structured_data_result_from_json(const char *json);
+XBERGStructuredDataResult *xberg_structured_data_result_from_json(const char *json);
 
 /**
  * Serialize a `StructuredDataResult` to a JSON string. Returns null on failure.
@@ -7581,8 +7802,7 @@ xberg_structured_data_result_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_structured_data_result_to_json(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_to_json(const XBERGStructuredDataResult *ptr);
 
 /**
  * Free a `StructuredDataResult` handle.
@@ -7596,8 +7816,7 @@ void xberg_structured_data_result_free(XBERGStructuredDataResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_structured_data_result_content(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_content(const XBERGStructuredDataResult *ptr);
 
 /**
  * Get the `format` field from a `StructuredDataResult`.
@@ -7611,16 +7830,28 @@ char *xberg_structured_data_result_format(const XBERGStructuredDataResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_structured_data_result_metadata(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_metadata(const XBERGStructuredDataResult *ptr);
 
 /**
  * Get the `text_fields` field from a `StructuredDataResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_structured_data_result_text_fields(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_text_fields(const XBERGStructuredDataResult *ptr);
+
+/**
+ * Get the `value` field from a `StructuredDataResult`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_structured_data_result_value(const XBERGStructuredDataResult *ptr);
+
+/**
+ * Get the `flattened` field from a `StructuredDataResult`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_structured_data_result_flattened(const XBERGStructuredDataResult *ptr);
 
 /**
  * Create a `DocxAppProperties` from a JSON string. Returns null on failure.
@@ -7699,8 +7930,7 @@ int32_t xberg_docx_app_properties_characters(const XBERGDocxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_characters_with_spaces(
-    const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_characters_with_spaces(const XBERGDocxAppProperties *ptr);
 
 /**
  * Get the `lines` field from a `DocxAppProperties`.
@@ -7728,8 +7958,7 @@ char *xberg_docx_app_properties_company(const XBERGDocxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_docx_app_properties_doc_security(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_doc_security(const XBERGDocxAppProperties *ptr);
 
 /**
  * Get the `scale_crop` field from a `DocxAppProperties`.
@@ -7743,8 +7972,7 @@ int32_t xberg_docx_app_properties_scale_crop(const XBERGDocxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_docx_app_properties_links_up_to_date(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_links_up_to_date(const XBERGDocxAppProperties *ptr);
 
 /**
  * Get the `shared_doc` field from a `DocxAppProperties`.
@@ -7758,8 +7986,7 @@ int32_t xberg_docx_app_properties_shared_doc(const XBERGDocxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_docx_app_properties_hyperlinks_changed(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_hyperlinks_changed(const XBERGDocxAppProperties *ptr);
 
 /**
  * Create a `XlsxAppProperties` from a JSON string. Returns null on failure.
@@ -7803,8 +8030,7 @@ char *xberg_xlsx_app_properties_app_version(const XBERGXlsxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_xlsx_app_properties_doc_security(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_doc_security(const XBERGXlsxAppProperties *ptr);
 
 /**
  * Get the `scale_crop` field from a `XlsxAppProperties`.
@@ -7818,8 +8044,7 @@ int32_t xberg_xlsx_app_properties_scale_crop(const XBERGXlsxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_xlsx_app_properties_links_up_to_date(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_links_up_to_date(const XBERGXlsxAppProperties *ptr);
 
 /**
  * Get the `shared_doc` field from a `XlsxAppProperties`.
@@ -7833,8 +8058,7 @@ int32_t xberg_xlsx_app_properties_shared_doc(const XBERGXlsxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_xlsx_app_properties_hyperlinks_changed(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_hyperlinks_changed(const XBERGXlsxAppProperties *ptr);
 
 /**
  * Get the `company` field from a `XlsxAppProperties`.
@@ -7848,8 +8072,7 @@ char *xberg_xlsx_app_properties_company(const XBERGXlsxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_xlsx_app_properties_worksheet_names(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_worksheet_names(const XBERGXlsxAppProperties *ptr);
 
 /**
  * Create a `PptxAppProperties` from a JSON string. Returns null on failure.
@@ -7907,8 +8130,7 @@ char *xberg_pptx_app_properties_company(const XBERGPptxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_pptx_app_properties_doc_security(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_doc_security(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `scale_crop` field from a `PptxAppProperties`.
@@ -7922,8 +8144,7 @@ int32_t xberg_pptx_app_properties_scale_crop(const XBERGPptxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_pptx_app_properties_links_up_to_date(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_links_up_to_date(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `shared_doc` field from a `PptxAppProperties`.
@@ -7937,8 +8158,7 @@ int32_t xberg_pptx_app_properties_shared_doc(const XBERGPptxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_pptx_app_properties_hyperlinks_changed(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_hyperlinks_changed(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `slides` field from a `PptxAppProperties`.
@@ -7959,24 +8179,21 @@ int32_t xberg_pptx_app_properties_notes(const XBERGPptxAppProperties *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_pptx_app_properties_hidden_slides(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_hidden_slides(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `multimedia_clips` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_pptx_app_properties_multimedia_clips(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_multimedia_clips(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `presentation_format` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_presentation_format(
-    const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_presentation_format(const XBERGPptxAppProperties *ptr);
 
 /**
  * Get the `slide_titles` field from a `PptxAppProperties`.
@@ -8141,48 +8358,42 @@ void xberg_security_limits_free(XBERGSecurityLimits *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_archive_size(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_archive_size(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_compression_ratio` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_compression_ratio(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_compression_ratio(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_files_in_archive` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_files_in_archive(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_files_in_archive(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_nesting_depth` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_nesting_depth(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_nesting_depth(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_entity_length` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_entity_length(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_entity_length(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_content_size` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_security_limits_max_content_size(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_content_size(const XBERGSecurityLimits *ptr);
 
 /**
  * Get the `max_iterations` field from a `SecurityLimits`.
@@ -8206,8 +8417,8 @@ uintptr_t xberg_security_limits_max_xml_depth(const XBERGSecurityLimits *ptr);
 uintptr_t xberg_security_limits_max_table_cells(const XBERGSecurityLimits *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGSecurityLimits *xberg_security_limits_default(void);
 
@@ -8217,8 +8428,7 @@ XBERGSecurityLimits *xberg_security_limits_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_token_reduction_config_free`.
  */
-XBERGTokenReductionConfig *
-xberg_token_reduction_config_from_json(const char *json);
+XBERGTokenReductionConfig *xberg_token_reduction_config_from_json(const char *json);
 
 /**
  * Serialize a `TokenReductionConfig` to a JSON string. Returns null on failure.
@@ -8226,8 +8436,7 @@ xberg_token_reduction_config_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_token_reduction_config_to_json(const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_to_json(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Free a `TokenReductionConfig` handle.
@@ -8241,92 +8450,88 @@ void xberg_token_reduction_config_free(XBERGTokenReductionConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGReductionLevel *
-xberg_token_reduction_config_level(const XBERGTokenReductionConfig *ptr);
+XBERGReductionLevel *xberg_token_reduction_config_level(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `language_hint` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_language_hint(
-    const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_language_hint(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `preserve_markdown` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_preserve_markdown(
-    const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_preserve_markdown(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `preserve_code` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_preserve_code(
-    const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_preserve_code(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `semantic_threshold` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_token_reduction_config_semantic_threshold(
-    const XBERGTokenReductionConfig *ptr);
+float xberg_token_reduction_config_semantic_threshold(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `enable_parallel` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_enable_parallel(
-    const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_enable_parallel(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `use_simd` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_token_reduction_config_use_simd(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_use_simd(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `custom_stopwords` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_custom_stopwords(
-    const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_custom_stopwords(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `preserve_patterns` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_preserve_patterns(
-    const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_preserve_patterns(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `target_reduction` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_token_reduction_config_target_reduction(
-    const XBERGTokenReductionConfig *ptr);
+float xberg_token_reduction_config_target_reduction(const XBERGTokenReductionConfig *ptr);
 
 /**
  * Get the `enable_semantic_clustering` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_enable_semantic_clustering(
-    const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_enable_semantic_clustering(const XBERGTokenReductionConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * Get the `preserve_important_words` field from a `TokenReductionConfig`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_token_reduction_config_preserve_important_words(const XBERGTokenReductionConfig *ptr);
+
+/**
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTokenReductionConfig *xberg_token_reduction_config_default(void);
 
@@ -8421,19 +8626,18 @@ void xberg_footnote_config_free(XBERGFootnoteConfig *ptr);
 int32_t xberg_footnote_config_parse_citations(const XBERGFootnoteConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGFootnoteConfig *xberg_footnote_config_default(void);
 
 /**
  * Set whether to parse the citation block.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGFootnoteConfig *
-xberg_footnote_config_with_parse_citations(XBERGFootnoteConfig *this_,
-                                           int32_t enabled);
+XBERGFootnoteConfig *xberg_footnote_config_with_parse_citations(XBERGFootnoteConfig *this_,
+                                                                int32_t enabled);
 
 /**
  * Create a `FootnoteAnchor` from a JSON string. Returns null on failure.
@@ -8595,8 +8799,7 @@ void xberg_pdf_annotation_free(XBERGPdfAnnotation *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfAnnotationType *
-xberg_pdf_annotation_annotation_type(const XBERGPdfAnnotation *ptr);
+XBERGPdfAnnotationType *xberg_pdf_annotation_annotation_type(const XBERGPdfAnnotation *ptr);
 
 /**
  * Get the `content` field from a `PdfAnnotation`.
@@ -8617,8 +8820,49 @@ uint32_t xberg_pdf_annotation_page_number(const XBERGPdfAnnotation *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *
-xberg_pdf_annotation_bounding_box(const XBERGPdfAnnotation *ptr);
+XBERGBoundingBox *xberg_pdf_annotation_bounding_box(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `author` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_author(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `modified` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_modified(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `color` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_color(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `subject` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_subject(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `quad_points` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_quad_points(const XBERGPdfAnnotation *ptr);
+
+/**
+ * Get the `marked_text` field from a `PdfAnnotation`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_pdf_annotation_marked_text(const XBERGPdfAnnotation *ptr);
 
 /**
  * Create a `PageClassification` from a JSON string. Returns null on failure.
@@ -8648,8 +8892,7 @@ void xberg_page_classification_free(XBERGPageClassification *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_page_classification_page_number(const XBERGPageClassification *ptr);
+uint32_t xberg_page_classification_page_number(const XBERGPageClassification *ptr);
 
 /**
  * Get the `labels` field from a `PageClassification`.
@@ -8664,8 +8907,7 @@ char *xberg_page_classification_labels(const XBERGPageClassification *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_classification_label_free`.
  */
-XBERGClassificationLabel *
-xberg_classification_label_from_json(const char *json);
+XBERGClassificationLabel *xberg_classification_label_from_json(const char *json);
 
 /**
  * Serialize a `ClassificationLabel` to a JSON string. Returns null on failure.
@@ -8694,8 +8936,7 @@ char *xberg_classification_label_label(const XBERGClassificationLabel *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_classification_label_confidence(
-    const XBERGClassificationLabel *ptr);
+float xberg_classification_label_confidence(const XBERGClassificationLabel *ptr);
 
 /**
  * Create a `DjotContent` from a JSON string. Returns null on failure.
@@ -8797,8 +9038,7 @@ void xberg_formatted_block_free(XBERGFormattedBlock *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBlockType *
-xberg_formatted_block_block_type(const XBERGFormattedBlock *ptr);
+XBERGBlockType *xberg_formatted_block_block_type(const XBERGFormattedBlock *ptr);
 
 /**
  * Get the `level` field from a `FormattedBlock`.
@@ -8863,8 +9103,7 @@ void xberg_inline_element_free(XBERGInlineElement *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGInlineType *
-xberg_inline_element_element_type(const XBERGInlineElement *ptr);
+XBERGInlineType *xberg_inline_element_element_type(const XBERGInlineElement *ptr);
 
 /**
  * Get the `content` field from a `InlineElement`.
@@ -9061,11 +9300,10 @@ char *xberg_document_structure_node_types(const XBERGDocumentStructure *ptr);
  *
  * Call this after all nodes have been added to the structure. Internal
  * construction paths (builder, derivation) call this automatically.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
- * use xberg::types::document_structure::{DocumentStructure, DocumentNode,
- * NodeContent};
+ * use xberg::types::document_structure::{DocumentStructure, DocumentNode, NodeContent};
  *
  * let mut structure = DocumentStructure {
  *     nodes: vec![DocumentNode {
@@ -9088,19 +9326,18 @@ char *xberg_document_structure_node_types(const XBERGDocumentStructure *ptr);
  * assert!(structure.node_types.contains(&"paragraph".to_string()));
  * \endcode
  */
-void xberg_document_structure_finalize_node_types(
-    XBERGDocumentStructure *this_);
+void xberg_document_structure_finalize_node_types(XBERGDocumentStructure *this_);
 
 /**
  * Check if the document structure is empty.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_document_structure_is_empty(const XBERGDocumentStructure *this_);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDocumentStructure *xberg_document_structure_default(void);
 
@@ -9110,8 +9347,7 @@ XBERGDocumentStructure *xberg_document_structure_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_relationship_free`.
  */
-XBERGDocumentRelationship *
-xberg_document_relationship_from_json(const char *json);
+XBERGDocumentRelationship *xberg_document_relationship_from_json(const char *json);
 
 /**
  * Serialize a `DocumentRelationship` to a JSON string. Returns null on failure.
@@ -9133,24 +9369,21 @@ void xberg_document_relationship_free(XBERGDocumentRelationship *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_document_relationship_source(const XBERGDocumentRelationship *ptr);
+uint32_t xberg_document_relationship_source(const XBERGDocumentRelationship *ptr);
 
 /**
  * Get the `target` field from a `DocumentRelationship`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_document_relationship_target(const XBERGDocumentRelationship *ptr);
+uint32_t xberg_document_relationship_target(const XBERGDocumentRelationship *ptr);
 
 /**
  * Get the `kind` field from a `DocumentRelationship`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRelationshipKind *
-xberg_document_relationship_kind(const XBERGDocumentRelationship *ptr);
+XBERGRelationshipKind *xberg_document_relationship_kind(const XBERGDocumentRelationship *ptr);
 
 /**
  * Create a `DocumentNode` from a JSON string. Returns null on failure.
@@ -9208,8 +9441,7 @@ char *xberg_document_node_children(const XBERGDocumentNode *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentLayer *
-xberg_document_node_content_layer(const XBERGDocumentNode *ptr);
+XBERGContentLayer *xberg_document_node_content_layer(const XBERGDocumentNode *ptr);
 
 /**
  * Get the `page` field from a `DocumentNode`.
@@ -9509,6 +9741,64 @@ uintptr_t xberg_document_counts_tables(const XBERGDocumentCounts *ptr);
 uintptr_t xberg_document_counts_images(const XBERGDocumentCounts *ptr);
 
 /**
+ * Create a `LanguageConfidence` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_language_confidence_free`.
+ */
+XBERGLanguageConfidence *xberg_language_confidence_from_json(const char *json);
+
+/**
+ * Serialize a `LanguageConfidence` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_language_confidence_to_json(const XBERGLanguageConfidence *ptr);
+
+/**
+ * Free a `LanguageConfidence` handle.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_language_confidence_free(XBERGLanguageConfidence *ptr);
+
+/**
+ * Get the `language` field from a `LanguageConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_language_confidence_language(const XBERGLanguageConfidence *ptr);
+
+/**
+ * Get the `confidence` field from a `LanguageConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+double xberg_language_confidence_confidence(const XBERGLanguageConfidence *ptr);
+
+/**
+ * Get the `proportion` field from a `LanguageConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+double xberg_language_confidence_proportion(const XBERGLanguageConfidence *ptr);
+
+/**
+ * Get the `script` field from a `LanguageConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_language_confidence_script(const XBERGLanguageConfidence *ptr);
+
+/**
+ * Get the `reliable` field from a `LanguageConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_language_confidence_reliable(const XBERGLanguageConfidence *ptr);
+
+/**
  * Create a `ExtractedDocument` from a JSON string. Returns null on failure.
  * # Safety
  * JSON string must be valid UTF-8 and null-terminated.
@@ -9550,16 +9840,14 @@ char *xberg_extracted_document_mime_type(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMetadata *
-xberg_extracted_document_metadata(const XBERGExtractedDocument *ptr);
+XBERGMetadata *xberg_extracted_document_metadata(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `extraction_method` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionMethod *
-xberg_extracted_document_extraction_method(const XBERGExtractedDocument *ptr);
+XBERGExtractionMethod *xberg_extracted_document_extraction_method(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `tables` field from a `ExtractedDocument`.
@@ -9573,16 +9861,21 @@ char *xberg_extracted_document_tables(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentCounts *
-xberg_extracted_document_counts(const XBERGExtractedDocument *ptr);
+XBERGDocumentCounts *xberg_extracted_document_counts(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `detected_languages` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extracted_document_detected_languages(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_detected_languages(const XBERGExtractedDocument *ptr);
+
+/**
+ * Get the `detected_language_confidences` field from a `ExtractedDocument`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_extracted_document_detected_language_confidences(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `chunks` field from a `ExtractedDocument`.
@@ -9617,8 +9910,7 @@ char *xberg_extracted_document_elements(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDjotContent *
-xberg_extracted_document_djot_content(const XBERGExtractedDocument *ptr);
+XBERGDjotContent *xberg_extracted_document_djot_content(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `ocr_elements` field from a `ExtractedDocument`.
@@ -9632,32 +9924,28 @@ char *xberg_extracted_document_ocr_elements(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentStructure *
-xberg_extracted_document_document(const XBERGExtractedDocument *ptr);
+XBERGDocumentStructure *xberg_extracted_document_document(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `extracted_keywords` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extracted_document_extracted_keywords(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_extracted_keywords(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `quality_score` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double
-xberg_extracted_document_quality_score(const XBERGExtractedDocument *ptr);
+double xberg_extracted_document_quality_score(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `processing_warnings` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extracted_document_processing_warnings(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_processing_warnings(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `annotations` field from a `ExtractedDocument`.
@@ -9692,16 +9980,14 @@ char *xberg_extracted_document_revisions(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extracted_document_structured_output(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_structured_output(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `code_intelligence` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_extracted_document_code_intelligence(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_code_intelligence(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `llm_usage` field from a `ExtractedDocument`.
@@ -9722,40 +10008,35 @@ char *xberg_extracted_document_entities(const XBERGExtractedDocument *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentSummary *
-xberg_extracted_document_summary(const XBERGExtractedDocument *ptr);
+XBERGDocumentSummary *xberg_extracted_document_summary(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `extraction_confidence` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionConfidence *xberg_extracted_document_extraction_confidence(
-    const XBERGExtractedDocument *ptr);
+XBERGExtractionConfidence *xberg_extracted_document_extraction_confidence(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `translation` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslation *
-xberg_extracted_document_translation(const XBERGExtractedDocument *ptr);
+XBERGTranslation *xberg_extracted_document_translation(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `page_classifications` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_page_classifications(
-    const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_page_classifications(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `redaction_report` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionReport *
-xberg_extracted_document_redaction_report(const XBERGExtractedDocument *ptr);
+XBERGRedactionReport *xberg_extracted_document_redaction_report(const XBERGExtractedDocument *ptr);
 
 /**
  * Get the `formulas` field from a `ExtractedDocument`.
@@ -9770,14 +10051,6 @@ char *xberg_extracted_document_formulas(const XBERGExtractedDocument *ptr);
  * Pointer must be a valid handle returned by this library.
  */
 char *xberg_extracted_document_form_fields(const XBERGExtractedDocument *ptr);
-
-/**
- * Get the `formatted_content` field from a `ExtractedDocument`.
- * # Safety
- * Pointer must be a valid handle returned by this library.
- */
-char *
-xberg_extracted_document_formatted_content(const XBERGExtractedDocument *ptr);
 
 /**
  * Create a `ArchiveEntry` from a JSON string. Returns null on failure.
@@ -9821,8 +10094,7 @@ char *xberg_archive_entry_mime_type(const XBERGArchiveEntry *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractedDocument *
-xberg_archive_entry_result(const XBERGArchiveEntry *ptr);
+XBERGExtractedDocument *xberg_archive_entry_result(const XBERGArchiveEntry *ptr);
 
 /**
  * Create a `ProcessingWarning` from a JSON string. Returns null on failure.
@@ -9978,6 +10250,20 @@ XBERGChunkType *xberg_chunk_chunk_type(const XBERGChunk *ptr);
 char *xberg_chunk_embedding(const XBERGChunk *ptr);
 
 /**
+ * Get the `sparse_embedding` field from a `Chunk`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGSparseEmbedding *xberg_chunk_sparse_embedding(const XBERGChunk *ptr);
+
+/**
+ * Get the `late_interaction` field from a `Chunk`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGMultiVectorEmbedding *xberg_chunk_late_interaction(const XBERGChunk *ptr);
+
+/**
  * Get the `metadata` field from a `Chunk`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
@@ -10128,8 +10414,7 @@ uint32_t xberg_chunk_metadata_last_page(const XBERGChunkMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHeadingContext *
-xberg_chunk_metadata_heading_context(const XBERGChunkMetadata *ptr);
+XBERGHeadingContext *xberg_chunk_metadata_heading_context(const XBERGChunkMetadata *ptr);
 
 /**
  * Get the `heading_path` field from a `ChunkMetadata`.
@@ -10281,8 +10566,7 @@ char *xberg_extracted_image_colorspace(const XBERGExtractedImage *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_extracted_image_bits_per_component(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_bits_per_component(const XBERGExtractedImage *ptr);
 
 /**
  * Get the `is_mask` field from a `ExtractedImage`.
@@ -10303,16 +10587,14 @@ char *xberg_extracted_image_description(const XBERGExtractedImage *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractedDocument *
-xberg_extracted_image_ocr_result(const XBERGExtractedImage *ptr);
+XBERGExtractedDocument *xberg_extracted_image_ocr_result(const XBERGExtractedImage *ptr);
 
 /**
  * Get the `bounding_box` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *
-xberg_extracted_image_bounding_box(const XBERGExtractedImage *ptr);
+XBERGBoundingBox *xberg_extracted_image_bounding_box(const XBERGExtractedImage *ptr);
 
 /**
  * Get the `source_path` field from a `ExtractedImage`.
@@ -10326,8 +10608,7 @@ char *xberg_extracted_image_source_path(const XBERGExtractedImage *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageKind *
-xberg_extracted_image_image_kind(const XBERGExtractedImage *ptr);
+XBERGImageKind *xberg_extracted_image_image_kind(const XBERGExtractedImage *ptr);
 
 /**
  * Get the `kind_confidence` field from a `ExtractedImage`.
@@ -10457,8 +10738,7 @@ char *xberg_element_metadata_filename(const XBERGElementMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *
-xberg_element_metadata_coordinates(const XBERGElementMetadata *ptr);
+XBERGBoundingBox *xberg_element_metadata_coordinates(const XBERGElementMetadata *ptr);
 
 /**
  * Get the `element_index` field from a `ElementMetadata`.
@@ -10560,8 +10840,7 @@ char *xberg_pdf_form_field_full_name(const XBERGPdfFormField *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFormFieldType *
-xberg_pdf_form_field_field_type(const XBERGPdfFormField *ptr);
+XBERGFormFieldType *xberg_pdf_form_field_field_type(const XBERGPdfFormField *ptr);
 
 /**
  * Get the `value` field from a `PdfFormField`.
@@ -10727,8 +11006,7 @@ char *xberg_excel_sheet_table_cells(const XBERGExcelSheet *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_xml_extraction_result_free`.
  */
-XBERGXmlExtractionResult *
-xberg_xml_extraction_result_from_json(const char *json);
+XBERGXmlExtractionResult *xberg_xml_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `XmlExtractionResult` to a JSON string. Returns null on failure.
@@ -10757,16 +11035,14 @@ char *xberg_xml_extraction_result_content(const XBERGXmlExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_xml_extraction_result_element_count(const XBERGXmlExtractionResult *ptr);
+uintptr_t xberg_xml_extraction_result_element_count(const XBERGXmlExtractionResult *ptr);
 
 /**
  * Get the `unique_elements` field from a `XmlExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xml_extraction_result_unique_elements(
-    const XBERGXmlExtractionResult *ptr);
+char *xberg_xml_extraction_result_unique_elements(const XBERGXmlExtractionResult *ptr);
 
 /**
  * Create a `TextExtractionResult` from a JSON string. Returns null on failure.
@@ -10774,8 +11050,7 @@ char *xberg_xml_extraction_result_unique_elements(
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_text_extraction_result_free`.
  */
-XBERGTextExtractionResult *
-xberg_text_extraction_result_from_json(const char *json);
+XBERGTextExtractionResult *xberg_text_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `TextExtractionResult` to a JSON string. Returns null on failure.
@@ -10783,8 +11058,7 @@ xberg_text_extraction_result_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_text_extraction_result_to_json(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_to_json(const XBERGTextExtractionResult *ptr);
 
 /**
  * Free a `TextExtractionResult` handle.
@@ -10798,40 +11072,35 @@ void xberg_text_extraction_result_free(XBERGTextExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_text_extraction_result_content(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_content(const XBERGTextExtractionResult *ptr);
 
 /**
  * Get the `line_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_text_extraction_result_line_count(const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_line_count(const XBERGTextExtractionResult *ptr);
 
 /**
  * Get the `word_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_text_extraction_result_word_count(const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_word_count(const XBERGTextExtractionResult *ptr);
 
 /**
  * Get the `character_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_text_extraction_result_character_count(
-    const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_character_count(const XBERGTextExtractionResult *ptr);
 
 /**
  * Get the `headers` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_text_extraction_result_headers(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_headers(const XBERGTextExtractionResult *ptr);
 
 /**
  * Create a `PptxExtractionResult` from a JSON string. Returns null on failure.
@@ -10839,8 +11108,7 @@ xberg_text_extraction_result_headers(const XBERGTextExtractionResult *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pptx_extraction_result_free`.
  */
-XBERGPptxExtractionResult *
-xberg_pptx_extraction_result_from_json(const char *json);
+XBERGPptxExtractionResult *xberg_pptx_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `PptxExtractionResult` to a JSON string. Returns null on failure.
@@ -10848,8 +11116,7 @@ xberg_pptx_extraction_result_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_pptx_extraction_result_to_json(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_to_json(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Free a `PptxExtractionResult` handle.
@@ -10863,40 +11130,35 @@ void xberg_pptx_extraction_result_free(XBERGPptxExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_pptx_extraction_result_content(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_content(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `metadata` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPptxMetadata *
-xberg_pptx_extraction_result_metadata(const XBERGPptxExtractionResult *ptr);
+XBERGPptxMetadata *xberg_pptx_extraction_result_metadata(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `slide_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_pptx_extraction_result_slide_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_slide_count(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `image_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_pptx_extraction_result_image_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_image_count(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `table_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_pptx_extraction_result_table_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_table_count(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `images` field from a `PptxExtractionResult`.
@@ -10910,40 +11172,35 @@ char *xberg_pptx_extraction_result_images(const XBERGPptxExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageStructure *xberg_pptx_extraction_result_page_structure(
-    const XBERGPptxExtractionResult *ptr);
+XBERGPageStructure *xberg_pptx_extraction_result_page_structure(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `page_contents` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_page_contents(
-    const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_page_contents(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `document` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentStructure *
-xberg_pptx_extraction_result_document(const XBERGPptxExtractionResult *ptr);
+XBERGDocumentStructure *xberg_pptx_extraction_result_document(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `office_metadata` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_office_metadata(
-    const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_office_metadata(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Get the `revisions` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_pptx_extraction_result_revisions(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_revisions(const XBERGPptxExtractionResult *ptr);
 
 /**
  * Create a `EmailExtractionResult` from a JSON string. Returns null on failure.
@@ -10951,16 +11208,15 @@ xberg_pptx_extraction_result_revisions(const XBERGPptxExtractionResult *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_email_extraction_result_free`.
  */
-XBERGEmailExtractionResult *
-xberg_email_extraction_result_from_json(const char *json);
+XBERGEmailExtractionResult *xberg_email_extraction_result_from_json(const char *json);
 
 /**
- * Serialize a `EmailExtractionResult` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `EmailExtractionResult` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_email_extraction_result_to_json(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_to_json(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Free a `EmailExtractionResult` handle.
@@ -10974,40 +11230,35 @@ void xberg_email_extraction_result_free(XBERGEmailExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_subject(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_subject(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `from_email` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_from_email(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_from_email(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `to_emails` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_to_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_to_emails(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `cc_emails` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_cc_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_cc_emails(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `bcc_emails` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_bcc_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_bcc_emails(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `date` field from a `EmailExtractionResult`.
@@ -11021,48 +11272,42 @@ char *xberg_email_extraction_result_date(const XBERGEmailExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_message_id(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_message_id(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `plain_text` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_plain_text(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_plain_text(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `html_content` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_html_content(
-    const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_html_content(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `content` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_content(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_content(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `attachments` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_attachments(
-    const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_attachments(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Get the `metadata` field from a `EmailExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_email_extraction_result_metadata(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_metadata(const XBERGEmailExtractionResult *ptr);
 
 /**
  * Create a `EmailAttachment` from a JSON string. Returns null on failure.
@@ -11136,8 +11381,7 @@ uint8_t *xberg_email_attachment_data(const XBERGEmailAttachment *ptr,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_extraction_result_free`.
  */
-XBERGOcrExtractionResult *
-xberg_ocr_extraction_result_from_json(const char *json);
+XBERGOcrExtractionResult *xberg_ocr_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `OcrExtractionResult` to a JSON string. Returns null on failure.
@@ -11166,8 +11410,7 @@ char *xberg_ocr_extraction_result_content(const XBERGOcrExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_ocr_extraction_result_mime_type(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_mime_type(const XBERGOcrExtractionResult *ptr);
 
 /**
  * Get the `metadata` field from a `OcrExtractionResult`.
@@ -11188,8 +11431,7 @@ char *xberg_ocr_extraction_result_tables(const XBERGOcrExtractionResult *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_ocr_extraction_result_ocr_elements(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_ocr_elements(const XBERGOcrExtractionResult *ptr);
 
 /**
  * Create a `OcrTable` from a JSON string. Returns null on failure.
@@ -11240,8 +11482,7 @@ uint32_t xberg_ocr_table_page_number(const XBERGOcrTable *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrTableBoundingBox *
-xberg_ocr_table_bounding_box(const XBERGOcrTable *ptr);
+XBERGOcrTableBoundingBox *xberg_ocr_table_bounding_box(const XBERGOcrTable *ptr);
 
 /**
  * Create a `OcrTableBoundingBox` from a JSON string. Returns null on failure.
@@ -11249,8 +11490,7 @@ xberg_ocr_table_bounding_box(const XBERGOcrTable *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_table_bounding_box_free`.
  */
-XBERGOcrTableBoundingBox *
-xberg_ocr_table_bounding_box_from_json(const char *json);
+XBERGOcrTableBoundingBox *xberg_ocr_table_bounding_box_from_json(const char *json);
 
 /**
  * Serialize a `OcrTableBoundingBox` to a JSON string. Returns null on failure.
@@ -11286,32 +11526,30 @@ uint32_t xberg_ocr_table_bounding_box_top(const XBERGOcrTableBoundingBox *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_ocr_table_bounding_box_right(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_right(const XBERGOcrTableBoundingBox *ptr);
 
 /**
  * Get the `bottom` field from a `OcrTableBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_ocr_table_bounding_box_bottom(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_bottom(const XBERGOcrTableBoundingBox *ptr);
 
 /**
- * Create a `ImagePreprocessingConfig` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `ImagePreprocessingConfig` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_preprocessing_config_free`.
  */
-XBERGImagePreprocessingConfig *
-xberg_image_preprocessing_config_from_json(const char *json);
+XBERGImagePreprocessingConfig *xberg_image_preprocessing_config_from_json(const char *json);
 
 /**
- * Serialize a `ImagePreprocessingConfig` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `ImagePreprocessingConfig` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_preprocessing_config_to_json(
-    const XBERGImagePreprocessingConfig *ptr);
+char *xberg_image_preprocessing_config_to_json(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Free a `ImagePreprocessingConfig` handle.
@@ -11325,60 +11563,53 @@ void xberg_image_preprocessing_config_free(XBERGImagePreprocessingConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_target_dpi(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_target_dpi(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `auto_rotate` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_auto_rotate(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_auto_rotate(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `deskew` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_deskew(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_deskew(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `denoise` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_denoise(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_denoise(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `contrast_enhance` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_contrast_enhance(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_contrast_enhance(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `binarization_method` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_config_binarization_method(
-    const XBERGImagePreprocessingConfig *ptr);
+char *xberg_image_preprocessing_config_binarization_method(const XBERGImagePreprocessingConfig *ptr);
 
 /**
  * Get the `invert_colors` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_invert_colors(
-    const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_invert_colors(const XBERGImagePreprocessingConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGImagePreprocessingConfig *xberg_image_preprocessing_config_default(void);
 
@@ -11445,40 +11676,35 @@ double xberg_tesseract_config_min_confidence(const XBERGTesseractConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImagePreprocessingConfig *
-xberg_tesseract_config_preprocessing(const XBERGTesseractConfig *ptr);
+XBERGImagePreprocessingConfig *xberg_tesseract_config_preprocessing(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `enable_table_detection` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_tesseract_config_enable_table_detection(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_enable_table_detection(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `table_min_confidence` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double
-xberg_tesseract_config_table_min_confidence(const XBERGTesseractConfig *ptr);
+double xberg_tesseract_config_table_min_confidence(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `table_column_threshold` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_tesseract_config_table_column_threshold(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_table_column_threshold(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `table_row_threshold_ratio` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_tesseract_config_table_row_threshold_ratio(
-    const XBERGTesseractConfig *ptr);
+double xberg_tesseract_config_table_row_threshold_ratio(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `use_cache` field from a `TesseractConfig`.
@@ -11492,182 +11718,162 @@ int32_t xberg_tesseract_config_use_cache(const XBERGTesseractConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_classify_use_pre_adapted_templates(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_classify_use_pre_adapted_templates(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `language_model_ngram_on` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_tesseract_config_language_model_ngram_on(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_language_model_ngram_on(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_dont_blkrej_good_wds` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_dont_blkrej_good_wds(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_dont_blkrej_good_wds(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_dont_rowrej_good_wds` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_dont_rowrej_good_wds(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_dont_rowrej_good_wds(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_enable_dict_correction` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_enable_dict_correction(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_enable_dict_correction(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_char_whitelist` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_tesseract_config_tessedit_char_whitelist(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_tessedit_char_whitelist(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_char_blacklist` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_tesseract_config_tessedit_char_blacklist(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_tessedit_char_blacklist(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `tessedit_use_primary_params_model` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_use_primary_params_model(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_use_primary_params_model(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `textord_space_size_is_variable` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_textord_space_size_is_variable(
-    const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_textord_space_size_is_variable(const XBERGTesseractConfig *ptr);
 
 /**
  * Get the `thresholding_method` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_tesseract_config_thresholding_method(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_thresholding_method(const XBERGTesseractConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGTesseractConfig *xberg_tesseract_config_default(void);
 
 /**
- * Create a `ImagePreprocessingMetadata` from a JSON string. Returns null on
- * failure. # Safety JSON string must be valid UTF-8 and null-terminated.
+ * Create a `ImagePreprocessingMetadata` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_preprocessing_metadata_free`.
  */
-XBERGImagePreprocessingMetadata *
-xberg_image_preprocessing_metadata_from_json(const char *json);
+XBERGImagePreprocessingMetadata *xberg_image_preprocessing_metadata_from_json(const char *json);
 
 /**
- * Serialize a `ImagePreprocessingMetadata` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `ImagePreprocessingMetadata` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_preprocessing_metadata_to_json(
-    const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_to_json(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Free a `ImagePreprocessingMetadata` handle.
  * # Safety
  * Pointer must have been returned by this library, or be null.
  */
-void xberg_image_preprocessing_metadata_free(
-    XBERGImagePreprocessingMetadata *ptr);
+void xberg_image_preprocessing_metadata_free(XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `target_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_target_dpi(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_target_dpi(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `scale_factor` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_image_preprocessing_metadata_scale_factor(
-    const XBERGImagePreprocessingMetadata *ptr);
+double xberg_image_preprocessing_metadata_scale_factor(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `auto_adjusted` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_auto_adjusted(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_auto_adjusted(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `final_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_final_dpi(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_final_dpi(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `resample_method` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_metadata_resample_method(
-    const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_resample_method(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `dimension_clamped` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_dimension_clamped(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_dimension_clamped(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `calculated_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_calculated_dpi(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_calculated_dpi(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `skipped_resize` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_skipped_resize(
-    const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_skipped_resize(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Get the `resize_error` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_metadata_resize_error(
-    const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_resize_error(const XBERGImagePreprocessingMetadata *ptr);
 
 /**
  * Create a `Formula` from a JSON string. Returns null on failure.
@@ -11850,8 +12056,7 @@ char *xberg_code_data_attribute_value(const XBERGCodeDataAttribute *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_code_data_attribute_byte_start(const XBERGCodeDataAttribute *ptr);
+uintptr_t xberg_code_data_attribute_byte_start(const XBERGCodeDataAttribute *ptr);
 
 /**
  * Get the `byte_end` field from a `CodeDataAttribute`.
@@ -12037,8 +12242,7 @@ XBERGFormatMetadata *xberg_metadata_format(const XBERGMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImagePreprocessingMetadata *
-xberg_metadata_image_preprocessing(const XBERGMetadata *ptr);
+XBERGImagePreprocessingMetadata *xberg_metadata_image_preprocessing(const XBERGMetadata *ptr);
 
 /**
  * Get the `json_schema` field from a `Metadata`.
@@ -12113,8 +12317,8 @@ char *xberg_metadata_additional(const XBERGMetadata *ptr);
 /**
  * Returns `true` when no metadata fields, format-specific metadata, or
  * additional postprocessor fields are populated.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_metadata_is_empty(const XBERGMetadata *this_);
 
@@ -12283,8 +12487,7 @@ uint64_t xberg_archive_metadata_total_size(const XBERGArchiveMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_archive_metadata_compressed_size(const XBERGArchiveMetadata *ptr);
+uint64_t xberg_archive_metadata_compressed_size(const XBERGArchiveMetadata *ptr);
 
 /**
  * Create a `ImageMetadata` from a JSON string. Returns null on failure.
@@ -12590,8 +12793,7 @@ char *xberg_image_metadata_type_title(const XBERGImageMetadataType *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageType *
-xberg_image_metadata_type_image_type(const XBERGImageMetadataType *ptr);
+XBERGImageType *xberg_image_metadata_type_image_type(const XBERGImageMetadataType *ptr);
 
 /**
  * Create a `StructuredData` from a JSON string. Returns null on failure.
@@ -12621,8 +12823,7 @@ void xberg_structured_data_free(XBERGStructuredData *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredDataType *
-xberg_structured_data_data_type(const XBERGStructuredData *ptr);
+XBERGStructuredDataType *xberg_structured_data_data_type(const XBERGStructuredData *ptr);
 
 /**
  * Get the `raw_json` field from a `StructuredData`.
@@ -12715,8 +12916,7 @@ char *xberg_html_metadata_language(const XBERGHtmlMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTextDirection *
-xberg_html_metadata_text_direction(const XBERGHtmlMetadata *ptr);
+XBERGTextDirection *xberg_html_metadata_text_direction(const XBERGHtmlMetadata *ptr);
 
 /**
  * Get the `open_graph` field from a `HtmlMetadata`.
@@ -12948,16 +13148,14 @@ void xberg_docx_metadata_free(XBERGDocxMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCoreProperties *
-xberg_docx_metadata_core_properties(const XBERGDocxMetadata *ptr);
+XBERGCoreProperties *xberg_docx_metadata_core_properties(const XBERGDocxMetadata *ptr);
 
 /**
  * Get the `app_properties` field from a `DocxMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocxAppProperties *
-xberg_docx_metadata_app_properties(const XBERGDocxMetadata *ptr);
+XBERGDocxAppProperties *xberg_docx_metadata_app_properties(const XBERGDocxMetadata *ptr);
 
 /**
  * Get the `custom_properties` field from a `DocxMetadata`.
@@ -13073,8 +13271,7 @@ char *xberg_bibtex_metadata_authors(const XBERGBibtexMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYearRange *
-xberg_bibtex_metadata_year_range(const XBERGBibtexMetadata *ptr);
+XBERGYearRange *xberg_bibtex_metadata_year_range(const XBERGBibtexMetadata *ptr);
 
 /**
  * Get the `entry_types` field from a `BibtexMetadata`.
@@ -13111,8 +13308,7 @@ void xberg_citation_metadata_free(XBERGCitationMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_citation_metadata_citation_count(const XBERGCitationMetadata *ptr);
+uintptr_t xberg_citation_metadata_citation_count(const XBERGCitationMetadata *ptr);
 
 /**
  * Get the `format` field from a `CitationMetadata`.
@@ -13133,8 +13329,7 @@ char *xberg_citation_metadata_authors(const XBERGCitationMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYearRange *
-xberg_citation_metadata_year_range(const XBERGCitationMetadata *ptr);
+XBERGYearRange *xberg_citation_metadata_year_range(const XBERGCitationMetadata *ptr);
 
 /**
  * Get the `dois` field from a `CitationMetadata`.
@@ -13200,8 +13395,7 @@ char *xberg_year_range_years(const XBERGYearRange *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_fiction_book_metadata_free`.
  */
-XBERGFictionBookMetadata *
-xberg_fiction_book_metadata_from_json(const char *json);
+XBERGFictionBookMetadata *xberg_fiction_book_metadata_from_json(const char *json);
 
 /**
  * Serialize a `FictionBookMetadata` to a JSON string. Returns null on failure.
@@ -13230,16 +13424,14 @@ char *xberg_fiction_book_metadata_genres(const XBERGFictionBookMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_fiction_book_metadata_sequences(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_sequences(const XBERGFictionBookMetadata *ptr);
 
 /**
  * Get the `annotation` field from a `FictionBookMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_fiction_book_metadata_annotation(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_annotation(const XBERGFictionBookMetadata *ptr);
 
 /**
  * Create a `DbfMetadata` from a JSON string. Returns null on failure.
@@ -13679,8 +13871,7 @@ char *xberg_ocr_element_text(const XBERGOcrElement *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrBoundingGeometry *
-xberg_ocr_element_geometry(const XBERGOcrElement *ptr);
+XBERGOcrBoundingGeometry *xberg_ocr_element_geometry(const XBERGOcrElement *ptr);
 
 /**
  * Get the `confidence` field from a `OcrElement`.
@@ -13752,32 +13943,28 @@ void xberg_ocr_element_config_free(XBERGOcrElementConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_ocr_element_config_include_elements(const XBERGOcrElementConfig *ptr);
+int32_t xberg_ocr_element_config_include_elements(const XBERGOcrElementConfig *ptr);
 
 /**
  * Get the `min_level` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrElementLevel *
-xberg_ocr_element_config_min_level(const XBERGOcrElementConfig *ptr);
+XBERGOcrElementLevel *xberg_ocr_element_config_min_level(const XBERGOcrElementConfig *ptr);
 
 /**
  * Get the `min_confidence` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double
-xberg_ocr_element_config_min_confidence(const XBERGOcrElementConfig *ptr);
+double xberg_ocr_element_config_min_confidence(const XBERGOcrElementConfig *ptr);
 
 /**
  * Get the `build_hierarchy` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_ocr_element_config_build_hierarchy(const XBERGOcrElementConfig *ptr);
+int32_t xberg_ocr_element_config_build_hierarchy(const XBERGOcrElementConfig *ptr);
 
 /**
  * Create a `PageStructure` from a JSON string. Returns null on failure.
@@ -13814,8 +14001,7 @@ uint32_t xberg_page_structure_total_count(const XBERGPageStructure *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageUnitType *
-xberg_page_structure_unit_type(const XBERGPageStructure *ptr);
+XBERGPageUnitType *xberg_page_structure_unit_type(const XBERGPageStructure *ptr);
 
 /**
  * Get the `boundaries` field from a `PageStructure`.
@@ -14082,8 +14268,7 @@ double xberg_layout_region_confidence(const XBERGLayoutRegion *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *
-xberg_layout_region_bounding_box(const XBERGLayoutRegion *ptr);
+XBERGBoundingBox *xberg_layout_region_bounding_box(const XBERGLayoutRegion *ptr);
 
 /**
  * Get the `area_fraction` field from a `LayoutRegion`.
@@ -14347,24 +14532,21 @@ uint32_t xberg_redaction_finding_end(const XBERGRedactionFinding *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPiiCategory *
-xberg_redaction_finding_category(const XBERGRedactionFinding *ptr);
+XBERGPiiCategory *xberg_redaction_finding_category(const XBERGRedactionFinding *ptr);
 
 /**
  * Get the `strategy` field from a `RedactionFinding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionStrategy *
-xberg_redaction_finding_strategy(const XBERGRedactionFinding *ptr);
+XBERGRedactionStrategy *xberg_redaction_finding_strategy(const XBERGRedactionFinding *ptr);
 
 /**
  * Get the `replacement_token` field from a `RedactionFinding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_redaction_finding_replacement_token(const XBERGRedactionFinding *ptr);
+char *xberg_redaction_finding_replacement_token(const XBERGRedactionFinding *ptr);
 
 /**
  * Create a `CellChange` from a JSON string. Returns null on failure.
@@ -14510,24 +14692,21 @@ char *xberg_document_revision_timestamp(const XBERGDocumentRevision *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionKind *
-xberg_document_revision_kind(const XBERGDocumentRevision *ptr);
+XBERGRevisionKind *xberg_document_revision_kind(const XBERGDocumentRevision *ptr);
 
 /**
  * Get the `anchor` field from a `DocumentRevision`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionAnchor *
-xberg_document_revision_anchor(const XBERGDocumentRevision *ptr);
+XBERGRevisionAnchor *xberg_document_revision_anchor(const XBERGDocumentRevision *ptr);
 
 /**
  * Get the `delta` field from a `DocumentRevision`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionDelta *
-xberg_document_revision_delta(const XBERGDocumentRevision *ptr);
+XBERGRevisionDelta *xberg_document_revision_delta(const XBERGDocumentRevision *ptr);
 
 /**
  * Create a `RevisionDelta` from a JSON string. Returns null on failure.
@@ -14608,8 +14787,7 @@ char *xberg_document_summary_text(const XBERGDocumentSummary *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummaryStrategy *
-xberg_document_summary_strategy(const XBERGDocumentSummary *ptr);
+XBERGSummaryStrategy *xberg_document_summary_strategy(const XBERGDocumentSummary *ptr);
 
 /**
  * Get the `token_count` field from a `DocumentSummary`.
@@ -14918,8 +15096,8 @@ int32_t xberg_diff_options_include_embedded(const XBERGDiffOptions *ptr);
 uintptr_t xberg_diff_options_max_content_chars(const XBERGDiffOptions *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDiffOptions *xberg_diff_options_default(void);
 
@@ -14986,8 +15164,7 @@ char *xberg_extraction_diff_metadata_changed(const XBERGExtractionDiff *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddedChanges *
-xberg_extraction_diff_embedded_changes(const XBERGExtractionDiff *ptr);
+XBERGEmbeddedChanges *xberg_extraction_diff_embedded_changes(const XBERGExtractionDiff *ptr);
 
 /**
  * Create a `DiffHunk` from a JSON string. Returns null on failure.
@@ -15259,16 +15436,15 @@ char *xberg_sparse_embedding_values(const XBERGSparseEmbedding *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sparse_embedding_preset_free`.
  */
-XBERGSparseEmbeddingPreset *
-xberg_sparse_embedding_preset_from_json(const char *json);
+XBERGSparseEmbeddingPreset *xberg_sparse_embedding_preset_from_json(const char *json);
 
 /**
- * Serialize a `SparseEmbeddingPreset` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `SparseEmbeddingPreset` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_sparse_embedding_preset_to_json(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_to_json(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Free a `SparseEmbeddingPreset` handle.
@@ -15289,40 +15465,35 @@ char *xberg_sparse_embedding_preset_name(const XBERGSparseEmbeddingPreset *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_sparse_embedding_preset_model_repo(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_model_repo(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Get the `model_file` field from a `SparseEmbeddingPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_sparse_embedding_preset_model_file(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_model_file(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Get the `additional_files` field from a `SparseEmbeddingPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_additional_files(
-    const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_additional_files(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Get the `max_length` field from a `SparseEmbeddingPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_sparse_embedding_preset_max_length(const XBERGSparseEmbeddingPreset *ptr);
+uintptr_t xberg_sparse_embedding_preset_max_length(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Get the `description` field from a `SparseEmbeddingPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_description(
-    const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_description(const XBERGSparseEmbeddingPreset *ptr);
 
 /**
  * Create a `MultiVectorEmbedding` from a JSON string. Returns null on failure.
@@ -15330,8 +15501,7 @@ char *xberg_sparse_embedding_preset_description(
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_multi_vector_embedding_free`.
  */
-XBERGMultiVectorEmbedding *
-xberg_multi_vector_embedding_from_json(const char *json);
+XBERGMultiVectorEmbedding *xberg_multi_vector_embedding_from_json(const char *json);
 
 /**
  * Serialize a `MultiVectorEmbedding` to a JSON string. Returns null on failure.
@@ -15339,8 +15509,7 @@ xberg_multi_vector_embedding_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_multi_vector_embedding_to_json(const XBERGMultiVectorEmbedding *ptr);
+char *xberg_multi_vector_embedding_to_json(const XBERGMultiVectorEmbedding *ptr);
 
 /**
  * Free a `MultiVectorEmbedding` handle.
@@ -15354,8 +15523,7 @@ void xberg_multi_vector_embedding_free(XBERGMultiVectorEmbedding *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_multi_vector_embedding_num_tokens(const XBERGMultiVectorEmbedding *ptr);
+uint32_t xberg_multi_vector_embedding_num_tokens(const XBERGMultiVectorEmbedding *ptr);
 
 /**
  * Get the `dim` field from a `MultiVectorEmbedding`.
@@ -15384,11 +15552,10 @@ char *xberg_multi_vector_embedding_data(const XBERGMultiVectorEmbedding *ptr);
  * reported as malformed instead of wrapping.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-int32_t xberg_multi_vector_embedding_is_well_formed(
-    const XBERGMultiVectorEmbedding *this_);
+int32_t xberg_multi_vector_embedding_is_well_formed(const XBERGMultiVectorEmbedding *this_);
 
 /**
  * Create a `LateInteractionPreset` from a JSON string. Returns null on failure.
@@ -15396,16 +15563,15 @@ int32_t xberg_multi_vector_embedding_is_well_formed(
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_preset_free`.
  */
-XBERGLateInteractionPreset *
-xberg_late_interaction_preset_from_json(const char *json);
+XBERGLateInteractionPreset *xberg_late_interaction_preset_from_json(const char *json);
 
 /**
- * Serialize a `LateInteractionPreset` to a JSON string. Returns null on
- * failure. # Safety `ptr` must be a valid, non-null pointer returned by a
- * `xberg` function. The returned string must be freed with `xberg_free_string`.
+ * Serialize a `LateInteractionPreset` to a JSON string. Returns null on failure.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_late_interaction_preset_to_json(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_to_json(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Free a `LateInteractionPreset` handle.
@@ -15426,56 +15592,49 @@ char *xberg_late_interaction_preset_name(const XBERGLateInteractionPreset *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_late_interaction_preset_model_repo(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_model_repo(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `model_file` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_late_interaction_preset_model_file(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_model_file(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `additional_files` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_additional_files(
-    const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_additional_files(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `max_length` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_late_interaction_preset_max_length(const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_max_length(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `query_max_length` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_preset_query_max_length(
-    const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_query_max_length(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `dim` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_late_interaction_preset_dim(const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_dim(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Get the `description` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_description(
-    const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_description(const XBERGLateInteractionPreset *ptr);
 
 /**
  * Create a `LateInteractionMatch` from a JSON string. Returns null on failure.
@@ -15483,8 +15642,7 @@ char *xberg_late_interaction_preset_description(
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_match_free`.
  */
-XBERGLateInteractionMatch *
-xberg_late_interaction_match_from_json(const char *json);
+XBERGLateInteractionMatch *xberg_late_interaction_match_from_json(const char *json);
 
 /**
  * Serialize a `LateInteractionMatch` to a JSON string. Returns null on failure.
@@ -15492,8 +15650,7 @@ xberg_late_interaction_match_from_json(const char *json);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_late_interaction_match_to_json(const XBERGLateInteractionMatch *ptr);
+char *xberg_late_interaction_match_to_json(const XBERGLateInteractionMatch *ptr);
 
 /**
  * Free a `LateInteractionMatch` handle.
@@ -15507,8 +15664,7 @@ void xberg_late_interaction_match_free(XBERGLateInteractionMatch *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_late_interaction_match_index(const XBERGLateInteractionMatch *ptr);
+uintptr_t xberg_late_interaction_match_index(const XBERGLateInteractionMatch *ptr);
 
 /**
  * Get the `score` field from a `LateInteractionMatch`.
@@ -15548,8 +15704,8 @@ void xberg_yake_params_free(XBERGYakeParams *ptr);
 uintptr_t xberg_yake_params_window_size(const XBERGYakeParams *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGYakeParams *xberg_yake_params_default(void);
 
@@ -15591,8 +15747,8 @@ uintptr_t xberg_rake_params_min_word_length(const XBERGRakeParams *ptr);
 uintptr_t xberg_rake_params_max_words_per_phrase(const XBERGRakeParams *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGRakeParams *xberg_rake_params_default(void);
 
@@ -15624,8 +15780,7 @@ void xberg_keyword_config_free(XBERGKeywordConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordAlgorithm *
-xberg_keyword_config_algorithm(const XBERGKeywordConfig *ptr);
+XBERGKeywordAlgorithm *xberg_keyword_config_algorithm(const XBERGKeywordConfig *ptr);
 
 /**
  * Get the `max_keywords` field from a `KeywordConfig`.
@@ -15653,20 +15808,18 @@ char *xberg_keyword_config_language(const XBERGKeywordConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYakeParams *
-xberg_keyword_config_yake_params(const XBERGKeywordConfig *ptr);
+XBERGYakeParams *xberg_keyword_config_yake_params(const XBERGKeywordConfig *ptr);
 
 /**
  * Get the `rake_params` field from a `KeywordConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRakeParams *
-xberg_keyword_config_rake_params(const XBERGKeywordConfig *ptr);
+XBERGRakeParams *xberg_keyword_config_rake_params(const XBERGKeywordConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGKeywordConfig *xberg_keyword_config_default(void);
 
@@ -15777,16 +15930,14 @@ int32_t xberg_document_metadata_force_ocr(const XBERGDocumentMetadata *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUserChunkConfig *
-xberg_document_metadata_user_chunk_config(const XBERGDocumentMetadata *ptr);
+XBERGUserChunkConfig *xberg_document_metadata_user_chunk_config(const XBERGDocumentMetadata *ptr);
 
 /**
  * Get the `chunking_enabled` field from a `DocumentMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_document_metadata_chunking_enabled(const XBERGDocumentMetadata *ptr);
+int32_t xberg_document_metadata_chunking_enabled(const XBERGDocumentMetadata *ptr);
 
 /**
  * Create a `UserChunkConfig` from a JSON string. Returns null on failure.
@@ -15823,8 +15974,7 @@ char *xberg_user_chunk_config_page_ranges(const XBERGUserChunkConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_user_chunk_config_pages_per_chunk(const XBERGUserChunkConfig *ptr);
+uint32_t xberg_user_chunk_config_pages_per_chunk(const XBERGUserChunkConfig *ptr);
 
 /**
  * Get the `force_chunking` field from a `UserChunkConfig`.
@@ -15838,8 +15988,7 @@ int32_t xberg_user_chunk_config_force_chunking(const XBERGUserChunkConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_user_chunk_config_disable_chunking(const XBERGUserChunkConfig *ptr);
+int32_t xberg_user_chunk_config_disable_chunking(const XBERGUserChunkConfig *ptr);
 
 /**
  * Create a `ExtractionConfidence` from a JSON string. Returns null on failure.
@@ -15847,8 +15996,7 @@ xberg_user_chunk_config_disable_chunking(const XBERGUserChunkConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_confidence_free`.
  */
-XBERGExtractionConfidence *
-xberg_extraction_confidence_from_json(const char *json);
+XBERGExtractionConfidence *xberg_extraction_confidence_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionConfidence` to a JSON string. Returns null on failure.
@@ -15870,32 +16018,28 @@ void xberg_extraction_confidence_free(XBERGExtractionConfidence *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_text_coverage(
-    const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_text_coverage(const XBERGExtractionConfidence *ptr);
 
 /**
  * Get the `ocr_aggregate` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_ocr_aggregate(
-    const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_ocr_aggregate(const XBERGExtractionConfidence *ptr);
 
 /**
  * Get the `schema_compliance` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSchemaCompliance *xberg_extraction_confidence_schema_compliance(
-    const XBERGExtractionConfidence *ptr);
+XBERGSchemaCompliance *xberg_extraction_confidence_schema_compliance(const XBERGExtractionConfidence *ptr);
 
 /**
  * Get the `combined` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_combined(
-    const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_combined(const XBERGExtractionConfidence *ptr);
 
 /**
  * Create a `HeuristicsConfig` from a JSON string. Returns null on failure.
@@ -15925,92 +16069,81 @@ void xberg_heuristics_config_free(XBERGHeuristicsConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_heuristics_config_enable_pdf_text_heuristics(
-    const XBERGHeuristicsConfig *ptr);
+int32_t xberg_heuristics_config_enable_pdf_text_heuristics(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `text_layer_threshold` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_heuristics_config_text_layer_threshold(
-    const XBERGHeuristicsConfig *ptr);
+float xberg_heuristics_config_text_layer_threshold(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `file_size_threshold_bytes` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_file_size_threshold_bytes(
-    const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_file_size_threshold_bytes(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `page_count_threshold` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_heuristics_config_page_count_threshold(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_page_count_threshold(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `target_pages_per_chunk` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_target_pages_per_chunk(
-    const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_target_pages_per_chunk(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `max_pages_per_chunk` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_heuristics_config_max_pages_per_chunk(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_max_pages_per_chunk(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `disk_processing_threshold_bytes` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_disk_processing_threshold_bytes(
-    const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_disk_processing_threshold_bytes(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `min_chars_per_page` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_heuristics_config_min_chars_per_page(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_min_chars_per_page(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `max_xlsx_sheet_count` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_heuristics_config_max_xlsx_sheet_count(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_max_xlsx_sheet_count(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `max_xlsx_workbook_cells` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_max_xlsx_workbook_cells(
-    const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_max_xlsx_workbook_cells(const XBERGHeuristicsConfig *ptr);
 
 /**
  * Get the `max_pptx_embedded_count` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_max_pptx_embedded_count(
-    const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_max_pptx_embedded_count(const XBERGHeuristicsConfig *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGHeuristicsConfig *xberg_heuristics_config_default(void);
 
@@ -16020,8 +16153,8 @@ XBERGHeuristicsConfig *xberg_heuristics_config_default(void);
  * - `target_pages_per_chunk` is 0
  * - `max_pages_per_chunk` < `target_pages_per_chunk`
  * - `file_size_threshold_bytes` is 0
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_heuristics_config_validate(const XBERGHeuristicsConfig *this_);
 
@@ -16108,8 +16241,8 @@ uint32_t xberg_page_range_end(const XBERGPageRange *ptr);
 
 /**
  * Get the number of pages in this range.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 uint32_t xberg_page_range_page_count(const XBERGPageRange *this_);
 
@@ -16192,16 +16325,14 @@ char *xberg_page_signals_text_excerpt(const XBERGPageSignals *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_page_signals_starts_with_letterhead_like(const XBERGPageSignals *ptr);
+int32_t xberg_page_signals_starts_with_letterhead_like(const XBERGPageSignals *ptr);
 
 /**
  * Get the `has_page_number_one_marker` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_page_signals_has_page_number_one_marker(const XBERGPageSignals *ptr);
+int32_t xberg_page_signals_has_page_number_one_marker(const XBERGPageSignals *ptr);
 
 /**
  * Get the `has_signature_block` field from a `PageSignals`.
@@ -16220,19 +16351,17 @@ float xberg_page_signals_layout_text_density(const XBERGPageSignals *ptr);
 /**
  * Derive signals from raw page text.
  *
- * Callers that already have structured per-page data (e.g. from a PDF
- * extractor) can set individual fields directly.  This constructor is for
- * callers that only have the plain-text content of a page (e.g. from
- * `PageContent`).
+ * Callers that already have structured per-page data (e.g. from a PDF extractor)
+ * can set individual fields directly.  This constructor is for callers that only
+ * have the plain-text content of a page (e.g. from `PageContent`).
  * \param page_number â 1-indexed page number.
  * \param text â Full extracted text for the page.
- * \param layout_text_density â Pre-computed text density in `[0.0, 1.0]`.
- * Pass `0.0` when unknown (disables density-shift detection for this page). #
- * Heuristics All signal derivations are *conservative starting points*. Each is
- * documented inline. They err on the side of fewer false positives; tune
- * thresholds via `MultidocThresholds` rather than by changing these heuristics.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \param layout_text_density â Pre-computed text density in `[0.0, 1.0]`. Pass `0.0` when unknown
+ * (disables density-shift detection for this page). # Heuristics All signal derivations are
+ * *conservative starting points*. Each is documented inline. They err on the side of fewer false
+ * positives; tune thresholds via `MultidocThresholds` rather than by changing these heuristics.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPageSignals *xberg_page_signals_from_page_text(uint32_t page_number,
                                                     const char *text,
@@ -16287,8 +16416,7 @@ float xberg_document_boundary_confidence(const XBERGDocumentBoundary *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundaryReason *
-xberg_document_boundary_reason(const XBERGDocumentBoundary *ptr);
+XBERGBoundaryReason *xberg_document_boundary_reason(const XBERGDocumentBoundary *ptr);
 
 /**
  * Create a `MultidocThresholds` from a JSON string. Returns null on failure.
@@ -16318,20 +16446,18 @@ void xberg_multidoc_thresholds_free(XBERGMultidocThresholds *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_multidoc_thresholds_density_shift_threshold(
-    const XBERGMultidocThresholds *ptr);
+float xberg_multidoc_thresholds_density_shift_threshold(const XBERGMultidocThresholds *ptr);
 
 /**
  * Get the `bigram_overlap_min` field from a `MultidocThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_multidoc_thresholds_bigram_overlap_min(
-    const XBERGMultidocThresholds *ptr);
+float xberg_multidoc_thresholds_bigram_overlap_min(const XBERGMultidocThresholds *ptr);
 
 /**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGMultidocThresholds *xberg_multidoc_thresholds_default(void);
 
@@ -16347,8 +16473,8 @@ XBERGMetaSchema *xberg_meta_schema_compile(const char *meta_schema_json);
 /**
  * Validate `raw` against the meta-schema and deserialize into a `Preset`,
  * stamping the fingerprint over the canonical file bytes.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPreset *xberg_meta_schema_parse_preset(const XBERGMetaSchema *this_,
                                             const char *path,
@@ -16366,40 +16492,42 @@ XBERGRegistry *xberg_registry_load_embedded(void);
 
 /**
  * Look up a preset by its identifier.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPreset *xberg_registry_get(const XBERGRegistry *this_, const char *id);
+XBERGPreset *xberg_registry_get(const XBERGRegistry *this_,
+                                const char *id);
 
 /**
  * Materialize a `PresetSummary` list for the public registry endpoint.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_registry_summaries(const XBERGRegistry *this_);
 
 /**
  * Number of presets currently loaded.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 uintptr_t xberg_registry_len(const XBERGRegistry *this_);
 
 /**
  * Whether the registry contains zero presets.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_registry_is_empty(const XBERGRegistry *this_);
 
 /**
  * Read raw sample bytes for `<preset_id>` from
  * `library/<id>/samples/<name>`. Returns `None` when the file is absent.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
-                                     const char *preset_id, const char *name);
+                                     const char *preset_id,
+                                     const char *name);
 
 /**
  * Load additional preset files from a runtime directory and insert them
@@ -16417,10 +16545,11 @@ uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
  *
  * This is the injection point for downstream catalogs that add curated
  * presets on top of the single embedded OSS preset.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-uintptr_t xberg_registry_extend_from_dir(XBERGRegistry *this_, const char *dir);
+uintptr_t xberg_registry_extend_from_dir(XBERGRegistry *this_,
+                                         const char *dir);
 
 /**
  * Create a `ResolvedPreset` from a JSON string. Returns null on failure.
@@ -16492,16 +16621,14 @@ char *xberg_resolved_preset_system_prompt(const XBERGResolvedPreset *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMergeMode *
-xberg_resolved_preset_merge_mode(const XBERGResolvedPreset *ptr);
+XBERGMergeMode *xberg_resolved_preset_merge_mode(const XBERGResolvedPreset *ptr);
 
 /**
  * Get the `preferred_call_mode` field from a `ResolvedPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCallMode *
-xberg_resolved_preset_preferred_call_mode(const XBERGResolvedPreset *ptr);
+XBERGCallMode *xberg_resolved_preset_preferred_call_mode(const XBERGResolvedPreset *ptr);
 
 /**
  * Get the `emit_citations` field from a `ResolvedPreset`.
@@ -16724,8 +16851,7 @@ char *xberg_preset_summary_description(const XBERGPresetSummary *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPresetCategory *
-xberg_preset_summary_category(const XBERGPresetSummary *ptr);
+XBERGPresetCategory *xberg_preset_summary_category(const XBERGPresetSummary *ptr);
 
 /**
  * Get the `tags` field from a `PresetSummary`.
@@ -16739,8 +16865,7 @@ char *xberg_preset_summary_tags(const XBERGPresetSummary *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCallMode *
-xberg_preset_summary_preferred_call_mode(const XBERGPresetSummary *ptr);
+XBERGCallMode *xberg_preset_summary_preferred_call_mode(const XBERGPresetSummary *ptr);
 
 /**
  * Get the `emit_citations` field from a `PresetSummary`.
@@ -16803,8 +16928,8 @@ char *xberg_doctor_check_message(const XBERGDoctorCheck *ptr);
 /**
  * A `ProbeStatus.Pass` verdict: the checked backend or setting will
  * work as configured on this host.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDoctorCheck *xberg_doctor_check_pass(const char *name,
                                           const char *message);
@@ -16812,8 +16937,8 @@ XBERGDoctorCheck *xberg_doctor_check_pass(const char *name,
 /**
  * A `ProbeStatus.Warn` verdict: the check ran and found something
  * actionable, but nothing is broken. Never fails the report.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDoctorCheck *xberg_doctor_check_warn(const char *name,
                                           const char *message);
@@ -16821,8 +16946,8 @@ XBERGDoctorCheck *xberg_doctor_check_warn(const char *name,
 /**
  * A `ProbeStatus.Fail` verdict: the configured setup will not work (or
  * will silently degrade) on this host.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDoctorCheck *xberg_doctor_check_fail(const char *name,
                                           const char *message);
@@ -16830,8 +16955,8 @@ XBERGDoctorCheck *xberg_doctor_check_fail(const char *name,
 /**
  * A `ProbeStatus.Skip` verdict: the check cannot run locally; first
  * real use decides, possibly after a download.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDoctorCheck *xberg_doctor_check_skip(const char *name,
                                           const char *message);
@@ -16869,8 +16994,8 @@ char *xberg_doctor_report_checks(const XBERGDoctorReport *ptr);
 /**
  * Whether no check failed. Warnings and skips do not count as failures,
  * so the report stays usable as a scripting/CI gate.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_doctor_report_is_ok(const XBERGDoctorReport *this_);
 
@@ -16923,8 +17048,7 @@ int32_t xberg_paddle_ocr_config_use_angle_cls(const XBERGPaddleOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_paddle_ocr_config_enable_table_detection(const XBERGPaddleOcrConfig *ptr);
+int32_t xberg_paddle_ocr_config_enable_table_detection(const XBERGPaddleOcrConfig *ptr);
 
 /**
  * Get the `det_db_thresh` field from a `PaddleOcrConfig`.
@@ -16938,24 +17062,21 @@ float xberg_paddle_ocr_config_det_db_thresh(const XBERGPaddleOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_det_db_box_thresh(
-    const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_det_db_box_thresh(const XBERGPaddleOcrConfig *ptr);
 
 /**
  * Get the `det_db_unclip_ratio` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_det_db_unclip_ratio(
-    const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_det_db_unclip_ratio(const XBERGPaddleOcrConfig *ptr);
 
 /**
  * Get the `det_limit_side_len` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t
-xberg_paddle_ocr_config_det_limit_side_len(const XBERGPaddleOcrConfig *ptr);
+uint32_t xberg_paddle_ocr_config_det_limit_side_len(const XBERGPaddleOcrConfig *ptr);
 
 /**
  * Get the `rec_batch_num` field from a `PaddleOcrConfig`.
@@ -16997,14 +17118,13 @@ char *xberg_paddle_ocr_config_model_version(const XBERGPaddleOcrConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPaddleInferenceBackend *
-xberg_paddle_ocr_config_inference_backend(const XBERGPaddleOcrConfig *ptr);
+XBERGPaddleInferenceBackend *xberg_paddle_ocr_config_inference_backend(const XBERGPaddleOcrConfig *ptr);
 
 /**
  * Sets a custom Hugging Face Hub cache root for model files.
  * \param path Path to cache directory
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::PaddleOcrConfig;
  * use std::path::PathBuf;
@@ -17013,15 +17133,14 @@ xberg_paddle_ocr_config_inference_backend(const XBERGPaddleOcrConfig *ptr);
  *     .with_cache_dir(PathBuf::from("/tmp/paddle-cache"));
  * \endcode
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfig *this_,
-                                       const char *path);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfig *this_,
+                                                             const char *path);
 
 /**
  * Enables or disables table structure detection.
  * \param enable Whether to enable table detection
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::PaddleOcrConfig;
  *
@@ -17029,116 +17148,105 @@ xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfig *this_,
  *     .with_table_detection(true);
  * \endcode
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOcrConfig *this_,
-                                             int32_t enable);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOcrConfig *this_,
+                                                                   int32_t enable);
 
 /**
  * Enables or disables angle classification for rotated text.
  * \param enable Whether to enable angle classification
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfig *this_,
-                                       int32_t enable);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfig *this_,
+                                                             int32_t enable);
 
 /**
  * Sets the database threshold for text detection.
  * \param threshold Detection threshold (0.0-1.0)
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrConfig *this_,
-                                           float threshold);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrConfig *this_,
+                                                                 float threshold);
 
 /**
  * Sets the box threshold for text bounding box refinement.
  * \param threshold Box threshold (0.0-1.0)
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddleOcrConfig *this_,
-                                               float threshold);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddleOcrConfig *this_,
+                                                                     float threshold);
 
 /**
  * Sets the unclip ratio for expanding text bounding boxes.
  * \param ratio Unclip ratio (typically 1.5-2.0)
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPaddleOcrConfig *this_,
-                                                 float ratio);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPaddleOcrConfig *this_,
+                                                                       float ratio);
 
 /**
  * Sets the maximum side length for detection images.
  * \param length Maximum side length in pixels
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddleOcrConfig *this_,
-                                                uint32_t length);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddleOcrConfig *this_,
+                                                                      uint32_t length);
 
 /**
  * Sets the batch size for recognition inference.
  * \param batch_size Number of text regions to process simultaneously
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrConfig *this_,
-                                           uint32_t batch_size);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrConfig *this_,
+                                                                 uint32_t batch_size);
 
 /**
  * Sets the minimum recognition confidence threshold.
  * \param score Minimum confidence (0.0-1.0), text below this is dropped
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConfig *this_,
-                                        float score);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConfig *this_,
+                                                              float score);
 
 /**
  * Sets padding in pixels added around images before detection.
  * \param padding Padding in pixels (0-100)
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig *this_,
-                                     uint32_t padding);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig *this_,
+                                                           uint32_t padding);
 
 /**
  * Sets the model tier controlling detection/recognition model size.
- * \param tier `"mobile"` (default, lightweight, faster) or `"server"` (high
- * accuracy, GPU/complex documents)
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \param tier `"mobile"` (default, lightweight, faster) or `"server"` (high accuracy, GPU/complex
+ * documents)
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConfig *this_,
-                                        const char *tier);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConfig *this_,
+                                                              const char *tier);
 
 /**
  * Sets the model generation.
- * \param version `"pp-ocrv6"` (default) or `"pp-ocrv5"`. Under `"pp-ocrv6"`,
- * `model_tier` selects among `"medium"`/`"small"`/`"tiny"`.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \param version `"pp-ocrv6"` (default) or `"pp-ocrv5"`. Under `"pp-ocrv6"`, `model_tier` selects
+ * among `"medium"`/`"small"`/`"tiny"`.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *
-xberg_paddle_ocr_config_with_model_version(XBERGPaddleOcrConfig *this_,
-                                           const char *version);
+XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_version(XBERGPaddleOcrConfig *this_,
+                                                                 const char *version);
 
 /**
  * Creates a default configuration with English language support.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGPaddleOcrConfig *xberg_paddle_ocr_config_default(void);
 
@@ -17309,8 +17417,7 @@ void xberg_layout_detection_free(XBERGLayoutDetection *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutClass *
-xberg_layout_detection_class_name(const XBERGLayoutDetection *ptr);
+XBERGLayoutClass *xberg_layout_detection_class_name(const XBERGLayoutDetection *ptr);
 
 /**
  * Get the `confidence` field from a `LayoutDetection`.
@@ -17354,8 +17461,7 @@ void xberg_recognized_table_free(XBERGRecognizedTable *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBBox *
-xberg_recognized_table_detection_bbox(const XBERGRecognizedTable *ptr);
+XBERGBBox *xberg_recognized_table_detection_bbox(const XBERGRecognizedTable *ptr);
 
 /**
  * Get the `cells` field from a `RecognizedTable`.
@@ -17565,17 +17671,14 @@ char *xberg_pdf_metadata_layout_gate_reasons(const XBERGPdfMetadata *ptr);
  * # Safety
  * Pointer must have been returned by this library, or be null.
  */
-void xberg_chunk_classification_enrichment_config_free(
-    XBERGChunkClassificationEnrichmentConfig *ptr);
+void xberg_chunk_classification_enrichment_config_free(XBERGChunkClassificationEnrichmentConfig *ptr);
 
 /**
  * Get the `config` field from a `ChunkClassificationEnrichmentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *
-xberg_chunk_classification_enrichment_config_config(
-    const XBERGChunkClassificationEnrichmentConfig *ptr);
+XBERGChunkClassificationConfig *xberg_chunk_classification_enrichment_config_config(const XBERGChunkClassificationEnrichmentConfig *ptr);
 
 /**
  * Create a `ProxyConfig` from a JSON string. Returns null on failure.
@@ -17726,8 +17829,7 @@ uintptr_t xberg_content_config_wrap_width(const XBERGContentConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_content_config_include_document_structure(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_include_document_structure(const XBERGContentConfig *ptr);
 
 /**
  * Create a `BrowserConfig` from a JSON string. Returns null on failure.
@@ -17764,8 +17866,7 @@ XBERGBrowserMode *xberg_browser_config_mode(const XBERGBrowserConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBrowserBackend *
-xberg_browser_config_backend(const XBERGBrowserConfig *ptr);
+XBERGBrowserBackend *xberg_browser_config_backend(const XBERGBrowserConfig *ptr);
 
 /**
  * Get the `endpoint` field from a `BrowserConfig`.
@@ -17835,8 +17936,7 @@ char *xberg_browser_config_robots_user_agent(const XBERGBrowserConfig *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_browser_config_capture_network_events(const XBERGBrowserConfig *ptr);
+int32_t xberg_browser_config_capture_network_events(const XBERGBrowserConfig *ptr);
 
 /**
  * Get the `session_affinity` field from a `BrowserConfig`.
@@ -18287,24 +18387,21 @@ void xberg_conversion_options_free(XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHeadingStyle *
-xberg_conversion_options_heading_style(const XBERGConversionOptions *ptr);
+XBERGHeadingStyle *xberg_conversion_options_heading_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `list_indent_type` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGListIndentType *
-xberg_conversion_options_list_indent_type(const XBERGConversionOptions *ptr);
+XBERGListIndentType *xberg_conversion_options_list_indent_type(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `list_indent_width` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_conversion_options_list_indent_width(const XBERGConversionOptions *ptr);
+uintptr_t xberg_conversion_options_list_indent_width(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `bullets` field from a `ConversionOptions`.
@@ -18318,24 +18415,21 @@ char *xberg_conversion_options_bullets(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_conversion_options_strong_em_symbol(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_strong_em_symbol(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `escape_asterisks` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_escape_asterisks(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_asterisks(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `escape_underscores` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_escape_underscores(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_underscores(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `escape_misc` field from a `ConversionOptions`.
@@ -18349,8 +18443,7 @@ int32_t xberg_conversion_options_escape_misc(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_escape_ascii(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_ascii(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `code_language` field from a `ConversionOptions`.
@@ -18371,56 +18464,49 @@ int32_t xberg_conversion_options_autolinks(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_default_title(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_default_title(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `br_in_tables` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_br_in_tables(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_br_in_tables(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `compact_tables` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_compact_tables(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_compact_tables(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `highlight_style` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHighlightStyle *
-xberg_conversion_options_highlight_style(const XBERGConversionOptions *ptr);
+XBERGHighlightStyle *xberg_conversion_options_highlight_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `extract_metadata` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_extract_metadata(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_extract_metadata(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `whitespace_mode` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGWhitespaceMode *
-xberg_conversion_options_whitespace_mode(const XBERGConversionOptions *ptr);
+XBERGWhitespaceMode *xberg_conversion_options_whitespace_mode(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `strip_newlines` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_strip_newlines(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_strip_newlines(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `wrap` field from a `ConversionOptions`.
@@ -18434,16 +18520,14 @@ int32_t xberg_conversion_options_wrap(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t
-xberg_conversion_options_wrap_width(const XBERGConversionOptions *ptr);
+uintptr_t xberg_conversion_options_wrap_width(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `convert_as_inline` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_convert_as_inline(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_convert_as_inline(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `sub_symbol` field from a `ConversionOptions`.
@@ -18464,32 +18548,28 @@ char *xberg_conversion_options_sup_symbol(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNewlineStyle *
-xberg_conversion_options_newline_style(const XBERGConversionOptions *ptr);
+XBERGNewlineStyle *xberg_conversion_options_newline_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `code_block_style` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeBlockStyle *
-xberg_conversion_options_code_block_style(const XBERGConversionOptions *ptr);
+XBERGCodeBlockStyle *xberg_conversion_options_code_block_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `keep_inline_images_in` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_keep_inline_images_in(
-    const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_keep_inline_images_in(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `preprocessing` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPreprocessingOptions *
-xberg_conversion_options_preprocessing(const XBERGConversionOptions *ptr);
+XBERGPreprocessingOptions *xberg_conversion_options_preprocessing(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `encoding` field from a `ConversionOptions`.
@@ -18531,24 +18611,21 @@ int32_t xberg_conversion_options_skip_images(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlEscapeStyle *
-xberg_conversion_options_url_escape_style(const XBERGConversionOptions *ptr);
+XBERGUrlEscapeStyle *xberg_conversion_options_url_escape_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `link_style` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLinkStyle *
-xberg_conversion_options_link_style(const XBERGConversionOptions *ptr);
+XBERGLinkStyle *xberg_conversion_options_link_style(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `max_image_size` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t
-xberg_conversion_options_max_image_size(const XBERGConversionOptions *ptr);
+uint64_t xberg_conversion_options_max_image_size(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `capture_svg` field from a `ConversionOptions`.
@@ -18562,8 +18639,7 @@ int32_t xberg_conversion_options_capture_svg(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_conversion_options_infer_dimensions(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_infer_dimensions(const XBERGConversionOptions *ptr);
 
 /**
  * Get the `max_depth` field from a `ConversionOptions`.
@@ -18577,8 +18653,7 @@ uintptr_t xberg_conversion_options_max_depth(const XBERGConversionOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *
-xberg_conversion_options_exclude_selectors(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_exclude_selectors(const XBERGConversionOptions *ptr);
 
 /**
  * Create a `PreprocessingOptions` from a JSON string. Returns null on failure.
@@ -18586,8 +18661,7 @@ xberg_conversion_options_exclude_selectors(const XBERGConversionOptions *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_preprocessing_options_free`.
  */
-XBERGPreprocessingOptions *
-xberg_preprocessing_options_from_json(const char *json);
+XBERGPreprocessingOptions *xberg_preprocessing_options_from_json(const char *json);
 
 /**
  * Serialize a `PreprocessingOptions` to a JSON string. Returns null on failure.
@@ -18609,88 +18683,103 @@ void xberg_preprocessing_options_free(XBERGPreprocessingOptions *ptr);
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_preprocessing_options_enabled(const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_enabled(const XBERGPreprocessingOptions *ptr);
 
 /**
  * Get the `preset` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPreprocessingPreset *
-xberg_preprocessing_options_preset(const XBERGPreprocessingOptions *ptr);
+XBERGPreprocessingPreset *xberg_preprocessing_options_preset(const XBERGPreprocessingOptions *ptr);
 
 /**
  * Get the `remove_navigation` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preprocessing_options_remove_navigation(
-    const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_remove_navigation(const XBERGPreprocessingOptions *ptr);
 
 /**
  * Get the `remove_forms` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t
-xberg_preprocessing_options_remove_forms(const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_remove_forms(const XBERGPreprocessingOptions *ptr);
 
 /**
- * Convert an integer to a `ExecutionProviderType` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `ExecutionProviderType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_execution_provider_type_from_i32(int32_t value);
 
 /**
- * Convert a `ExecutionProviderType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ExecutionProviderType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_execution_provider_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `ImageOutputFormat` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ImageOutputFormat` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_image_output_format_from_i32(int32_t value);
 
 /**
- * Convert a `ImageOutputFormat` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ImageOutputFormat` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_image_output_format_from_str(const char *name);
 
 /**
- * Convert an integer to a `ExtractInputKind` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ExtractInputKind` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_extract_input_kind_from_i32(int32_t value);
 
 /**
- * Convert a `ExtractInputKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ExtractInputKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_extract_input_kind_from_str(const char *name);
 
 /**
- * Convert an integer to a `UrlExtractionMode` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `UrlExtractionMode` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_url_extraction_mode_from_i32(int32_t value);
 
 /**
- * Convert a `UrlExtractionMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `UrlExtractionMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_url_extraction_mode_from_str(const char *name);
+
+/**
+ * Convert an integer to a `BreadcrumbTarget` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
+ */
+int32_t xberg_breadcrumb_target_from_i32(int32_t value);
+
+/**
+ * Convert a `BreadcrumbTarget` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
+ */
+int32_t xberg_breadcrumb_target_from_str(const char *name);
 
 /**
  * Convert an integer to a `OutputFormat` variant. Returns -1 on invalid input.
@@ -18701,23 +18790,24 @@ int32_t xberg_url_extraction_mode_from_str(const char *name);
 int32_t xberg_output_format_from_i32(int32_t value);
 
 /**
- * Convert a `OutputFormat` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `OutputFormat` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_output_format_from_str(const char *name);
 
 /**
- * Convert an integer to a `JupyterCellRendering` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `JupyterCellRendering` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_jupyter_cell_rendering_from_i32(int32_t value);
 
 /**
- * Convert a `JupyterCellRendering` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `JupyterCellRendering` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_jupyter_cell_rendering_from_str(const char *name);
 
@@ -18730,23 +18820,24 @@ int32_t xberg_jupyter_cell_rendering_from_str(const char *name);
 int32_t xberg_html_theme_from_i32(int32_t value);
 
 /**
- * Convert a `HtmlTheme` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `HtmlTheme` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_html_theme_from_str(const char *name);
 
 /**
- * Convert an integer to a `LateInteractionModelType` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `LateInteractionModelType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_late_interaction_model_type_from_i32(int32_t value);
 
 /**
- * Convert a `LateInteractionModelType` serde wire value (C string) to its
- * integer discriminant. Returns -1 on invalid input. # Safety Caller must
- * ensure `ptr` is a valid pointer to a `c_char` or null.
+ * Convert a `LateInteractionModelType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_late_interaction_model_type_from_str(const char *name);
 
@@ -18759,37 +18850,39 @@ int32_t xberg_late_interaction_model_type_from_str(const char *name);
 int32_t xberg_table_model_from_i32(int32_t value);
 
 /**
- * Convert a `TableModel` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `TableModel` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_table_model_from_str(const char *name);
 
 /**
- * Convert an integer to a `TableOverlapPreference` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `TableOverlapPreference` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_table_overlap_preference_from_i32(int32_t value);
 
 /**
- * Convert a `TableOverlapPreference` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `TableOverlapPreference` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_table_overlap_preference_from_str(const char *name);
 
 /**
- * Convert an integer to a `LayoutStrategy` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `LayoutStrategy` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_layout_strategy_from_i32(int32_t value);
 
 /**
- * Convert a `LayoutStrategy` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `LayoutStrategy` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_layout_strategy_from_str(const char *name);
 
@@ -18802,9 +18895,9 @@ int32_t xberg_layout_strategy_from_str(const char *name);
 int32_t xberg_call_mode_from_i32(int32_t value);
 
 /**
- * Convert a `CallMode` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `CallMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_call_mode_from_str(const char *name);
 
@@ -18817,37 +18910,39 @@ int32_t xberg_call_mode_from_str(const char *name);
 int32_t xberg_merge_mode_from_i32(int32_t value);
 
 /**
- * Convert a `MergeMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `MergeMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_merge_mode_from_str(const char *name);
 
 /**
- * Convert an integer to a `NerBackendKind` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `NerBackendKind` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_ner_backend_kind_from_i32(int32_t value);
 
 /**
- * Convert a `NerBackendKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `NerBackendKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_ner_backend_kind_from_str(const char *name);
 
 /**
- * Convert an integer to a `VlmFallbackPolicy` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `VlmFallbackPolicy` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_vlm_fallback_policy_from_i32(int32_t value);
 
 /**
- * Convert a `VlmFallbackPolicy` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `VlmFallbackPolicy` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_vlm_fallback_policy_from_str(const char *name);
 
@@ -18860,23 +18955,24 @@ int32_t xberg_vlm_fallback_policy_from_str(const char *name);
 int32_t xberg_ocr_strategy_from_i32(int32_t value);
 
 /**
- * Convert a `OcrStrategy` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `OcrStrategy` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_ocr_strategy_from_str(const char *name);
 
 /**
- * Convert an integer to a `TableChunkingMode` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `TableChunkingMode` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_table_chunking_mode_from_i32(int32_t value);
 
 /**
- * Convert a `TableChunkingMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `TableChunkingMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_table_chunking_mode_from_str(const char *name);
 
@@ -18889,9 +18985,9 @@ int32_t xberg_table_chunking_mode_from_str(const char *name);
 int32_t xberg_chunker_type_from_i32(int32_t value);
 
 /**
- * Convert a `ChunkerType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ChunkerType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_chunker_type_from_str(const char *name);
 
@@ -18904,23 +19000,24 @@ int32_t xberg_chunker_type_from_str(const char *name);
 int32_t xberg_chunk_sizing_from_i32(int32_t value);
 
 /**
- * Convert a `ChunkSizing` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ChunkSizing` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_chunk_sizing_from_str(const char *name);
 
 /**
- * Convert an integer to a `EmbeddingModelType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `EmbeddingModelType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_embedding_model_type_from_i32(int32_t value);
 
 /**
- * Convert a `EmbeddingModelType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `EmbeddingModelType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_embedding_model_type_from_str(const char *name);
 
@@ -18933,37 +19030,39 @@ int32_t xberg_embedding_model_type_from_str(const char *name);
 int32_t xberg_reranker_head_from_i32(int32_t value);
 
 /**
- * Convert a `RerankerHead` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RerankerHead` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_reranker_head_from_str(const char *name);
 
 /**
- * Convert an integer to a `RerankerModelType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `RerankerModelType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_reranker_model_type_from_i32(int32_t value);
 
 /**
- * Convert a `RerankerModelType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RerankerModelType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_reranker_model_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `SparseEmbeddingModelType` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `SparseEmbeddingModelType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_sparse_embedding_model_type_from_i32(int32_t value);
 
 /**
- * Convert a `SparseEmbeddingModelType` serde wire value (C string) to its
- * integer discriminant. Returns -1 on invalid input. # Safety Caller must
- * ensure `ptr` is a valid pointer to a `c_char` or null.
+ * Convert a `SparseEmbeddingModelType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_sparse_embedding_model_type_from_str(const char *name);
 
@@ -18976,23 +19075,24 @@ int32_t xberg_sparse_embedding_model_type_from_str(const char *name);
 int32_t xberg_whisper_model_from_i32(int32_t value);
 
 /**
- * Convert a `WhisperModel` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `WhisperModel` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_whisper_model_from_str(const char *name);
 
 /**
- * Convert an integer to a `CodeContentMode` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `CodeContentMode` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_code_content_mode_from_i32(int32_t value);
 
 /**
- * Convert a `CodeContentMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `CodeContentMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_code_content_mode_from_str(const char *name);
 
@@ -19005,65 +19105,69 @@ int32_t xberg_code_content_mode_from_str(const char *name);
 int32_t xberg_list_type_from_i32(int32_t value);
 
 /**
- * Convert a `ListType` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `ListType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_list_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `OcrBackendType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `OcrBackendType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_ocr_backend_type_from_i32(int32_t value);
 
 /**
- * Convert a `OcrBackendType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `OcrBackendType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_ocr_backend_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `ProcessingStage` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ProcessingStage` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_processing_stage_from_i32(int32_t value);
 
 /**
- * Convert a `ProcessingStage` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ProcessingStage` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_processing_stage_from_str(const char *name);
 
 /**
- * Convert an integer to a `ReductionLevel` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ReductionLevel` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_reduction_level_from_i32(int32_t value);
 
 /**
- * Convert a `ReductionLevel` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ReductionLevel` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_reduction_level_from_str(const char *name);
 
 /**
- * Convert an integer to a `PdfAnnotationType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `PdfAnnotationType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_pdf_annotation_type_from_i32(int32_t value);
 
 /**
- * Convert a `PdfAnnotationType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PdfAnnotationType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_pdf_annotation_type_from_str(const char *name);
 
@@ -19076,9 +19180,9 @@ int32_t xberg_pdf_annotation_type_from_str(const char *name);
 int32_t xberg_block_type_from_i32(int32_t value);
 
 /**
- * Convert a `BlockType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `BlockType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_block_type_from_str(const char *name);
 
@@ -19091,23 +19195,24 @@ int32_t xberg_block_type_from_str(const char *name);
 int32_t xberg_inline_type_from_i32(int32_t value);
 
 /**
- * Convert a `InlineType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `InlineType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_inline_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `RelationshipKind` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `RelationshipKind` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_relationship_kind_from_i32(int32_t value);
 
 /**
- * Convert a `RelationshipKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RelationshipKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_relationship_kind_from_str(const char *name);
 
@@ -19120,9 +19225,9 @@ int32_t xberg_relationship_kind_from_str(const char *name);
 int32_t xberg_content_layer_from_i32(int32_t value);
 
 /**
- * Convert a `ContentLayer` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ContentLayer` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_content_layer_from_str(const char *name);
 
@@ -19135,51 +19240,54 @@ int32_t xberg_content_layer_from_str(const char *name);
 int32_t xberg_node_content_from_i32(int32_t value);
 
 /**
- * Convert a `NodeContent` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `NodeContent` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_node_content_from_str(const char *name);
 
 /**
- * Convert an integer to a `AnnotationKind` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `AnnotationKind` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_annotation_kind_from_i32(int32_t value);
 
 /**
- * Convert a `AnnotationKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `AnnotationKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_annotation_kind_from_str(const char *name);
 
 /**
- * Convert an integer to a `EntityCategory` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `EntityCategory` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_entity_category_from_i32(int32_t value);
 
 /**
- * Convert a `EntityCategory` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `EntityCategory` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_entity_category_from_str(const char *name);
 
 /**
- * Convert an integer to a `ExtractionMethod` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ExtractionMethod` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_extraction_method_from_i32(int32_t value);
 
 /**
- * Convert a `ExtractionMethod` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ExtractionMethod` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_extraction_method_from_str(const char *name);
 
@@ -19192,9 +19300,9 @@ int32_t xberg_extraction_method_from_str(const char *name);
 int32_t xberg_chunk_type_from_i32(int32_t value);
 
 /**
- * Convert a `ChunkType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ChunkType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_chunk_type_from_str(const char *name);
 
@@ -19207,9 +19315,9 @@ int32_t xberg_chunk_type_from_str(const char *name);
 int32_t xberg_image_kind_from_i32(int32_t value);
 
 /**
- * Convert a `ImageKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ImageKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_image_kind_from_str(const char *name);
 
@@ -19222,9 +19330,9 @@ int32_t xberg_image_kind_from_str(const char *name);
 int32_t xberg_result_format_from_i32(int32_t value);
 
 /**
- * Convert a `ResultFormat` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ResultFormat` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_result_format_from_str(const char *name);
 
@@ -19237,9 +19345,9 @@ int32_t xberg_result_format_from_str(const char *name);
 int32_t xberg_element_type_from_i32(int32_t value);
 
 /**
- * Convert a `ElementType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ElementType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_element_type_from_str(const char *name);
 
@@ -19252,37 +19360,39 @@ int32_t xberg_element_type_from_str(const char *name);
 int32_t xberg_form_field_type_from_i32(int32_t value);
 
 /**
- * Convert a `FormFieldType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `FormFieldType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_form_field_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `FormatMetadata` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `FormatMetadata` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_format_metadata_from_i32(int32_t value);
 
 /**
- * Convert a `FormatMetadata` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `FormatMetadata` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_format_metadata_from_str(const char *name);
 
 /**
- * Convert an integer to a `CodeDataNodeKind` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `CodeDataNodeKind` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_code_data_node_kind_from_i32(int32_t value);
 
 /**
- * Convert a `CodeDataNodeKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `CodeDataNodeKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_code_data_node_kind_from_str(const char *name);
 
@@ -19295,9 +19405,9 @@ int32_t xberg_code_data_node_kind_from_str(const char *name);
 int32_t xberg_text_direction_from_i32(int32_t value);
 
 /**
- * Convert a `TextDirection` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `TextDirection` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_text_direction_from_str(const char *name);
 
@@ -19310,9 +19420,9 @@ int32_t xberg_text_direction_from_str(const char *name);
 int32_t xberg_link_type_from_i32(int32_t value);
 
 /**
- * Convert a `LinkType` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `LinkType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_link_type_from_str(const char *name);
 
@@ -19325,51 +19435,54 @@ int32_t xberg_link_type_from_str(const char *name);
 int32_t xberg_image_type_from_i32(int32_t value);
 
 /**
- * Convert a `ImageType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ImageType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_image_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `StructuredDataType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `StructuredDataType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_structured_data_type_from_i32(int32_t value);
 
 /**
- * Convert a `StructuredDataType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `StructuredDataType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_structured_data_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `OcrBoundingGeometry` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `OcrBoundingGeometry` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_ocr_bounding_geometry_from_i32(int32_t value);
 
 /**
- * Convert a `OcrBoundingGeometry` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `OcrBoundingGeometry` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_ocr_bounding_geometry_from_str(const char *name);
 
 /**
- * Convert an integer to a `OcrElementLevel` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `OcrElementLevel` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_ocr_element_level_from_i32(int32_t value);
 
 /**
- * Convert a `OcrElementLevel` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `OcrElementLevel` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_ocr_element_level_from_str(const char *name);
 
@@ -19382,23 +19495,24 @@ int32_t xberg_ocr_element_level_from_str(const char *name);
 int32_t xberg_page_unit_type_from_i32(int32_t value);
 
 /**
- * Convert a `PageUnitType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PageUnitType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_page_unit_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `RedactionStrategy` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `RedactionStrategy` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_redaction_strategy_from_i32(int32_t value);
 
 /**
- * Convert a `RedactionStrategy` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RedactionStrategy` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_redaction_strategy_from_str(const char *name);
 
@@ -19411,9 +19525,9 @@ int32_t xberg_redaction_strategy_from_str(const char *name);
 int32_t xberg_pii_category_from_i32(int32_t value);
 
 /**
- * Convert a `PiiCategory` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PiiCategory` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_pii_category_from_str(const char *name);
 
@@ -19426,9 +19540,9 @@ int32_t xberg_pii_category_from_str(const char *name);
 int32_t xberg_diff_line_from_i32(int32_t value);
 
 /**
- * Convert a `DiffLine` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `DiffLine` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_diff_line_from_str(const char *name);
 
@@ -19441,37 +19555,39 @@ int32_t xberg_diff_line_from_str(const char *name);
 int32_t xberg_revision_kind_from_i32(int32_t value);
 
 /**
- * Convert a `RevisionKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RevisionKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_revision_kind_from_str(const char *name);
 
 /**
- * Convert an integer to a `RevisionAnchor` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `RevisionAnchor` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_revision_anchor_from_i32(int32_t value);
 
 /**
- * Convert a `RevisionAnchor` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RevisionAnchor` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_revision_anchor_from_str(const char *name);
 
 /**
- * Convert an integer to a `SummaryStrategy` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `SummaryStrategy` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_summary_strategy_from_i32(int32_t value);
 
 /**
- * Convert a `SummaryStrategy` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `SummaryStrategy` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_summary_strategy_from_str(const char *name);
 
@@ -19484,9 +19600,9 @@ int32_t xberg_summary_strategy_from_str(const char *name);
 int32_t xberg_uri_kind_from_i32(int32_t value);
 
 /**
- * Convert a `UriKind` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `UriKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_uri_kind_from_str(const char *name);
 
@@ -19499,107 +19615,114 @@ int32_t xberg_uri_kind_from_str(const char *name);
 int32_t xberg_region_kind_from_i32(int32_t value);
 
 /**
- * Convert a `RegionKind` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `RegionKind` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_region_kind_from_str(const char *name);
 
 /**
- * Convert an integer to a `EmbeddingsEmbeddingBackend` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `EmbeddingsEmbeddingBackend` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_embeddings_embedding_backend_from_i32(int32_t value);
 
 /**
- * Convert a `EmbeddingsEmbeddingBackend` serde wire value (C string) to its
- * integer discriminant. Returns -1 on invalid input. # Safety Caller must
- * ensure `ptr` is a valid pointer to a `c_char` or null.
+ * Convert a `EmbeddingsEmbeddingBackend` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_embeddings_embedding_backend_from_str(const char *name);
 
 /**
- * Convert an integer to a `KeywordAlgorithm` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `KeywordAlgorithm` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_keyword_algorithm_from_i32(int32_t value);
 
 /**
- * Convert a `KeywordAlgorithm` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `KeywordAlgorithm` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_keyword_algorithm_from_str(const char *name);
 
 /**
- * Convert an integer to a `SchemaCompliance` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `SchemaCompliance` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_schema_compliance_from_i32(int32_t value);
 
 /**
- * Convert a `SchemaCompliance` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `SchemaCompliance` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_schema_compliance_from_str(const char *name);
 
 /**
- * Convert an integer to a `NoChunkingReason` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `NoChunkingReason` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_no_chunking_reason_from_i32(int32_t value);
 
 /**
- * Convert a `NoChunkingReason` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `NoChunkingReason` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_no_chunking_reason_from_str(const char *name);
 
 /**
- * Convert an integer to a `ChunkingReason` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ChunkingReason` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_chunking_reason_from_i32(int32_t value);
 
 /**
- * Convert a `ChunkingReason` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ChunkingReason` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_chunking_reason_from_str(const char *name);
 
 /**
- * Convert an integer to a `BoundaryReason` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `BoundaryReason` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_boundary_reason_from_i32(int32_t value);
 
 /**
- * Convert a `BoundaryReason` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `BoundaryReason` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_boundary_reason_from_str(const char *name);
 
 /**
- * Convert an integer to a `PresetCategory` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `PresetCategory` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_preset_category_from_i32(int32_t value);
 
 /**
- * Convert a `PresetCategory` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PresetCategory` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_preset_category_from_str(const char *name);
 
@@ -19612,9 +19735,9 @@ int32_t xberg_preset_category_from_str(const char *name);
 int32_t xberg_psm_mode_from_i32(int32_t value);
 
 /**
- * Convert a `PSMMode` serde wire value (C string) to its integer discriminant.
- * Returns -1 on invalid input. # Safety Caller must ensure `ptr` is a valid
- * pointer to a `c_char` or null.
+ * Convert a `PSMMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_psm_mode_from_str(const char *name);
 
@@ -19627,37 +19750,39 @@ int32_t xberg_psm_mode_from_str(const char *name);
 int32_t xberg_probe_status_from_i32(int32_t value);
 
 /**
- * Convert a `ProbeStatus` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ProbeStatus` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_probe_status_from_str(const char *name);
 
 /**
- * Convert an integer to a `PaddleInferenceBackend` variant. Returns -1 on
- * invalid input. # Safety Caller must ensure all pointer arguments are valid or
- * null. Returned pointers must be freed with the appropriate free function.
+ * Convert an integer to a `PaddleInferenceBackend` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
+ * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_paddle_inference_backend_from_i32(int32_t value);
 
 /**
- * Convert a `PaddleInferenceBackend` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PaddleInferenceBackend` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_paddle_inference_backend_from_str(const char *name);
 
 /**
- * Convert an integer to a `PaddleLanguage` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `PaddleLanguage` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_paddle_language_from_i32(int32_t value);
 
 /**
- * Convert a `PaddleLanguage` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PaddleLanguage` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_paddle_language_from_str(const char *name);
 
@@ -19670,9 +19795,9 @@ int32_t xberg_paddle_language_from_str(const char *name);
 int32_t xberg_layout_class_from_i32(int32_t value);
 
 /**
- * Convert a `LayoutClass` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `LayoutClass` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_layout_class_from_str(const char *name);
 
@@ -19685,9 +19810,9 @@ int32_t xberg_layout_class_from_str(const char *name);
 int32_t xberg_browser_mode_from_i32(int32_t value);
 
 /**
- * Convert a `BrowserMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `BrowserMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_browser_mode_from_str(const char *name);
 
@@ -19700,23 +19825,24 @@ int32_t xberg_browser_mode_from_str(const char *name);
 int32_t xberg_browser_wait_from_i32(int32_t value);
 
 /**
- * Convert a `BrowserWait` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `BrowserWait` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_browser_wait_from_str(const char *name);
 
 /**
- * Convert an integer to a `BrowserBackend` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `BrowserBackend` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_browser_backend_from_i32(int32_t value);
 
 /**
- * Convert a `BrowserBackend` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `BrowserBackend` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_browser_backend_from_str(const char *name);
 
@@ -19729,9 +19855,9 @@ int32_t xberg_browser_backend_from_str(const char *name);
 int32_t xberg_auth_config_from_i32(int32_t value);
 
 /**
- * Convert a `AuthConfig` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `AuthConfig` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_auth_config_from_str(const char *name);
 
@@ -19744,23 +19870,24 @@ int32_t xberg_auth_config_from_str(const char *name);
 int32_t xberg_asset_category_from_i32(int32_t value);
 
 /**
- * Convert a `AssetCategory` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `AssetCategory` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_asset_category_from_str(const char *name);
 
 /**
- * Convert an integer to a `PreprocessingPreset` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `PreprocessingPreset` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_preprocessing_preset_from_i32(int32_t value);
 
 /**
- * Convert a `PreprocessingPreset` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `PreprocessingPreset` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_preprocessing_preset_from_str(const char *name);
 
@@ -19773,37 +19900,39 @@ int32_t xberg_preprocessing_preset_from_str(const char *name);
 int32_t xberg_heading_style_from_i32(int32_t value);
 
 /**
- * Convert a `HeadingStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `HeadingStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_heading_style_from_str(const char *name);
 
 /**
- * Convert an integer to a `ListIndentType` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `ListIndentType` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_list_indent_type_from_i32(int32_t value);
 
 /**
- * Convert a `ListIndentType` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `ListIndentType` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_list_indent_type_from_str(const char *name);
 
 /**
- * Convert an integer to a `WhitespaceMode` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `WhitespaceMode` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_whitespace_mode_from_i32(int32_t value);
 
 /**
- * Convert a `WhitespaceMode` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `WhitespaceMode` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_whitespace_mode_from_str(const char *name);
 
@@ -19816,37 +19945,39 @@ int32_t xberg_whitespace_mode_from_str(const char *name);
 int32_t xberg_newline_style_from_i32(int32_t value);
 
 /**
- * Convert a `NewlineStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `NewlineStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_newline_style_from_str(const char *name);
 
 /**
- * Convert an integer to a `CodeBlockStyle` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `CodeBlockStyle` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_code_block_style_from_i32(int32_t value);
 
 /**
- * Convert a `CodeBlockStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `CodeBlockStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_code_block_style_from_str(const char *name);
 
 /**
- * Convert an integer to a `HighlightStyle` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `HighlightStyle` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_highlight_style_from_i32(int32_t value);
 
 /**
- * Convert a `HighlightStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `HighlightStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_highlight_style_from_str(const char *name);
 
@@ -19859,30 +19990,31 @@ int32_t xberg_highlight_style_from_str(const char *name);
 int32_t xberg_link_style_from_i32(int32_t value);
 
 /**
- * Convert a `LinkStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `LinkStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_link_style_from_str(const char *name);
 
 /**
- * Convert an integer to a `UrlEscapeStyle` variant. Returns -1 on invalid
- * input. # Safety Caller must ensure all pointer arguments are valid or null.
+ * Convert an integer to a `UrlEscapeStyle` variant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure all pointer arguments are valid or null.
  * Returned pointers must be freed with the appropriate free function.
  */
 int32_t xberg_url_escape_style_from_i32(int32_t value);
 
 /**
- * Convert a `UrlEscapeStyle` serde wire value (C string) to its integer
- * discriminant. Returns -1 on invalid input. # Safety Caller must ensure `ptr`
- * is a valid pointer to a `c_char` or null.
+ * Convert a `UrlEscapeStyle` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+ * # Safety
+ * Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
  */
 int32_t xberg_url_escape_style_from_str(const char *name);
 
 /**
- * Free a heap-allocated `ExecutionProviderType` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ExecutionProviderType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_execution_provider_type_free(XBERGExecutionProviderType *ptr);
 
@@ -19892,8 +20024,7 @@ void xberg_execution_provider_type_free(XBERGExecutionProviderType *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_execution_provider_type_to_json(const XBERGExecutionProviderType *ptr);
+char *xberg_execution_provider_type_to_json(const XBERGExecutionProviderType *ptr);
 
 /**
  * Render a heap-allocated `ExecutionProviderType` as its string representation
@@ -19903,13 +20034,12 @@ xberg_execution_provider_type_to_json(const XBERGExecutionProviderType *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_execution_provider_type_to_string(const XBERGExecutionProviderType *ptr);
+char *xberg_execution_provider_type_to_string(const XBERGExecutionProviderType *ptr);
 
 /**
- * Free a heap-allocated `ImageOutputFormat` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ImageOutputFormat` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_image_output_format_free(XBERGImageOutputFormat *ptr);
 
@@ -19932,9 +20062,9 @@ char *xberg_image_output_format_to_json(const XBERGImageOutputFormat *ptr);
 char *xberg_image_output_format_to_string(const XBERGImageOutputFormat *ptr);
 
 /**
- * Free a heap-allocated `ExtractInputKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ExtractInputKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_extract_input_kind_free(XBERGExtractInputKind *ptr);
 
@@ -19957,9 +20087,9 @@ char *xberg_extract_input_kind_to_json(const XBERGExtractInputKind *ptr);
 char *xberg_extract_input_kind_to_string(const XBERGExtractInputKind *ptr);
 
 /**
- * Free a heap-allocated `UrlExtractionMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `UrlExtractionMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_url_extraction_mode_free(XBERGUrlExtractionMode *ptr);
 
@@ -19982,9 +20112,34 @@ char *xberg_url_extraction_mode_to_json(const XBERGUrlExtractionMode *ptr);
 char *xberg_url_extraction_mode_to_string(const XBERGUrlExtractionMode *ptr);
 
 /**
- * Free a heap-allocated `OutputFormat` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BreadcrumbTarget` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
+ */
+void xberg_breadcrumb_target_free(XBERGBreadcrumbTarget *ptr);
+
+/**
+ * Serialize a heap-allocated `BreadcrumbTarget` to a JSON string.
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_breadcrumb_target_to_json(const XBERGBreadcrumbTarget *ptr);
+
+/**
+ * Render a heap-allocated `BreadcrumbTarget` as its string representation
+ * (the unit-variant name as serialized by serde — e.g. `"completed"`,
+ * without surrounding JSON quotes).
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_breadcrumb_target_to_string(const XBERGBreadcrumbTarget *ptr);
+
+/**
+ * Free a heap-allocated `OutputFormat` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_output_format_free(XBERGOutputFormat *ptr);
 
@@ -20007,9 +20162,9 @@ char *xberg_output_format_to_json(const XBERGOutputFormat *ptr);
 char *xberg_output_format_to_string(const XBERGOutputFormat *ptr);
 
 /**
- * Free a heap-allocated `JupyterCellRendering` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `JupyterCellRendering` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_jupyter_cell_rendering_free(XBERGJupyterCellRendering *ptr);
 
@@ -20019,8 +20174,7 @@ void xberg_jupyter_cell_rendering_free(XBERGJupyterCellRendering *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_jupyter_cell_rendering_to_json(const XBERGJupyterCellRendering *ptr);
+char *xberg_jupyter_cell_rendering_to_json(const XBERGJupyterCellRendering *ptr);
 
 /**
  * Render a heap-allocated `JupyterCellRendering` as its string representation
@@ -20030,13 +20184,12 @@ xberg_jupyter_cell_rendering_to_json(const XBERGJupyterCellRendering *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_jupyter_cell_rendering_to_string(const XBERGJupyterCellRendering *ptr);
+char *xberg_jupyter_cell_rendering_to_string(const XBERGJupyterCellRendering *ptr);
 
 /**
- * Free a heap-allocated `HtmlTheme` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `HtmlTheme` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_html_theme_free(XBERGHtmlTheme *ptr);
 
@@ -20059,9 +20212,9 @@ char *xberg_html_theme_to_json(const XBERGHtmlTheme *ptr);
 char *xberg_html_theme_to_string(const XBERGHtmlTheme *ptr);
 
 /**
- * Free a heap-allocated `LateInteractionModelType` returned by a
- * pointer-returning FFI function. # Safety Pointer must have been returned by
- * this library, or be null.
+ * Free a heap-allocated `LateInteractionModelType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_late_interaction_model_type_free(XBERGLateInteractionModelType *ptr);
 
@@ -20071,23 +20224,22 @@ void xberg_late_interaction_model_type_free(XBERGLateInteractionModelType *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_late_interaction_model_type_to_json(
-    const XBERGLateInteractionModelType *ptr);
+char *xberg_late_interaction_model_type_to_json(const XBERGLateInteractionModelType *ptr);
 
 /**
- * Render a heap-allocated `LateInteractionModelType` as its string
- * representation (the unit-variant name as serialized by serde — e.g.
- * `"completed"`, without surrounding JSON quotes). # Safety `ptr` must be a
- * valid, non-null pointer returned by a `xberg` function. The returned string
- * must be freed with `xberg_free_string`.
+ * Render a heap-allocated `LateInteractionModelType` as its string representation
+ * (the unit-variant name as serialized by serde — e.g. `"completed"`,
+ * without surrounding JSON quotes).
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_late_interaction_model_type_to_string(
-    const XBERGLateInteractionModelType *ptr);
+char *xberg_late_interaction_model_type_to_string(const XBERGLateInteractionModelType *ptr);
 
 /**
- * Free a heap-allocated `TableModel` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `TableModel` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_table_model_free(XBERGTableModel *ptr);
 
@@ -20110,9 +20262,9 @@ char *xberg_table_model_to_json(const XBERGTableModel *ptr);
 char *xberg_table_model_to_string(const XBERGTableModel *ptr);
 
 /**
- * Free a heap-allocated `TableOverlapPreference` returned by a
- * pointer-returning FFI function. # Safety Pointer must have been returned by
- * this library, or be null.
+ * Free a heap-allocated `TableOverlapPreference` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_table_overlap_preference_free(XBERGTableOverlapPreference *ptr);
 
@@ -20122,8 +20274,7 @@ void xberg_table_overlap_preference_free(XBERGTableOverlapPreference *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_table_overlap_preference_to_json(const XBERGTableOverlapPreference *ptr);
+char *xberg_table_overlap_preference_to_json(const XBERGTableOverlapPreference *ptr);
 
 /**
  * Render a heap-allocated `TableOverlapPreference` as its string representation
@@ -20133,13 +20284,12 @@ xberg_table_overlap_preference_to_json(const XBERGTableOverlapPreference *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_table_overlap_preference_to_string(
-    const XBERGTableOverlapPreference *ptr);
+char *xberg_table_overlap_preference_to_string(const XBERGTableOverlapPreference *ptr);
 
 /**
- * Free a heap-allocated `LayoutStrategy` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `LayoutStrategy` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_layout_strategy_free(XBERGLayoutStrategy *ptr);
 
@@ -20162,9 +20312,9 @@ char *xberg_layout_strategy_to_json(const XBERGLayoutStrategy *ptr);
 char *xberg_layout_strategy_to_string(const XBERGLayoutStrategy *ptr);
 
 /**
- * Free a heap-allocated `CallMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `CallMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_call_mode_free(XBERGCallMode *ptr);
 
@@ -20187,9 +20337,9 @@ char *xberg_call_mode_to_json(const XBERGCallMode *ptr);
 char *xberg_call_mode_to_string(const XBERGCallMode *ptr);
 
 /**
- * Free a heap-allocated `MergeMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `MergeMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_merge_mode_free(XBERGMergeMode *ptr);
 
@@ -20212,9 +20362,9 @@ char *xberg_merge_mode_to_json(const XBERGMergeMode *ptr);
 char *xberg_merge_mode_to_string(const XBERGMergeMode *ptr);
 
 /**
- * Free a heap-allocated `NerBackendKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `NerBackendKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_ner_backend_kind_free(XBERGNerBackendKind *ptr);
 
@@ -20237,9 +20387,9 @@ char *xberg_ner_backend_kind_to_json(const XBERGNerBackendKind *ptr);
 char *xberg_ner_backend_kind_to_string(const XBERGNerBackendKind *ptr);
 
 /**
- * Free a heap-allocated `VlmFallbackPolicy` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `VlmFallbackPolicy` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_vlm_fallback_policy_free(XBERGVlmFallbackPolicy *ptr);
 
@@ -20262,9 +20412,9 @@ char *xberg_vlm_fallback_policy_to_json(const XBERGVlmFallbackPolicy *ptr);
 char *xberg_vlm_fallback_policy_to_string(const XBERGVlmFallbackPolicy *ptr);
 
 /**
- * Free a heap-allocated `OcrStrategy` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `OcrStrategy` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_ocr_strategy_free(XBERGOcrStrategy *ptr);
 
@@ -20287,9 +20437,9 @@ char *xberg_ocr_strategy_to_json(const XBERGOcrStrategy *ptr);
 char *xberg_ocr_strategy_to_string(const XBERGOcrStrategy *ptr);
 
 /**
- * Free a heap-allocated `TableChunkingMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `TableChunkingMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_table_chunking_mode_free(XBERGTableChunkingMode *ptr);
 
@@ -20312,9 +20462,9 @@ char *xberg_table_chunking_mode_to_json(const XBERGTableChunkingMode *ptr);
 char *xberg_table_chunking_mode_to_string(const XBERGTableChunkingMode *ptr);
 
 /**
- * Free a heap-allocated `ChunkerType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ChunkerType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_chunker_type_free(XBERGChunkerType *ptr);
 
@@ -20337,9 +20487,9 @@ char *xberg_chunker_type_to_json(const XBERGChunkerType *ptr);
 char *xberg_chunker_type_to_string(const XBERGChunkerType *ptr);
 
 /**
- * Free a heap-allocated `ChunkSizing` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ChunkSizing` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_chunk_sizing_free(XBERGChunkSizing *ptr);
 
@@ -20362,9 +20512,9 @@ char *xberg_chunk_sizing_to_json(const XBERGChunkSizing *ptr);
 char *xberg_chunk_sizing_to_string(const XBERGChunkSizing *ptr);
 
 /**
- * Free a heap-allocated `EmbeddingModelType` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `EmbeddingModelType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_embedding_model_type_free(XBERGEmbeddingModelType *ptr);
 
@@ -20387,9 +20537,9 @@ char *xberg_embedding_model_type_to_json(const XBERGEmbeddingModelType *ptr);
 char *xberg_embedding_model_type_to_string(const XBERGEmbeddingModelType *ptr);
 
 /**
- * Free a heap-allocated `RerankerModelType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `RerankerModelType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_reranker_model_type_free(XBERGRerankerModelType *ptr);
 
@@ -20412,9 +20562,9 @@ char *xberg_reranker_model_type_to_json(const XBERGRerankerModelType *ptr);
 char *xberg_reranker_model_type_to_string(const XBERGRerankerModelType *ptr);
 
 /**
- * Free a heap-allocated `SparseEmbeddingModelType` returned by a
- * pointer-returning FFI function. # Safety Pointer must have been returned by
- * this library, or be null.
+ * Free a heap-allocated `SparseEmbeddingModelType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_sparse_embedding_model_type_free(XBERGSparseEmbeddingModelType *ptr);
 
@@ -20424,23 +20574,22 @@ void xberg_sparse_embedding_model_type_free(XBERGSparseEmbeddingModelType *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sparse_embedding_model_type_to_json(
-    const XBERGSparseEmbeddingModelType *ptr);
+char *xberg_sparse_embedding_model_type_to_json(const XBERGSparseEmbeddingModelType *ptr);
 
 /**
- * Render a heap-allocated `SparseEmbeddingModelType` as its string
- * representation (the unit-variant name as serialized by serde — e.g.
- * `"completed"`, without surrounding JSON quotes). # Safety `ptr` must be a
- * valid, non-null pointer returned by a `xberg` function. The returned string
- * must be freed with `xberg_free_string`.
+ * Render a heap-allocated `SparseEmbeddingModelType` as its string representation
+ * (the unit-variant name as serialized by serde — e.g. `"completed"`,
+ * without surrounding JSON quotes).
+ * # Safety
+ * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sparse_embedding_model_type_to_string(
-    const XBERGSparseEmbeddingModelType *ptr);
+char *xberg_sparse_embedding_model_type_to_string(const XBERGSparseEmbeddingModelType *ptr);
 
 /**
- * Free a heap-allocated `WhisperModel` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `WhisperModel` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_whisper_model_free(XBERGWhisperModel *ptr);
 
@@ -20463,9 +20612,9 @@ char *xberg_whisper_model_to_json(const XBERGWhisperModel *ptr);
 char *xberg_whisper_model_to_string(const XBERGWhisperModel *ptr);
 
 /**
- * Free a heap-allocated `CodeContentMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `CodeContentMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_code_content_mode_free(XBERGCodeContentMode *ptr);
 
@@ -20488,9 +20637,9 @@ char *xberg_code_content_mode_to_json(const XBERGCodeContentMode *ptr);
 char *xberg_code_content_mode_to_string(const XBERGCodeContentMode *ptr);
 
 /**
- * Free a heap-allocated `ReductionLevel` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ReductionLevel` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_reduction_level_free(XBERGReductionLevel *ptr);
 
@@ -20513,9 +20662,9 @@ char *xberg_reduction_level_to_json(const XBERGReductionLevel *ptr);
 char *xberg_reduction_level_to_string(const XBERGReductionLevel *ptr);
 
 /**
- * Free a heap-allocated `PdfAnnotationType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `PdfAnnotationType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_pdf_annotation_type_free(XBERGPdfAnnotationType *ptr);
 
@@ -20538,9 +20687,9 @@ char *xberg_pdf_annotation_type_to_json(const XBERGPdfAnnotationType *ptr);
 char *xberg_pdf_annotation_type_to_string(const XBERGPdfAnnotationType *ptr);
 
 /**
- * Free a heap-allocated `BlockType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BlockType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_block_type_free(XBERGBlockType *ptr);
 
@@ -20563,9 +20712,9 @@ char *xberg_block_type_to_json(const XBERGBlockType *ptr);
 char *xberg_block_type_to_string(const XBERGBlockType *ptr);
 
 /**
- * Free a heap-allocated `InlineType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `InlineType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_inline_type_free(XBERGInlineType *ptr);
 
@@ -20588,9 +20737,9 @@ char *xberg_inline_type_to_json(const XBERGInlineType *ptr);
 char *xberg_inline_type_to_string(const XBERGInlineType *ptr);
 
 /**
- * Free a heap-allocated `RelationshipKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `RelationshipKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_relationship_kind_free(XBERGRelationshipKind *ptr);
 
@@ -20613,9 +20762,9 @@ char *xberg_relationship_kind_to_json(const XBERGRelationshipKind *ptr);
 char *xberg_relationship_kind_to_string(const XBERGRelationshipKind *ptr);
 
 /**
- * Free a heap-allocated `ContentLayer` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ContentLayer` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_content_layer_free(XBERGContentLayer *ptr);
 
@@ -20638,9 +20787,9 @@ char *xberg_content_layer_to_json(const XBERGContentLayer *ptr);
 char *xberg_content_layer_to_string(const XBERGContentLayer *ptr);
 
 /**
- * Free a heap-allocated `NodeContent` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `NodeContent` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_node_content_free(XBERGNodeContent *ptr);
 
@@ -20663,9 +20812,9 @@ char *xberg_node_content_to_json(const XBERGNodeContent *ptr);
 char *xberg_node_content_to_string(const XBERGNodeContent *ptr);
 
 /**
- * Free a heap-allocated `AnnotationKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `AnnotationKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_annotation_kind_free(XBERGAnnotationKind *ptr);
 
@@ -20688,9 +20837,9 @@ char *xberg_annotation_kind_to_json(const XBERGAnnotationKind *ptr);
 char *xberg_annotation_kind_to_string(const XBERGAnnotationKind *ptr);
 
 /**
- * Free a heap-allocated `EntityCategory` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `EntityCategory` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_entity_category_free(XBERGEntityCategory *ptr);
 
@@ -20713,9 +20862,9 @@ char *xberg_entity_category_to_json(const XBERGEntityCategory *ptr);
 char *xberg_entity_category_to_string(const XBERGEntityCategory *ptr);
 
 /**
- * Free a heap-allocated `ExtractionMethod` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ExtractionMethod` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_extraction_method_free(XBERGExtractionMethod *ptr);
 
@@ -20738,9 +20887,9 @@ char *xberg_extraction_method_to_json(const XBERGExtractionMethod *ptr);
 char *xberg_extraction_method_to_string(const XBERGExtractionMethod *ptr);
 
 /**
- * Free a heap-allocated `ChunkType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ChunkType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_chunk_type_free(XBERGChunkType *ptr);
 
@@ -20763,9 +20912,9 @@ char *xberg_chunk_type_to_json(const XBERGChunkType *ptr);
 char *xberg_chunk_type_to_string(const XBERGChunkType *ptr);
 
 /**
- * Free a heap-allocated `ImageKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ImageKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_image_kind_free(XBERGImageKind *ptr);
 
@@ -20788,9 +20937,9 @@ char *xberg_image_kind_to_json(const XBERGImageKind *ptr);
 char *xberg_image_kind_to_string(const XBERGImageKind *ptr);
 
 /**
- * Free a heap-allocated `ResultFormat` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ResultFormat` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_result_format_free(XBERGResultFormat *ptr);
 
@@ -20813,9 +20962,9 @@ char *xberg_result_format_to_json(const XBERGResultFormat *ptr);
 char *xberg_result_format_to_string(const XBERGResultFormat *ptr);
 
 /**
- * Free a heap-allocated `ElementType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ElementType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_element_type_free(XBERGElementType *ptr);
 
@@ -20838,9 +20987,9 @@ char *xberg_element_type_to_json(const XBERGElementType *ptr);
 char *xberg_element_type_to_string(const XBERGElementType *ptr);
 
 /**
- * Free a heap-allocated `FormFieldType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `FormFieldType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_form_field_type_free(XBERGFormFieldType *ptr);
 
@@ -20863,9 +21012,9 @@ char *xberg_form_field_type_to_json(const XBERGFormFieldType *ptr);
 char *xberg_form_field_type_to_string(const XBERGFormFieldType *ptr);
 
 /**
- * Free a heap-allocated `FormatMetadata` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `FormatMetadata` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_format_metadata_free(XBERGFormatMetadata *ptr);
 
@@ -20888,9 +21037,9 @@ char *xberg_format_metadata_to_json(const XBERGFormatMetadata *ptr);
 char *xberg_format_metadata_to_string(const XBERGFormatMetadata *ptr);
 
 /**
- * Free a heap-allocated `CodeDataNodeKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `CodeDataNodeKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_code_data_node_kind_free(XBERGCodeDataNodeKind *ptr);
 
@@ -20913,9 +21062,9 @@ char *xberg_code_data_node_kind_to_json(const XBERGCodeDataNodeKind *ptr);
 char *xberg_code_data_node_kind_to_string(const XBERGCodeDataNodeKind *ptr);
 
 /**
- * Free a heap-allocated `TextDirection` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `TextDirection` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_text_direction_free(XBERGTextDirection *ptr);
 
@@ -20938,9 +21087,9 @@ char *xberg_text_direction_to_json(const XBERGTextDirection *ptr);
 char *xberg_text_direction_to_string(const XBERGTextDirection *ptr);
 
 /**
- * Free a heap-allocated `LinkType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `LinkType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_link_type_free(XBERGLinkType *ptr);
 
@@ -20963,9 +21112,9 @@ char *xberg_link_type_to_json(const XBERGLinkType *ptr);
 char *xberg_link_type_to_string(const XBERGLinkType *ptr);
 
 /**
- * Free a heap-allocated `ImageType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ImageType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_image_type_free(XBERGImageType *ptr);
 
@@ -20988,9 +21137,9 @@ char *xberg_image_type_to_json(const XBERGImageType *ptr);
 char *xberg_image_type_to_string(const XBERGImageType *ptr);
 
 /**
- * Free a heap-allocated `StructuredDataType` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `StructuredDataType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_structured_data_type_free(XBERGStructuredDataType *ptr);
 
@@ -21013,9 +21162,9 @@ char *xberg_structured_data_type_to_json(const XBERGStructuredDataType *ptr);
 char *xberg_structured_data_type_to_string(const XBERGStructuredDataType *ptr);
 
 /**
- * Free a heap-allocated `OcrBoundingGeometry` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `OcrBoundingGeometry` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_ocr_bounding_geometry_free(XBERGOcrBoundingGeometry *ptr);
 
@@ -21035,13 +21184,12 @@ char *xberg_ocr_bounding_geometry_to_json(const XBERGOcrBoundingGeometry *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_ocr_bounding_geometry_to_string(const XBERGOcrBoundingGeometry *ptr);
+char *xberg_ocr_bounding_geometry_to_string(const XBERGOcrBoundingGeometry *ptr);
 
 /**
- * Free a heap-allocated `OcrElementLevel` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `OcrElementLevel` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_ocr_element_level_free(XBERGOcrElementLevel *ptr);
 
@@ -21064,9 +21212,9 @@ char *xberg_ocr_element_level_to_json(const XBERGOcrElementLevel *ptr);
 char *xberg_ocr_element_level_to_string(const XBERGOcrElementLevel *ptr);
 
 /**
- * Free a heap-allocated `PageUnitType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `PageUnitType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_page_unit_type_free(XBERGPageUnitType *ptr);
 
@@ -21089,9 +21237,9 @@ char *xberg_page_unit_type_to_json(const XBERGPageUnitType *ptr);
 char *xberg_page_unit_type_to_string(const XBERGPageUnitType *ptr);
 
 /**
- * Free a heap-allocated `RedactionStrategy` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `RedactionStrategy` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_redaction_strategy_free(XBERGRedactionStrategy *ptr);
 
@@ -21114,9 +21262,9 @@ char *xberg_redaction_strategy_to_json(const XBERGRedactionStrategy *ptr);
 char *xberg_redaction_strategy_to_string(const XBERGRedactionStrategy *ptr);
 
 /**
- * Free a heap-allocated `PiiCategory` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `PiiCategory` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_pii_category_free(XBERGPiiCategory *ptr);
 
@@ -21139,9 +21287,9 @@ char *xberg_pii_category_to_json(const XBERGPiiCategory *ptr);
 char *xberg_pii_category_to_string(const XBERGPiiCategory *ptr);
 
 /**
- * Free a heap-allocated `RevisionKind` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `RevisionKind` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_revision_kind_free(XBERGRevisionKind *ptr);
 
@@ -21164,9 +21312,9 @@ char *xberg_revision_kind_to_json(const XBERGRevisionKind *ptr);
 char *xberg_revision_kind_to_string(const XBERGRevisionKind *ptr);
 
 /**
- * Free a heap-allocated `RevisionAnchor` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `RevisionAnchor` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_revision_anchor_free(XBERGRevisionAnchor *ptr);
 
@@ -21189,9 +21337,9 @@ char *xberg_revision_anchor_to_json(const XBERGRevisionAnchor *ptr);
 char *xberg_revision_anchor_to_string(const XBERGRevisionAnchor *ptr);
 
 /**
- * Free a heap-allocated `SummaryStrategy` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `SummaryStrategy` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_summary_strategy_free(XBERGSummaryStrategy *ptr);
 
@@ -21239,9 +21387,9 @@ char *xberg_uri_kind_to_json(const XBERGUriKind *ptr);
 char *xberg_uri_kind_to_string(const XBERGUriKind *ptr);
 
 /**
- * Free a heap-allocated `KeywordAlgorithm` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `KeywordAlgorithm` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_keyword_algorithm_free(XBERGKeywordAlgorithm *ptr);
 
@@ -21264,9 +21412,9 @@ char *xberg_keyword_algorithm_to_json(const XBERGKeywordAlgorithm *ptr);
 char *xberg_keyword_algorithm_to_string(const XBERGKeywordAlgorithm *ptr);
 
 /**
- * Free a heap-allocated `SchemaCompliance` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `SchemaCompliance` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_schema_compliance_free(XBERGSchemaCompliance *ptr);
 
@@ -21289,9 +21437,9 @@ char *xberg_schema_compliance_to_json(const XBERGSchemaCompliance *ptr);
 char *xberg_schema_compliance_to_string(const XBERGSchemaCompliance *ptr);
 
 /**
- * Free a heap-allocated `BoundaryReason` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BoundaryReason` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_boundary_reason_free(XBERGBoundaryReason *ptr);
 
@@ -21314,9 +21462,9 @@ char *xberg_boundary_reason_to_json(const XBERGBoundaryReason *ptr);
 char *xberg_boundary_reason_to_string(const XBERGBoundaryReason *ptr);
 
 /**
- * Free a heap-allocated `PresetCategory` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `PresetCategory` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_preset_category_free(XBERGPresetCategory *ptr);
 
@@ -21339,9 +21487,9 @@ char *xberg_preset_category_to_json(const XBERGPresetCategory *ptr);
 char *xberg_preset_category_to_string(const XBERGPresetCategory *ptr);
 
 /**
- * Free a heap-allocated `ProbeStatus` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ProbeStatus` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_probe_status_free(XBERGProbeStatus *ptr);
 
@@ -21364,9 +21512,9 @@ char *xberg_probe_status_to_json(const XBERGProbeStatus *ptr);
 char *xberg_probe_status_to_string(const XBERGProbeStatus *ptr);
 
 /**
- * Free a heap-allocated `PaddleInferenceBackend` returned by a
- * pointer-returning FFI function. # Safety Pointer must have been returned by
- * this library, or be null.
+ * Free a heap-allocated `PaddleInferenceBackend` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_paddle_inference_backend_free(XBERGPaddleInferenceBackend *ptr);
 
@@ -21376,8 +21524,7 @@ void xberg_paddle_inference_backend_free(XBERGPaddleInferenceBackend *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *
-xberg_paddle_inference_backend_to_json(const XBERGPaddleInferenceBackend *ptr);
+char *xberg_paddle_inference_backend_to_json(const XBERGPaddleInferenceBackend *ptr);
 
 /**
  * Render a heap-allocated `PaddleInferenceBackend` as its string representation
@@ -21387,13 +21534,12 @@ xberg_paddle_inference_backend_to_json(const XBERGPaddleInferenceBackend *ptr);
  * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_paddle_inference_backend_to_string(
-    const XBERGPaddleInferenceBackend *ptr);
+char *xberg_paddle_inference_backend_to_string(const XBERGPaddleInferenceBackend *ptr);
 
 /**
- * Free a heap-allocated `LayoutClass` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `LayoutClass` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_layout_class_free(XBERGLayoutClass *ptr);
 
@@ -21416,9 +21562,9 @@ char *xberg_layout_class_to_json(const XBERGLayoutClass *ptr);
 char *xberg_layout_class_to_string(const XBERGLayoutClass *ptr);
 
 /**
- * Free a heap-allocated `BrowserMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BrowserMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_browser_mode_free(XBERGBrowserMode *ptr);
 
@@ -21441,9 +21587,9 @@ char *xberg_browser_mode_to_json(const XBERGBrowserMode *ptr);
 char *xberg_browser_mode_to_string(const XBERGBrowserMode *ptr);
 
 /**
- * Free a heap-allocated `BrowserWait` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BrowserWait` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_browser_wait_free(XBERGBrowserWait *ptr);
 
@@ -21466,9 +21612,9 @@ char *xberg_browser_wait_to_json(const XBERGBrowserWait *ptr);
 char *xberg_browser_wait_to_string(const XBERGBrowserWait *ptr);
 
 /**
- * Free a heap-allocated `BrowserBackend` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `BrowserBackend` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_browser_backend_free(XBERGBrowserBackend *ptr);
 
@@ -21491,9 +21637,9 @@ char *xberg_browser_backend_to_json(const XBERGBrowserBackend *ptr);
 char *xberg_browser_backend_to_string(const XBERGBrowserBackend *ptr);
 
 /**
- * Free a heap-allocated `AuthConfig` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `AuthConfig` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_auth_config_free(XBERGAuthConfig *ptr);
 
@@ -21516,99 +21662,97 @@ char *xberg_auth_config_to_json(const XBERGAuthConfig *ptr);
 char *xberg_auth_config_to_string(const XBERGAuthConfig *ptr);
 
 /**
- * Free a heap-allocated `PreprocessingPreset` returned by a pointer-returning
- * FFI function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `PreprocessingPreset` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_preprocessing_preset_free(XBERGPreprocessingPreset *ptr);
 
 /**
- * Free a heap-allocated `HeadingStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `HeadingStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_heading_style_free(XBERGHeadingStyle *ptr);
 
 /**
- * Free a heap-allocated `ListIndentType` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `ListIndentType` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_list_indent_type_free(XBERGListIndentType *ptr);
 
 /**
- * Free a heap-allocated `WhitespaceMode` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `WhitespaceMode` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_whitespace_mode_free(XBERGWhitespaceMode *ptr);
 
 /**
- * Free a heap-allocated `NewlineStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `NewlineStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_newline_style_free(XBERGNewlineStyle *ptr);
 
 /**
- * Free a heap-allocated `CodeBlockStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `CodeBlockStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_code_block_style_free(XBERGCodeBlockStyle *ptr);
 
 /**
- * Free a heap-allocated `HighlightStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `HighlightStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_highlight_style_free(XBERGHighlightStyle *ptr);
 
 /**
- * Free a heap-allocated `LinkStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `LinkStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_link_style_free(XBERGLinkStyle *ptr);
 
 /**
- * Free a heap-allocated `UrlEscapeStyle` returned by a pointer-returning FFI
- * function. # Safety Pointer must have been returned by this library, or be
- * null.
+ * Free a heap-allocated `UrlEscapeStyle` returned by a pointer-returning FFI function.
+ * # Safety
+ * Pointer must have been returned by this library, or be null.
  */
 void xberg_url_escape_style_free(XBERGUrlEscapeStyle *ptr);
 
 /**
  * Extract content from a single bytes or URI input.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractionResult *xberg_extract(const XBERGExtractInput *input,
                                      const XBERGExtractionConfig *config);
 
 /**
  * Extract content from multiple bytes or URI inputs.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGExtractionResult *xberg_extract_batch(const char *inputs,
                                            const XBERGExtractionConfig *config);
 
 /**
- * Discover all pages and sitemaps reachable from `uri` without extracting
- * document content.
+ * Discover all pages and sitemaps reachable from `uri` without extracting document content.
  *
  * Builds a `crawlberg.CrawlEngine` from `config.crawl`, calls
  * `CrawlEngine.map`, and returns the set of discovered URLs as a
  * `crawlberg.MapResult` (re-exported as `MapResult`).
  *
  * Use this when you need the URL inventory of a site before committing to
- * full document extraction â e.g. to build a crawl queue or validate
- * scope.
+ * full document extraction â e.g. to build a crawl queue or validate scope.
  * \note Returns `Validation` if the crawl configuration fails
  * validation or if the map operation itself fails.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGMapResult *xberg_map_url(const char *uri,
                               const XBERGUrlExtractionConfig *config);
@@ -21621,75 +21765,95 @@ XBERGMapResult *xberg_map_url(const char *uri,
  * Formats that have no registered file extension (such as source code,
  * which is detected dynamically) are not included.
  *
+ * The static `EXT_TO_MIME` table lists every format the *codebase* knows how
+ * to describe, regardless of which Cargo features were compiled in. Advertising
+ * that table directly would claim support for extractors that may not exist in
+ * this build (see GH#1387). To keep the advertised catalogue honest, the table
+ * is intersected with the document extractor registry: an extension is only
+ * included if some registered extractor actually claims its MIME type in this
+ * build. This can never drift from reality and automatically covers
+ * third-party extractors registered at runtime.
+ *
  * The list is sorted alphabetically by file extension.
- * \return A vector of `SupportedFormat` entries sorted by extension.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \return A vector of `SupportedFormat` entries sorted by extension, limited to
+ * formats with a registered extractor in this build.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::core::mime::list_supported_formats;
  *
  * let formats = list_supported_formats();
  * assert!(!formats.is_empty());
- * assert!(formats.iter().any(|f| f.extension == "pdf"));
  * \endcode
  */
 char *xberg_list_supported_formats(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_supported_formats` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_supported_formats`.
+ * Return the byte length of the C string most recently returned by `xberg_list_supported_formats` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_supported_formats`.
  */
 uintptr_t xberg_list_supported_formats_len(void);
+
+/**
+ * Ensure built-in extractors are registered.
+ *
+ * This function is called automatically on first extraction operation.
+ * It's safe to call multiple times - registration only happens once,
+ * unless the registry was cleared, in which case extractors are re-registered.
+ *
+ * Public so a caller that wants to *inspect* the registry â rather than extract â
+ * can populate it directly. Without this the only way to trigger registration is to
+ * run a real extraction, which `xberg formats` would otherwise have to fake (#233).
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+int32_t xberg_ensure_initialized(void);
 
 /**
  * List the names of all registered embedding backends.
  *
  * Used by `xberg-cli`, the api/mcp endpoints, and generated language
  * bindings.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_embedding_backends(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_embedding_backends` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_embedding_backends`.
+ * Return the byte length of the C string most recently returned by `xberg_list_embedding_backends` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_embedding_backends`.
  */
 uintptr_t xberg_list_embedding_backends_len(void);
 
 /**
  * List names of all registered document extractors.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_document_extractors(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_document_extractors` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_document_extractors`.
+ * Return the byte length of the C string most recently returned by `xberg_list_document_extractors` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_document_extractors`.
  */
 uintptr_t xberg_list_document_extractors_len(void);
 
 /**
  * List all registered OCR backends.
  *
- * Returns the names of all OCR backends currently registered in the global
- * registry.
+ * Returns the names of all OCR backends currently registered in the global registry.
  * \return A vector of OCR backend names.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::plugins::list_ocr_backends;
  *
@@ -21702,12 +21866,11 @@ uintptr_t xberg_list_document_extractors_len(void);
 char *xberg_list_ocr_backends(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_ocr_backends` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_ocr_backends`.
+ * Return the byte length of the C string most recently returned by `xberg_list_ocr_backends` on this
+ * thread. Returns 0 when the primary call returned null or failed before producing a string. Enables
+ * safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_ocr_backends`.
  */
 uintptr_t xberg_list_ocr_backends_len(void);
 
@@ -21718,8 +21881,8 @@ uintptr_t xberg_list_ocr_backends_len(void);
  * global registry.
  * \return - `Ok(Vec<String>)` - Vector of post-processor names
  * - `Err(...)` if the registry lock is poisoned
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * use xberg::plugins::list_post_processors;
  *
@@ -21732,30 +21895,28 @@ uintptr_t xberg_list_ocr_backends_len(void);
 char *xberg_list_post_processors(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_post_processors` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_post_processors`.
+ * Return the byte length of the C string most recently returned by `xberg_list_post_processors` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_post_processors`.
  */
 uintptr_t xberg_list_post_processors_len(void);
 
 /**
  * List names of all registered renderers.
  * \note Returns an error if the registry lock is poisoned.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_renderers(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_renderers` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_renderers`.
+ * Return the byte length of the C string most recently returned by `xberg_list_renderers` on this
+ * thread. Returns 0 when the primary call returned null or failed before producing a string. Enables
+ * safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_renderers`.
  */
 uintptr_t xberg_list_renderers_len(void);
 
@@ -21766,18 +21927,17 @@ uintptr_t xberg_list_renderers_len(void);
  * bindings.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_reranker_backends(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_reranker_backends` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_reranker_backends`.
+ * Return the byte length of the C string most recently returned by `xberg_list_reranker_backends` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_reranker_backends`.
  */
 uintptr_t xberg_list_reranker_backends_len(void);
 
@@ -21786,35 +21946,33 @@ uintptr_t xberg_list_reranker_backends_len(void);
  *
  * Used by `xberg-cli`, the api/mcp endpoints, and generated language
  * bindings.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_tokenizer_backends(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_tokenizer_backends` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_tokenizer_backends`.
+ * Return the byte length of the C string most recently returned by `xberg_list_tokenizer_backends` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_tokenizer_backends`.
  */
 uintptr_t xberg_list_tokenizer_backends_len(void);
 
 /**
  * List names of all registered validators.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_list_validators(void);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_list_validators` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_list_validators`.
+ * Return the byte length of the C string most recently returned by `xberg_list_validators` on this
+ * thread. Returns 0 when the primary call returned null or failed before producing a string. Enables
+ * safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_list_validators`.
  */
 uintptr_t xberg_list_validators_len(void);
 
@@ -21830,11 +21988,10 @@ uintptr_t xberg_list_validators_len(void);
  * \note Returns `Validation` when `config.definitions` is empty.
  * Returns the first batch error encountered when rendering the prompt or
  * calling the LLM fails for every batch; partial failures on a subset of
- * batches are recorded as `ProcessingWarning`s by the caller instead of
- * aborting the whole run (see
- * `chunk_classification`).
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * batches are recorded here as a `ProcessingWarning` on `result` instead of
+ * aborting the whole run.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 int32_t xberg_classify_chunks(XBERGExtractedDocument *result,
                               const XBERGChunkClassificationConfig *config);
@@ -21842,17 +21999,16 @@ int32_t xberg_classify_chunks(XBERGExtractedDocument *result,
 /**
  * Find unmarked claims in markdown text.
  *
- * Returns lines that assert a claim but carry neither a footnote citation
- * anchor (`[^...]`) nor an inference marker (`[*inference*]`).
+ * Returns lines that assert a claim but carry neither a footnote citation anchor (`[^...]`)
+ * nor an inference marker (`[*inference*]`).
  *
- * The heuristic is simple: a line that contains alphabetic words, ends with
- * sentence punctuation, and is not a heading, blank line, or markup-only line
- * is considered a claim. Exclude lines that appear in the citation block (after
- * `---` + `<!-- citations ... -->`).
+ * The heuristic is simple: a line that contains alphabetic words, ends with sentence punctuation,
+ * and is not a heading, blank line, or markup-only line is considered a claim.
+ * Exclude lines that appear in the citation block (after `---` + `<!-- citations ... -->`).
  * \param markdown The markdown text to search
  * \return A vector of trimmed line text strings for unmarked claims.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * let text = r#"This is a claim without citation.
  * Another claim with citation.[^1]
@@ -21867,12 +22023,11 @@ int32_t xberg_classify_chunks(XBERGExtractedDocument *result,
 char *xberg_find_unmarked_claims(const char *markdown);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_find_unmarked_claims` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_find_unmarked_claims`.
+ * Return the byte length of the C string most recently returned by `xberg_find_unmarked_claims` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_find_unmarked_claims`.
  */
 uintptr_t xberg_find_unmarked_claims_len(const char *_markdown);
 
@@ -21884,10 +22039,9 @@ uintptr_t xberg_find_unmarked_claims_len(const char *_markdown);
  * has irregular spacing.
  * \param excerpt The text snippet to find
  * \param source_text The full source text to search
- * \return `true` if the excerpt appears (exactly or with normalized
- * whitespace), `false` otherwise.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \return `true` if the excerpt appears (exactly or with normalized whitespace), `false` otherwise.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  * \code
  * let source = "The document states: Exact quoted text.";
  * let excerpt = "Exact quoted text";
@@ -21899,30 +22053,29 @@ uintptr_t xberg_find_unmarked_claims_len(const char *_markdown);
  * assert!(verify_excerpt(excerpt2, source2));
  * \endcode
  */
-int32_t xberg_verify_excerpt(const char *excerpt, const char *source_text);
+int32_t xberg_verify_excerpt(const char *excerpt,
+                             const char *source_text);
 
 /**
  * Async wrapper over `embed_sparse`: runs the blocking ONNX inference on a
  * bounded blocking-task pool so it does not stall the async runtime.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_embed_sparse_async(const char *texts,
                                const XBERGSparseEmbeddingConfig *config);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_embed_sparse_async` on this thread. Returns 0 when the primary call
- * returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_embed_sparse_async`.
+ * Return the byte length of the C string most recently returned by `xberg_embed_sparse_async` on this
+ * thread. Returns 0 when the primary call returned null or failed before producing a string. Enables
+ * safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_embed_sparse_async`.
  */
-uintptr_t
-xberg_embed_sparse_async_len(const char *_texts,
-                             const XBERGSparseEmbeddingConfig *_config);
+uintptr_t xberg_embed_sparse_async_len(const char *_texts,
+                                       const XBERGSparseEmbeddingConfig *_config);
 
 /**
  * Score a query against a document using ColBERT's MaxSim operator: for each
@@ -21937,8 +22090,8 @@ xberg_embed_sparse_async_len(const char *_texts,
  * Pure CPU primitive â available without ONNX Runtime.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
                            const XBERGMultiVectorEmbedding *doc);
@@ -21952,19 +22105,18 @@ double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
  * Pure CPU primitive â available without ONNX Runtime.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_max_sim_rank(const XBERGMultiVectorEmbedding *query,
                          const char *docs);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_max_sim_rank` on this thread. Returns 0 when the primary call returned
- * null or failed before producing a string. Enables safe slice construction in
- * Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_max_sim_rank`.
+ * Return the byte length of the C string most recently returned by `xberg_max_sim_rank` on this
+ * thread. Returns 0 when the primary call returned null or failed before producing a string. Enables
+ * safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_max_sim_rank`.
  */
 uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
                                  const char *_docs);
@@ -21974,25 +22126,23 @@ uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
  * on a bounded blocking-task pool so it does not stall the async runtime.
  *
  * Since v5.0.0.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 char *xberg_embed_multi_vector_async(const char *texts,
                                      const XBERGLateInteractionConfig *config,
                                      int32_t is_query);
 
 /**
- * Return the byte length of the C string most recently returned by
- * `xberg_embed_multi_vector_async` on this thread. Returns 0 when the primary
- * call returned null or failed before producing a string. Enables safe slice
- * construction in Zig and Java FFM Panama without a NUL-scan.
- * \note SAFETY: Pointer arguments are ignored and are present only to keep the
- * companion ABI aligned with `xberg_embed_multi_vector_async`.
+ * Return the byte length of the C string most recently returned by `xberg_embed_multi_vector_async` on
+ * this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_embed_multi_vector_async`.
  */
-uintptr_t
-xberg_embed_multi_vector_async_len(const char *_texts,
-                                   const XBERGLateInteractionConfig *_config,
-                                   int32_t _is_query);
+uintptr_t xberg_embed_multi_vector_async_len(const char *_texts,
+                                             const XBERGLateInteractionConfig *_config,
+                                             int32_t _is_query);
 
 /**
  * Probe the backends and settings in `config` and report what will actually
@@ -22000,10 +22150,130 @@ xberg_embed_multi_vector_async_len(const char *_texts,
  *
  * Runs no downloads and no billable API calls. Backends that are not compiled
  * in or whose models are not cached report `Skip` rather than failing.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null.
- * Returned pointers must be freed with the appropriate free function.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
  */
 XBERGDoctorReport *xberg_doctor(const XBERGExtractionConfig *config);
+
+/**
+ * Install `PdfOxideWarningCapture` as the process-wide `log` backend,
+ * exactly once.
+ *
+ * If another component already installed a `log::Log` implementation (an
+ * application wiring `env_logger`, for instance), `log::set_boxed_logger`
+ * fails and this is a no-op: we do not fight over ownership of the global
+ * logger slot, and we do not touch `log::set_max_level` unless our install
+ * won, so we never silently raise or lower a level someone else configured.
+ * In that case `pdf_oxide`'s glyph-drop records go wherever that other
+ * logger sends them instead of into `take_pdf_oxide_render_warnings`.
+ * **Opt-in.** Nothing calls this automatically, and that is deliberate: xberg
+ * is a library, and `log` has exactly one global backend slot per process. A
+ * library that claims it on its own behalf breaks its embedder â a host that
+ * later calls `env_logger::init()` panics, and until this returns, every
+ * `log` record in the process is routed here rather than wherever the host
+ * intended. That decision belongs to the application, so it is exposed as a
+ * call an application makes knowingly.
+ *
+ * Returns `true` if this call (or an earlier one) installed the capture, and
+ * `false` if some other component already owns the `log` backend â in which
+ * case `pdf_oxide`'s glyph-drop records go to that logger and
+ * `take_pdf_oxide_render_warnings` stays empty.
+ *
+ * Without this call the #1364 warnings are not produced. The glyph drop
+ * itself is decided inside `pdf_oxide`, which reports it only through
+ * `log::warn!`; there is no return-value channel to read instead.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+int32_t xberg_install_pdf_render_diagnostics(void);
+
+/**
+ * Drain the glyph-drop `ProcessingWarning`s accumulated on this thread by
+ * render calls since the last call to this function.
+ *
+ * Callers that render pages as part of extraction should call this after
+ * their render pass and merge the result into
+ * `InternalDocument::processing_warnings` (see the module-level convention
+ * in `crate::core::diagnostics`) so a page with missing glyphs is never
+ * returned to the user without a signal. Warnings are already deduped
+ * per-thread across all pages rendered before this call.
+ *
+ * `pub` (rather than `pub(crate)`) so both in-tree render-consumers and the
+ * regression test for #1364 can observe capture without depending on any
+ * one extractor's internal state.
+ *
+ * As of #340, `crate::extractors::pdf::mod` drains this unconditionally right
+ * after assembling a document's `processing_warnings`, so every PDF
+ * extraction that renders at least one page picks up any captured
+ * glyph-drop warnings for free. ~keep: that drain only ever observes
+ * warnings from render calls that happened on the *same OS thread* before it
+ * ran, because `PDF_OXIDE_PENDING_WARNINGS` is thread-local. OCR page
+ * rendering runs inline on the extracting task's thread, so it is covered.
+ * Layout-detection rasterization runs inside `tokio::task::spawn_blocking`,
+ * which always executes on a different OS thread, so this function alone
+ * would never see those warnings. As of #353,
+ * `extractors::pdf::layout_runner::run_layout_for_pdf_pages_async` drains
+ * this function itself from inside its `spawn_blocking` closure â the only
+ * place that can observe the blocking-pool thread's thread-local buffer â
+ * and threads the drained warnings back through its return value for the
+ * caller in `extractors::pdf::mod` to merge, so layout-path glyph drops are
+ * no longer silently lost.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+char *xberg_take_pdf_oxide_render_warnings(void);
+
+/**
+ * Return the byte length of the C string most recently returned by
+ * `xberg_take_pdf_oxide_render_warnings` on this thread. Returns 0 when the primary call returned null
+ * or failed before producing a string. Enables safe slice construction in Zig and Java FFM Panama
+ * without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_take_pdf_oxide_render_warnings`.
+ */
+uintptr_t xberg_take_pdf_oxide_render_warnings_len(void);
+
+/**
+ * Build the four (or three) token Whisper decoder prompt.
+ *
+ * The canonical Whisper prompt is
+ * `[<|startoftranscript|>, <|{lang}|>, <|transcribe|>, <|notimestamps|>]`.
+ * When `timestamps` is `true`, the trailing `no_timestamps` token is omitted
+ * so the model is free to emit `<|x.xx|>` timestamp tokens in its output
+ * instead of being forced to suppress them.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+char *xberg_build_decoder_prompt_tokens(uint32_t start_of_transcript,
+                                        uint32_t lang_id,
+                                        uint32_t transcribe,
+                                        uint32_t no_timestamps,
+                                        int32_t timestamps);
+
+/**
+ * Return the byte length of the C string most recently returned by `xberg_build_decoder_prompt_tokens`
+ * on this thread. Returns 0 when the primary call returned null or failed before producing a string.
+ * Enables safe slice construction in Zig and Java FFM Panama without a NUL-scan.
+ * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
+ * with `xberg_build_decoder_prompt_tokens`.
+ */
+uintptr_t xberg_build_decoder_prompt_tokens_len(uint32_t _start_of_transcript,
+                                                uint32_t _lang_id,
+                                                uint32_t _transcribe,
+                                                uint32_t _no_timestamps,
+                                                int32_t _timestamps);
+
+/**
+ * Convert a raw Whisper timestamp token ID to a millisecond offset from the
+ * start of the 30-second chunk it was decoded in.
+ *
+ * `token_id` must be `>= timestamp_begin_id`; IDs below that are ordinary
+ * vocabulary tokens, not timestamps.
+ * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
+ * freed with the appropriate free function.
+ */
+uint32_t xberg_timestamp_token_to_ms(uint32_t token_id,
+                                     uint32_t timestamp_begin_id);
 
 /**
  * Register a C plugin implementing `OcrBackend` via a vtable.
@@ -22021,10 +22291,10 @@ XBERGDoctorReport *xberg_doctor(const XBERGExtractionConfig *config);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t
-xberg_register_ocr_backend(const char *name,
-                           const struct XBERGXbergOcrBackendVTable *vtable,
-                           const void *user_data, char **out_error);
+int32_t xberg_register_ocr_backend(const char *name,
+                                   const struct XBERGXbergOcrBackendVTable *vtable,
+                                   const void *user_data,
+                                   char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22038,7 +22308,8 @@ xberg_register_ocr_backend(const char *name,
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_ocr_backend(const char *name, char **out_error);
+int32_t xberg_unregister_ocr_backend(const char *name,
+                                     char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22070,9 +22341,10 @@ int32_t xberg_clear_ocr_backend(char **out_error);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t xberg_register_post_processor(
-    const char *name, const struct XBERGXbergPostProcessorVTable *vtable,
-    const void *user_data, char **out_error);
+int32_t xberg_register_post_processor(const char *name,
+                                      const struct XBERGXbergPostProcessorVTable *vtable,
+                                      const void *user_data,
+                                      char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22086,7 +22358,8 @@ int32_t xberg_register_post_processor(
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_post_processor(const char *name, char **out_error);
+int32_t xberg_unregister_post_processor(const char *name,
+                                        char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22120,7 +22393,8 @@ int32_t xberg_clear_post_processor(char **out_error);
  */
 int32_t xberg_register_validator(const char *name,
                                  const struct XBERGXbergValidatorVTable *vtable,
-                                 const void *user_data, char **out_error);
+                                 const void *user_data,
+                                 char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22134,7 +22408,8 @@ int32_t xberg_register_validator(const char *name,
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_validator(const char *name, char **out_error);
+int32_t xberg_unregister_validator(const char *name,
+                                   char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22166,9 +22441,10 @@ int32_t xberg_clear_validator(char **out_error);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t xberg_register_document_extractor(
-    const char *name, const struct XBERGXbergDocumentExtractorVTable *vtable,
-    const void *user_data, char **out_error);
+int32_t xberg_register_document_extractor(const char *name,
+                                          const struct XBERGXbergDocumentExtractorVTable *vtable,
+                                          const void *user_data,
+                                          char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22182,7 +22458,8 @@ int32_t xberg_register_document_extractor(
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_document_extractor(const char *name, char **out_error);
+int32_t xberg_unregister_document_extractor(const char *name,
+                                            char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22214,9 +22491,10 @@ int32_t xberg_clear_document_extractor(char **out_error);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t xberg_register_embedding_backend(
-    const char *name, const struct XBERGXbergEmbeddingBackendVTable *vtable,
-    const void *user_data, char **out_error);
+int32_t xberg_register_embedding_backend(const char *name,
+                                         const struct XBERGXbergEmbeddingBackendVTable *vtable,
+                                         const void *user_data,
+                                         char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22230,7 +22508,8 @@ int32_t xberg_register_embedding_backend(
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_embedding_backend(const char *name, char **out_error);
+int32_t xberg_unregister_embedding_backend(const char *name,
+                                           char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22264,7 +22543,8 @@ int32_t xberg_clear_embedding_backend(char **out_error);
  */
 int32_t xberg_register_renderer(const char *name,
                                 const struct XBERGXbergRendererVTable *vtable,
-                                const void *user_data, char **out_error);
+                                const void *user_data,
+                                char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22278,7 +22558,8 @@ int32_t xberg_register_renderer(const char *name,
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_renderer(const char *name, char **out_error);
+int32_t xberg_unregister_renderer(const char *name,
+                                  char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22310,9 +22591,10 @@ int32_t xberg_clear_renderer(char **out_error);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t xberg_register_reranker_backend(
-    const char *name, const struct XBERGXbergRerankerBackendVTable *vtable,
-    const void *user_data, char **out_error);
+int32_t xberg_register_reranker_backend(const char *name,
+                                        const struct XBERGXbergRerankerBackendVTable *vtable,
+                                        const void *user_data,
+                                        char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22326,7 +22608,8 @@ int32_t xberg_register_reranker_backend(
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_reranker_backend(const char *name, char **out_error);
+int32_t xberg_unregister_reranker_backend(const char *name,
+                                          char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22358,9 +22641,10 @@ int32_t xberg_clear_reranker_backend(char **out_error);
  * unregistered. `user_data` must be safe to use from any thread that calls
  * into the plugin.
  */
-int32_t xberg_register_tokenizer_backend(
-    const char *name, const struct XBERGXbergTokenizerBackendVTable *vtable,
-    const void *user_data, char **out_error);
+int32_t xberg_register_tokenizer_backend(const char *name,
+                                         const struct XBERGXbergTokenizerBackendVTable *vtable,
+                                         const void *user_data,
+                                         char **out_error);
 
 /**
  * Unregister a previously registered C plugin by name.
@@ -22374,7 +22658,8 @@ int32_t xberg_register_tokenizer_backend(
  *
  * `name` must point to a valid null-terminated C string.
  */
-int32_t xberg_unregister_tokenizer_backend(const char *name, char **out_error);
+int32_t xberg_unregister_tokenizer_backend(const char *name,
+                                           char **out_error);
 
 /**
  * Remove all registered C plugins of this trait.
@@ -22390,4 +22675,4 @@ int32_t xberg_unregister_tokenizer_backend(const char *name, char **out_error);
  */
 int32_t xberg_clear_tokenizer_backend(char **out_error);
 
-#endif /* XBERG_H */
+#endif  /* XBERG_H */

@@ -37,6 +37,8 @@ pub async fn complete_text(
     })];
     request.temperature = llm_config.temperature;
     request.max_tokens = llm_config.max_tokens;
+    request.reasoning_effort = super::client::parse_reasoning_effort(llm_config)?;
+    request.extra_body = llm_config.extra_body.clone();
 
     let response = client
         .chat(request)

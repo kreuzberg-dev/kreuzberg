@@ -79,7 +79,6 @@ mod tests {
     use crate::Result;
     use crate::core::config::ExtractionConfig;
     use crate::plugins::Plugin;
-    use crate::plugins::registry::test_support::DocumentExtractorRegistryGuard;
     use async_trait::async_trait;
 
     struct MockExtractor {
@@ -414,29 +413,44 @@ mod tests {
         }
     }
 
+    /// Registers/unregisters a uniquely-named extractor against the *global* registry and
+    /// checks membership rather than the full list, so the assertions hold regardless of
+    /// whatever else is concurrently registered globally by other tests in this binary.
     #[test]
     fn register_list_unregister_roundtrip() {
-        let _guard = DocumentExtractorRegistryGuard::acquire();
         let mime = "application/x-mock-rlu".to_string();
         let extractor = Arc::new(LifecycleMock { mime: mime.clone() });
 
         register_document_extractor(Arc::clone(&extractor) as Arc<dyn DocumentExtractor>).unwrap();
-        assert_eq!(list_document_extractors().unwrap(), vec![mime.clone()]);
+        assert!(
+            list_document_extractors().unwrap().contains(&mime),
+            "the newly registered extractor must be listed"
+        );
 
         unregister_document_extractor(&mime).unwrap();
-        assert!(list_document_extractors().unwrap().is_empty());
+        assert!(
+            !list_document_extractors().unwrap().contains(&mime),
+            "the unregistered extractor must no longer be listed"
+        );
     }
 
+    /// Exercises register/list/clear against a *local* registry instance instead of the
+    /// process-global one, since `clear_document_extractors()` empties the global registry
+    /// outright and would race any concurrently running extraction test that relies on it.
     #[test]
     fn register_list_clear_list_roundtrip() {
-        let _guard = DocumentExtractorRegistryGuard::acquire();
+        use crate::plugins::registry::DocumentExtractorRegistry;
+
         let mime = "application/x-mock-rlcl".to_string();
         let extractor = Arc::new(LifecycleMock { mime: mime.clone() });
 
-        register_document_extractor(Arc::clone(&extractor) as Arc<dyn DocumentExtractor>).unwrap();
-        assert_eq!(list_document_extractors().unwrap(), vec![mime]);
+        let mut registry = DocumentExtractorRegistry::new();
+        registry
+            .register(Arc::clone(&extractor) as Arc<dyn DocumentExtractor>)
+            .unwrap();
+        assert_eq!(registry.list(), vec![mime]);
 
-        clear_document_extractors().unwrap();
-        assert!(list_document_extractors().unwrap().is_empty());
+        registry.clear().unwrap();
+        assert!(registry.list().is_empty());
     }
 }

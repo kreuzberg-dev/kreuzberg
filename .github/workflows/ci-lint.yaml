@@ -9,18 +9,21 @@ on:
       - "e2e/**"
       - "tools/**"
       - "docs-site/**"
+      - "scripts/**"
       - "*.toml"
       - "*.yaml"
       - "*.yml"
       - "*.md"
       - ".github/**"
       - ".task/**"
+      - ".gitmodules"
       - "Taskfile.yml"
       - "alef.toml"
       - "pyproject.toml"
       - "plugin/**"
       - ".claude-plugin/**"
       - ".agents/plugins/**"
+      - "test_documents"
   pull_request:
     branches: [main]
     paths:
@@ -29,18 +32,21 @@ on:
       - "e2e/**"
       - "tools/**"
       - "docs-site/**"
+      - "scripts/**"
       - "*.toml"
       - "*.yaml"
       - "*.yml"
       - "*.md"
       - ".github/**"
       - ".task/**"
+      - ".gitmodules"
       - "Taskfile.yml"
       - "alef.toml"
       - "pyproject.toml"
       - "plugin/**"
       - ".claude-plugin/**"
       - ".agents/plugins/**"
+      - "test_documents"
   workflow_dispatch:
 
 concurrency:
@@ -80,8 +86,91 @@ jobs:
       - name: Verify generated plugin bundles are current
         run: uvx ai-rulez==4.11.0 verify --recursive --plugin --if-configured
 
+  submodule-gitlinks:
+    name: Submodule gitlinks reachable
+    runs-on: ubuntu-latest
+    steps:
+      # submodules: false is deliberate -- we do NOT want git's own checkout-time
+      # fetch of the submodule to run here. If a gitlink is unreachable, checkout
+      # would die with a cryptic "not our ref" fatal; this job instead runs the
+      # same check standalone so it can report the path, the SHA, and the fix. ~keep
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+      # CI has a reliable network, so unlike the local pre-push hook (which warns
+      # on fetch failure to tolerate flaky connections), this job always fails hard
+      # -- both on unreachable remotes and on a gitlink SHA that was never pushed.
+      - name: Verify submodule gitlinks are reachable on their remotes
+        run: scripts/ci/check-submodule-gitlinks.sh --on-fetch-failure=fail
+
+  alef-readme-paths:
+    name: Alef readme/docs paths resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+      # Static check: every readme/docs path alef.toml points at (templates,
+      # snippets_dir + snippet_language overrides, CLI/MCP doc sources, skills
+      # template_dir) must resolve on disk. Catches a class of bug that
+      # previously needed a full ~10-minute `alef all` regen cycle per broken
+      # path to discover -- this finds all of them in under a second. ~keep
+      - name: Verify alef.toml readme/docs paths resolve
+        run: task alef:verify:readme-paths
+      # GH#1387: the FFI crate selects core features by hand (it cannot use `full`
+      # -- cf7fa0533d dropped it to keep libheif/candle out of Swift's zigbuild
+      # Linux targets), and that hand list silently lost eight formats. The fix was
+      # applied to the GENERATED manifest, so the next regen reverted it invisibly:
+      # `alef verify` compares an inputs hash, not content, and is green on a
+      # manifest faithfully generated from a wrong source. This asserts alef.toml
+      # AND the generated manifest both carry the formats. ~keep
+      - name: Verify the native FFI build still selects every document format
+        run: task alef:verify:ffi-formats
+
+  alef-bindings-freshness:
+    name: Alef-generated bindings freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Task
+        uses: xberg-io/actions/install-task@v1
+      # install-alef reads alef.toml's [workspace] alef_version and installs that
+      # exact pinned build, so this job doesn't go red every time alef cuts a
+      # release -- same hermeticity guarantee install-task gives the Task binary. ~keep
+      - name: Install alef CLI
+        uses: xberg-io/actions/install-alef@v1
+      # `alef verify` (aliased as `task alef:verify`) is a purpose-built freshness
+      # check: it recomputes each generated file's expected hash from the current
+      # Rust source and compares it to what's committed, without writing any files
+      # or running poly's post-generation formatters. That sidesteps the
+      # git-diff-after-regen trap the e2e freshness check uses (`task e2e:verify`),
+      # where formatter-only reflow of freshly generated output would show up as a
+      # spurious diff. Never run `alef all --clean` here -- `alef generate --lang X`
+      # deletes every other language's output, and even the safe `alef all` variant
+      # means a full 15-language regen (minutes, not the sub-second cost of verify).
+      # Blocking as of the b1c7c2a328 regen, which cleared the crates/xberg-node
+      # drift this job was masked for (#323 -- `cargo check -p xberg-node
+      # --all-targets` is clean on that tree). With the mask gone it correctly
+      # goes red on a stale tree, which is the point. ~keep
+      - name: Verify alef-generated bindings are current
+        run: task alef:verify
+
   validate:
     uses: xberg-io/actions/.github/workflows/reusable-validate.yml@v1
     with:
       setup-rust: true
+      # poly's cargo-clippy hook builds the whole workspace, and
+      # tools/benchmark-harness depends on xberg with `full`, which pulls
+      # heic -> xberg-libheif -> libheif-sys. Its build script shells out to
+      # `pkg-config libheif >= 1.21` and Ubuntu Noble only ships 1.17.6, so
+      # without this the Lint step dies before linting anything. ~keep
+      install-system-deps: true
       setup-python: true
+      # poly delegates Elixir formatting to `mix format` when mix is on PATH, and falls
+      # back to its own built-in Elixir formatter when it is not. The two disagree, so
+      # without a toolchain the `Format check` step flagged all 240 committed .ex files
+      # -- which are correctly mix-formatted (they honour packages/elixir/.formatter.exs:
+      # import_deps: [:rustler], line_length: 140). Reproduced exactly: with mix on PATH
+      # `poly fmt --check packages/elixir` reports "All formatted"; with PATH=/usr/bin:/bin
+      # it reports the same 240 files CI did. ~keep
+      setup-elixir: true

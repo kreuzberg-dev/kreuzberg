@@ -39,9 +39,11 @@ pub struct FontSizeCluster {
 ///
 /// # Example
 ///
-/// ```rust,no_run
-/// # #[cfg(feature = "pdf")]
-/// # {
+/// Not run as a doctest: `cluster_font_sizes` and [`TextBlock`] are `pub(crate)`, internal
+/// to the PDF hierarchy pass. Downstream crates see its effect as heading levels on the
+/// extracted document structure.
+///
+/// ```ignore
 /// use xberg::pdf::hierarchy::{TextBlock, BoundingBox, cluster_font_sizes};
 ///
 /// let blocks = vec![
@@ -60,7 +62,6 @@ pub struct FontSizeCluster {
 /// let clusters = cluster_font_sizes(&blocks, 2).unwrap();
 /// assert_eq!(clusters.len(), 2);
 /// assert_eq!(clusters[0].centroid, 24.0); // Largest is first
-/// # }
 /// ```
 pub(crate) fn cluster_font_sizes(blocks: &[TextBlock], k: usize) -> Result<Vec<FontSizeCluster>> {
     if blocks.is_empty() {

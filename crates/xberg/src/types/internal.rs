@@ -149,6 +149,16 @@ pub struct InternalDocument {
     /// URIs/links discovered during extraction (hyperlinks, image refs, citations, etc.).
     pub uris: Vec<super::uri::ExtractedUri>,
 
+    /// Number of URIs [`InternalDocument::push_uri`] refused because `uris` was
+    /// already at the per-document `MAX_URIS` cap.
+    ///
+    /// Not part of the plugin-bridge wire format: a foreign plugin deserializes
+    /// straight into `uris` and never goes through the cap, so it has nothing to
+    /// report here. `derive_extraction_result` turns a non-zero count into a
+    /// `ProcessingWarning` (#76).
+    #[serde(skip)]
+    pub uris_dropped: usize,
+
     /// Archive children: fully-extracted results for files within an archive.
     ///
     /// Only populated by archive extractors (ZIP, TAR, 7z, GZIP) when recursive
@@ -250,17 +260,30 @@ pub struct InternalDocument {
 }
 
 impl From<crate::types::extraction::ExtractedDocument> for InternalDocument {
-    /// Lossy conversion used at FFI/trait-bridge boundaries where a foreign-language
-    /// plugin returns the public `ExtractedDocument` shape but the canonical Rust trait
+    /// Conversion used at FFI/trait-bridge boundaries where a foreign-language plugin
+    /// returns the public `ExtractedDocument` shape but the canonical Rust trait
     /// signature requires an `InternalDocument`. The text content is stashed in
     /// `pre_rendered_content` so the pipeline returns it verbatim instead of trying
     /// to re-render from a non-existent element tree.
+    ///
+    /// Every field with an exact `InternalDocument` destination is carried over. The
+    /// conversion is still lossy for the derived-only parts of the public shape — the
+    /// flat element list, the relationship graph, and `DocumentStructure` cannot be
+    /// reconstructed from `ExtractedDocument`, which is why `pre_rendered_content`
+    /// carries the text.
     fn from(result: crate::types::extraction::ExtractedDocument) -> Self {
         let mut doc = Self::new(result.mime_type.as_ref());
         doc.mime_type = result.mime_type.into_owned();
         doc.metadata = result.metadata;
         doc.tables = result.tables;
         doc.images = result.images.unwrap_or_default();
+        doc.uris = result.uris.unwrap_or_default();
+        doc.children = result.children;
+        doc.annotations = result.annotations;
+        doc.processing_warnings = result.processing_warnings;
+        doc.llm_usage = result.llm_usage;
+        doc.prebuilt_pages = result.pages;
+        doc.prebuilt_ocr_elements = result.ocr_elements;
         doc.revisions = result.revisions;
         doc.form_fields = result.form_fields;
         doc.formulas = result.formulas;
@@ -293,6 +316,7 @@ impl InternalDocument {
             images: Vec::new(),
             tables: Vec::new(),
             uris: Vec::new(),
+            uris_dropped: 0,
             children: None,
             mime_type: "application/octet-stream".to_string(),
             processing_warnings: Vec::new(),
@@ -339,13 +363,18 @@ impl InternalDocument {
     }
 
     /// Maximum number of URIs to collect per document (DoS prevention).
-    const MAX_URIS: usize = 100_000;
+    pub(crate) const MAX_URIS: usize = 100_000;
 
     /// Push a URI discovered during extraction.
-    /// Silently drops URIs beyond `MAX_URIS` to prevent unbounded memory growth.
+    ///
+    /// URIs beyond the `MAX_URIS` cap are dropped to prevent unbounded memory
+    /// growth, and counted in [`Self::uris_dropped`] so the derivation step can
+    /// tell the caller the list was truncated (#76).
     pub fn push_uri(&mut self, uri: super::uri::ExtractedUri) {
         if self.uris.len() < Self::MAX_URIS {
             self.uris.push(uri);
+        } else {
+            self.uris_dropped += 1;
         }
     }
 
@@ -567,6 +596,11 @@ pub enum ElementKind {
     FootnoteDefinition,
     /// Footnote reference marker in body text.
     FootnoteRef,
+    /// Comment content (the definition, not the reference marker). See
+    /// [`NodeContent::Comment`](super::document_structure::NodeContent::Comment).
+    CommentDefinition,
+    /// Comment reference marker in body text.
+    CommentRef,
     /// Citation or bibliographic reference.
     Citation,
     /// Presentation slide container.
@@ -633,6 +667,8 @@ impl ElementKind {
             Self::Formula => "formula",
             Self::FootnoteDefinition => "footnote_definition",
             Self::FootnoteRef => "footnote_ref",
+            Self::CommentDefinition => "comment_definition",
+            Self::CommentRef => "comment_ref",
             Self::Citation => "citation",
             Self::Slide { .. } => "slide",
             Self::DefinitionTerm => "definition_term",

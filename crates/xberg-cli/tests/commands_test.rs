@@ -9,8 +9,7 @@ use tempfile::tempdir;
 
 /// Get the path to the xberg binary.
 fn get_binary_path() -> String {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    format!("{}/../../target/debug/xberg", manifest_dir)
+    env!("CARGO_BIN_EXE_xberg").to_string()
 }
 
 /// Get the test_documents directory path.
@@ -27,20 +26,8 @@ fn get_test_file(relative_path: &str) -> String {
         .to_string()
 }
 
-/// Build the binary before running tests.
-fn build_binary() {
-    let status = Command::new("cargo")
-        .args(["build", "--bin", "xberg"])
-        .status()
-        .expect("Failed to build xberg binary");
-
-    assert!(status.success(), "Failed to build xberg binary");
-}
-
 #[test]
 fn test_extract_text_file() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -64,8 +51,6 @@ fn test_extract_text_file() {
 
 #[test]
 fn test_extract_with_json_output() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -106,8 +91,6 @@ fn test_extract_with_json_output() {
 
 #[test]
 fn test_extract_with_chunking() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -148,8 +131,6 @@ fn test_extract_with_chunking() {
 
 #[test]
 fn test_extract_file_not_found() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["extract", "/nonexistent/file.txt"])
         .output()
@@ -167,8 +148,6 @@ fn test_extract_file_not_found() {
 
 #[test]
 fn test_extract_directory_not_file() {
-    build_binary();
-
     let tmp_dir = tempdir().expect("Failed to create temp dir");
     let dir_path = tmp_dir.path().to_string_lossy().to_string();
 
@@ -189,8 +168,6 @@ fn test_extract_directory_not_file() {
 
 #[test]
 fn test_extract_invalid_chunk_size_zero() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -214,8 +191,6 @@ fn test_extract_invalid_chunk_size_zero() {
 
 #[test]
 fn test_extract_invalid_chunk_size_too_large() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -239,8 +214,6 @@ fn test_extract_invalid_chunk_size_too_large() {
 
 #[test]
 fn test_extract_invalid_overlap_equals_chunk_size() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -274,8 +247,6 @@ fn test_extract_invalid_overlap_equals_chunk_size() {
 
 #[test]
 fn test_detect_mime_type() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -304,8 +275,6 @@ fn test_detect_mime_type() {
 
 #[test]
 fn test_detect_with_json_output() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         tracing::debug!("Skipping test: {} not found", test_file);
@@ -335,8 +304,6 @@ fn test_detect_with_json_output() {
 
 #[test]
 fn test_detect_file_not_found() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["detect", "/nonexistent/file.txt"])
         .output()
@@ -354,8 +321,6 @@ fn test_detect_file_not_found() {
 
 #[test]
 fn test_batch_multiple_files() {
-    build_binary();
-
     let file1 = get_test_file("text/simple.txt");
     let file2 = get_test_file("text/simple.txt");
 
@@ -391,8 +356,6 @@ fn test_batch_multiple_files() {
 
 #[test]
 fn test_batch_with_missing_file() {
-    build_binary();
-
     let valid_file = get_test_file("text/simple.txt");
 
     if !PathBuf::from(&valid_file).exists() {
@@ -417,8 +380,6 @@ fn test_batch_with_missing_file() {
 
 #[test]
 fn test_extract_help() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["extract", "--help"])
         .output()
@@ -434,8 +395,6 @@ fn test_extract_help() {
 
 #[test]
 fn test_detect_help() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["detect", "--help"])
         .output()
@@ -449,8 +408,6 @@ fn test_detect_help() {
 
 #[test]
 fn test_batch_help() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["batch", "--help"])
         .output()
@@ -464,8 +421,6 @@ fn test_batch_help() {
 
 #[test]
 fn test_extract_help_shows_all_extraction_override_flags() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["extract", "--help"])
         .output()
@@ -517,8 +472,6 @@ fn test_extract_help_shows_all_extraction_override_flags() {
 
 #[test]
 fn test_batch_has_same_extraction_flags_as_extract() {
-    build_binary();
-
     let extract_output = Command::new(get_binary_path())
         .args(["extract", "--help"])
         .output()
@@ -591,7 +544,6 @@ fn create_temp_file() -> (tempfile::TempDir, String) {
 
 #[test]
 fn test_extract_chunk_size_zero_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -611,7 +563,6 @@ fn test_extract_chunk_size_zero_error() {
 
 #[test]
 fn test_extract_chunk_overlap_exceeds_size_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -631,7 +582,6 @@ fn test_extract_chunk_overlap_exceeds_size_error() {
 
 #[test]
 fn test_extract_layout_confidence_out_of_range_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -654,7 +604,6 @@ fn test_extract_layout_confidence_out_of_range_error() {
 
 #[test]
 fn test_extract_layout_false_with_confidence_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -670,7 +619,6 @@ fn test_extract_layout_false_with_confidence_error() {
 
 #[test]
 fn test_extract_target_dpi_zero_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -690,8 +638,6 @@ fn test_extract_target_dpi_zero_error() {
 
 #[test]
 fn test_completions_bash_produces_output() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["completions", "bash"])
         .output()
@@ -714,8 +660,6 @@ fn test_completions_bash_produces_output() {
 
 #[test]
 fn test_completions_zsh_produces_output() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["completions", "zsh"])
         .output()
@@ -733,8 +677,6 @@ fn test_completions_zsh_produces_output() {
 
 #[test]
 fn test_completions_fish_produces_output() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["completions", "fish"])
         .output()
@@ -752,8 +694,6 @@ fn test_completions_fish_produces_output() {
 
 #[test]
 fn test_embed_help_shows_correct_flags() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["embed", "--help"])
         .output()
@@ -791,8 +731,6 @@ fn test_embed_help_shows_correct_flags() {
 
 #[test]
 fn test_chunk_help_shows_correct_flags() {
-    build_binary();
-
     let output = Command::new(get_binary_path())
         .args(["chunk", "--help"])
         .output()
@@ -839,8 +777,6 @@ fn test_chunk_help_shows_correct_flags() {
 
 #[test]
 fn test_no_color_env_disables_ansi_in_output() {
-    build_binary();
-
     let test_file = get_test_file("text/simple.txt");
     if !PathBuf::from(&test_file).exists() {
         return;
@@ -868,7 +804,6 @@ fn test_no_color_env_disables_ansi_in_output() {
 
 #[test]
 fn test_extract_chunk_size_too_large_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -889,8 +824,6 @@ fn test_extract_chunk_size_too_large_error() {
 #[test]
 #[ignore = "requires test_documents/docx/word_image_anchors.docx fixture"]
 fn test_extract_images_written_to_output_dir() {
-    build_binary();
-
     let test_file = get_test_file("docx/word_image_anchors.docx");
     assert!(
         PathBuf::from(&test_file).exists(),
@@ -957,8 +890,6 @@ fn test_extract_images_written_to_output_dir() {
 #[test]
 #[ignore = "requires test_documents/docx/word_image_anchors.docx fixture"]
 fn test_extract_images_default_to_cwd_when_no_output_dir() {
-    build_binary();
-
     let test_file = get_test_file("docx/word_image_anchors.docx");
     assert!(
         PathBuf::from(&test_file).exists(),
@@ -1004,7 +935,6 @@ fn test_extract_images_default_to_cwd_when_no_output_dir() {
 
 #[test]
 fn test_extract_target_dpi_too_high_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())
@@ -1024,7 +954,6 @@ fn test_extract_target_dpi_too_high_error() {
 
 #[test]
 fn test_extract_output_dir_nonexistent_error() {
-    build_binary();
     let (_dir, file_path) = create_temp_file();
 
     let output = Command::new(get_binary_path())

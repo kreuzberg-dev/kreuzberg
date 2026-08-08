@@ -90,7 +90,7 @@ fn load_b8_pages() -> Vec<RenderedPage> {
         let path = root.join(document.relative_path);
         let pdf_bytes = std::fs::read(&path)
             .unwrap_or_else(|error| panic!("failed to read pinned B8 PDF {}: {error}", path.display()));
-        let actual_hash = format!("{:x}", Sha256::digest(&pdf_bytes));
+        let actual_hash = hex::encode(Sha256::digest(&pdf_bytes));
         assert_eq!(
             actual_hash,
             document.sha256,

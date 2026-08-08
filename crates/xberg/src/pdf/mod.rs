@@ -34,6 +34,9 @@ pub(crate) mod oxide_text;
 /// PDF page rendering to raster images.
 pub mod render;
 #[cfg(feature = "pdf")]
+/// Drawn ruling-line detection shared by the layout gate and the table gate.
+pub(crate) mod rules;
+#[cfg(feature = "pdf")]
 /// Scanned-page detection.
 pub(crate) mod scan_detect;
 #[cfg(feature = "pdf")]

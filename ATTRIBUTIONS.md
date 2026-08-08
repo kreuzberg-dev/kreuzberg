@@ -362,71 +362,54 @@ extraction via `nom-exif` is pure Rust and works on every target.
 
 ## ttf-parser
 
-A safe, zero-allocation TrueType / OpenType / AAT font parser, vendored as the
-`xberg-ttf-parser` crate:
+A safe, zero-allocation TrueType / OpenType / AAT font parser. xberg consumes it
+as the published `xberg-ttf-parser` crate, a fork of upstream carrying fixes
+that have not yet been released upstream:
 
 - **Source**: <https://github.com/harfbuzz/ttf-parser>
-- **License**: MIT OR Apache-2.0 upstream; xberg takes the MIT option and
-  redistributes the vendored crate under MIT, retaining the upstream copyright
-  notice in `crates/xberg-ttf-parser/LICENSE`.
+- **License**: MIT OR Apache-2.0 upstream; the fork takes the MIT option and is
+  redistributed under MIT, retaining the upstream copyright notice.
 - **Author(s)**: Yevhenii Reizner, Khaled Hosny, Laurenz Stampfl, Caleb
   Maclennan and contributors
-- **Vendored Version**: 0.25.1, plus nine upstream pull requests carried on top:
-  `#203` (`b422ac0`), `#207` (`52a9811`), `#216` (`9b9e55f`), `#222` (`3a585f1`),
-  `#223` (`32439d2`), `#224` (`dd2337b`), `#225` (`99aa5e3`), `#226` (`86daf57`)
-  and `#228` (`023f8163`). See `crates/xberg-ttf-parser/README.md` for what each
-  one fixes.
-- **Location**: `crates/xberg-ttf-parser/`
-- **Purpose**: Parse embedded font programs when rendering PDF pages. Reaches
-  xberg transitively through `pdf_oxide` and `fontdb`, the only two consumers in
-  `Cargo.lock`.
+- **Version**: `xberg-ttf-parser` 1.1.0, which is upstream 0.25.1 plus nine
+  upstream pull requests carried on top: `#203` (`b422ac0`), `#207` (`52a9811`),
+  `#216` (`9b9e55f`), `#222` (`3a585f1`), `#223` (`32439d2`), `#224` (`dd2337b`),
+  `#225` (`99aa5e3`), `#226` (`86daf57`) and `#228` (`023f8163`).
+- **Location**: consumed from crates.io — <https://crates.io/crates/xberg-ttf-parser>.
+  Only `crates/ttf-parser-compat/` lives in this repo; see below.
+- **Purpose**: Parse embedded font programs when rendering PDF pages. No
+  first-party xberg code calls it. It reaches xberg transitively through
+  `pdf_oxide` and `fontdb`, the only two consumers in `Cargo.lock`.
 
-### Why Vendored
+### Why a fork is still in the dependency graph
 
-Upstream is currently unmaintained: at the time of vendoring the most recent
-commit was 2025-11-22, with correctness fixes sitting unreviewed. Upstream
-v0.25.1 rejects any CFF charstring containing the deprecated `dotsection`
-operator, dropping the affected glyphs entirely (`i`, `j`, `!`, `.`), so PDF
-pages using Type 1 derived CFF fonts silently lose those characters. Vendoring
-lets xberg carry the fix without waiting on an upstream release.
+Upstream v0.25.1 rejects any CFF charstring containing the deprecated
+`dotsection` operator, dropping the affected glyphs entirely (`i`, `j`, `!`,
+`.`), so PDF pages using Type 1 derived CFF fonts silently lose those
+characters. The fix (upstream `#228`) is merged upstream but **unreleased** —
+crates.io still shows 0.25.1 as the newest `ttf-parser`. Until upstream cuts a
+0.25.2, the fork is the only way to get the fix into `pdf_oxide` and `fontdb`,
+neither of which xberg can edit.
 
-### Vendored Files / Scope
+### The compat shim
 
-- Full upstream `src/` tree and `tests/`, plus `CHANGELOG.md` and both license
-  texts. Not vendored: `benches/`, `examples/`, `c-api/`, `testing-tools/`,
-  `meson.build`.
-- Kept byte-identical to upstream wherever possible so future upstream fixes
-  cherry-pick without conflict.
-- `tests/fonts/` contains upstream's test font binaries. `colr_1.ttf` and
-  `colr_1_variable.ttf` ship their own Apache-2.0 license text at
-  `tests/fonts/colr_1_LICENSE`. Test data is excluded from the published crate.
+`crates/ttf-parser-compat/` is an xberg addition, not upstream code: a package
+literally named `ttf-parser` whose entire body is `pub use xberg_ttf_parser::*`.
+Cargo matches `[patch.crates-io]` entries on package name alone and refuses to
+patch across a rename or onto another crates.io package, so this shim is the
+only mechanism that can redirect the transitive consumers onto the fixed parser.
+It is never published. `crates/ttf-parser-compat/tests/patch_engaged.rs` fails
+loudly if the redirect ever stops taking effect, which is otherwise silent.
 
-### Modifications
-
-- Package renamed to `xberg-ttf-parser`, with `[lib] name = "xberg_ttf_parser"`.
-- Crate-level lint allows in `src/lib.rs` and `tests/tables/main.rs`; the
-  workspace lint set is stricter than upstream's CI. Allowed rather than fixed
-  because `div_ceil` and `is_multiple_of` postdate upstream's 1.63 MSRV.
-- A dev-dependency on the `compat/` shim so the vendored tests keep referring to
-  `ttf_parser` unchanged.
-- `compat/` is an xberg addition, not upstream code: a name-compatibility shim
-  named `ttf-parser` that re-exports this crate. Cargo matches
-  `[patch.crates-io]` on package name alone, so it is the only way to redirect
-  the transitive consumers onto the fixed parser. It is never published.
-- The `glyf` / `gvar` component visit budget from upstream `#224` is charged per
-  component record rather than once per call, which is the only behavior-affecting
-  xberg change inside the vendored `src/` tree.
-- Two xberg-authored regression tests at `tests/xberg_fvar.rs` and
-  `tests/xberg_set_variation.rs`, pinning upstream `#216` and `#207`, which ship
-  no tests of their own. Placed at the top level so `tests/tables/main.rs` stays
-  byte-identical to upstream.
+When upstream releases a 0.25.2 carrying the nine fixes, the shim and the
+`[patch.crates-io]` entry can both be deleted and this section removed. A 0.26
+would not satisfy the `^0.25` requirement either consumer declares, so the
+release number matters.
 
 ### License Compatibility
 
 MIT and Apache-2.0 are both permissive and already on the `deny.toml` allow
-list. Upstream's license texts are preserved verbatim at
-`crates/xberg-ttf-parser/LICENSE-MIT` and
-`crates/xberg-ttf-parser/LICENSE-APACHE`.
+list. The published crate carries upstream's license text verbatim.
 
 ---
 

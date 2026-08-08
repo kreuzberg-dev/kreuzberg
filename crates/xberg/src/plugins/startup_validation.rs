@@ -47,7 +47,10 @@ impl PluginHealthStatus {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// `PluginHealthStatus::check` is `pub(crate)`, so this example cannot be compiled from
+    /// outside the crate; it is kept as documentation of the intended shape.
+    ///
+    /// ```ignore
     /// use xberg::plugins::startup_validation::PluginHealthStatus;
     ///
     /// #[tokio::main]
@@ -108,7 +111,10 @@ impl PluginHealthStatus {
 ///
 /// # Example
 ///
-/// ```no_run
+/// `validate_plugins_at_startup` is `pub(crate)`, so this example cannot be compiled from
+/// outside the crate; it is kept as documentation of the intended shape.
+///
+/// ```ignore
 /// use xberg::plugins::startup_validation::validate_plugins_at_startup;
 ///
 /// #[tokio::main]

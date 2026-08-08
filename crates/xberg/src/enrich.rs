@@ -10,11 +10,23 @@
 //!
 //! ## Stage order
 //!
-//! 1. Classification — operates on the full document text (`content`)
+//! 1. Classification — operates on the per-page `content` (or the whole document when it
+//!    has no pages); writes `page_classifications` and appends `llm_usage`
 //! 2. Chunk classification — multi-labels each entry of `ExtractedDocument::chunks`
 //!    in place; a no-op when the document has no chunks
-//! 3. NER — operates on the full document text (`content`)
-//! 4. Captioning — operates on images extracted into `ExtractedDocument::images`
+//! 3. NER — operates on the full document text (`content`); writes `entities`
+//! 4. Captioning — operates on images extracted into `ExtractedDocument::images`; writes
+//!    each image's `caption` / `description` and appends `llm_usage`
+//!
+//! ## Results live on the document
+//!
+//! Every stage writes its output onto the [`ExtractedDocument`] field that already exists
+//! for it, not only into [`EnrichedResult`]. The document is the only thing downstream
+//! consumers see — it is what serializes to JSON, what the REST schema and the language
+//! bindings expose, and what `split_and_extract` and the post-processors operate on — so
+//! results returned solely in the side struct were invisible to all of them, and the LLM
+//! token / cost records for the classification and captioning calls were discarded
+//! outright (#263).
 //!
 //! Transcription is reserved for a future backend and is kept present in the
 //! config surface so callers can wire it today; any attempt to activate it
@@ -137,14 +149,26 @@ pub struct EnrichmentConfig {
 
 /// Extraction result with optional enrichment layers applied.
 ///
-/// The `extraction` field carries the original [`ExtractedDocument`] unchanged.
-/// Enrichment fields are `None` when the corresponding stage was not configured
-/// or when the feature was compiled out.
+/// `extraction` is the enriched [`ExtractedDocument`]: every stage writes its output onto
+/// the canonical field that already exists for it, so enrichment survives serialization,
+/// the REST/API schema, and the language bindings — all of which see the document and
+/// nothing else. The fields below mirror those writes for callers that want the stage
+/// output directly; they are `None` when the stage was not configured or the feature was
+/// compiled out.
+///
+/// | Stage | Written onto `extraction` |
+/// |---|---|
+/// | Classification | `page_classifications`, `llm_usage` |
+/// | Chunk classification | `chunks[].classification` (in place) |
+/// | NER | `entities` |
+/// | Captioning | `images[].caption`, `images[].description`, `llm_usage` |
 pub struct EnrichedResult {
-    /// The original extraction result, unchanged by the enrichment pipeline.
+    /// The extraction result with every configured stage's output applied.
     pub extraction: ExtractedDocument,
 
     /// Detected named entities (populated by the NER stage).
+    ///
+    /// Mirrors [`ExtractedDocument::entities`](crate::types::ExtractedDocument::entities).
     #[cfg(feature = "ner")]
     pub entities: Option<Vec<Entity>>,
 
@@ -193,8 +217,10 @@ pub struct EnrichedResult {
 /// # Errors
 ///
 /// - [`crate::XbergError::Validation`] when the classification config has an
-///   empty label set (propagated from `classify_document`).
-/// - [`crate::XbergError::Other`] when the NER or captioning backends fail.
+///   empty label set (propagated from `classify_document_onto`).
+/// - [`crate::XbergError::Other`] when the NER or captioning backends fail. A captioning
+///   failure still leaves `extraction.images` intact and records the usage for the calls
+///   that already succeeded before the error propagates.
 /// - [`crate::XbergError::Other`] when `config.transcription` is `Some`:
 ///   the transcription backend is not yet implemented.
 #[cfg_attr(alef, alef(skip))]
@@ -218,11 +244,9 @@ pub async fn enrich(mut extraction: ExtractedDocument, config: &EnrichmentConfig
 
     #[cfg(feature = "classification")]
     let classification = if let Some(ref cfg) = config.classification {
-        let pages: Vec<&str> = match extraction.pages.as_deref() {
-            Some(pages) => pages.iter().map(|p| p.content.as_str()).collect(),
-            None => vec![extraction.content.as_str()],
-        };
-        Some(crate::text::classification::classify_document(&pages, &cfg.config).await?)
+        // `classify_document_onto` also writes `page_classifications` and appends the
+        // per-page `LlmUsage`; the plain `classify_document` dropped both (#263).
+        Some(crate::text::classification::classify_document_onto(&mut extraction, &cfg.config).await?)
     } else {
         None
     };
@@ -234,28 +258,20 @@ pub async fn enrich(mut extraction: ExtractedDocument, config: &EnrichmentConfig
 
     #[cfg(feature = "ner")]
     let entities = if let Some(ref cfg) = config.ner {
-        Some(crate::text::ner::detect_entities(&extraction.content, cfg.backend.as_ref(), &cfg.categories).await?)
+        let detected =
+            crate::text::ner::detect_entities(&extraction.content, cfg.backend.as_ref(), &cfg.categories).await?;
+        // `ExtractedDocument::entities` is the field the API schema, the bindings, and every
+        // serializing consumer read. Without this write-back the detected entities existed
+        // only in `EnrichedResult` and were invisible downstream (#263).
+        extraction.entities = Some(detected.clone());
+        Some(detected)
     } else {
         None
     };
 
     #[cfg(feature = "captioning")]
     let captions = if let Some(ref cfg) = config.captioning {
-        match extraction.images.as_deref() {
-            None | Some([]) => Some(Vec::new()),
-            Some(images) => {
-                let mut out = Vec::with_capacity(images.len());
-                for image in images {
-                    let caption = if image.data.is_empty() {
-                        String::new()
-                    } else {
-                        crate::captioning::caption_image(&image.data, &cfg.config, cfg.custom_prompt.as_deref()).await?
-                    };
-                    out.push(caption);
-                }
-                Some(out)
-            }
-        }
+        Some(caption_images_onto(&mut extraction, cfg).await?)
     } else {
         None
     };
@@ -269,4 +285,82 @@ pub async fn enrich(mut extraction: ExtractedDocument, config: &EnrichmentConfig
         #[cfg(feature = "captioning")]
         captions,
     })
+}
+
+/// Caption every image in `extraction` that carries bytes, writing each caption onto the
+/// image and every VLM call's [`crate::types::LlmUsage`] onto the document.
+///
+/// Returns the captions positionally parallel to `extraction.images`. Images with empty
+/// `data` (reference-only images populated via `source_path`) are skipped, cost no VLM
+/// call, and yield an empty string — matching the documented contract of
+/// [`CaptioningEnrichmentConfig`].
+///
+/// Captions land on `ExtractedImage::caption`, and additionally on
+/// `ExtractedImage::description` when that is unset, because renderers emit `description`
+/// at the image placeholder and never read `caption` — the same mirroring the built-in
+/// captioning post-processor does. Without this the caption existed only in
+/// `EnrichedResult::captions` and never reached the serialized document (#263).
+///
+/// On a VLM failure the images taken out of `extraction` are put back, and the usage for
+/// the calls that did succeed is recorded, before the error propagates; otherwise a failure
+/// on image *n* would silently strip the document's entire image list.
+#[cfg(feature = "captioning")]
+async fn caption_images_onto(
+    extraction: &mut ExtractedDocument,
+    cfg: &CaptioningEnrichmentConfig,
+) -> crate::Result<Vec<String>> {
+    /// Put the borrowed image list back and record the usage accumulated so far.
+    fn commit(
+        extraction: &mut ExtractedDocument,
+        images: Vec<crate::types::ExtractedImage>,
+        usages: Vec<crate::types::LlmUsage>,
+    ) {
+        extraction.images = Some(images);
+        if !usages.is_empty() {
+            extraction.llm_usage.get_or_insert_with(Vec::new).extend(usages);
+        }
+    }
+
+    // Taken out so `extraction.llm_usage` can be written inside the loop without holding a
+    // second mutable borrow of `extraction`.
+    let Some(mut images) = extraction.images.take() else {
+        return Ok(Vec::new());
+    };
+
+    let mut captions = Vec::with_capacity(images.len());
+    let mut usages: Vec<crate::types::LlmUsage> = Vec::new();
+
+    for index in 0..images.len() {
+        let data = images[index].data.clone();
+        if data.is_empty() {
+            captions.push(String::new());
+            continue;
+        }
+
+        match crate::captioning::caption_image_with_usage(&data, &cfg.config, cfg.custom_prompt.as_deref()).await {
+            Ok((caption, usage)) => {
+                let caption = caption.trim().to_string();
+                if !caption.is_empty() {
+                    if images[index].description.is_none() {
+                        images[index].description = Some(caption.clone());
+                    }
+                    images[index].caption = Some(caption.clone());
+                }
+                if let Some(mut usage) = usage {
+                    if usage.source.is_empty() || usage.source == "vlm_ocr" {
+                        usage.source = "captioning".to_string();
+                    }
+                    usages.push(usage);
+                }
+                captions.push(caption);
+            }
+            Err(error) => {
+                commit(extraction, images, usages);
+                return Err(error);
+            }
+        }
+    }
+
+    commit(extraction, images, usages);
+    Ok(captions)
 }

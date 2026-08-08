@@ -48,12 +48,20 @@ pub(super) fn merge_continuation_paragraphs(paragraphs: &mut Vec<PdfParagraph>) 
         let continuation_signal = !ends_with_sentence_terminator(&current) || starts_with_lowercase_continuation(&next);
         let same_region = current.layout_region_path == next.layout_region_path;
         let vertical_gap_compatible = baselines_within_continuation_gap(&current, &next);
+        // A numbered section heading starts a new logical element and must never be
+        // absorbed as a continuation. A heading does not end in `.?!:;`, so
+        // `continuation_signal` is satisfied by the *previous* heading alone — it is
+        // an `||` boost, not a requirement — and a run of consecutive subsection
+        // headings would otherwise be re-joined here even after the line grouper
+        // split them. See #1386. ~keep
+        let next_starts_section = starts_numbered_section(&next);
         let should_merge = both_body
             && fonts_compatible
             && bold_compatible
             && continuation_signal
             && same_region
-            && vertical_gap_compatible;
+            && vertical_gap_compatible
+            && !next_starts_section;
 
         if should_merge {
             current.text.clear();
@@ -99,6 +107,28 @@ fn union_block_bbox(
         (Some(bbox), None) | (None, Some(bbox)) => Some(bbox),
         (None, None) => None,
     }
+}
+
+/// Whether a paragraph's first visual line reads as a numbered section heading
+/// ("1.3 Gasinstallatie", "IV. Results", "1. INTRODUCTION").
+///
+/// The first line's segments are re-joined because word-processor output often
+/// splits the numbering into its own text run, so the leading segment alone can
+/// be a bare "1.3". The conservative `is_numbered_section_heading` is used rather
+/// than `starts_with_section_number` so a paragraph opening with a bare year
+/// ("2024 was een druk jaar") is still treated as prose.
+fn starts_numbered_section(para: &PdfParagraph) -> bool {
+    let Some(first_line) = para.lines.first() else {
+        return false;
+    };
+    let joined = first_line
+        .segments
+        .iter()
+        .map(|segment| segment.text.trim())
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    super::classify::is_numbered_section_heading(&joined)
 }
 
 /// Check if a paragraph starts with a lowercase letter, indicating it's a
@@ -386,6 +416,105 @@ mod tests {
         merge_continuation_paragraphs(&mut paragraphs);
         assert_eq!(paragraphs.len(), 2, "bold header must not merge into non-bold prose");
         assert!(paragraphs[1].is_bold, "the bold header paragraph must be preserved");
+    }
+
+    /// Text of a paragraph's first line, joined from its segments.
+    fn first_line_text(para: &PdfParagraph) -> String {
+        para.lines
+            .first()
+            .map(|line| {
+                line.segments
+                    .iter()
+                    .map(|s| s.text.trim())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .unwrap_or_default()
+    }
+
+    /// Regression for #1386 (defect #290): a run of consecutive numbered
+    /// subsection headings at the same size and weight, one line-height apart,
+    /// must survive as four separate paragraphs. None of them ends in `.?!:;`,
+    /// so `continuation_signal` alone would merge the whole run into one element
+    /// and a consumer deriving a section hierarchy would see only "1.3".
+    #[test]
+    fn should_not_merge_consecutive_numbered_section_headings() {
+        let mut paragraphs = vec![
+            make_body_paragraph_at("1.3 Gasinstallatie", 11.0, 700.0),
+            make_body_paragraph_at("1.4 Elektrische installatie", 11.0, 686.0),
+            make_body_paragraph_at("1.5 Waterinstallatie", 11.0, 672.0),
+            make_body_paragraph_at("1.6 Ventilatie", 11.0, 658.0),
+        ];
+        merge_continuation_paragraphs(&mut paragraphs);
+
+        assert_eq!(
+            paragraphs.len(),
+            4,
+            "each numbered subsection heading must remain a separate element"
+        );
+        assert_eq!(first_line_text(&paragraphs[0]), "1.3 Gasinstallatie");
+        assert_eq!(first_line_text(&paragraphs[1]), "1.4 Elektrische installatie");
+        assert_eq!(first_line_text(&paragraphs[2]), "1.5 Waterinstallatie");
+        assert_eq!(first_line_text(&paragraphs[3]), "1.6 Ventilatie");
+    }
+
+    /// The over-fire guard for #1386: prose whose first token is a bare year is
+    /// NOT a section heading and must still merge with the unterminated line
+    /// above it. `starts_with_section_number` returns `true` here — using it
+    /// instead of `is_numbered_section_heading` would split ordinary prose.
+    #[test]
+    fn should_merge_prose_paragraph_starting_with_a_year() {
+        let mut paragraphs = vec![
+            make_body_paragraph_at("Het bestuur meldt", 11.0, 700.0),
+            make_body_paragraph_at("2024 was een druk jaar", 11.0, 686.0),
+        ];
+        merge_continuation_paragraphs(&mut paragraphs);
+
+        assert_eq!(
+            paragraphs.len(),
+            1,
+            "prose beginning with a bare year is not a section heading and must stay one paragraph"
+        );
+        assert_eq!(paragraphs[0].lines.len(), 2, "both prose lines must be present");
+    }
+
+    /// Roman-numeral and single-level ALL-CAPS headings are the other two shapes
+    /// `is_numbered_section_heading` accepts; both must block a merge.
+    #[test]
+    fn should_not_merge_roman_or_allcaps_numbered_headings() {
+        let mut paragraphs = vec![
+            make_body_paragraph_at("III. Scope", 11.0, 700.0),
+            make_body_paragraph_at("IV. Results", 11.0, 686.0),
+            make_body_paragraph_at("5. CONCLUSIONS", 11.0, 672.0),
+        ];
+        merge_continuation_paragraphs(&mut paragraphs);
+
+        assert_eq!(
+            paragraphs.len(),
+            3,
+            "roman and ALL-CAPS numbered headings must not merge"
+        );
+        assert_eq!(first_line_text(&paragraphs[0]), "III. Scope");
+        assert_eq!(first_line_text(&paragraphs[1]), "IV. Results");
+        assert_eq!(first_line_text(&paragraphs[2]), "5. CONCLUSIONS");
+    }
+
+    /// A single-level number followed by mixed-case text is a LIST item, not a
+    /// section heading, so the guard must not fire on it — this pins the
+    /// conservative boundary of the predicate the fix relies on.
+    #[test]
+    fn should_still_merge_single_level_mixed_case_numbering() {
+        let mut paragraphs = vec![
+            make_body_paragraph_at("De procedure verloopt als volgt", 11.0, 700.0),
+            make_body_paragraph_at("1. Eerste stap in het proces", 11.0, 686.0),
+        ];
+        merge_continuation_paragraphs(&mut paragraphs);
+
+        assert_eq!(
+            paragraphs.len(),
+            1,
+            "'1. Eerste stap' is list-shaped, not a section heading; the guard must not fire"
+        );
     }
 
     #[test]

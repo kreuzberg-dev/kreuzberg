@@ -3,6 +3,7 @@
 //! Parses CSV/TSV files into structured table data and clean text output.
 //! Handles RFC 4180 quoted fields with embedded commas and newlines.
 
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use crate::Result;
@@ -19,6 +20,9 @@ use async_trait::async_trait;
 static DATE_RE_ISO: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"^\d{4}-\d{2}-\d{2}").unwrap());
 static DATE_RE_US: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"^\d{1,2}/\d{1,2}/\d{2,4}").unwrap());
 static DATE_RE_EU: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"^\d{1,2}\.\d{1,2}\.\d{2,4}").unwrap());
+
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+const CSV_WARNING_SOURCE: &str = "csv";
 #[cfg_attr(alef, alef(skip))]
 /// CSV/TSV extractor with proper field parsing.
 ///
@@ -76,13 +80,23 @@ impl InternalDocumentExtractor for CsvExtractor {
         tracing::debug!(format = "csv", size_bytes = content.len(), "extraction starting");
         let mut budget = SecurityBudget::from_config(config);
         let text = decode_csv_bytes(content);
+        let csv_config = config.csv.as_ref();
+        let comment_prefixes: &[String] = csv_config.map(|c| c.comment_prefixes.as_slice()).unwrap_or(&[]);
+        let configured_delimiter = csv_config
+            .and_then(|c| c.delimiter.as_deref())
+            .and_then(|d| d.chars().next());
+
+        let filtered_text = strip_comment_lines(&text, comment_prefixes);
+
         let delimiter = if mime_type == "text/tab-separated-values" {
             '\t'
+        } else if let Some(delimiter) = configured_delimiter {
+            delimiter
         } else {
-            detect_delimiter(&text)
+            detect_delimiter(&filtered_text)
         };
 
-        let rows = parse_csv(&text, delimiter);
+        let rows = parse_csv(&filtered_text, delimiter);
 
         for row in &rows {
             budget.step()?;
@@ -127,6 +141,33 @@ impl InternalDocumentExtractor for CsvExtractor {
         };
 
         let mut builder = InternalDocumentBuilder::new("csv");
+
+        // Unlike the plain `from_utf8_lossy` used by html/rtf/text, `decode_csv_bytes`
+        // cannot leave a detectable "genuinely undecodable" signal in either build (#171):
+        // without `quality`, `decode_csv_bytes_fallback`'s encoding list ends in
+        // windows-1252/iso-8859-1, which the WHATWG Encoding Standard defines a mapping
+        // for every byte 0x00-0xFF, so it always succeeds -- the bytes are reinterpreted
+        // under a (possibly wrong) encoding, never dropped, and the trailing
+        // `String::from_utf8_lossy` fallback is unreachable dead code. With `quality`,
+        // `crate::utils::safe_decode` returns a string that has already had every
+        // replacement character stripped by its internal mojibake cleanup, so no
+        // marker of the loss survives to check for here either. Neither build can be
+        // told apart from a clean decode without changing that shared helper (out of
+        // this extractor's scope), so no lossy-decode warning is emitted for CSV.
+
+        if table
+            .cells
+            .iter()
+            .any(|row| row.iter().any(|cell| cell.contains('|') || cell.contains('\n')))
+        {
+            builder.add_warning(crate::core::diagnostics::warning(
+                CSV_WARNING_SOURCE,
+                "A cell contains a '|' or newline character, which is not escaped in the generated \
+                 Markdown table; the rendered table may have misaligned or split columns even though \
+                 the underlying cell data is intact",
+            ));
+        }
+
         builder.push_table(table, None, None);
 
         let mut doc = builder.build();
@@ -154,16 +195,36 @@ impl InternalDocumentExtractor for CsvExtractor {
     }
 }
 
+/// Maximum number of non-blank lines sampled by [`detect_delimiter`].
+///
+/// Widened from the original 10-line sample (xberg-io/xberg#164): a short
+/// sample is easily dominated by a handful of narrow leading rows (e.g. a
+/// title block) and picks the wrong delimiter for the rest of the file.
+const DELIMITER_SAMPLE_LINES: usize = 50;
+
 /// Auto-detect CSV delimiter using consistency-based approach.
 /// Tests each candidate delimiter and picks the one producing the most
 /// consistent column count across sample lines.
+///
+/// Blank lines and `#`-prefixed comment lines are skipped when building the
+/// sample so spacer rows and leading comments don't dilute the consistency
+/// score used to pick the delimiter.
 fn detect_delimiter(text: &str) -> char {
     const CANDIDATES: &[char] = &[',', '\t', '|', ';'];
     let mut best_delimiter = ',';
     let mut best_score = 0usize;
 
+    let sample: String = text
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .take(DELIMITER_SAMPLE_LINES)
+        .collect::<Vec<_>>()
+        .join("\n");
+
     for &candidate in CANDIDATES {
-        let sample: String = text.lines().take(10).collect::<Vec<_>>().join("\n");
         let rows = parse_csv(&sample, candidate);
         if rows.len() < 2 {
             continue;
@@ -181,6 +242,32 @@ fn detect_delimiter(text: &str) -> char {
         }
     }
     best_delimiter
+}
+
+/// Remove lines whose trimmed start matches one of `prefixes` from `text`.
+///
+/// Comment lines are dropped entirely (not just their content), so row
+/// indices in the remaining data are unaffected by their removal. Preserves
+/// each surviving line's original terminator (`\n` or `\r\n`) so downstream
+/// CRLF handling in [`parse_csv`] is unaffected.
+///
+/// Returns the input unchanged (borrowed, no allocation) when `prefixes` is
+/// empty — the default when [`crate::core::config::CsvConfig`] is unset —
+/// so existing behavior is preserved byte-for-byte.
+fn strip_comment_lines<'a>(text: &'a str, prefixes: &[String]) -> Cow<'a, str> {
+    if prefixes.is_empty() {
+        return Cow::Borrowed(text);
+    }
+
+    let mut result = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        let trimmed_start = line.trim_start();
+        let is_comment = prefixes.iter().any(|prefix| trimmed_start.starts_with(prefix.as_str()));
+        if !is_comment {
+            result.push_str(line);
+        }
+    }
+    Cow::Owned(result)
 }
 
 /// Parse CSV text into rows of fields, handling RFC 4180 quoted fields.
@@ -205,7 +292,7 @@ fn parse_csv(text: &str, delimiter: char) -> Vec<Vec<String>> {
             }
         } else {
             match c {
-                '"' => {
+                '"' if current_field.is_empty() => {
                     in_quotes = true;
                 }
                 c if c == delimiter => {
@@ -218,17 +305,15 @@ fn parse_csv(text: &str, delimiter: char) -> Vec<Vec<String>> {
                     }
                     current_row.push(current_field.clone());
                     current_field.clear();
-                    if !current_row.iter().all(|f| f.is_empty()) {
-                        rows.push(current_row);
-                    }
+                    // A genuinely blank line (e.g. a spacer row mid-file) must be kept as its
+                    // own row so subsequent row indices don't shift (xberg-io/xberg#164).
+                    rows.push(current_row);
                     current_row = Vec::new();
                 }
                 '\n' => {
                     current_row.push(current_field.clone());
                     current_field.clear();
-                    if !current_row.iter().all(|f| f.is_empty()) {
-                        rows.push(current_row);
-                    }
+                    rows.push(current_row);
                     current_row = Vec::new();
                 }
                 _ => {
@@ -240,9 +325,7 @@ fn parse_csv(text: &str, delimiter: char) -> Vec<Vec<String>> {
 
     if !current_field.is_empty() || !current_row.is_empty() {
         current_row.push(current_field);
-        if !current_row.iter().all(|f| f.is_empty()) {
-            rows.push(current_row);
-        }
+        rows.push(current_row);
     }
 
     rows
@@ -784,5 +867,187 @@ mod tests {
         let result = extractor.extract_content(&content, "text/csv", &config).await.unwrap();
 
         assert!(!result.tables.is_empty());
+    }
+
+    #[tokio::test]
+    async fn plain_comma_csv_parses_identically_with_no_csv_config_set() {
+        // Regression guard: introducing `ExtractionConfig::csv` must not change
+        // default behavior when it is left `None`.
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig::default();
+        assert!(config.csv.is_none());
+        let csv_data = b"Name,Age,City\nAlice,30,NYC\nBob,25,LA\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction should succeed");
+
+        assert_eq!(
+            result.tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Age".to_string(), "City".to_string()],
+                vec!["Alice".to_string(), "30".to_string(), "NYC".to_string()],
+                vec!["Bob".to_string(), "25".to_string(), "LA".to_string()],
+            ]
+        );
+
+        let plain = crate::rendering::render_plain(&result);
+        assert_eq!(plain, "Name Age City\nAlice 30 NYC\nBob 25 LA");
+    }
+
+    #[tokio::test]
+    async fn configured_semicolon_delimiter_is_used_instead_of_auto_detection() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig {
+            csv: Some(crate::core::config::CsvConfig {
+                delimiter: Some(";".to_string()),
+                comment_prefixes: vec![],
+            }),
+            ..Default::default()
+        };
+        // A single-row, single-delimiter-occurrence sample defeats consistency-based
+        // auto-detection (`detect_delimiter` needs >= 2 rows to score a candidate),
+        // so this only parses correctly when the configured delimiter is honored.
+        let csv_data = b"Name;Age;City\nAlice;30;NYC\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction with configured delimiter should succeed");
+
+        assert_eq!(
+            result.tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Age".to_string(), "City".to_string()],
+                vec!["Alice".to_string(), "30".to_string(), "NYC".to_string()],
+            ]
+        );
+
+        if let Some(FormatMetadata::Csv(csv_meta)) = &result.metadata.format {
+            assert_eq!(csv_meta.delimiter.as_deref(), Some(";"));
+        } else {
+            panic!("Expected FormatMetadata::Csv");
+        }
+    }
+
+    #[tokio::test]
+    async fn configured_comment_prefix_skips_matching_lines() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig {
+            csv: Some(crate::core::config::CsvConfig {
+                delimiter: None,
+                comment_prefixes: vec!["#".to_string()],
+            }),
+            ..Default::default()
+        };
+        let csv_data = b"# this is a comment\nName,Age,City\n# another comment\nAlice,30,NYC\nBob,25,LA\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction with comment prefix should succeed");
+
+        assert_eq!(
+            result.tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Age".to_string(), "City".to_string()],
+                vec!["Alice".to_string(), "30".to_string(), "NYC".to_string()],
+                vec!["Bob".to_string(), "25".to_string(), "LA".to_string()],
+            ]
+        );
+
+        let plain = crate::rendering::render_plain(&result);
+        assert_eq!(plain, "Name Age City\nAlice 30 NYC\nBob 25 LA");
+        assert!(!plain.contains('#'));
+    }
+
+    #[test]
+    fn strip_comment_lines_is_a_no_op_when_no_prefixes_are_configured() {
+        let text = "a,b\n#c,d\n";
+        assert_eq!(strip_comment_lines(text, &[]), Cow::Borrowed(text));
+    }
+
+    #[test]
+    fn strip_comment_lines_drops_lines_whose_trimmed_start_matches_a_prefix() {
+        let text = "# header comment\na,b,c\n  # indented comment\n1,2,3\n";
+        let filtered = strip_comment_lines(text, &["#".to_string()]);
+        assert_eq!(filtered, "a,b,c\n1,2,3\n");
+    }
+
+    fn csv_warnings(doc: &crate::types::internal::InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == CSV_WARNING_SOURCE)
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #171: `build_markdown_table` interpolates cell text into `| ... |` rows
+    /// with no escaping. A cell containing a literal `|` inserts a phantom
+    /// column boundary into the rendered Markdown, even though `Table::cells`
+    /// (the underlying data) is untouched.
+    #[tokio::test]
+    async fn should_warn_when_a_cell_contains_an_unescaped_pipe() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig::default();
+        let csv_data = b"Name,Note\nAlice,\"a | b\"\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction should succeed");
+
+        let warnings = csv_warnings(&result);
+        assert_eq!(warnings.len(), 1, "expected exactly one csv warning, got {warnings:?}");
+        assert!(
+            warnings[0].contains("'|'") && warnings[0].contains("misaligned"),
+            "warning must describe the unescaped pipe corruption, got {warnings:?}"
+        );
+        // The underlying cell data is untouched -- only the rendered Markdown is at risk.
+        assert_eq!(
+            result.tables[0].cells,
+            vec![
+                vec!["Name".to_string(), "Note".to_string()],
+                vec!["Alice".to_string(), "a | b".to_string()],
+            ]
+        );
+    }
+
+    /// #171: a cell containing an embedded newline (RFC 4180 permits this inside a
+    /// quoted field) breaks the one-row-per-line Markdown table structure the same
+    /// way an unescaped `|` does.
+    #[tokio::test]
+    async fn should_warn_when_a_cell_contains_an_embedded_newline() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig::default();
+        let csv_data = b"Name,Note\nAlice,\"line one\nline two\"\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction should succeed");
+
+        let warnings = csv_warnings(&result);
+        assert_eq!(warnings.len(), 1, "expected exactly one csv warning, got {warnings:?}");
+    }
+
+    /// An ordinary CSV file with no pipes or embedded newlines in any cell must not warn.
+    #[tokio::test]
+    async fn plain_csv_with_no_pipes_or_newlines_produces_zero_warnings() {
+        let extractor = CsvExtractor::new();
+        let config = ExtractionConfig::default();
+        let csv_data = b"Name,Age,City\nAlice,30,NYC\nBob,25,LA\n";
+
+        let result = extractor
+            .extract_content(csv_data, "text/csv", &config)
+            .await
+            .expect("CSV extraction should succeed");
+
+        assert!(
+            csv_warnings(&result).is_empty(),
+            "an ordinary CSV file must not warn, got {:?}",
+            csv_warnings(&result)
+        );
     }
 }

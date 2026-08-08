@@ -984,6 +984,106 @@ async fn captioning_prepass_keeps_redaction_and_chunks_consistent() {
     );
 }
 
+/// #355: the captioning prepass derives a full `ExtractedDocument` from `doc`
+/// before the pipeline's main (second) derivation runs on the same `doc`. That
+/// first derivation destructively `.remove()`s `CODE_INTELLIGENCE_SCRATCH_KEY`
+/// from `metadata.additional` (see `derive::derive_extraction_result`), and the
+/// prepass then overwrites `doc.metadata` wholesale with the already-stripped
+/// copy. Without carrying the computed payload back onto `doc`, the second
+/// derivation finds no scratch key and silently falls back to a degraded
+/// `CodeMetadata`-only `code_intelligence` (losing metrics, structure, imports,
+/// exports, etc. — see #259). Assert the exact full payload survives.
+#[tokio::test]
+#[serial]
+#[cfg(all(feature = "captioning", feature = "tree-sitter"))]
+async fn captioning_prepass_preserves_full_code_intelligence_scratch_payload() {
+    use crate::core::config::{CaptioningConfig, LlmConfig};
+    use crate::plugins::{Plugin, PostProcessor, ProcessingStage};
+    use crate::types::metadata::{CodeMetadata, FormatMetadata};
+    use async_trait::async_trait;
+    use std::sync::Arc;
+
+    struct NoopCaptioningProcessor;
+
+    impl Plugin for NoopCaptioningProcessor {
+        fn name(&self) -> &str {
+            CAPTIONING_PROCESSOR_NAME
+        }
+
+        fn version(&self) -> String {
+            "1.0.0".to_string()
+        }
+
+        fn initialize(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn shutdown(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl PostProcessor for NoopCaptioningProcessor {
+        async fn process(&self, _result: &mut ExtractedDocument, _config: &ExtractionConfig) -> Result<()> {
+            Ok(())
+        }
+
+        fn processing_stage(&self) -> ProcessingStage {
+            ProcessingStage::Middle
+        }
+
+        fn priority(&self) -> i32 {
+            50
+        }
+    }
+
+    initialize_features();
+    let registry = crate::plugins::registry::get_post_processor_registry();
+    registry.write().register(Arc::new(NoopCaptioningProcessor)).unwrap();
+    clear_processor_cache().unwrap();
+
+    let expected_code_intelligence = serde_json::json!({
+        "language": "python",
+        "metrics": {"total_lines": 1},
+    });
+
+    let mut doc = make_doc("def f(): pass", "text/x-python");
+    doc.metadata.format = Some(FormatMetadata::Code(CodeMetadata::default()));
+    doc.metadata.additional.insert(
+        Cow::Borrowed(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
+        expected_code_intelligence.clone(),
+    );
+
+    let config = ExtractionConfig {
+        captioning: Some(CaptioningConfig {
+            llm: LlmConfig::default(),
+            prompt: None,
+            min_image_area: 1,
+        }),
+        ..Default::default()
+    };
+
+    let processed = run_pipeline(doc, &config).await.unwrap();
+
+    // Restore the real captioning processor for subsequent tests in this module.
+    crate::plugins::processor::builtin::captioning::register().unwrap();
+    clear_processor_cache().unwrap();
+
+    assert_eq!(
+        processed.code_intelligence,
+        Some(expected_code_intelligence),
+        "captioning prepass must not degrade code_intelligence on the pipeline's second derivation"
+    );
+    assert!(
+        !processed
+            .metadata
+            .additional
+            .contains_key(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
+        "scratch key must never leak into final metadata"
+    );
+}
+
 #[tokio::test]
 #[serial]
 async fn test_run_pipeline_with_output_format_plain() {

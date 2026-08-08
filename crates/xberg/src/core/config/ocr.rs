@@ -7,9 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::path::PathBuf;
 
 use super::formats::OutputFormat;
-#[cfg(test)]
 use crate::core::config_validation::validate_ocr_backend;
-#[cfg(test)]
 use crate::error::XbergError;
 use crate::types::OcrElementConfig;
 
@@ -691,17 +689,29 @@ impl OcrConfig {
     /// Typos in backend names are caught at configuration validation time, not at runtime.
     /// Also validates pipeline stage backends when a pipeline is configured.
     ///
+    /// Also validates every non-blank entry of `language` (and, per pipeline stage, its
+    /// `language` override) as an ISO 639 code, and the `vlm_fallback` quality threshold as a
+    /// `[0.0, 1.0]` confidence value. Blank language entries are tolerated here (they are
+    /// filtered out by [`Self::effective_languages`] and fall back to the default language),
+    /// but a non-blank, unrecognized code is rejected.
+    ///
     /// When `vlm_fallback` is not `Disabled` and no explicit `pipeline` is set,
     /// `vlm_config` must be `Some`. A missing `vlm_config` in that case is a
     /// configuration error detected here, not at runtime.
-    #[cfg(test)]
     pub(crate) fn validate(&self) -> Result<(), XbergError> {
         validate_ocr_backend(&self.backend)?;
         crate::core::config_validation::validate_vlm_backend_config(&self.backend, self.vlm_config.as_ref())?;
+        validate_languages(&self.language)?;
+        if let VlmFallbackPolicy::OnLowQuality { quality_threshold } = &self.vlm_fallback {
+            crate::core::config_validation::validate_confidence(*quality_threshold)?;
+        }
         if let Some(ref pipeline) = self.pipeline {
             for stage in &pipeline.stages {
                 validate_ocr_backend(&stage.backend)?;
                 crate::core::config_validation::validate_vlm_backend_config(&stage.backend, stage.vlm_config.as_ref())?;
+                if let Some(ref languages) = stage.language {
+                    validate_languages(languages)?;
+                }
             }
         } else if self.vlm_fallback != VlmFallbackPolicy::Disabled && self.vlm_config.is_none() {
             return Err(XbergError::validation(
@@ -909,6 +919,22 @@ impl OcrConfig {
             OcrPipelineSelection::HighestScore
         }
     }
+}
+
+/// Validate each non-blank entry of a configured language list as an ISO 639 code.
+///
+/// Blank entries are skipped rather than rejected: [`OcrConfig::effective_languages`] already
+/// filters them out and falls back to the default language, so an empty string is not itself a
+/// configuration error — but a non-blank, unrecognized code (e.g. a typo) is.
+fn validate_languages(languages: &[String]) -> Result<(), XbergError> {
+    for language in languages
+        .iter()
+        .map(|language| language.trim())
+        .filter(|l| !l.is_empty())
+    {
+        crate::core::config_validation::validate_language_code(language)?;
+    }
+    Ok(())
 }
 
 fn default_ocr_enabled() -> bool {

@@ -408,6 +408,17 @@ pub enum NodeContent {
         text: String,
     },
 
+    /// Reviewer/editor comment content (e.g. DOCX comments).
+    ///
+    /// Distinct from [`NodeContent::Footnote`] (xberg-io/xberg#300): comments and
+    /// footnotes both reach the internal document via a marker/definition pair, but
+    /// a consumer needs to tell a reviewer comment apart from an authored footnote.
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    Comment {
+        /// The comment body text.
+        text: String,
+    },
+
     /// Logical grouping container (section, key-value area).
     ///
     /// `heading_level` + `heading_text` capture the section heading directly
@@ -503,6 +514,7 @@ impl NodeContent {
             Self::Quote => "quote",
             Self::Formula { .. } => "formula",
             Self::Footnote { .. } => "footnote",
+            Self::Comment { .. } => "comment",
             Self::Group { .. } => "group",
             Self::PageBreak => "page_break",
             Self::Slide { .. } => "slide",
@@ -647,8 +659,8 @@ impl NodeContent {
     /// Get the primary text content of this node, if it carries text.
     ///
     /// Text-carrying nodes: `Title`, `Heading`, `Paragraph`, `ListItem`, `Code`,
-    /// `Formula`, `Footnote`, `Citation` (returns text), `RawBlock` (returns content),
-    /// `DefinitionItem` (returns term only, not definition).
+    /// `Formula`, `Footnote`, `Comment`, `Citation` (returns text), `RawBlock` (returns
+    /// content), `DefinitionItem` (returns term only, not definition).
     ///
     /// Container/marker nodes return `None`: `List`, `Quote`, `Group`, `PageBreak`,
     /// `Slide`, `DefinitionList`, `Admonition`, `MetadataBlock`.
@@ -661,6 +673,7 @@ impl NodeContent {
             | NodeContent::Code { text, .. }
             | NodeContent::Formula { text }
             | NodeContent::Footnote { text }
+            | NodeContent::Comment { text }
             | NodeContent::Citation { text, .. }
             | NodeContent::RawBlock { content: text, .. } => Some(text),
             NodeContent::DefinitionItem { term, .. } => Some(term),
@@ -674,6 +687,74 @@ impl NodeContent {
             | NodeContent::DefinitionList
             | NodeContent::Admonition { .. }
             | NodeContent::MetadataBlock { .. } => None,
+        }
+    }
+
+    /// Invoke `redact` on every text-bearing field of this variant, in place.
+    ///
+    /// A `&mut` companion to [`Self::text`], but exhaustive rather than
+    /// primary-field-only: it also covers secondary text fields `text()` does not
+    /// surface (`Group::heading_text`, `Slide::title`, `Image::description`,
+    /// `DefinitionItem::definition`, `Admonition::title`), plus per-cell table text
+    /// and metadata-block values. Without this, a redaction pass over
+    /// [`super::extraction::ExtractedDocument::content`] leaves the structured
+    /// `document` tree holding the original text verbatim (xberg-io/xberg#298).
+    ///
+    /// Container/marker nodes with no text of their own — `List`, `Quote`,
+    /// `PageBreak`, `DefinitionList` — are no-ops.
+    /// Gated to match its callers (`text::redaction` and `text::translation::fields`,
+    /// each gated on its own feature) — without this, a build with both off trips
+    /// `dead_code`, which CI escalates via `-D warnings`. Any new caller must add its
+    /// feature here, or the walker silently compiles out and that caller becomes a
+    /// no-op rather than failing to build (#254).
+    #[cfg(any(feature = "redaction", feature = "translation"))]
+    pub(crate) fn for_each_text_field_mut(&mut self, mut redact: impl FnMut(&mut String)) {
+        match self {
+            NodeContent::Title { text }
+            | NodeContent::Heading { text, .. }
+            | NodeContent::Paragraph { text }
+            | NodeContent::ListItem { text }
+            | NodeContent::Code { text, .. }
+            | NodeContent::Formula { text }
+            | NodeContent::Footnote { text }
+            | NodeContent::Comment { text }
+            | NodeContent::Citation { text, .. }
+            | NodeContent::RawBlock { content: text, .. } => redact(text),
+            NodeContent::DefinitionItem { term, definition } => {
+                redact(term);
+                redact(definition);
+            }
+            NodeContent::Group { heading_text, .. } => {
+                if let Some(text) = heading_text.as_mut() {
+                    redact(text);
+                }
+            }
+            NodeContent::Slide { title, .. } => {
+                if let Some(text) = title.as_mut() {
+                    redact(text);
+                }
+            }
+            NodeContent::Image { description, .. } => {
+                if let Some(text) = description.as_mut() {
+                    redact(text);
+                }
+            }
+            NodeContent::Admonition { title, .. } => {
+                if let Some(text) = title.as_mut() {
+                    redact(text);
+                }
+            }
+            NodeContent::Table { grid } => {
+                for cell in grid.cells.iter_mut() {
+                    redact(&mut cell.content);
+                }
+            }
+            NodeContent::MetadataBlock { entries } => {
+                for (_key, value) in entries.iter_mut() {
+                    redact(value);
+                }
+            }
+            NodeContent::List { .. } | NodeContent::Quote | NodeContent::PageBreak | NodeContent::DefinitionList => {}
         }
     }
 
@@ -691,6 +772,7 @@ impl NodeContent {
             NodeContent::Quote => "quote",
             NodeContent::Formula { .. } => "formula",
             NodeContent::Footnote { .. } => "footnote",
+            NodeContent::Comment { .. } => "comment",
             NodeContent::Group { .. } => "group",
             NodeContent::PageBreak => "page_break",
             NodeContent::Slide { .. } => "slide",

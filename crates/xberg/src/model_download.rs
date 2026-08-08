@@ -600,15 +600,365 @@ pub(crate) fn hf_cached_file(
     hf_cached_revision_with_client(&api, repo_id, remote_filename, revision)
 }
 
-/// Resolve one model artifact through the Hugging Face cache.
+/// Minimum wall-clock gap between rendered progress lines. hf-hub emits a progress event per
+/// stream chunk, which on a fast link is thousands per second; throttling keeps both the
+/// rendering cost and the emitted log volume bounded.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+const PROGRESS_RENDER_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Reports Hugging Face download progress through `tracing`.
 ///
-/// With `cache_dir == None`, hf-hub owns cache discovery and follows the standard
-/// `HF_HUB_CACHE` / `HUGGINGFACE_HUB_CACHE` / `HF_HOME` / XDG precedence. A
-/// supplied directory is an explicit alternate *Hugging Face cache root* and
-/// retains hf-hub's normal content-addressed layout; Xberg never stages a copy.
-/// Cache lookup is always local-first. Both Hugging Face offline variables are
-/// honored before any network request. When `expected_sha256` is supplied, a bad
-/// cached entry is force-refreshed and the replacement is verified before use.
+/// Registered with hf-hub only when the capability config that triggered the download asked for
+/// it (see [`progress_handler`]). Each download builds its own handler, so concurrent downloads
+/// never share mutable state.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[derive(Default)]
+#[allow(dead_code)]
+struct TracingDownloadProgress {
+    state: std::sync::Mutex<TracingProgressState>,
+}
+
+/// Mutable accounting behind [`TracingDownloadProgress`]. `per_file_bytes` holds each file's
+/// cumulative byte count because hf-hub's `Progress` events carry only the files that changed.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[derive(Default)]
+#[allow(dead_code)]
+struct TracingProgressState {
+    total_bytes: u64,
+    per_file_bytes: std::collections::HashMap<String, u64>,
+    last_render: Option<std::time::Instant>,
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+impl TracingDownloadProgress {
+    /// Record a batch of per-file deltas and return the line to render, or `None` while the
+    /// render interval has not elapsed.
+    fn observe(&self, files: &[hf_hub::progress::FileProgress]) -> Option<String> {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        for file in files {
+            state.per_file_bytes.insert(file.filename.clone(), file.bytes_completed);
+        }
+        let now = std::time::Instant::now();
+        if state
+            .last_render
+            .is_some_and(|last| now.duration_since(last) < PROGRESS_RENDER_INTERVAL)
+        {
+            return None;
+        }
+        state.last_render = Some(now);
+        let completed: u64 = state.per_file_bytes.values().sum();
+        Some(format_transfer(completed, state.total_bytes))
+    }
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+impl hf_hub::progress::ProgressHandler for TracingDownloadProgress {
+    fn on_progress(&self, event: &hf_hub::progress::ProgressEvent) {
+        use hf_hub::progress::{DownloadEvent, ProgressEvent};
+
+        let ProgressEvent::Download(event) = event else {
+            return;
+        };
+        match event {
+            DownloadEvent::Start {
+                total_files,
+                total_bytes,
+            } => {
+                {
+                    let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    state.total_bytes = *total_bytes;
+                    state.per_file_bytes.clear();
+                    state.last_render = None;
+                }
+                render_progress(&format!(
+                    "downloading {total_files} model file(s), {}",
+                    format_bytes(*total_bytes)
+                ));
+            }
+            DownloadEvent::Progress { files } => {
+                if let Some(line) = self.observe(files) {
+                    render_progress(&line);
+                }
+            }
+            DownloadEvent::AggregateProgress {
+                bytes_completed,
+                total_bytes,
+                ..
+            } => render_progress(&format_transfer(*bytes_completed, *total_bytes)),
+            DownloadEvent::Complete => render_progress("model download complete"),
+        }
+    }
+}
+
+/// Emit one progress line.
+///
+/// Goes through `tracing` rather than a raw stderr write, per the workspace rule that
+/// diagnostics belong to the subscriber (`clippy::print_stderr` is denied). Hosts that want the
+/// line visible need an `info`-level subscriber for `xberg::model_download`; the CLI installs
+/// one.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+fn render_progress(message: &str) {
+    tracing::info!(target: "xberg::model_download", progress = %message, "model download progress");
+}
+
+/// Format `completed`/`total` as a human-readable transfer line. A zero total means hf-hub could
+/// not determine the remote size, so only the transferred amount is reported.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+fn format_transfer(completed: u64, total: u64) -> String {
+    if total == 0 {
+        return format!("downloaded {}", format_bytes(completed));
+    }
+    let percent = (completed as f64 / total as f64 * 100.0).min(100.0);
+    format!(
+        "downloaded {} / {} ({percent:.0}%)",
+        format_bytes(completed),
+        format_bytes(total)
+    )
+}
+
+/// Format a byte count in MiB (models are megabyte-to-gigabyte scale).
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+fn format_bytes(bytes: u64) -> String {
+    const BYTES_PER_MIB: f64 = 1024.0 * 1024.0;
+    format!("{:.1} MiB", bytes as f64 / BYTES_PER_MIB)
+}
+
+/// Build the hf-hub progress handler a caller's `show_download_progress` setting calls for.
+///
+/// `None` is hf-hub's "emit nothing" — a disabled setting is genuinely silent rather than merely
+/// quiet, and no handler is allocated.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+pub(crate) fn progress_handler(progress: crate::core::config::DownloadProgress) -> Option<hf_hub::progress::Progress> {
+    progress
+        .is_enabled()
+        .then(|| hf_hub::progress::Progress::new(TracingDownloadProgress::default()))
+}
+
+#[cfg(all(
+    test,
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings"
+    )
+))]
+mod progress_tests {
+    use super::*;
+    use crate::core::config::DownloadProgress;
+
+    #[test]
+    fn enabled_setting_registers_a_handler_with_hf_hub() {
+        assert!(
+            progress_handler(DownloadProgress::new(true)).is_some(),
+            "show_download_progress=true must hand hf-hub a progress handler"
+        );
+    }
+
+    #[test]
+    fn disabled_setting_registers_no_handler_with_hf_hub() {
+        assert!(
+            progress_handler(DownloadProgress::new(false)).is_none(),
+            "show_download_progress=false must leave hf-hub without a handler (silent)"
+        );
+    }
+
+    #[test]
+    fn silent_downloads_register_no_handler_with_hf_hub() {
+        assert!(progress_handler(DownloadProgress::SILENT).is_none());
+    }
+
+    #[test]
+    fn transfer_line_reports_bytes_and_percentage() {
+        assert_eq!(
+            format_transfer(1024 * 1024, 4 * 1024 * 1024),
+            "downloaded 1.0 MiB / 4.0 MiB (25%)"
+        );
+    }
+
+    #[test]
+    fn transfer_line_omits_percentage_when_remote_size_is_unknown() {
+        assert_eq!(format_transfer(2 * 1024 * 1024, 0), "downloaded 2.0 MiB");
+    }
+
+    #[test]
+    fn observe_accumulates_per_file_bytes_and_throttles_rendering() {
+        use hf_hub::progress::{FileProgress, FileStatus};
+
+        let handler = TracingDownloadProgress::default();
+        handler.state.lock().expect("fresh mutex is never poisoned").total_bytes = 4 * 1024 * 1024;
+
+        let first = handler.observe(&[FileProgress {
+            filename: "model.onnx".to_string(),
+            bytes_completed: 1024 * 1024,
+            total_bytes: 3 * 1024 * 1024,
+            status: FileStatus::InProgress,
+        }]);
+        assert_eq!(first.as_deref(), Some("downloaded 1.0 MiB / 4.0 MiB (25%)"));
+
+        // Second batch lands inside the render interval: accounted for, not rendered.
+        let second = handler.observe(&[FileProgress {
+            filename: "tokenizer.json".to_string(),
+            bytes_completed: 1024 * 1024,
+            total_bytes: 1024 * 1024,
+            status: FileStatus::Complete,
+        }]);
+        assert_eq!(second, None);
+
+        let accumulated: u64 = handler
+            .state
+            .lock()
+            .expect("fresh mutex is never poisoned")
+            .per_file_bytes
+            .values()
+            .sum();
+        assert_eq!(accumulated, 2 * 1024 * 1024);
+    }
+}
+
+/// Resolve one model artifact through the Hugging Face cache, without progress reporting.
+///
+/// Entry point for artifact downloads that no capability config governs (OCR, layout,
+/// orientation, transcription and tokenizer models). Capability downloads whose config carries
+/// `show_download_progress` call [`hf_resolve_file_with_progress`] instead.
 #[cfg(all(
     not(target_arch = "wasm32"),
     any(
@@ -631,6 +981,53 @@ pub(crate) fn hf_resolve_file(
     revision: Option<&str>,
     cache_dir: Option<&Path>,
     expected_sha256: Option<&str>,
+) -> Result<PathBuf, String> {
+    hf_resolve_file_with_progress(
+        repo_id,
+        remote_filename,
+        revision,
+        cache_dir,
+        expected_sha256,
+        crate::core::config::DownloadProgress::SILENT,
+    )
+}
+
+/// Resolve one model artifact through the Hugging Face cache.
+///
+/// With `cache_dir == None`, hf-hub owns cache discovery and follows the standard
+/// `HF_HUB_CACHE` / `HUGGINGFACE_HUB_CACHE` / `HF_HOME` / XDG precedence. A
+/// supplied directory is an explicit alternate *Hugging Face cache root* and
+/// retains hf-hub's normal content-addressed layout; Xberg never stages a copy.
+/// Cache lookup is always local-first. Both Hugging Face offline variables are
+/// honored before any network request. When `expected_sha256` is supplied, a bad
+/// cached entry is force-refreshed and the replacement is verified before use.
+///
+/// `progress` carries the triggering capability config's `show_download_progress` setting
+/// (#279). It is consulted only when a transfer actually happens — a cache hit stays silent
+/// whatever the setting says, because there is nothing to report.
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(
+        paddle_ocr,
+        layout_detection,
+        auto_rotate,
+        feature = "ner-onnx",
+        feature = "candle-paddleocr-vl",
+        feature = "transcription",
+        feature = "chunking-tokenizers",
+        feature = "onnx-runtime",
+        feature = "static-embeddings",
+        all(test, feature = "layout-detection")
+    )
+))]
+#[allow(dead_code)]
+pub(crate) fn hf_resolve_file_with_progress(
+    repo_id: &str,
+    remote_filename: &str,
+    revision: Option<&str>,
+    cache_dir: Option<&Path>,
+    expected_sha256: Option<&str>,
+    progress: crate::core::config::DownloadProgress,
 ) -> Result<PathBuf, String> {
     if let Some(expected) = expected_sha256
         && !is_sha256_hex(expected)
@@ -692,24 +1089,34 @@ pub(crate) fn hf_resolve_file(
             _ => Vec::new(),
         };
 
+        // Built here, past every cache-hit early return, so a warm cache allocates no handler
+        // and prints nothing regardless of the caller's setting. ~keep
+        let handler = progress_handler(progress);
         let result = match (revision.as_deref(), force) {
             (Some(revision), true) => repository
                 .download_file()
                 .filename(filename.clone())
                 .revision(revision.to_string())
                 .force_download(true)
+                .maybe_progress(handler)
                 .send(),
             (Some(revision), false) => repository
                 .download_file()
                 .filename(filename.clone())
                 .revision(revision.to_string())
+                .maybe_progress(handler)
                 .send(),
             (None, true) => repository
                 .download_file()
                 .filename(filename.clone())
                 .force_download(true)
+                .maybe_progress(handler)
                 .send(),
-            (None, false) => repository.download_file().filename(filename.clone()).send(),
+            (None, false) => repository
+                .download_file()
+                .filename(filename.clone())
+                .maybe_progress(handler)
+                .send(),
         };
         let refreshed = result
             .map_err(|error| format!("Failed to download '{filename}' from {repo}: {error}"))

@@ -609,8 +609,13 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
                 self.in_dt = false;
             }
             "dd" => {
-                self.in_dd = false;
+                // `flush_definition_item` gates its `dd` branch on `self.in_dd` still being
+                // `true` (it's what tells it there's a pending definition to push) — it must
+                // run before that flag is cleared, or the definition item is silently
+                // dropped (issue #127: this was the actual reason `<dl>/<dt>/<dd>` content
+                // never reached `DefinitionItem` nodes at all).
                 self.flush_definition_item();
+                self.in_dd = false;
             }
             "figure" => {
                 if let Some(fig) = self.figure.take() {
@@ -1452,5 +1457,25 @@ mod tests {
         assert!(doc.validate().is_ok());
         assert_eq!(doc.body_roots().count(), 1);
         assert!(doc.len() > 10, "Complex doc should have many nodes, got {}", doc.len());
+    }
+
+    /// Regression test for issue #127: `flush_definition_item`'s `dd` branch checks
+    /// `self.in_dd`, so it must run before the `</dd>` close-tag handler clears that flag —
+    /// otherwise the definition item is silently dropped and only an empty `DefinitionList`
+    /// marker node is produced.
+    #[test]
+    fn test_dl_dt_dd_produces_definition_item_node() {
+        let html = r#"<html><body><h1>Glossary</h1><dl><dt>DEFTERM</dt><dd>DEFDESCRIPTION explaining the term.</dd></dl></body></html>"#;
+        let doc = build_document_structure(html);
+        let item = doc
+            .nodes
+            .iter()
+            .find_map(|n| match &n.content {
+                NodeContent::DefinitionItem { term, definition } => Some((term.clone(), definition.clone())),
+                _ => None,
+            })
+            .expect("expected a DefinitionItem node");
+        assert_eq!(item.0, "DEFTERM");
+        assert_eq!(item.1, "DEFDESCRIPTION explaining the term.");
     }
 }

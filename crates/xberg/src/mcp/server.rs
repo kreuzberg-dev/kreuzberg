@@ -1668,6 +1668,47 @@ mod tests {
         }
     }
 
+    /// Every registered MCP tool must declare a typed output schema (#250).
+    ///
+    /// The test above pins a hardcoded list, so a tool added later without an
+    /// `output_schema` would pass it unnoticed. This one is exhaustive over
+    /// whatever the router actually exposes, and pins the exact tool set so a
+    /// silent addition or removal has to be acknowledged here.
+    #[tokio::test]
+    async fn should_declare_output_schema_on_every_registered_tool() {
+        let router = XbergMcp::tool_router();
+        let tools = router.list_all();
+
+        let mut names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                "cache_clear",
+                "cache_manifest",
+                "cache_stats",
+                "cache_warm",
+                "detect_mime_type",
+                "extract",
+                "extract_batch",
+                "get_version",
+                "list_formats",
+            ],
+            "unexpected MCP tool set"
+        );
+
+        let missing: Vec<String> = tools
+            .iter()
+            .filter(|tool| tool.output_schema.is_none())
+            .map(|tool| tool.name.to_string())
+            .collect();
+        assert_eq!(
+            missing,
+            Vec::<String>::new(),
+            "every MCP tool must declare output_schema so clients can parse structured_content"
+        );
+    }
+
     #[test]
     fn test_record_warmed_model_reports_only_confirmed_cache_dispositions() {
         let mut available = Vec::new();

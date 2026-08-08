@@ -23,9 +23,12 @@ use crate::types::internal::InternalDocument;
 
 use execution::{execute_processor_stages, execute_validators};
 use features::{execute_chunking, execute_language_detection, execute_token_reduction};
-use initialization::{get_processors_from_cache, initialize_features, initialize_processor_cache};
+use initialization::{
+    builtin_registration_error, get_processors_from_cache, initialize_features, initialize_processor_cache,
+};
 
 const CAPTIONING_PROCESSOR_NAME: &str = "captioning";
+const BUILTIN_REGISTRATION_SOURCE: &str = "builtin_registration";
 
 type PostProcessorHandle = std::sync::Arc<dyn crate::plugins::PostProcessor>;
 
@@ -41,15 +44,80 @@ fn processors_without_captioning(
     )
 }
 
+/// Values produced by the captioning prepass that have no `InternalDocument`
+/// destination and therefore cannot be merged back onto `doc`.
+///
+/// The prepass runs the captioning post-processor against a full
+/// `ExtractedDocument` derived from `doc`, but the pipeline then re-derives the
+/// final result from `doc`. Fields the derivation does not read back are carried
+/// here and re-applied to the derived result instead of being discarded.
+#[derive(Debug, Default)]
+struct CaptioningCarryOver {
+    /// Content authored by the prepass processor, when it rewrote `content`.
+    content: Option<String>,
+    /// Named entities produced by the prepass processor.
+    entities: Option<Vec<crate::types::Entity>>,
+}
+
+impl CaptioningCarryOver {
+    fn apply(self, result: &mut ExtractedDocument) {
+        if let Some(content) = self.content {
+            result.content = content;
+        }
+        if self.entities.is_some() {
+            result.entities = self.entities;
+        }
+    }
+}
+
+/// Whether the prepass changed any image description, including by adding or
+/// removing images. A change invalidates the extractor's pre-rendered content.
+fn image_descriptions_changed(
+    before: &[crate::types::ExtractedImage],
+    after: Option<&Vec<crate::types::ExtractedImage>>,
+) -> bool {
+    let after = match after {
+        Some(images) => images.as_slice(),
+        None => &[],
+    };
+    before.len() != after.len()
+        || before
+            .iter()
+            .zip(after)
+            .any(|(retained, captioned)| retained.description != captioned.description)
+}
+
+/// Push a `ProcessingWarning` onto `doc` when the one-time built-in post-processor
+/// registration pass (#271) reported a failure. `registration_error` is
+/// `initialization::builtin_registration_error()`; `None` means every enabled
+/// built-in processor registered successfully (or registration has not run yet).
+///
+/// Without this, a processor that failed to register (e.g. `summarization`) simply
+/// never appears in the processor cache, so a caller who configured it saw a clean
+/// `Ok` with no output for that stage and no indication why — the same class of gap
+/// the captioning-only "processor missing" warning below closes for captioning.
+fn push_builtin_registration_warning(doc: &mut InternalDocument, registration_error: Option<String>) {
+    let Some(error) = registration_error else {
+        return;
+    };
+    doc.processing_warnings.push(crate::types::ProcessingWarning {
+        source: std::borrow::Cow::Borrowed(BUILTIN_REGISTRATION_SOURCE),
+        message: std::borrow::Cow::Owned(format!(
+            "built-in post-processor registration was incomplete ({error}); a configured \
+             processor may silently produce no output for its stage"
+        )),
+    });
+}
+
 async fn run_captioning_prepass(
     doc: &mut InternalDocument,
     config: &ExtractionConfig,
     include_structure: bool,
     pp_config: &Option<&crate::core::config::PostProcessorConfig>,
     middle_processors: &std::sync::Arc<Vec<PostProcessorHandle>>,
-) -> Result<()> {
+) -> Result<CaptioningCarryOver> {
     if config.captioning.is_none() {
-        return Ok(());
+        return Ok(CaptioningCarryOver::default());
     }
 
     let captioning_processors = std::sync::Arc::new(
@@ -67,7 +135,7 @@ async fn run_captioning_prepass(
             source: std::borrow::Cow::Borrowed("captioning"),
             message: std::borrow::Cow::Borrowed("captioning feature not enabled — rebuild with --features captioning"),
         });
-        return Ok(());
+        return Ok(CaptioningCarryOver::default());
     }
 
     crate::extraction::derive::resolve_relationships(doc);
@@ -77,6 +145,8 @@ async fn run_captioning_prepass(
         config.output_format.clone(),
     );
 
+    let content_before = caption_result.content.clone();
+
     execute_processor_stages(
         &mut caption_result,
         config,
@@ -85,31 +155,72 @@ async fn run_captioning_prepass(
     )
     .await?;
 
-    if let Some(captioned_images) = caption_result.images.as_ref() {
-        let mut description_changed = false;
-        for (retained, captioned) in doc.images.iter_mut().zip(captioned_images) {
-            description_changed |= retained.description != captioned.description;
-            retained.description = captioned.description.clone();
-            retained.caption = captioned.caption.clone();
-        }
-        if description_changed {
-            doc.pre_rendered_content = None;
-        }
+    // Merge the prepass result back. Everything the processor produced that the
+    // derivation re-reads goes onto `doc`; the rest is carried to the derived
+    // result. Previously only description/caption, warnings and usage survived.
+    let description_changed = image_descriptions_changed(&doc.images, caption_result.images.as_ref());
+    // Replace the image vec wholesale instead of zipping it against `doc.images`:
+    // a processor that adds or removes an image made `zip` truncate to the shorter
+    // side, dropping added images and mis-pairing the rest.
+    doc.images = caption_result.images.take().unwrap_or_default();
+    if description_changed {
+        doc.pre_rendered_content = None;
     }
-    doc.processing_warnings = caption_result.processing_warnings;
-    doc.llm_usage = caption_result.llm_usage;
+    doc.metadata = std::mem::take(&mut caption_result.metadata);
+    // #355: the prepass derives a full `ExtractedDocument` from `doc` above, and that
+    // derivation destructively `.remove()`s `CODE_INTELLIGENCE_SCRATCH_KEY` from
+    // `metadata.additional` (see `derive::derive_extraction_result`) so the raw
+    // scratch payload never leaks into user-visible metadata. The `doc.metadata`
+    // assignment just above then overwrites `doc`'s metadata with that
+    // already-stripped copy, so the *second* derivation the pipeline runs later
+    // (after this prepass returns) finds no scratch key and falls back to a
+    // degraded `CodeMetadata`-only `code_intelligence` payload. Put the full
+    // payload the first derivation already computed back under the scratch key so
+    // the second derivation round-trips the same `.remove()` and reconstructs the
+    // identical, non-degraded result.
+    #[cfg(feature = "tree-sitter")]
+    if let Some(code_intelligence) = caption_result.code_intelligence.take() {
+        doc.metadata.additional.insert(
+            std::borrow::Cow::Borrowed(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
+            code_intelligence,
+        );
+    }
+    doc.uris = caption_result.uris.take().unwrap_or_default();
+    doc.processing_warnings = std::mem::take(&mut caption_result.processing_warnings);
+    doc.llm_usage = caption_result.llm_usage.take();
 
-    Ok(())
+    Ok(CaptioningCarryOver {
+        content: (caption_result.content != content_before).then(|| std::mem::take(&mut caption_result.content)),
+        entities: caption_result.entities.take(),
+    })
 }
 
 /// Run the post-processing pipeline on an `InternalDocument`.
 ///
 /// Derives `ExtractedDocument` from `InternalDocument` via the derivation pipeline,
 /// then executes post-processing in the following order:
-/// 1. Post-Processors - Execute by stage (Early, Middle, Late) to modify/enhance the result
-/// 2. Quality Processing - Text cleaning and quality scoring
-/// 3. Chunking - Text splitting if enabled
+/// 1. Post-Processors - Execute by stage (Early immediately; Middle/Late after a
+///    provisional chunking pass, so chunk-aware post-processors see `result.chunks`)
+/// 2. Language detection
+/// 3. Quality Processing - Token reduction, NFC normalization, output-format application
 /// 4. Validators - Run validation hooks on the processed result (can fail fast)
+/// 5. Chunking (final) - Text splitting if enabled
+///
+/// Chunking runs **twice** when Middle/Late post-processors are active: once right
+/// after Early post-processors (so a chunk-aware post-processor sees non-empty
+/// `result.chunks`, per the tested contract in
+/// `test_middle_postprocessors_run_after_explicit_chunking`), and again as the
+/// **last** step, after every step that rewrites `content` (token reduction, NFC
+/// normalization, output-format swapping). Only the final pass's `result.chunks`
+/// is returned. Chunk `byte_start`/`byte_end` (and page-derived
+/// `first_page`/`last_page`) are byte offsets into whatever `content` looked like at
+/// chunking time, and are the join key consumers use for highlighting and
+/// rehydration — running chunking only once, early, left those offsets silently
+/// indexing stale content once later steps mutated it (#213). The first pass's
+/// offsets are provisional; a Middle/Late post-processor must not treat them as
+/// final. This trades an extra (usually cheap) chunking pass — and, if embeddings
+/// are configured, a discarded first embedding batch — for offset correctness in
+/// the returned result.
 ///
 /// # Arguments
 ///
@@ -128,7 +239,7 @@ async fn run_captioning_prepass(
 #[cfg_attr(feature = "otel", tracing::instrument(
     skip(doc, config),
     fields(
-        pipeline.stage = "post_processing",
+        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::PIPELINE,
         content.element_count = doc.elements.len(),
     )
 ))]
@@ -178,6 +289,7 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
     let postprocessing_enabled = pp_config.is_none_or(|processor_config| processor_config.enabled);
     let processor_stages = if postprocessing_enabled {
         initialize_features();
+        push_builtin_registration_warning(&mut doc, builtin_registration_error());
         initialize_processor_cache()?;
 
         let (early_processors, middle_processors, late_processors) = get_processors_from_cache()?;
@@ -187,12 +299,17 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
     };
 
     let include_structure = config.include_document_structure;
+    let mut captioning_carry_over = CaptioningCarryOver::default();
     if let Some((_, middle_processors, _)) = &processor_stages {
-        run_captioning_prepass(&mut doc, config, include_structure, &pp_config, middle_processors).await?;
+        captioning_carry_over =
+            run_captioning_prepass(&mut doc, config, include_structure, &pp_config, middle_processors).await?;
     }
 
+    // Computed once, up front, from `doc` (independent of the later derivation and
+    // content-mutating steps) and carried to the relocated `execute_chunking` call
+    // near the end of this function — see the ordering note on `run_pipeline` (#213).
     #[cfg(feature = "chunking")]
-    let chunker_heading_source = {
+    let chunker_heading_source: Option<String> = {
         let needs_markdown = config.chunking.as_ref().is_some_and(|c| {
             c.chunker_type == crate::core::config::ChunkerType::Markdown
                 || c.resolve_preset().chunker_type == crate::core::config::ChunkerType::Markdown
@@ -203,6 +320,8 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
             None
         }
     };
+    #[cfg(not(feature = "chunking"))]
+    let chunker_heading_source: Option<String> = None;
 
     #[cfg(feature = "html")]
     let styled_html_prerender: Option<String> = {
@@ -237,18 +356,24 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
     let mut result =
         crate::extraction::derive::derive_extraction_result(doc, include_structure, config.output_format.clone());
     result.internal_document = doc_for_elements;
+    captioning_carry_over.apply(&mut result);
+
+    // #286: record the text the preserved element tree stands for, so the divergence check
+    // below can tell whether post-processing has since made the tree a stale second copy of
+    // the document text. See `discard_diverged_internal_document`.
+    let internal_document_source_content = result.internal_document.is_some().then(|| result.content.clone());
 
     #[cfg(feature = "html")]
     if let Some(html) = styled_html_prerender {
         result.formatted_content = Some(html);
     }
 
-    #[cfg(feature = "chunking")]
-    let chunker_only_markdown = result.formatted_content.is_none();
-    #[cfg(feature = "chunking")]
-    if chunker_only_markdown && let Some(md) = chunker_heading_source {
-        result.formatted_content = Some(md);
-    }
+    // #331: same idea for the rendered output format, which `apply_output_format` swaps into
+    // `content` at the very end. See `discard_diverged_formatted_content`.
+    let formatted_content_source = result
+        .formatted_content
+        .as_ref()
+        .map(|formatted| (result.content.clone(), formatted.clone()));
 
     #[cfg(feature = "image-encode")]
     if let Some(ref image_cfg) = config.images {
@@ -273,12 +398,18 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
     }
 
     execute_language_detection(&mut result, config)?;
-    execute_chunking(&mut result, config)?;
 
-    #[cfg(feature = "chunking")]
-    if chunker_only_markdown {
-        result.formatted_content = None;
-    }
+    // Chunk here too (in addition to the corrective re-chunk near the end, after all
+    // content-mutating steps — see the doc comment above and #213) so that Middle/Late
+    // post-processors can see `result.chunks` populated, per the documented pipeline
+    // contract ("1. Post-Processors ... 3. Chunking" is honored for processor
+    // visibility) and the tested chunk-aware-post-processor contract
+    // (`test_middle_postprocessors_run_after_explicit_chunking`). This first pass's
+    // chunks (and their byte offsets) are provisional and get fully recomputed — and
+    // `result.chunks` overwritten — by the final `execute_chunking` call below once
+    // `content` stops changing, so a middle/late processor must not treat these
+    // offsets as final.
+    execute_chunking(&mut result, config, chunker_heading_source.as_deref())?;
 
     if let Some((_, middle_processors, late_processors)) = &processor_stages {
         let middle_processors = if config.captioning.is_some() {
@@ -304,8 +435,13 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
     execute_token_reduction(&mut result, config)?;
     execute_validators(&result, config).await?;
 
-    apply_element_transform(&mut result, config);
+    // NFC normalization moved ahead of the element transform so the divergence check below
+    // sees the final plain-text `content`, and so the fallback element build reads the same
+    // normalized text that `content` carries (#286).
     normalize_nfc(&mut result);
+    discard_diverged_internal_document(&mut result, internal_document_source_content.as_deref());
+    discard_diverged_formatted_content(&mut result, formatted_content_source.as_ref());
+    apply_element_transform(&mut result, config);
 
     // ~keep Run LLM-based structured extraction BEFORE output formatting
     // ~keep so extraction sees plain text, not markdown/HTML
@@ -344,14 +480,17 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
 
     result = apply_output_format(result, config.output_format.clone());
 
+    // Chunking runs last, after every step above that rewrites `content` — see the
+    // ordering note on this function's doc comment (#213).
+    execute_chunking(&mut result, config, chunker_heading_source.as_deref())?;
+
     populate_document_counts(&mut result);
 
     #[cfg(feature = "heuristics")]
     {
         use crate::heuristics::confidence::{ConfidenceSignals, ConfidenceWeights, SchemaCompliance, score_confidence};
-        const DEFAULT_TEXT_COVERAGE: f32 = 1.0;
-        let signals =
-            ConfidenceSignals::from_extraction_result(&result, SchemaCompliance::AllValid, DEFAULT_TEXT_COVERAGE);
+        let text_coverage = measure_text_coverage(&result);
+        let signals = ConfidenceSignals::from_extraction_result(&result, SchemaCompliance::AllValid, text_coverage);
         result.extraction_confidence = Some(score_confidence(signals, ConfidenceWeights::default()));
     }
 
@@ -377,16 +516,25 @@ pub async fn run_pipeline(mut doc: InternalDocument, config: &ExtractionConfig) 
 ///
 /// This function is only available when the `tokio-runtime` feature is disabled.
 /// It handles:
-/// - Quality processing (if enabled)
-/// - Chunking (if enabled)
 /// - Language detection (if enabled)
+/// - Quality processing (token reduction, NFC normalization, output-format application)
+/// - Chunking (if enabled) — runs last, after the content-mutating steps above (#213)
 ///
 /// It does NOT handle:
 /// - Async post-processors
 /// - Async validators
 #[cfg(not(feature = "tokio-runtime"))]
+#[cfg_attr(feature = "otel", tracing::instrument(
+    skip(doc, config),
+    fields(
+        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::PIPELINE,
+        content.element_count = doc.elements.len(),
+    )
+))]
 #[cfg_attr(alef, alef(skip))]
 pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -> Result<ExtractedDocument> {
+    doc.ocr_text_only = config.images.as_ref().map(|i| i.ocr_text_only).unwrap_or(false);
+    doc.append_ocr_text = config.images.as_ref().map(|i| i.append_ocr_text).unwrap_or(false);
     doc.escape_markdown = config.escape_markdown;
     doc.table_anchors = config.table_anchors;
     doc.page_marker_format = config
@@ -398,8 +546,17 @@ pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -
         page_markers::inject_page_marker_elements(&mut doc, &format);
     }
 
+    // Mirror `run_pipeline`'s embedded-image OCR text handling (#219): without these,
+    // `images.ocr_text_only` / `images.append_ocr_text` are silently ignored on the
+    // sync (non-tokio, WASM) path even though the fields above are now set.
+    replace_embedded_image_markdown_with_ocr(&mut doc);
+    append_embedded_image_ocr_text(&mut doc);
+
+    // Computed once, up front, from `doc` (independent of the later derivation and
+    // content-mutating steps) and carried to the relocated `execute_chunking` call
+    // near the end of this function — see the ordering note on `run_pipeline` (#213).
     #[cfg(feature = "chunking")]
-    let chunker_heading_source = {
+    let chunker_heading_source: Option<String> = {
         let needs_markdown = config.chunking.as_ref().is_some_and(|c| {
             c.chunker_type == crate::core::config::ChunkerType::Markdown
                 || c.resolve_preset().chunker_type == crate::core::config::ChunkerType::Markdown
@@ -410,6 +567,8 @@ pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -
             None
         }
     };
+    #[cfg(not(feature = "chunking"))]
+    let chunker_heading_source: Option<String> = None;
 
     #[cfg(feature = "html")]
     let styled_html_prerender: Option<String> = {
@@ -445,17 +604,20 @@ pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -
         crate::extraction::derive::derive_extraction_result(doc, include_structure, config.output_format.clone());
     result.internal_document = doc_for_elements;
 
+    // #286: mirrors `run_pipeline` — see `discard_diverged_internal_document`.
+    let internal_document_source_content = result.internal_document.is_some().then(|| result.content.clone());
+
     #[cfg(feature = "html")]
     if let Some(html) = styled_html_prerender {
         result.formatted_content = Some(html);
     }
 
-    #[cfg(feature = "chunking")]
-    let chunker_only_markdown = result.formatted_content.is_none();
-    #[cfg(feature = "chunking")]
-    if chunker_only_markdown && let Some(md) = chunker_heading_source {
-        result.formatted_content = Some(md);
-    }
+    // #331: same idea for the rendered output format, which `apply_output_format` swaps into
+    // `content` at the very end. See `discard_diverged_formatted_content`.
+    let formatted_content_source = result
+        .formatted_content
+        .as_ref()
+        .map(|formatted| (result.content.clone(), formatted.clone()));
 
     #[cfg(feature = "image-encode")]
     if let Some(ref image_cfg) = config.images {
@@ -466,29 +628,27 @@ pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -
         apply_data_base64_pass(&mut result, image_cfg);
     }
 
-    execute_chunking(&mut result, config)?;
-
-    #[cfg(feature = "chunking")]
-    if chunker_only_markdown {
-        result.formatted_content = None;
-    }
-
     execute_language_detection(&mut result, config)?;
     execute_token_reduction(&mut result, config)?;
 
-    apply_element_transform(&mut result, config);
     normalize_nfc(&mut result);
+    discard_diverged_internal_document(&mut result, internal_document_source_content.as_deref());
+    discard_diverged_formatted_content(&mut result, formatted_content_source.as_ref());
+    apply_element_transform(&mut result, config);
 
     result = apply_output_format(result, config.output_format.clone());
+
+    // Chunking runs last, after every step above that rewrites `content` — see the
+    // ordering note on `run_pipeline`'s doc comment (#213).
+    execute_chunking(&mut result, config, chunker_heading_source.as_deref())?;
 
     populate_document_counts(&mut result);
 
     #[cfg(feature = "heuristics")]
     {
         use crate::heuristics::confidence::{ConfidenceSignals, ConfidenceWeights, SchemaCompliance, score_confidence};
-        const DEFAULT_TEXT_COVERAGE: f32 = 1.0;
-        let signals =
-            ConfidenceSignals::from_extraction_result(&result, SchemaCompliance::AllValid, DEFAULT_TEXT_COVERAGE);
+        let text_coverage = measure_text_coverage(&result);
+        let signals = ConfidenceSignals::from_extraction_result(&result, SchemaCompliance::AllValid, text_coverage);
         result.extraction_confidence = Some(score_confidence(signals, ConfidenceWeights::default()));
     }
 
@@ -516,6 +676,34 @@ fn populate_document_counts(result: &mut ExtractedDocument) {
         tables: result.tables.len(),
         images: result.images.as_ref().map_or(0, Vec::len),
     };
+}
+
+/// Measure the fraction of pages with usable (non-blank) text, for
+/// [`crate::heuristics::confidence::ConfidenceSignals::text_coverage`] (#214).
+///
+/// For page-addressable documents (`result.pages` populated — PDFs, and any format
+/// with a per-page breakdown), this is the fraction of pages whose trimmed content is
+/// non-empty: a document with 3 of 10 pages OCR-blank or unreadable measures `0.7`,
+/// not a hardcoded `1.0` that hides the gap. For formats without a page breakdown
+/// (plain text, Markdown, HTML, …), coverage collapses to a binary full/empty signal:
+/// `1.0` when `result.content` has any non-whitespace text, `0.0` when it does not —
+/// a document that produced no text at all should not score as if it were fully
+/// covered.
+#[cfg(feature = "heuristics")]
+fn measure_text_coverage(result: &ExtractedDocument) -> f32 {
+    match result.pages.as_deref() {
+        Some(pages) if !pages.is_empty() => {
+            let usable = pages.iter().filter(|page| !page.content.trim().is_empty()).count();
+            usable as f32 / pages.len() as f32
+        }
+        _ => {
+            if result.content.trim().is_empty() {
+                0.0
+            } else {
+                1.0
+            }
+        }
+    }
 }
 
 /// Re-encode all images in `result` to the format requested by `config.output_format`.
@@ -576,6 +764,82 @@ fn apply_data_base64_pass(
     for image in result.images.iter_mut().flatten() {
         image.data_base64 = Some(base64::engine::general_purpose::STANDARD.encode(&image.data));
     }
+}
+
+/// Drop the preserved extractor `InternalDocument` once post-processing has rewritten
+/// `content`, so nothing downstream can hand out pre-post-processing text (#286).
+///
+/// `source_content` is `result.content` as it stood when the tree was stored, or `None`
+/// when no tree was stored at all.
+///
+/// The tree is a verbatim clone of the extractor's element list, taken before the
+/// post-processor stages run. No stage writes back into it: redaction, summarisation,
+/// translation and token reduction all rewrite `result.content` and leave the tree holding
+/// the original text. Two consumers then read that stale tree:
+///
+/// - `plugins::renderer`'s blanket `impl<T: InternalRenderer> Renderer for T`, so the
+///   public `Renderer::render_result` renders text that never went through
+///   post-processing and disagrees with `ExtractedDocument::content`;
+/// - `extraction::transform::transform_extraction_result_to_elements`, which prefers the
+///   tree over `content`/`pages`, so the public `elements` — including the copy the
+///   renderer registry hands to foreign renderers — carries the same stale text.
+///
+/// Dropping the tree makes both fall back to the post-processed `content`/`pages`: the
+/// blanket impl returns `content` verbatim, per its documented `Renderer` default. The
+/// tree is kept whenever `content` is untouched, which is the overwhelmingly common case
+/// and preserves the extractor reading order the field exists to carry.
+fn discard_diverged_internal_document(result: &mut ExtractedDocument, source_content: Option<&str>) {
+    let Some(source_content) = source_content else {
+        return;
+    };
+    if result.content != source_content {
+        result.internal_document = None;
+    }
+}
+
+/// `ProcessingWarning::source` for the output-format downgrade below.
+const OUTPUT_FORMAT_WARNING_SOURCE: &str = "output_format";
+
+/// Drop `formatted_content` when post-processing has rewritten `content` since it was
+/// rendered.
+///
+/// `formatted_content` is produced by `derive_extraction_result` from the extractor's
+/// element tree, before any post-processor runs, and [`apply_output_format`] then
+/// overwrites `content` with it at the very end of the pipeline. So a processor that
+/// rewrote `content` — redaction, summarisation, translation — had its work silently
+/// thrown away for every output format that renders one (Markdown, Djot, HTML, JSON,
+/// Custom); with redaction configured, the returned document was the *unredacted*
+/// rendering (#331).
+///
+/// A processor that maintains both surfaces is honoured, not punished: the built-in
+/// redaction processor rewrites `formatted_content` alongside `content`
+/// (`text/redaction/engine.rs`), and its rendering is correct, so it is kept. Only a
+/// rendering that did *not* move while `content` did is stale, and only that one is
+/// dropped — correctness over presentation, with the caller told the requested format was
+/// downgraded rather than being handed text no processor ever saw.
+fn discard_diverged_formatted_content(result: &mut ExtractedDocument, source: Option<&(String, String)>) {
+    let Some((source_content, source_formatted)) = source else {
+        return;
+    };
+
+    // `content` never moved — the rendering still stands for it.
+    if result.content == *source_content {
+        return;
+    }
+    // Both moved: a processor rewrote the rendering alongside the text, so it is current.
+    if result.formatted_content.as_deref() != Some(source_formatted.as_str()) {
+        return;
+    }
+
+    result.formatted_content = None;
+    crate::core::diagnostics::push_warning(
+        &mut result.processing_warnings,
+        OUTPUT_FORMAT_WARNING_SOURCE,
+        "Post-processing rewrote the document text after the requested output format had \
+         already been rendered, so the rendering was discarded and the post-processed plain \
+         text is returned instead. Rendering it in the requested format would have undone \
+         the post-processors' changes",
+    );
 }
 
 /// Transform to element-based output if requested by the config.
@@ -718,4 +982,330 @@ fn normalize_nfc(result: &mut ExtractedDocument) {
         }
     }
     let _ = result;
+}
+
+/// Regression tests for #214: `measure_text_coverage` replaces the hardcoded
+/// `DEFAULT_TEXT_COVERAGE = 1.0` passed into `ConfidenceSignals::from_extraction_result`.
+#[cfg(all(test, feature = "heuristics"))]
+mod issue_214_text_coverage_tests {
+    use super::*;
+    use crate::types::PageContent;
+
+    fn page(page_number: u32, content: &str) -> PageContent {
+        PageContent {
+            page_number,
+            content: content.to_string(),
+            tables: Vec::new(),
+            image_indices: Vec::new(),
+            hierarchy: None,
+            is_blank: None,
+            layout_regions: None,
+            speaker_notes: None,
+            section_name: None,
+            sheet_name: None,
+        }
+    }
+
+    #[test]
+    fn measures_fraction_of_non_blank_pages() {
+        let result = ExtractedDocument {
+            pages: Some(vec![
+                page(1, "Real text here"),
+                page(2, "   "),
+                page(3, "More real text"),
+            ]),
+            ..Default::default()
+        };
+        assert!(
+            (measure_text_coverage(&result) - (2.0 / 3.0)).abs() < f32::EPSILON,
+            "expected 2/3 non-blank pages, got {}",
+            measure_text_coverage(&result)
+        );
+    }
+
+    #[test]
+    fn measures_full_coverage_when_all_pages_have_text() {
+        let result = ExtractedDocument {
+            pages: Some(vec![page(1, "Text one"), page(2, "Text two")]),
+            ..Default::default()
+        };
+        assert_eq!(measure_text_coverage(&result), 1.0);
+    }
+
+    #[test]
+    fn measures_zero_coverage_when_all_pages_are_blank() {
+        let result = ExtractedDocument {
+            pages: Some(vec![page(1, ""), page(2, "   \n\t")]),
+            ..Default::default()
+        };
+        assert_eq!(measure_text_coverage(&result), 0.0);
+    }
+
+    #[test]
+    fn falls_back_to_binary_signal_when_pages_are_absent() {
+        let with_text = ExtractedDocument {
+            pages: None,
+            content: "Some extracted text".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(measure_text_coverage(&with_text), 1.0);
+
+        let empty = ExtractedDocument {
+            pages: None,
+            content: String::new(),
+            ..Default::default()
+        };
+        assert_eq!(measure_text_coverage(&empty), 0.0);
+    }
+
+    #[test]
+    fn falls_back_to_binary_signal_when_pages_is_empty_vec() {
+        let result = ExtractedDocument {
+            pages: Some(vec![]),
+            content: "Some text".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(measure_text_coverage(&result), 1.0);
+    }
+}
+
+/// Regression test for #219: `run_pipeline_sync` (the non-tokio/WASM path) omitted
+/// `doc.ocr_text_only` / `doc.append_ocr_text` and the corresponding embedded-image OCR
+/// text substitution the async `run_pipeline` performs, so `images.ocr_text_only` /
+/// `images.append_ocr_text` were silently ignored on that path.
+///
+/// Compiled only under `not(feature = "tokio-runtime")`, exactly like `run_pipeline_sync`
+/// itself — a `--features full` build never compiles this test (or the function).
+#[cfg(all(test, not(feature = "tokio-runtime")))]
+mod issue_219_sync_pipeline_ocr_text_options_tests {
+    use super::*;
+    use crate::core::config::extraction::ImageExtractionConfig;
+    use crate::types::ExtractedImage;
+    use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+    use std::borrow::Cow;
+
+    fn image_with_ocr_text(ocr_text: &str) -> ExtractedImage {
+        ExtractedImage {
+            data: bytes::Bytes::new(),
+            format: Cow::Borrowed("png"),
+            ocr_result: Some(Box::new(ExtractedDocument {
+                content: ocr_text.to_string(),
+                ..Default::default()
+            })),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn ocr_text_only_replaces_embedded_image_markdown_on_sync_pipeline() {
+        let mut doc = InternalDocument::new("pptx");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "![img](embedded)", 0));
+        doc.images = vec![image_with_ocr_text("Recognized OCR text")];
+
+        let config = ExtractionConfig {
+            images: Some(ImageExtractionConfig {
+                ocr_text_only: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let result = run_pipeline_sync(doc, &config).unwrap();
+
+        assert!(
+            result.content.contains("Recognized OCR text"),
+            "sync pipeline must replace embedded image markdown with OCR text when \
+             ocr_text_only=true, got: {:?}",
+            result.content
+        );
+        assert!(
+            !result.content.contains("![img]"),
+            "sync pipeline must not leave the markdown image placeholder when ocr_text_only=true, got: {:?}",
+            result.content
+        );
+    }
+
+    #[test]
+    fn append_ocr_text_appends_after_embedded_image_markdown_on_sync_pipeline() {
+        let mut doc = InternalDocument::new("pptx");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "![img](embedded)", 0));
+        doc.images = vec![image_with_ocr_text("Appended OCR text")];
+
+        let config = ExtractionConfig {
+            images: Some(ImageExtractionConfig {
+                append_ocr_text: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let result = run_pipeline_sync(doc, &config).unwrap();
+
+        assert!(
+            result.content.contains("![img]"),
+            "append_ocr_text must keep the original markdown placeholder, got: {:?}",
+            result.content
+        );
+        assert!(
+            result.content.contains("Appended OCR text"),
+            "sync pipeline must append the OCR text when append_ocr_text=true, got: {:?}",
+            result.content
+        );
+    }
+
+    #[test]
+    fn default_config_does_not_touch_embedded_image_markdown_on_sync_pipeline() {
+        let mut doc = InternalDocument::new("pptx");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "![img](embedded)", 0));
+        doc.images = vec![image_with_ocr_text("Should not appear")];
+
+        let config = ExtractionConfig::default();
+
+        let result = run_pipeline_sync(doc, &config).unwrap();
+
+        assert!(
+            result.content.contains("![img]"),
+            "default config must leave the markdown placeholder untouched, got: {:?}",
+            result.content
+        );
+        assert!(
+            !result.content.contains("Should not appear"),
+            "default config must not inject OCR text, got: {:?}",
+            result.content
+        );
+    }
+}
+
+/// Regression test for #213: chunking must run after every pipeline step that rewrites
+/// `content`, so `Chunk::metadata::byte_start`/`byte_end` always index the *returned*
+/// `content` — not a pre-mutation snapshot of it.
+#[cfg(all(test, feature = "chunking", feature = "quality", feature = "tokio-runtime"))]
+mod issue_213_chunk_offset_ordering_tests {
+    use super::*;
+    use crate::core::config::{ChunkerType, ChunkingConfig, OutputFormat};
+    use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+
+    /// "Cafe" + combining acute accent (U+0301) — 3 bytes for "e\u{0301}", decomposed.
+    /// `normalize_nfc` composes this into "é" (2 bytes), shortening `content`. Before
+    /// the fix, chunk offsets were computed against the pre-normalization (longer)
+    /// text but returned alongside the post-normalization (shorter) `content`.
+    const DECOMPOSED: &str = "Cafe\u{0301} is served here with extra words to keep the chunk large enough to matter.";
+
+    #[tokio::test]
+    async fn chunk_offsets_index_the_final_normalized_content() {
+        let mut doc = InternalDocument::new("plain");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, DECOMPOSED, 0));
+
+        let config = ExtractionConfig {
+            output_format: OutputFormat::Plain,
+            chunking: Some(ChunkingConfig {
+                max_characters: 2000,
+                overlap: 0,
+                trim: true,
+                chunker_type: ChunkerType::Text,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let result = run_pipeline(doc, &config).await.unwrap();
+
+        assert!(
+            !result.content.contains('\u{0301}'),
+            "expected NFC normalization to compose the combining accent away, got: {:?}",
+            result.content
+        );
+        assert!(
+            result.content.contains('é'),
+            "expected composed 'é' in: {:?}",
+            result.content
+        );
+        assert!(
+            result.content.len() < DECOMPOSED.len(),
+            "normalization must have shortened the content by at least one byte"
+        );
+
+        let chunks = result.chunks.expect("chunks must be populated");
+        assert_eq!(chunks.len(), 1);
+        for chunk in &chunks {
+            let slice = &result.content[chunk.metadata.byte_start..chunk.metadata.byte_end];
+            assert_eq!(
+                slice, chunk.content,
+                "chunk byte_start/byte_end must index the FINAL (post-normalization) content, \
+                 not a pre-mutation snapshot"
+            );
+        }
+    }
+}
+
+/// Regression tests for #271: `builtin_registration_error()` used to be dead code —
+/// nothing surfaced it, so a user whose e.g. `summarization` processor failed to
+/// register got a clean `Ok` with no output and no explanation. These test the pure
+/// warning-construction helper directly (no global registry involved) rather than
+/// the real one-time `OnceLock` registration pass, which cannot be re-triggered or
+/// forced to fail from a test without mutating process-global state (#310).
+#[cfg(test)]
+mod issue_271_builtin_registration_warning_tests {
+    use super::*;
+
+    #[test]
+    fn pushes_a_warning_naming_the_registration_error() {
+        let mut doc = InternalDocument::new("plain");
+
+        push_builtin_registration_warning(&mut doc, Some("summarization: boom".to_string()));
+
+        assert_eq!(doc.processing_warnings.len(), 1);
+        assert_eq!(doc.processing_warnings[0].source, "builtin_registration");
+        assert_eq!(
+            doc.processing_warnings[0].message,
+            "built-in post-processor registration was incomplete (summarization: boom); a configured \
+             processor may silently produce no output for its stage"
+        );
+    }
+
+    #[test]
+    fn pushes_nothing_when_registration_succeeded() {
+        let mut doc = InternalDocument::new("plain");
+
+        push_builtin_registration_warning(&mut doc, None);
+
+        assert!(doc.processing_warnings.is_empty());
+    }
+
+    /// Exercises the actual call site in `run_pipeline` (not just the pure helper
+    /// above), by forcing `initialization::builtin_registration_error()` to report
+    /// a failure via the test-only setter and checking the warning that comes back
+    /// out of a real `run_pipeline` call. This is the test that catches a regression
+    /// where `push_builtin_registration_warning` exists but nothing calls it — the
+    /// exact shape of the bug #271 originally described.
+    ///
+    /// `#[serial]`: `BUILTIN_REGISTRATION_ERROR` is a process-global static with no
+    /// injectable variant, so a concurrent pipeline run expecting `None` would race
+    /// this test — same reasoning as the other process-global-static tests in this
+    /// crate (see `initialization::tests::processor_cache_rebuilds_when_registry_changes_after_first_use`).
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn run_pipeline_surfaces_a_forced_builtin_registration_failure() {
+        use crate::core::pipeline::initialization::test_support::set_registration_error;
+        use crate::types::internal::InternalDocument;
+
+        set_registration_error(Some("summarization: boom".to_string()));
+
+        let mut doc = InternalDocument::new("plain");
+        doc.mime_type = "text/plain".to_string();
+        let config = ExtractionConfig::default();
+
+        let result = run_pipeline(doc, &config).await;
+
+        set_registration_error(None);
+
+        let processed = result.expect("run_pipeline must still succeed despite the registration failure");
+        assert_eq!(processed.processing_warnings.len(), 1);
+        assert_eq!(processed.processing_warnings[0].source, "builtin_registration");
+        assert_eq!(
+            processed.processing_warnings[0].message,
+            "built-in post-processor registration was incomplete (summarization: boom); a configured \
+             processor may silently produce no output for its stage"
+        );
+    }
 }

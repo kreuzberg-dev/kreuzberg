@@ -169,6 +169,7 @@ fn build_chunks_from_sections(
     page_boundaries: Option<&[PageBoundary]>,
 ) -> Result<ChunkingResult> {
     let mut chunks: Vec<Chunk> = Vec::new();
+    let token_counter = super::builder::resolve_token_counter(&config.sizing);
 
     for section in sections {
         let prefix = format!("# {}", section.key);
@@ -186,14 +187,17 @@ fn build_chunks_from_sections(
             .unwrap_or_default();
 
         if config.max_characters == 0 || content.len() <= config.max_characters {
+            let token_count = token_counter.as_ref().map(|counter| counter(&content));
             chunks.push(Chunk {
                 content,
                 chunk_type: Default::default(),
                 embedding: None,
+                sparse_embedding: None,
+                late_interaction: None,
                 metadata: ChunkMetadata {
                     byte_start: section.byte_start,
                     byte_end: section.byte_end,
-                    token_count: None,
+                    token_count,
                     chunk_index: 0,
                     total_chunks: 0,
                     first_page,
@@ -220,10 +224,12 @@ fn build_chunks_from_sections(
                     content: format!("{}\n\n{}", prefix, sub_chunk.content),
                     chunk_type: Default::default(),
                     embedding: None,
+                    sparse_embedding: None,
+                    late_interaction: None,
                     metadata: ChunkMetadata {
                         byte_start: section.byte_start + sub_chunk.metadata.byte_start,
                         byte_end: section.byte_start + sub_chunk.metadata.byte_end,
-                        token_count: None,
+                        token_count: sub_chunk.metadata.token_count,
                         chunk_index: 0,
                         total_chunks: 0,
                         first_page,
@@ -685,6 +691,120 @@ mod tests {
         for chunk in &result.chunks {
             assert_eq!(chunk.metadata.first_page, None);
             assert_eq!(chunk.metadata.last_page, None);
+        }
+    }
+
+    /// Regression test for #255: the single-chunk-per-section path always set
+    /// `token_count: None` even with `ChunkSizing::Tokenizer` configured.
+    #[cfg(feature = "chunking-tokenizers")]
+    #[test]
+    fn test_token_count_populated_for_single_chunk_section() {
+        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
+        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
+        use std::sync::Arc;
+
+        struct WordCountTokenizer;
+        impl Plugin for WordCountTokenizer {
+            fn name(&self) -> &str {
+                "chunking-yaml-word-count-tokenizer"
+            }
+            fn version(&self) -> String {
+                "1.0.0".to_string()
+            }
+            fn initialize(&self) -> crate::Result<()> {
+                Ok(())
+            }
+            fn shutdown(&self) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl TokenizerBackend for WordCountTokenizer {
+            fn count_tokens(&self, text: &str) -> usize {
+                text.split_whitespace().count()
+            }
+        }
+
+        let _guard = TokenizerRegistryGuard::acquire();
+        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
+
+        let yaml = "a: one two three";
+        let config = ChunkingConfig {
+            sizing: crate::core::config::ChunkSizing::Tokenizer {
+                model: "chunking-yaml-word-count-tokenizer".to_string(),
+                cache_dir: None,
+            },
+            ..make_config()
+        };
+        let result = chunk_yaml_by_sections(yaml, &config, None).unwrap();
+
+        assert_eq!(result.chunk_count, 1);
+        assert!(
+            result.chunks[0].metadata.token_count.is_some(),
+            "token_count must be populated for a single-chunk section, got None"
+        );
+    }
+
+    /// Regression test for #255: the oversized-section split path discarded the
+    /// delegated `chunk_text` sub-chunks' `token_count`, hardcoding `None` instead of
+    /// carrying it through.
+    #[cfg(feature = "chunking-tokenizers")]
+    #[test]
+    fn test_token_count_carried_over_for_oversized_sub_chunks() {
+        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
+        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
+        use std::sync::Arc;
+
+        struct WordCountTokenizer;
+        impl Plugin for WordCountTokenizer {
+            fn name(&self) -> &str {
+                "chunking-yaml-oversized-word-count-tokenizer"
+            }
+            fn version(&self) -> String {
+                "1.0.0".to_string()
+            }
+            fn initialize(&self) -> crate::Result<()> {
+                Ok(())
+            }
+            fn shutdown(&self) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl TokenizerBackend for WordCountTokenizer {
+            fn count_tokens(&self, text: &str) -> usize {
+                text.split_whitespace().count()
+            }
+        }
+
+        let _guard = TokenizerRegistryGuard::acquire();
+        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
+
+        let long_text = "word ".repeat(500);
+        let yaml = format!("description: |\n  {}\nother: ok", long_text.trim());
+        let config = ChunkingConfig {
+            max_characters: 100,
+            sizing: crate::core::config::ChunkSizing::Tokenizer {
+                model: "chunking-yaml-oversized-word-count-tokenizer".to_string(),
+                cache_dir: None,
+            },
+            ..make_config()
+        };
+        let result = chunk_yaml_by_sections(&yaml, &config, None).unwrap();
+
+        assert!(result.chunk_count > 2, "expected the oversized section to split");
+        let description_chunks: Vec<_> = result
+            .chunks
+            .iter()
+            .filter(|c| c.content.contains("# description"))
+            .collect();
+        assert!(
+            !description_chunks.is_empty(),
+            "expected at least one chunk from the oversized 'description' section"
+        );
+        for chunk in description_chunks {
+            assert!(
+                chunk.metadata.token_count.is_some(),
+                "oversized sub-chunk must carry over token_count from the delegated chunk_text call, got None"
+            );
         }
     }
 }

@@ -25,12 +25,14 @@
 //! # }
 //! ```
 use crate::error::{Result, XbergError};
+use crate::extractors::security::{SecurityBudget, SecurityLimits};
 use crate::text::utf8_validation;
 use crate::text::windows_codepage::encoding_for_windows_codepage;
-use crate::types::{EmailAttachment, EmailExtractionResult};
+use crate::types::{EmailAttachment, EmailExtractionResult, ProcessingWarning};
 use bytes::Bytes;
 use mail_parser::MimeHeaders;
 use regex::Regex;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -43,9 +45,25 @@ const PID_TAG_HTML: u16 = 0x1013;
 const PID_TAG_INTERNET_CODEPAGE: u16 = 0x3FDE;
 const PID_TAG_MESSAGE_CODEPAGE: u16 = 0x3FFD;
 
+/// PR_ATTACH_METHOD (PidTagAttachMethod): how an attachment's data is stored.
+const PID_TAG_ATTACH_METHOD: u16 = 0x3705;
+/// PR_ATTACH_DATA_OBJECT (PidTagAttachDataObject): for `afEmbeddedMessage`
+/// attachments, this property is PT_OBJECT (type `000D`) and names a nested
+/// CFB *storage* (not a stream) holding the embedded message's own properties.
+const PID_TAG_ATTACH_DATA_OBJECT: u16 = 0x3701;
+/// `afEmbeddedMessage`: the attachment is itself a Message object stored as a
+/// nested CFB storage rather than binary stream data.
+const ATTACH_METHOD_EMBEDDED_MSG: u32 = 5;
+
 pub(crate) struct ParsedEmailContent {
     pub(crate) result: EmailExtractionResult,
     pub(crate) nested_messages: Vec<NestedMessagePayload>,
+    /// Embedded `message/rfc822`-equivalent MSG attachments (`attach_method ==
+    /// afEmbeddedMessage`), fully parsed. Flat list across all nesting depths.
+    pub(crate) nested_embedded_messages: Vec<EmailExtractionResult>,
+    /// Non-fatal warnings raised while parsing (e.g. a `.msg`-in-`.msg` chain
+    /// that hit the configured nesting-depth cap and was left unextracted).
+    pub(crate) warnings: Vec<ProcessingWarning>,
 }
 
 pub(crate) struct NestedMessagePayload {
@@ -387,6 +405,8 @@ fn parse_eml_content_internal(
             metadata,
         },
         nested_messages,
+        nested_embedded_messages: Vec::new(),
+        warnings: Vec::new(),
     })
 }
 
@@ -501,6 +521,22 @@ fn collect_nested_message_html(message: &mail_parser::Message<'_>, out: &mut Vec
 /// data range and parse correctly.
 ///
 pub(crate) fn parse_msg_content(data: &[u8], fallback_codepage: Option<u32>) -> Result<EmailExtractionResult> {
+    parse_msg_content_with_nested(data, fallback_codepage, &SecurityLimits::default()).map(|(result, _, _)| result)
+}
+
+/// Parse .msg file content (Outlook format), also returning any embedded
+/// (`afEmbeddedMessage`) MSG attachments found while parsing, flattened
+/// across nesting depth, plus any warnings raised (e.g. a `.msg`-in-`.msg`
+/// chain that hit `security_limits`' nesting-depth cap).
+pub(crate) fn parse_msg_content_with_nested(
+    data: &[u8],
+    fallback_codepage: Option<u32>,
+    security_limits: &SecurityLimits,
+) -> Result<(
+    EmailExtractionResult,
+    Vec<EmailExtractionResult>,
+    Vec<ProcessingWarning>,
+)> {
     use std::borrow::Cow;
     use std::io::Cursor;
 
@@ -519,7 +555,15 @@ pub(crate) fn parse_msg_content(data: &[u8], fallback_codepage: Option<u32>) -> 
     let mut comp = cfb::CompoundFile::open(Cursor::new(data_ref))
         .map_err(|e| XbergError::parsing(format!("Failed to parse MSG file: {e}")))?;
 
-    extract_msg_from_cfb(&mut comp, fallback_codepage)
+    // Reuse the same nesting-depth counter `SecurityLimits` provides for
+    // every other format (XML/HTML/JSON) to guard the `.msg`-in-`.msg`
+    // recursion hazard, rather than a bespoke counter local to this parser.
+    let mut budget = SecurityBudget::from_limits(security_limits);
+    let mut warnings = Vec::new();
+    let (result, nested_embedded_messages) =
+        extract_msg_from_cfb_at(&mut comp, "", fallback_codepage, &mut budget, &mut warnings)?;
+
+    Ok((result, nested_embedded_messages, warnings))
 }
 
 /// Pad an OLE/CFB file so the sector count matches the FAT header.
@@ -576,7 +620,7 @@ Default Paragraph Font}";
 ///
 /// Returns `None` when the data is too short, has a bad magic number, or
 /// the decompression runs past declared bounds.
-fn decompress_rtf_compressed(data: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn decompress_rtf_compressed(data: &[u8]) -> Option<Vec<u8>> {
     if data.len() < 16 {
         return None;
     }
@@ -644,7 +688,7 @@ fn decompress_rtf_compressed(data: &[u8]) -> Option<Vec<u8>> {
 /// Handles `\par` → newline, `\uN` unicode escapes, `{` `}` grouping,
 /// and discards other `\command` sequences.  This is intentionally
 /// simplified — it covers the typical content produced by Outlook.
-fn strip_rtf_to_plain_text(rtf: &[u8]) -> String {
+pub(crate) fn strip_rtf_to_plain_text(rtf: &[u8]) -> String {
     let text = String::from_utf8_lossy(rtf);
     let bytes = text.as_bytes();
     let len = bytes.len();
@@ -794,30 +838,76 @@ fn strip_rtf_to_plain_text(rtf: &[u8]) -> String {
     result.trim().to_string()
 }
 
+/// Enumerate storage paths that are *direct* children of `message_root` whose
+/// name starts with `name_prefix`.
+///
+/// A message may contain an embedded message attachment (`afEmbeddedMessage`),
+/// whose own attachments/recipients live deeper in the tree under
+/// `{message_root}/__attach_.../__substg1.0_3701000D/...`. A naive whole-tree
+/// `walk()` filtered only by name prefix would incorrectly attribute those
+/// deeper entries to the outer message, so entries are filtered to those whose
+/// immediate parent path equals `message_root` exactly.
+fn direct_child_storage_paths<F: std::io::Read + std::io::Seek>(
+    comp: &cfb::CompoundFile<F>,
+    message_root: &str,
+    name_prefix: &str,
+) -> Vec<String> {
+    let entries: Vec<cfb::Entry> = if message_root.is_empty() {
+        comp.walk().collect()
+    } else {
+        match comp.walk_storage(message_root) {
+            Ok(iter) => iter.collect(),
+            Err(_) => return Vec::new(),
+        }
+    };
+
+    entries
+        .into_iter()
+        .filter(|e| e.is_storage() && e.name().starts_with(name_prefix))
+        .map(|e| e.path().to_string_lossy().into_owned())
+        .filter(|path| path.rsplit_once('/').map(|(parent, _)| parent) == Some(message_root))
+        .collect()
+}
+
 /// Internal: extract email fields from an already-opened CFB compound file.
-fn extract_msg_from_cfb<F: std::io::Read + std::io::Seek>(
+///
+/// `message_root` is `""` for the top-level MSG message, or the CFB storage
+/// path of an embedded message (`afEmbeddedMessage` attachment) when called
+/// recursively. `budget` guards against pathological/malicious
+/// message-in-message nesting via its `SecurityLimits`-derived
+/// [`crate::extractors::security::DepthValidator`] — the same nesting-depth
+/// counter every other format uses, rather than a bespoke one for MSG.
+/// `warnings` collects a [`ProcessingWarning`] whenever the depth cap stops a
+/// nested embedded message from being extracted further.
+///
+/// Returns the parsed message plus a flat list of any embedded MSG messages
+/// discovered at or below this level.
+fn extract_msg_from_cfb_at<F: std::io::Read + std::io::Seek>(
     comp: &mut cfb::CompoundFile<F>,
+    message_root: &str,
     fallback_codepage: Option<u32>,
-) -> Result<EmailExtractionResult> {
-    let message_codepage = read_msg_int_prop(comp, "", PID_TAG_MESSAGE_CODEPAGE);
-    let internet_codepage = read_msg_int_prop(comp, "", PID_TAG_INTERNET_CODEPAGE);
+    budget: &mut SecurityBudget,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<(EmailExtractionResult, Vec<EmailExtractionResult>)> {
+    let message_codepage = read_msg_int_prop(comp, message_root, PID_TAG_MESSAGE_CODEPAGE);
+    let internet_codepage = read_msg_int_prop(comp, message_root, PID_TAG_INTERNET_CODEPAGE);
     let codepage = message_codepage.or(internet_codepage).or(fallback_codepage);
     let html_codepage = internet_codepage.or(message_codepage).or(fallback_codepage);
 
-    let subject = read_msg_string_prop(comp, "", 0x0037, codepage);
-    let sender_name = read_msg_string_prop(comp, "", 0x0C1A, codepage);
-    let sender_email = read_msg_string_prop(comp, "", 0x0C1F, codepage)
-        .or_else(|| read_msg_string_prop(comp, "", 0x0065, codepage))
+    let subject = read_msg_string_prop(comp, message_root, 0x0037, codepage);
+    let sender_name = read_msg_string_prop(comp, message_root, 0x0C1A, codepage);
+    let sender_email = read_msg_string_prop(comp, message_root, 0x0C1F, codepage)
+        .or_else(|| read_msg_string_prop(comp, message_root, 0x0065, codepage))
         .filter(|s| !s.is_empty());
     let from_email = sender_email;
-    let body = read_msg_string_prop(comp, "", 0x1000, codepage);
-    let html_body = read_msg_html_prop(comp, "", html_codepage);
-    let message_id = read_msg_string_prop(comp, "", 0x1035, codepage).filter(|s| !s.is_empty());
+    let body = read_msg_string_prop(comp, message_root, 0x1000, codepage);
+    let html_body = read_msg_html_prop(comp, message_root, html_codepage);
+    let message_id = read_msg_string_prop(comp, message_root, 0x1035, codepage).filter(|s| !s.is_empty());
 
-    let date = read_msg_filetime_prop(comp, "", 0x0039)
-        .or_else(|| read_msg_filetime_prop(comp, "", 0x0E06))
+    let date = read_msg_filetime_prop(comp, message_root, 0x0039)
+        .or_else(|| read_msg_filetime_prop(comp, message_root, 0x0E06))
         .or_else(|| {
-            let headers = read_msg_string_prop(comp, "", 0x007D, codepage);
+            let headers = read_msg_string_prop(comp, message_root, 0x007D, codepage);
             headers.as_ref().and_then(|h| {
                 h.lines()
                     .find(|line| line.starts_with("Date:"))
@@ -825,9 +915,9 @@ fn extract_msg_from_cfb<F: std::io::Read + std::io::Seek>(
             })
         });
 
-    let (to_emails, cc_emails, bcc_emails) = read_msg_recipients(comp, codepage);
+    let (to_emails, cc_emails, bcc_emails) = read_msg_recipients(comp, message_root, codepage);
 
-    let rtf_body = read_msg_stream(comp, "__substg1.0_10090102")
+    let rtf_body = read_msg_stream(comp, &format!("{message_root}/__substg1.0_10090102"))
         .and_then(|data| decompress_rtf_compressed(&data))
         .map(|rtf| strip_rtf_to_plain_text(&rtf))
         .filter(|s| !s.is_empty());
@@ -845,13 +935,10 @@ fn extract_msg_from_cfb<F: std::io::Read + std::io::Seek>(
         String::new()
     };
 
-    let attach_paths: Vec<String> = comp
-        .walk()
-        .filter(|e| e.is_storage() && e.name().starts_with("__attach_"))
-        .map(|e| e.path().to_string_lossy().into_owned())
-        .collect();
+    let attach_paths = direct_child_storage_paths(comp, message_root, "__attach_");
 
     let mut attachments = Vec::with_capacity(attach_paths.len());
+    let mut nested_embedded_messages = Vec::new();
     for path in &attach_paths {
         let long_name = read_msg_string_prop(comp, path, 0x3707, codepage);
         let short_name = read_msg_string_prop(comp, path, 0x3704, codepage);
@@ -863,6 +950,57 @@ fn extract_msg_from_cfb<F: std::io::Read + std::io::Seek>(
             .or(short_name)
             .or_else(|| display_name.clone())
             .or_else(|| extension.map(|ext| format!("attachment{ext}")));
+
+        let attach_method = read_msg_attach_or_recip_int_prop(comp, path, PID_TAG_ATTACH_METHOD);
+        let embedded_storage_path = format!("{path}/__substg1.0_{PID_TAG_ATTACH_DATA_OBJECT:04X}000D");
+        let is_embedded_message =
+            attach_method == Some(ATTACH_METHOD_EMBEDDED_MSG) && comp.is_storage(&embedded_storage_path);
+
+        if is_embedded_message {
+            if budget.enter().is_ok() {
+                let recursed =
+                    extract_msg_from_cfb_at(comp, &embedded_storage_path, fallback_codepage, budget, warnings);
+                budget.leave();
+                let (nested_result, deeper_nested) = recursed?;
+                let size = None;
+                let filename = filename
+                    .or_else(|| nested_result.subject.clone())
+                    .or_else(|| Some("embedded_message".to_string()));
+
+                attachments.push(EmailAttachment {
+                    name: filename.clone(),
+                    filename,
+                    mime_type: Some("message/rfc822".to_string()),
+                    size,
+                    is_image: false,
+                    data: None,
+                });
+
+                nested_embedded_messages.push(nested_result);
+                nested_embedded_messages.extend(deeper_nested);
+            } else {
+                // `budget.enter()` still incremented the counter even though it
+                // rejected this level; balance it immediately so sibling
+                // attachments at the same depth aren't spuriously capped too.
+                budget.leave();
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("msg_embedded_message_extraction"),
+                    message: Cow::Owned(format!(
+                        "Stopped extracting embedded message at '{path}': nesting depth cap reached; \
+                         the embedded message and anything nested inside it were left unextracted"
+                    )),
+                });
+                attachments.push(EmailAttachment {
+                    name: filename.clone(),
+                    filename,
+                    mime_type: Some("message/rfc822".to_string()),
+                    size: None,
+                    is_image: false,
+                    data: None,
+                });
+            }
+            continue;
+        }
 
         let bin_path = format!("{path}/__substg1.0_37010102");
         let binary_data = read_msg_stream(comp, &bin_path);
@@ -912,20 +1050,23 @@ fn extract_msg_from_cfb<F: std::io::Read + std::io::Seek>(
         metadata.insert("message_id".to_string(), msg_id.to_string());
     }
 
-    Ok(EmailExtractionResult {
-        subject,
-        from_email,
-        to_emails,
-        cc_emails,
-        bcc_emails,
-        date,
-        message_id,
-        plain_text,
-        html_content,
-        content,
-        attachments,
-        metadata,
-    })
+    Ok((
+        EmailExtractionResult {
+            subject,
+            from_email,
+            to_emails,
+            cc_emails,
+            bcc_emails,
+            date,
+            message_id,
+            plain_text,
+            html_content,
+            content,
+            attachments,
+            metadata,
+        },
+        nested_embedded_messages,
+    ))
 }
 
 /// Read a raw CFB stream by path; returns `None` for missing or empty streams.
@@ -937,22 +1078,67 @@ fn read_msg_stream<F: std::io::Read + std::io::Seek>(comp: &mut cfb::CompoundFil
     if buf.is_empty() { None } else { Some(buf) }
 }
 
-/// Read a PT_LONG (0x0003) integer property from the `__properties_version1.0` stream.
+/// Read a PT_LONG (0x0003) integer property from a message-level
+/// `__properties_version1.0` stream.
+///
+/// `message_root` is `""` for the top-level MSG message (32-byte property
+/// stream header per MS-OXMSG 2.4.3), or the CFB storage path of an embedded
+/// message (24-byte header per MS-OXMSG 2.4.3, since the top-level's leading
+/// 8 reserved bytes are omitted for embedded messages). Use
+/// [`read_msg_attach_or_recip_int_prop`] instead for attachment- or
+/// recipient-level properties, whose header is always 8 bytes.
 fn read_msg_int_prop<F: std::io::Read + std::io::Seek>(
+    comp: &mut cfb::CompoundFile<F>,
+    message_root: &str,
+    prop_id: u16,
+) -> Option<u32> {
+    use std::io::Read;
+
+    let props_path = format!("{message_root}/__properties_version1.0");
+    let mut stream = comp.open_stream(&props_path).ok()?;
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).ok()?;
+
+    const TOP_LEVEL_HEADER_SIZE: usize = 32;
+    const EMBEDDED_MESSAGE_HEADER_SIZE: usize = 24;
+    let header_size: usize = if message_root.is_empty() {
+        TOP_LEVEL_HEADER_SIZE
+    } else {
+        EMBEDDED_MESSAGE_HEADER_SIZE
+    };
+    let mut offset = header_size;
+
+    while offset + 16 <= buf.len() {
+        let ptype = u16::from_le_bytes([buf[offset], buf[offset + 1]]);
+        let pid = u16::from_le_bytes([buf[offset + 2], buf[offset + 3]]);
+
+        if pid == prop_id && ptype == 0x0003 {
+            return Some(u32::from_le_bytes(buf[offset + 8..offset + 12].try_into().ok()?));
+        }
+        offset += 16;
+    }
+    None
+}
+
+/// Read a PT_LONG (0x0003) integer property from an attachment's or
+/// recipient's `__properties_version1.0` stream, whose header is always 8
+/// bytes (MS-OXMSG 2.4.4/2.4.5) regardless of whether the parent message is
+/// the top-level message or an embedded message.
+fn read_msg_attach_or_recip_int_prop<F: std::io::Read + std::io::Seek>(
     comp: &mut cfb::CompoundFile<F>,
     base: &str,
     prop_id: u16,
 ) -> Option<u32> {
     use std::io::Read;
 
+    const ATTACH_OR_RECIP_HEADER_SIZE: usize = 8;
+
     let props_path = format!("{base}/__properties_version1.0");
     let mut stream = comp.open_stream(&props_path).ok()?;
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf).ok()?;
 
-    let header_size: usize = if base.is_empty() { 32 } else { 8 };
-    let mut offset = header_size;
-
+    let mut offset = ATTACH_OR_RECIP_HEADER_SIZE;
     while offset + 16 <= buf.len() {
         let ptype = u16::from_le_bytes([buf[offset], buf[offset + 1]]);
         let pid = u16::from_le_bytes([buf[offset + 2], buf[offset + 3]]);
@@ -1040,7 +1226,13 @@ fn read_msg_filetime_prop<F: std::io::Read + std::io::Seek>(
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf).ok()?;
 
-    let header_size: usize = if base.is_empty() { 32 } else { 8 };
+    const TOP_LEVEL_HEADER_SIZE: usize = 32;
+    const EMBEDDED_MESSAGE_HEADER_SIZE: usize = 24;
+    let header_size: usize = if base.is_empty() {
+        TOP_LEVEL_HEADER_SIZE
+    } else {
+        EMBEDDED_MESSAGE_HEADER_SIZE
+    };
     let mut offset = header_size;
 
     while offset + 16 <= buf.len() {
@@ -1096,13 +1288,10 @@ fn filetime_to_iso8601(filetime: u64) -> Option<String> {
 /// Returns (to, cc, bcc) vectors. Each entry is formatted as `"Name" <email>` or just `email`.
 fn read_msg_recipients<F: std::io::Read + std::io::Seek>(
     comp: &mut cfb::CompoundFile<F>,
+    message_root: &str,
     codepage: Option<u32>,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let recip_paths: Vec<String> = comp
-        .walk()
-        .filter(|e| e.is_storage() && e.name().starts_with("__recip_version1.0_"))
-        .map(|e| e.path().to_string_lossy().into_owned())
-        .collect();
+    let recip_paths = direct_child_storage_paths(comp, message_root, "__recip_version1.0_");
 
     let mut to_emails = Vec::new();
     let mut cc_emails = Vec::new();
@@ -1163,19 +1352,43 @@ fn read_msg_recip_type<F: std::io::Read + std::io::Seek>(comp: &mut cfb::Compoun
     0
 }
 
+/// Maximum number of bytes scanned for the Date header when no header/body
+/// separator is found in the message.
+const DATE_HEADER_SCAN_CAP: usize = 8192;
+
+/// Maximum number of bytes scanned for additional raw headers when no
+/// header/body separator is found in the message.
+const RAW_HEADER_SCAN_CAP: usize = 16384;
+
+/// Find the byte offset of the end of the header section (the blank line
+/// separating headers from body), falling back to `cap` bytes if no
+/// separator is found.
+///
+/// Operates purely on bytes so the returned offset is always safe to use as
+/// a slice bound on `data` (byte-slice indexing never panics on non-UTF-8
+/// boundaries, unlike `&str` indexing).
+fn find_header_section_end(data: &[u8], cap: usize) -> usize {
+    if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+        return pos;
+    }
+    if let Some(pos) = data.windows(2).position(|w| w == b"\n\n") {
+        return pos;
+    }
+    data.len().min(cap)
+}
+
 /// Extract the raw Date header value from email bytes.
 ///
 /// Scans for `Date:` in the header section (before the blank line that separates
 /// headers from body) and returns the raw value, handling continuation lines.
+///
+/// The header section is decoded with `String::from_utf8_lossy` scoped to just
+/// the header bytes, so a non-UTF-8 body (or a non-UTF-8 byte sequence split by
+/// the scan cap) never causes header parsing to be skipped or to panic.
 fn extract_raw_date_header(data: &[u8]) -> Option<String> {
-    let text = utf8_validation::from_utf8(data).ok()?;
-
-    let header_end = text
-        .find("\r\n\r\n")
-        .or_else(|| text.find("\n\n"))
-        .unwrap_or(text.len().min(8192));
-
-    let headers = &text[..header_end];
+    let header_end = find_header_section_end(data, DATE_HEADER_SCAN_CAP);
+    let headers = String::from_utf8_lossy(&data[..header_end]);
+    let headers = headers.as_ref();
 
     let mut date_value = None;
     for line in headers.lines() {
@@ -1198,19 +1411,16 @@ fn extract_raw_date_header(data: &[u8]) -> Option<String> {
 ///
 /// Scans for Content-Type, MIME-Version, X-Mailer, User-Agent, List-Id,
 /// and List-Unsubscribe headers in the header section.
+///
+/// The header section is decoded with `String::from_utf8_lossy` scoped to just
+/// the header bytes, so a non-UTF-8 body (or a non-UTF-8 byte sequence split by
+/// the scan cap) never causes header parsing to be skipped or to panic.
 fn extract_raw_headers(data: &[u8]) -> HashMap<String, String> {
     let mut headers = HashMap::new();
-    let text = match utf8_validation::from_utf8(data) {
-        Ok(s) => s,
-        Err(_) => return headers,
-    };
 
-    let header_end = text
-        .find("\r\n\r\n")
-        .or_else(|| text.find("\n\n"))
-        .unwrap_or(text.len().min(16384));
-
-    let header_section = &text[..header_end];
+    let header_end = find_header_section_end(data, RAW_HEADER_SCAN_CAP);
+    let header_section = String::from_utf8_lossy(&data[..header_end]);
+    let header_section = header_section.as_ref();
 
     let target_headers: &[(&str, &str)] = &[
         ("content-type:", "content_type"),
@@ -1285,6 +1495,7 @@ pub(crate) fn extract_email_content_with_nested(
     mime_type: &str,
     fallback_codepage: Option<u32>,
     max_nested_message_bytes: Option<u64>,
+    security_limits: &SecurityLimits,
 ) -> Result<ParsedEmailContent> {
     if data.is_empty() {
         return Err(XbergError::validation("Email content is empty".to_string()));
@@ -1292,10 +1503,16 @@ pub(crate) fn extract_email_content_with_nested(
 
     match mime_type {
         "message/rfc822" | "text/plain" => parse_eml_content_internal(data, true, max_nested_message_bytes),
-        "application/vnd.ms-outlook" => Ok(ParsedEmailContent {
-            result: parse_msg_content(data, fallback_codepage)?,
-            nested_messages: Vec::new(),
-        }),
+        "application/vnd.ms-outlook" => {
+            let (result, nested_embedded_messages, warnings) =
+                parse_msg_content_with_nested(data, fallback_codepage, security_limits)?;
+            Ok(ParsedEmailContent {
+                result,
+                nested_messages: Vec::new(),
+                nested_embedded_messages,
+                warnings,
+            })
+        }
         _ => Err(XbergError::validation(format!(
             "Unsupported email MIME type: {}",
             mime_type
@@ -1304,8 +1521,12 @@ pub(crate) fn extract_email_content_with_nested(
 }
 
 /// Build text output from email extraction result
+///
+/// Renders Subject/From/To/CC/BCC/Date plus, when present, Reply-To, Message-ID,
+/// In-Reply-To, References, List-Id, and List-Unsubscribe. Headers with no value
+/// are omitted rather than rendered as empty lines.
 pub(crate) fn build_email_text_output(result: &EmailExtractionResult) -> String {
-    let mut text_parts = Vec::with_capacity(10);
+    let mut text_parts = Vec::with_capacity(16);
 
     if let Some(ref subject) = result.subject {
         text_parts.push(format!("Subject: {}", subject));
@@ -1327,8 +1548,32 @@ pub(crate) fn build_email_text_output(result: &EmailExtractionResult) -> String 
         text_parts.push(format!("BCC: {}", result.bcc_emails.join(", ")));
     }
 
+    if let Some(reply_to) = result.metadata.get("reply_to") {
+        text_parts.push(format!("Reply-To: {}", reply_to));
+    }
+
     if let Some(ref date) = result.date {
         text_parts.push(format!("Date: {}", date));
+    }
+
+    if let Some(ref message_id) = result.message_id {
+        text_parts.push(format!("Message-ID: {}", message_id));
+    }
+
+    if let Some(in_reply_to) = result.metadata.get("in_reply_to") {
+        text_parts.push(format!("In-Reply-To: {}", in_reply_to));
+    }
+
+    if let Some(references) = result.metadata.get("references") {
+        text_parts.push(format!("References: {}", references));
+    }
+
+    if let Some(list_id) = result.metadata.get("list_id") {
+        text_parts.push(format!("List-Id: {}", list_id));
+    }
+
+    if let Some(list_unsubscribe) = result.metadata.get("list_unsubscribe") {
+        text_parts.push(format!("List-Unsubscribe: {}", list_unsubscribe));
     }
 
     text_parts.push(result.content.clone());
@@ -1336,7 +1581,7 @@ pub(crate) fn build_email_text_output(result: &EmailExtractionResult) -> String 
     text_parts.join("\n")
 }
 
-fn clean_html_content(html: &str) -> String {
+pub(crate) fn clean_html_content(html: &str) -> String {
     if html.is_empty() {
         return String::new();
     }

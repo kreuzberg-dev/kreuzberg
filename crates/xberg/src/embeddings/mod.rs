@@ -389,6 +389,7 @@ fn resolve_model_info(
 /// Downloads model files from HuggingFace if needed, loads the tokenizer,
 /// creates an ORT session, and caches the engine for reuse.
 #[cfg(feature = "embeddings")]
+#[allow(clippy::too_many_arguments)]
 fn get_or_init_engine(
     repo_name: &str,
     model_file: &str,
@@ -396,6 +397,7 @@ fn get_or_init_engine(
     pooling: engine::Pooling,
     max_sequence_length: usize,
     cache_dir: Option<std::path::PathBuf>,
+    progress: crate::core::config::DownloadProgress,
     accel: Option<crate::core::config::acceleration::AccelerationConfig>,
 ) -> crate::Result<Arc<EmbeddingEngine>> {
     let revision = (repo_name == "xberg-io/embedding-models").then_some(EMBEDDING_MODEL_REVISION);
@@ -439,6 +441,7 @@ fn get_or_init_engine(
             additional_files,
             revision,
             cache_dir.as_deref(),
+            progress,
             Some(EMBEDDING_SHA256_MANIFEST),
             embed_err,
         )?;
@@ -473,6 +476,9 @@ pub fn warm_model(
         pooling,
         DEFAULT_EMBEDDING_MAX_SEQUENCE_LENGTH,
         cache_dir,
+        // Cache warming takes an `EmbeddingModelType`, not a full config, so there is no
+        // `show_download_progress` to honour here. ~keep
+        crate::core::config::DownloadProgress::SILENT,
         None,
     )
     .map(|_| ())
@@ -793,6 +799,7 @@ fn embed_texts_onnx<T: AsRef<str>>(
             .max_sequence_length
             .unwrap_or(DEFAULT_EMBEDDING_MAX_SEQUENCE_LENGTH),
         config.cache_dir.clone(),
+        config.into(),
         config.acceleration.clone(),
     )?;
 
@@ -828,7 +835,12 @@ fn embed_texts_static<T: AsRef<str>>(
         get_preset(name).ok_or_else(|| crate::XbergError::embedding(format!("Unknown embedding preset: {name}")))?;
 
     let cache_directory = static_engine_cache_dir(config.cache_dir.clone());
-    let engine = get_or_init_static_engine(&preset.model_repo, &preset.model_file, cache_directory.as_deref())?;
+    let engine = get_or_init_static_engine(
+        &preset.model_repo,
+        &preset.model_file,
+        cache_directory.as_deref(),
+        config.into(),
+    )?;
 
     let text_refs: Vec<&str> = texts.iter().map(|t| t.as_ref()).collect();
     let mut embeddings = engine.embed(&text_refs, config.batch_size, config.max_sequence_length);
@@ -875,6 +887,7 @@ fn get_or_init_static_engine(
     repo_name: &str,
     model_file: &str,
     cache_directory: Option<&std::path::Path>,
+    progress: crate::core::config::DownloadProgress,
 ) -> crate::Result<CachedStaticEngine> {
     let cache_key = static_engine_cache_key(cache_directory);
     let engine_key = format!("{repo_name}_{model_file}_{EMBEDDING_MODEL_REVISION}_{cache_key}");
@@ -906,6 +919,7 @@ fn get_or_init_static_engine(
         repo_name,
         model_file,
         cache_directory,
+        progress,
     )?);
     cache.insert(engine_key, std::sync::Arc::clone(&engine));
     Ok(engine)
@@ -1233,11 +1247,11 @@ mod tests {
     async fn test_embed_texts_llm_inside_runtime_does_not_panic() {
         let config = crate::core::config::EmbeddingConfig {
             model: crate::core::config::EmbeddingModelType::Llm {
-                llm: crate::core::config::LlmConfig {
+                llm: Box::new(crate::core::config::LlmConfig {
                     model: "openai/text-embedding-3-small".to_string(),
                     api_key: Some("invalid-key-for-test".to_string()),
                     ..Default::default()
-                },
+                }),
             },
             ..Default::default()
         };

@@ -283,12 +283,23 @@ pub(crate) fn iterator_word_to_element(
         element = element
             .with_metadata("is_bold", serde_json::json!(attrs.is_bold))
             .with_metadata("is_italic", serde_json::json!(attrs.is_italic))
+            .with_metadata("is_underlined", serde_json::json!(attrs.is_underlined))
             .with_metadata("is_monospace", serde_json::json!(attrs.is_monospace))
             .with_metadata("is_serif", serde_json::json!(attrs.is_serif))
             .with_metadata("is_smallcaps", serde_json::json!(attrs.is_smallcaps));
         if attrs.pointsize > 0 {
             element = element.with_metadata("pointsize", serde_json::json!(attrs.pointsize));
         }
+        // font_id is an opaque per-document index into Tesseract's font table (not
+        // a stable identifier across documents), but it lets callers group words
+        // rendered with the same font without re-deriving that from pointsize/bold/italic.
+        if attrs.font_id >= 0 {
+            element = element.with_metadata("font_id", serde_json::json!(attrs.font_id));
+        }
+    }
+
+    if let Some(ref lang) = word.language {
+        element = element.with_metadata("word_language", serde_json::json!(lang));
     }
 
     if let Some(bt) = block_type {
@@ -322,7 +333,11 @@ pub(crate) fn iterator_word_to_element(
         };
         element = element
             .with_metadata("is_list_item", serde_json::json!(para.is_list_item))
+            .with_metadata("is_crown", serde_json::json!(para.is_crown))
             .with_metadata("justification", serde_json::json!(justification_str));
+        if para.first_line_indent != 0 {
+            element = element.with_metadata("first_line_indent", serde_json::json!(para.first_line_indent));
+        }
     }
 
     element
@@ -689,6 +704,99 @@ mod tests {
             OcrBoundingGeometry::Quadrilateral {
                 points: [(10, 20), (50, 20), (50, 40), (10, 40)]
             }
+        );
+    }
+
+    #[test]
+    fn iterator_word_to_element_forwards_underline_font_id_crown_indent_and_language() {
+        let word = xberg_tesseract::WordData {
+            text: "Word".to_string(),
+            left: 10,
+            top: 20,
+            right: 60,
+            bottom: 40,
+            confidence: 91.0,
+            font_attrs: Some(xberg_tesseract::FontAttributes {
+                is_bold: false,
+                is_italic: false,
+                is_underlined: true,
+                is_monospace: false,
+                is_serif: false,
+                is_smallcaps: false,
+                pointsize: 12,
+                font_id: 7,
+            }),
+            language: Some("deu".to_string()),
+        };
+        let para = xberg_tesseract::ParaInfo {
+            justification: xberg_tesseract::TessParagraphJustification::JUSTIFICATION_LEFT,
+            is_list_item: false,
+            is_crown: true,
+            first_line_indent: 24,
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        };
+
+        let element = iterator_word_to_element(&word, None, Some(&para), 1);
+
+        assert_eq!(
+            element.backend_metadata.get("is_underlined"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(element.backend_metadata.get("font_id"), Some(&serde_json::json!(7)));
+        assert_eq!(element.backend_metadata.get("is_crown"), Some(&serde_json::json!(true)));
+        assert_eq!(
+            element.backend_metadata.get("first_line_indent"),
+            Some(&serde_json::json!(24))
+        );
+        assert_eq!(
+            element.backend_metadata.get("word_language"),
+            Some(&serde_json::json!("deu"))
+        );
+    }
+
+    #[test]
+    fn iterator_word_to_element_omits_first_line_indent_and_font_id_when_zero_or_negative() {
+        let word = xberg_tesseract::WordData {
+            text: "Word".to_string(),
+            left: 10,
+            top: 20,
+            right: 60,
+            bottom: 40,
+            confidence: 91.0,
+            font_attrs: Some(xberg_tesseract::FontAttributes {
+                is_bold: false,
+                is_italic: false,
+                is_underlined: false,
+                is_monospace: false,
+                is_serif: false,
+                is_smallcaps: false,
+                pointsize: 12,
+                font_id: -1,
+            }),
+            language: None,
+        };
+        let para = xberg_tesseract::ParaInfo {
+            justification: xberg_tesseract::TessParagraphJustification::JUSTIFICATION_UNKNOWN,
+            is_list_item: false,
+            is_crown: false,
+            first_line_indent: 0,
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        };
+
+        let element = iterator_word_to_element(&word, None, Some(&para), 1);
+
+        assert!(!element.backend_metadata.contains_key("font_id"));
+        assert!(!element.backend_metadata.contains_key("first_line_indent"));
+        assert!(!element.backend_metadata.contains_key("word_language"));
+        assert_eq!(
+            element.backend_metadata.get("is_crown"),
+            Some(&serde_json::json!(false))
         );
     }
 

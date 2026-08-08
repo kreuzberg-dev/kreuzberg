@@ -97,13 +97,13 @@ Extract text, tables, images, metadata, and code intelligence from 101 file form
 Kotlin DSL (`build.gradle.kts`):
 
 ```kotlin
-implementation("io.xberg:xberg-android:1.0.13")
+implementation("io.xberg:xberg-android:1.1.0")
 ```
 
 Groovy DSL (`build.gradle`):
 
 ```groovy
-implementation 'io.xberg:xberg-android:1.0.13'
+implementation 'io.xberg:xberg-android:1.1.0'
 ```
 
 Add to your `pom.xml`:
@@ -112,7 +112,7 @@ Add to your `pom.xml`:
 <dependency>
     <groupId>io.xberg</groupId>
     <artifactId>xberg-android</artifactId>
-    <version>1.0.13</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -126,7 +126,19 @@ Add to your `pom.xml`:
 
 Extract text, metadata, and structure from any supported document format:
 
-<!-- snippet not found: api/extract.md -->
+```kotlin title="Kotlin"
+import io.xberg.ExtractInput
+import io.xberg.ExtractInputKind
+import io.xberg.ExtractionConfig
+import io.xberg.Xberg
+
+val output = Xberg.extract(
+    ExtractInput(kind = ExtractInputKind.URI, uri = "document.pdf"),
+    ExtractionConfig(),
+)
+
+println(output.results.first().content)
+```
 
 ### Common Use Cases
 
@@ -136,7 +148,28 @@ Most use cases benefit from configuration to control extraction behavior:
 
 **With OCR (for scanned documents):**
 
-<!-- snippet not found: ocr/ocr_extraction.md -->
+```kotlin title="Kotlin"
+import io.xberg.*
+import java.util.Optional
+
+fun main() {
+    val ocr = OcrConfig.builder()
+        .withBackend("tesseract")
+        .withLanguage("eng")
+        .build()
+
+    val config = ExtractionConfig.builder()
+        .withOcr(Optional.of(ocr))
+        .build()
+
+    val resultOutput = Xberg.extract(
+        ExtractInput(kind = ExtractInputKind.URI, uri = "scanned.pdf"),
+        config,
+    )
+    val result = resultOutput.results.first()
+    println(result.content)
+}
+```
 
 #### Table Extraction
 
@@ -144,13 +177,47 @@ See [Configuration Guide](https://docs.xberg.io/guides/configuration/) for table
 
 #### Processing Multiple Files
 
-<!-- snippet not found: api/extract_batch.md -->
+```kotlin title="Kotlin"
+import io.xberg.ExtractInput
+import io.xberg.ExtractInputKind
+import io.xberg.ExtractionConfig
+import io.xberg.Xberg
+
+val output = Xberg.extractBatch(
+    listOf(
+        ExtractInput(kind = ExtractInputKind.URI, uri = "document.pdf"),
+        ExtractInput(
+            kind = ExtractInputKind.BYTES,
+            bytes = "Hello from memory".toByteArray(),
+            mimeType = "text/plain",
+            filename = "note.txt",
+        ),
+    ),
+    ExtractionConfig(),
+)
+
+output.results.forEach { result ->
+    println(result.content)
+}
+```
 
 #### Async Processing
 
 For non-blocking document processing:
 
-<!-- snippet not found: api/extract.md -->
+```kotlin title="Kotlin"
+import io.xberg.ExtractInput
+import io.xberg.ExtractInputKind
+import io.xberg.ExtractionConfig
+import io.xberg.Xberg
+
+val output = Xberg.extract(
+    ExtractInput(kind = ExtractInputKind.URI, uri = "document.pdf"),
+    ExtractionConfig(),
+)
+
+println(output.results.first().content)
+```
 
 ### Next Steps
 
@@ -256,17 +323,50 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 
 - **Tesseract**
 
-- **Paddleocr**
+- **Sceptre-Tract**
 
 ### OCR Configuration Example
 
-<!-- snippet not found: ocr/ocr_extraction.md -->
+```kotlin title="Kotlin"
+import io.xberg.*
+import java.util.Optional
+
+fun main() {
+    val ocr = OcrConfig.builder()
+        .withBackend("tesseract")
+        .withLanguage("eng")
+        .build()
+
+    val config = ExtractionConfig.builder()
+        .withOcr(Optional.of(ocr))
+        .build()
+
+    val resultOutput = Xberg.extract(
+        ExtractInput(kind = ExtractInputKind.URI, uri = "scanned.pdf"),
+        config,
+    )
+    val result = resultOutput.results.first()
+    println(result.content)
+}
+```
 
 ## Async Support
 
 This binding provides full async/await support for non-blocking document processing:
 
-<!-- snippet not found: api/extract.md -->
+```kotlin title="Kotlin"
+import io.xberg.ExtractInput
+import io.xberg.ExtractInputKind
+import io.xberg.ExtractionConfig
+import io.xberg.Xberg
+
+val output = Xberg.extract(
+    ExtractInput(kind = ExtractInputKind.URI, uri = "document.pdf"),
+    ExtractionConfig(),
+)
+
+println(output.results.first().content)
+```
 
 ## Plugin System
 
@@ -284,7 +384,29 @@ Generate vector embeddings for extracted text using the built-in ONNX Runtime su
 
 Process multiple documents efficiently:
 
-<!-- snippet not found: api/extract_batch.md -->
+```kotlin title="Kotlin"
+import io.xberg.ExtractInput
+import io.xberg.ExtractInputKind
+import io.xberg.ExtractionConfig
+import io.xberg.Xberg
+
+val output = Xberg.extractBatch(
+    listOf(
+        ExtractInput(kind = ExtractInputKind.URI, uri = "document.pdf"),
+        ExtractInput(
+            kind = ExtractInputKind.BYTES,
+            bytes = "Hello from memory".toByteArray(),
+            mimeType = "text/plain",
+            filename = "note.txt",
+        ),
+    ),
+    ExtractionConfig(),
+)
+
+output.results.forEach { result ->
+    println(result.content)
+}
+```
 
 ## Configuration
 

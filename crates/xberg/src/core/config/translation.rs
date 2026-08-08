@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Configuration for the translation post-processor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct TranslationConfig {
     /// BCP-47 language tag for the target language (e.g. `"de"`, `"fr-CA"`).
     pub target_lang: String,

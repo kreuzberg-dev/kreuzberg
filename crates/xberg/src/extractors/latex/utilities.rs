@@ -101,6 +101,30 @@ pub(crate) fn clean_text(text: &str) -> String {
         .to_string()
 }
 
+/// Returns true if a line inside a table-like environment (`tabular`,
+/// `longtable`, `tabularx`, `tabulary`) is structural row/column markup
+/// rather than literal cell content.
+///
+/// Covers `\hline`/booktabs rules, `longtable` page-break markers
+/// (`\endhead`, `\endfirsthead`, `\endfoot`, `\endlastfoot`), `\caption{}`
+/// and `\label{}` (handled separately by callers that want them), and any
+/// nested `\begin{...}`/`\end{...}` boundary line.
+pub(crate) fn is_table_structural_line(trimmed: &str) -> bool {
+    trimmed.is_empty()
+        || trimmed.starts_with("\\hline")
+        || trimmed.starts_with("\\toprule")
+        || trimmed.starts_with("\\midrule")
+        || trimmed.starts_with("\\bottomrule")
+        || trimmed.starts_with("\\endhead")
+        || trimmed.starts_with("\\endfirsthead")
+        || trimmed.starts_with("\\endfoot")
+        || trimmed.starts_with("\\endlastfoot")
+        || trimmed.starts_with("\\caption")
+        || trimmed.starts_with("\\label")
+        || trimmed.starts_with("\\begin{")
+        || trimmed.starts_with("\\end{")
+}
+
 /// Collects content of an environment from begin to end.
 ///
 /// Returns the content and the index of the line after \end{environment}.

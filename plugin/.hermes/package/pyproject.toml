@@ -4,7 +4,7 @@ build-backend = 'hatchling.build'
 
 [project]
 name = 'xberg-hermes-plugin'
-version = '1.0.14'
+version = '1.1.0'
 description = 'Local document extraction: text, tables, metadata, images from 101 formats with optional OCR.'
 requires-python = '>=3.11'
 keywords = ['document-intelligence', 'extraction', 'ocr', 'pdf', 'tables']

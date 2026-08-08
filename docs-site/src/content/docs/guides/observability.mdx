@@ -1,0 +1,145 @@
+---
+title: "Observability"
+description: "OpenTelemetry traces and metrics, the pull-based Prometheus /metrics endpoint, and the initialisation order that decides whether it reports anything."
+---
+
+Xberg instruments extraction, pipeline, cache, batch, and OCR operations with
+[OpenTelemetry](https://opentelemetry.io) traces and metrics. There is no
+single "exporter" — xberg supports two independent models, and picking the
+wrong one is why a `/metrics`-only deployment can look like "there is no
+telemetry here" when metrics are in fact being recorded, just not exposed:
+
+- **Push (OTLP)** — xberg emits spans and metric instruments against the
+  global OpenTelemetry SDK. If your process installs an OTLP exporter (via
+  `tracing-opentelemetry` / `opentelemetry_sdk`), that data is pushed to your
+  collector on its own schedule. Xberg does not ship an OTLP exporter itself —
+  you wire one up in your embedding application.
+- **Pull (Prometheus)** — xberg can instead install a Prometheus-backed meter
+  provider and expose a `/metrics` endpoint that a Prometheus server scrapes.
+  This is a complete, self-contained path: enable the feature, start the
+  server, point Prometheus at it.
+
+Use OTLP push if you already run an OpenTelemetry Collector or export directly
+to a vendor backend (Grafana Cloud, Honeycomb, Datadog, etc.) and want traces
+alongside metrics. Use the Prometheus pull endpoint if your infrastructure
+already scrapes `/metrics` targets and you only need metrics, not traces.
+
+## Feature Flags
+
+| Feature      | Enables                                                                 | Implies         |
+| ------------ | ------------------------------------------------------------------------ | --------------- |
+| `otel`       | Tracing spans and OTel metric instruments (push path)                    | —               |
+| `prometheus` | `GET /metrics` on the built-in API router (pull path)                    | `api`, `otel`   |
+
+```toml title="Cargo.toml"
+# Push-based tracing + metrics only
+xberg = { version = "1", features = ["otel"] }
+
+# Pull-based /metrics endpoint (also enables otel + api)
+xberg = { version = "1", features = ["prometheus"] }
+```
+
+```bash title="Terminal"
+# CLI server binary built with the prometheus feature
+xberg serve
+curl http://localhost:8000/metrics
+```
+
+`prometheus` requires `otel` explicitly rather than depending on a bundled
+`services` feature, because enabling it should not silently pull in the MCP
+server as well.
+
+## Metric Inventory
+
+All instruments live under the `xberg.*` namespace. Names and attribute keys
+below are the canonical source (`crates/xberg/src/telemetry/conventions.rs`).
+
+| Metric                             | Type          | Unit | Attributes                    | Measures                                  |
+| ----------------------------------- | ------------- | ---- | ------------------------------ | ------------------------------------------ |
+| `xberg.extraction.total`            | Counter       | —    | `mime_type`, `extractor`, `status` | Total extractions                     |
+| `xberg.extraction.cache.hits`       | Counter       | —    | —                               | Extraction cache hits                      |
+| `xberg.extraction.cache.misses`     | Counter       | —    | —                               | Extraction cache misses                    |
+| `xberg.batch.total`                 | Counter       | —    | `status`                        | Total batch extraction requests            |
+| `xberg.extraction.duration_ms`      | Histogram     | ms   | `mime_type`, `extractor`        | Extraction wall-clock duration             |
+| `xberg.extraction.input_size_bytes` | Histogram     | By   | `mime_type`                     | Input document size                        |
+| `xberg.extraction.output_size_bytes`| Histogram     | By   | `mime_type`                     | Output content size                        |
+| `xberg.pipeline.duration_ms`        | Histogram     | ms   | `stage`                         | Post-processing pipeline stage duration    |
+| `xberg.ocr.duration_ms`             | Histogram     | ms   | `backend`, `language`           | OCR backend duration                       |
+| `xberg.batch.duration_ms`           | Histogram     | ms   | —                               | Total batch extraction duration            |
+| `xberg.extraction.concurrent`       | UpDownCounter | —    | —                               | Currently in-flight extractions            |
+
+Span attribute keys (`xberg.document.mime_type`, `xberg.extractor.name`,
+`xberg.cache.hit`, `xberg.ocr.backend`, `xberg.error.type`, etc.) follow the
+same `xberg.*` namespace but are documented in-source rather than exhaustively
+listed here — see `conventions.rs` for the full set.
+
+## Prometheus Setup
+
+```yaml title="prometheus.yml"
+scrape_configs:
+  - job_name: "xberg"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["localhost:8000"]
+    metrics_path: /metrics
+```
+
+`/metrics` returns `text/plain; version=0.0.4` (the standard Prometheus text
+exposition format) and requires no authentication of its own — put it behind
+your ingress/network policy like any other internal endpoint.
+
+## The `OnceLock` Ordering Hazard
+
+Xberg never installs an OpenTelemetry `MeterProvider` on its own. The first
+time anything calls into xberg's metrics — which happens on the first
+extraction — a process-global `OnceLock` binds the metric instruments to
+whatever meter provider is globally registered *at that moment*. If nothing
+has installed one yet, that resolves to the OTel no-op meter, and every
+metric recorded afterwards, for the rest of the process's lifetime, is
+silently discarded.
+
+`xberg::telemetry::init_prometheus()` installs the real Prometheus-backed
+`SdkMeterProvider` as the global provider. It is idempotent, so calling it
+more than once is harmless — but it must run **before the first extraction**,
+because that is what first triggers instrument creation.
+
+The built-in server (`xberg serve`, `create_router*`) already calls
+`init_prometheus()` at the top of router construction, before the extraction
+service is built, so this is handled for you automatically.
+
+If you embed xberg's extraction pipeline directly — without going through
+`create_router` — and build your own Axum/other router around it, you are
+responsible for this ordering:
+
+```rust
+#[tokio::main]
+async fn main() {
+    // Must run before any call into xberg's extraction pipeline.
+    let registry = xberg::telemetry::init_prometheus();
+
+    // ... build your own router, mount `/metrics` yourself using `registry`,
+    // then run your first extraction only after this point.
+}
+```
+
+Call it first, before your process runs its first extraction. If you get this
+wrong, `/metrics` will serve an empty (or `# no metrics` style) body forever,
+even though extractions are still succeeding — there is no error, warning, or
+crash signaling the mistake.
+
+## Tracing
+
+With the `otel` feature enabled, API handlers and core operations are wrapped
+in `tracing::instrument` spans (`api.extract`, `api.health`, `api.cache_warm`,
+`api.cancel_job`, etc.), recording attributes such as `files_count` and
+`outcome` where relevant. These spans reach your backend the same way any
+`tracing` spans do: attach a `tracing-opentelemetry` layer backed by an OTLP
+exporter in your application's tracing subscriber setup. Xberg does not
+configure an exporter or collector endpoint for you.
+
+## See Also
+
+- [API Server](/guides/api-server/) — `/health`, `/version`, and other
+  built-in endpoints.
+- [Environment Variables](/reference/environment-variables/) — server
+  configuration knobs.

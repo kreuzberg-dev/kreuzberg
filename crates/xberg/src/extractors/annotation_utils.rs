@@ -1,27 +1,29 @@
 use crate::types::document_structure::TextAnnotation;
 
-/// Adjust annotation byte offsets after trimming leading whitespace from text.
-/// Filters out annotations that fall outside the trimmed text bounds.
+/// Adjust annotation byte offsets after trimming whitespace from text.
+///
+/// Offsets are shifted left by the amount of leading whitespace removed and then
+/// **clamped** to the trimmed text's length. An annotation that runs into the
+/// trailing whitespace `trim()` removed still covers real words, so clamping it
+/// preserves that formatting; the previous `a.end <= trimmed_len` filter dropped
+/// the whole span instead, silently losing the emphasis. See #226.
+///
+/// Annotations that collapse to an empty range — because they lay entirely
+/// inside removed leading or trailing whitespace — are still discarded.
 pub(crate) fn adjust_annotations_for_trim(
-    mut annotations: Vec<TextAnnotation>,
+    annotations: Vec<TextAnnotation>,
     raw_text: &str,
     trimmed_text: &str,
 ) -> Vec<TextAnnotation> {
-    let trim_offset = raw_text.len() - raw_text.trim_start().len();
+    let offset = (raw_text.len() - raw_text.trim_start().len()) as u32;
     let trimmed_len = trimmed_text.len() as u32;
-    if trim_offset == 0 {
-        annotations.retain(|a| a.start < a.end && a.end <= trimmed_len);
-        return annotations;
-    }
-    let offset = trim_offset as u32;
     annotations
         .into_iter()
-        .map(|mut a| {
-            a.start = a.start.saturating_sub(offset);
-            a.end = a.end.saturating_sub(offset);
-            a
+        .filter_map(|mut a| {
+            a.start = a.start.saturating_sub(offset).min(trimmed_len);
+            a.end = a.end.saturating_sub(offset).min(trimmed_len);
+            (a.start < a.end).then_some(a)
         })
-        .filter(|a| a.start < a.end && a.end <= trimmed_len)
         .collect()
 }
 
@@ -78,6 +80,56 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].start, 0);
         assert_eq!(result[0].end, 2);
+    }
+
+    /// Regression for #226: an annotation whose end lands in trailing whitespace
+    /// that `trim()` removed must be clamped to the trimmed length, not dropped.
+    /// "hello world   " is 14 bytes; the bold run covers all of it, but only the
+    /// first 11 bytes survive trimming.
+    #[test]
+    fn annotation_ending_in_trailing_whitespace_is_clamped() {
+        let raw = "hello world   ";
+        let trimmed = "hello world";
+        let result = adjust_annotations_for_trim(vec![ann(0, 14)], raw, trimmed);
+        assert_eq!(result.len(), 1, "annotation must be clamped, not dropped");
+        assert_eq!(result[0].start, 0);
+        assert_eq!(result[0].end, 11);
+    }
+
+    /// Leading and trailing whitespace removed together: the shift and the clamp
+    /// must both apply. "  hello world  " is 15 bytes, 2 leading, 2 trailing.
+    #[test]
+    fn annotation_spanning_both_trim_boundaries_is_shifted_and_clamped() {
+        let raw = "  hello world  ";
+        let trimmed = "hello world";
+        let result = adjust_annotations_for_trim(vec![ann(2, 15)], raw, trimmed);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start, 0);
+        assert_eq!(result[0].end, 11);
+    }
+
+    /// An annotation lying entirely inside removed trailing whitespace collapses
+    /// to an empty range and is still discarded.
+    #[test]
+    fn annotation_entirely_in_trailing_whitespace_is_removed() {
+        let raw = "hello   ";
+        let trimmed = "hello";
+        let result = adjust_annotations_for_trim(vec![ann(6, 8)], raw, trimmed);
+        assert!(
+            result.is_empty(),
+            "annotation wholly inside removed trailing whitespace should be removed"
+        );
+    }
+
+    /// A partial run touching the trailing whitespace keeps its real start.
+    #[test]
+    fn partial_annotation_touching_trailing_whitespace_keeps_start() {
+        let raw = "hello world  ";
+        let trimmed = "hello world";
+        let result = adjust_annotations_for_trim(vec![ann(6, 13)], raw, trimmed);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start, 6);
+        assert_eq!(result[0].end, 11);
     }
 
     #[test]

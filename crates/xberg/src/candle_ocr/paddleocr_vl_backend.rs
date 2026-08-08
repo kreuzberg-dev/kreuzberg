@@ -256,7 +256,7 @@ impl OcrBackend for PaddleOcrVlBackend {
             });
         }
 
-        let image_bytes = image_bytes.to_vec();
+        let image_bytes_owned = image_bytes.to_vec();
 
         let content = tokio::task::spawn_blocking(move || {
             let model_path = match options.model_path {
@@ -276,7 +276,7 @@ impl OcrBackend for PaddleOcrVlBackend {
 
             let mut engine_guard = engine.lock();
             let output = engine_guard
-                .process_image(&image_bytes)
+                .process_image(&image_bytes_owned)
                 .map_err(|e| crate::XbergError::Ocr {
                     message: format!("PaddleOCR-VL inference failed: {e}"),
                     source: Some(Box::new(e)),
@@ -290,11 +290,13 @@ impl OcrBackend for PaddleOcrVlBackend {
             source: None,
         })??;
 
-        Ok(ExtractedDocument {
+        Ok(super::ocr_result::build_ocr_document(
             content,
-            mime_type: Cow::Borrowed("text/markdown"),
-            ..Default::default()
-        })
+            Vec::new(),
+            Cow::Borrowed("text/markdown"),
+            image_bytes,
+            config,
+        ))
     }
 
     /// Process an image file using the PaddleOCR-VL engine.

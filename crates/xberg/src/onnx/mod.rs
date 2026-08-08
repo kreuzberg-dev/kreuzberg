@@ -15,6 +15,7 @@
 //!
 //! Since v5.0.0.
 
+use crate::core::config::DownloadProgress;
 use std::path::{Path, PathBuf};
 
 /// A module-specific error constructor, e.g. `crate::XbergError::embedding::<String>`.
@@ -110,12 +111,17 @@ pub(crate) struct DownloadedModel {
 /// the manifest — `Custom` repos, which ship no manifest — are downloaded without
 /// verification, preserving the existing behaviour for user-supplied models. Pass
 /// `None` to skip verification entirely.
+///
+/// `progress` carries the capability config's `show_download_progress` setting down to the
+/// Hugging Face client, so every file this helper fetches honours it (#279).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn download_model_files(
     repo_name: &str,
     model_file: &str,
     additional_files: &[String],
     revision: Option<&str>,
     cache_directory: Option<&Path>,
+    progress: DownloadProgress,
     manifest: Option<&str>,
     err: ErrCtor,
 ) -> crate::Result<DownloadedModel> {
@@ -126,6 +132,7 @@ pub(crate) fn download_model_files(
             additional_files,
             revision,
             cache_directory,
+            progress,
             manifest,
             err,
         )
@@ -155,6 +162,7 @@ fn fetch_companion(
     file_name: &str,
     revision: Option<&str>,
     cache_directory: Option<&Path>,
+    progress: DownloadProgress,
     manifest: &[(String, String)],
 ) -> Result<(PathBuf, String), String> {
     let candidates: Vec<String> = match model_dir {
@@ -170,7 +178,14 @@ fn fetch_companion(
                 continue;
             }
         };
-        match crate::model_download::hf_resolve_file(repo_name, &candidate, revision, cache_directory, expected) {
+        match crate::model_download::hf_resolve_file_with_progress(
+            repo_name,
+            &candidate,
+            revision,
+            cache_directory,
+            expected,
+            progress,
+        ) {
             Ok(path) => return Ok((path, candidate)),
             Err(e) => last_err = e,
         }
@@ -187,6 +202,7 @@ fn fetch_optional_companion(
     file_name: &str,
     revision: Option<&str>,
     cache_directory: Option<&Path>,
+    progress: DownloadProgress,
     manifest: &[(String, String)],
 ) -> Result<(PathBuf, String), String> {
     let nested_path = model_dir
@@ -196,7 +212,15 @@ fn fetch_optional_companion(
         .iter()
         .any(|(path, _)| path == file_name || nested_path.as_ref().is_some_and(|nested| path == nested));
 
-    match fetch_companion(repo_name, model_dir, file_name, revision, cache_directory, manifest) {
+    match fetch_companion(
+        repo_name,
+        model_dir,
+        file_name,
+        revision,
+        cache_directory,
+        progress,
+        manifest,
+    ) {
         Ok(resolved) => Ok(resolved),
         Err(error) if is_pinned => Err(error),
         Err(_) => Ok((PathBuf::new(), String::new())),
@@ -232,12 +256,14 @@ fn verify_downloaded(manifest: &[(String, String)], repo_path: &str, local: &Pat
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn download_model_files_inner(
     repo_name: &str,
     model_file: &str,
     additional_files: &[String],
     revision: Option<&str>,
     cache_directory: Option<&Path>,
+    progress: DownloadProgress,
     manifest: Option<&str>,
     err: ErrCtor,
 ) -> crate::Result<DownloadedModel> {
@@ -248,19 +274,32 @@ fn download_model_files_inner(
     };
 
     let model_sha = manifest_checksum(&manifest, model_file).map_err(err)?;
-    let model = crate::model_download::hf_resolve_file(repo_name, model_file, revision, cache_directory, model_sha)
-        .map_err(|e| err(format!("Failed to resolve {model_file} from {repo_name}: {e}")))?;
+    let model = crate::model_download::hf_resolve_file_with_progress(
+        repo_name,
+        model_file,
+        revision,
+        cache_directory,
+        model_sha,
+        progress,
+    )
+    .map_err(|e| err(format!("Failed to resolve {model_file} from {repo_name}: {e}")))?;
     verify_downloaded(&manifest, model_file, &model, err)?;
 
     for sibling in additional_files {
         let sibling_sha = manifest_checksum(&manifest, sibling).map_err(err)?;
-        let sib_path =
-            crate::model_download::hf_resolve_file(repo_name, sibling, revision, cache_directory, sibling_sha)
-                .map_err(|e| {
-                    err(format!(
-                        "Failed to resolve sibling file {sibling} from {repo_name}: {e}"
-                    ))
-                })?;
+        let sib_path = crate::model_download::hf_resolve_file_with_progress(
+            repo_name,
+            sibling,
+            revision,
+            cache_directory,
+            sibling_sha,
+            progress,
+        )
+        .map_err(|e| {
+            err(format!(
+                "Failed to resolve sibling file {sibling} from {repo_name}: {e}"
+            ))
+        })?;
         verify_downloaded(&manifest, sibling, &sib_path, err)?;
     }
 
@@ -275,6 +314,7 @@ fn download_model_files_inner(
         "tokenizer.json",
         revision,
         cache_directory,
+        progress,
         &manifest,
     )
     .map_err(|e| err(format!("Failed to download tokenizer.json: {e}")))?;
@@ -286,6 +326,7 @@ fn download_model_files_inner(
         "config.json",
         revision,
         cache_directory,
+        progress,
         &manifest,
     )
     .map_err(|e| err(format!("Failed to download config.json: {e}")))?;
@@ -297,6 +338,7 @@ fn download_model_files_inner(
         "special_tokens_map.json",
         revision,
         cache_directory,
+        progress,
         &manifest,
     )
     .map_err(|e| err(format!("Failed to download special_tokens_map.json: {e}")))?;
@@ -308,6 +350,7 @@ fn download_model_files_inner(
         "tokenizer_config.json",
         revision,
         cache_directory,
+        progress,
         &manifest,
     )
     .map_err(|e| err(format!("Failed to download tokenizer_config.json: {e}")))?;

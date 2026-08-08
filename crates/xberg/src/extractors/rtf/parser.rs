@@ -1095,6 +1095,26 @@ pub(crate) fn extract_text_from_rtf(
     let mut footnote_count: usize = 0;
     let mut footnotes: Vec<String> = Vec::new();
 
+    // `\shptxt` (drawing-object / text-box text) and `\annotation` (comment
+    // text) are ordinary content destinations, but real producers nest them
+    // inside an *ignorable* ancestor (`{\*\shp{\*\shpinst{...{\shptxt ...}`
+    // for text boxes) that this parser otherwise skips wholesale. Buffering
+    // their content unconditionally -- the same trick `footnote_buf` uses --
+    // lets them survive even while nested under an active `skip_depth` (#86).
+    let mut in_shptxt = false;
+    let mut shptxt_depth: i32 = 0;
+    let mut shptxt_buf = String::new();
+    let mut text_boxes: Vec<String> = Vec::new();
+
+    let mut in_annotation = false;
+    let mut annotation_depth: i32 = 0;
+    let mut annotation_buf = String::new();
+    let mut comments: Vec<String> = Vec::new();
+    // Set by `\atnid` (the comment's numeric id, always written as an
+    // ignorable `{\*\atnid N}` sibling of `\annotation`) and consumed when
+    // the enclosing `\annotation` group closes.
+    let mut pending_atnid: Option<i32> = None;
+
     let mut group_depth: i32 = 0;
     let mut skip_depth: i32 = 0;
 
@@ -1225,6 +1245,28 @@ pub(crate) fn extract_text_from_rtf(
                     }
                     footnote_buf.clear();
                 }
+                if in_shptxt && group_depth < shptxt_depth {
+                    in_shptxt = false;
+                    let text_box = shptxt_buf.trim().to_string();
+                    if !text_box.is_empty() {
+                        text_boxes.push(text_box);
+                    }
+                    shptxt_buf.clear();
+                }
+                if in_annotation && group_depth < annotation_depth {
+                    in_annotation = false;
+                    let comment = annotation_buf.trim().to_string();
+                    if !comment.is_empty() {
+                        let label = pending_atnid
+                            .take()
+                            .map(|id| id.to_string())
+                            .unwrap_or_else(|| (comments.len() + 1).to_string());
+                        comments.push(format!("[Comment {label}]: {comment}"));
+                    } else {
+                        pending_atnid = None;
+                    }
+                    annotation_buf.clear();
+                }
                 let produced_text = group_has_text.pop().unwrap_or(false);
                 if produced_text && skip_depth == 0 {
                     pending_boundary_space = true;
@@ -1283,6 +1325,12 @@ pub(crate) fn extract_text_from_rtf(
                             if in_footnote {
                                 footnote_buf.push(next_ch);
                             }
+                            if in_shptxt {
+                                shptxt_buf.push(next_ch);
+                            }
+                            if in_annotation {
+                                annotation_buf.push(next_ch);
+                            }
                             if skip_depth > 0 {
                                 continue;
                             }
@@ -1320,14 +1368,25 @@ pub(crate) fn extract_text_from_rtf(
                                 None
                             };
 
-                            if in_footnote && let Some(bytes) = bytes.as_deref() {
+                            if (in_footnote || in_shptxt || in_annotation)
+                                && let Some(bytes) = bytes.as_deref()
+                            {
                                 let codepage = resolve_decode_codepage(
                                     &font_id_stack,
                                     default_font_id,
                                     &font_charsets,
                                     &ansi_codepage_stack,
                                 );
-                                footnote_buf.push_str(&decode_ansi_bytes(bytes, codepage));
+                                let decoded = decode_ansi_bytes(bytes, codepage);
+                                if in_footnote {
+                                    footnote_buf.push_str(&decoded);
+                                }
+                                if in_shptxt {
+                                    shptxt_buf.push_str(&decoded);
+                                }
+                                if in_annotation {
+                                    annotation_buf.push_str(&decoded);
+                                }
                             }
                             if skip_depth > 0 {
                                 continue;
@@ -1393,6 +1452,18 @@ pub(crate) fn extract_text_from_rtf(
                                         }
                                         continue;
                                     }
+                                    // `{\*\atnid N}` carries the enclosing comment's id as a plain
+                                    // numeric parameter -- there is no destination content to
+                                    // recurse into, just capture it and skip the (empty) group.
+                                    if control_word == "atnid" {
+                                        if let Some(id) = _param {
+                                            pending_atnid = Some(id);
+                                        }
+                                        if skip_depth == 0 {
+                                            skip_depth = group_depth;
+                                        }
+                                        continue;
+                                    }
                                     if control_word != "shppict" {
                                         if skip_depth == 0 {
                                             skip_depth = group_depth;
@@ -1437,6 +1508,48 @@ pub(crate) fn extract_text_from_rtf(
                                     continue;
                                 }
 
+                                // `\shptxt` (drawing-object/text-box text) is a plain destination,
+                                // but real producers nest it inside an ignorable `\*\shp{\*\shpinst
+                                // ...}` ancestor. Setting `skip_depth` only when it is not already
+                                // active (matching `footnote`/`fldinst` above) would still lose this
+                                // content -- an outer skip is already active by the time we get here.
+                                // Buffering unconditionally via `in_shptxt` (checked ahead of every
+                                // `skip_depth` gate below) is what actually rescues the text (#86).
+                                if control_word == "shptxt" {
+                                    in_shptxt = true;
+                                    shptxt_depth = group_depth;
+                                    shptxt_buf.clear();
+                                    if skip_depth == 0 {
+                                        skip_depth = group_depth;
+                                    }
+                                    continue;
+                                }
+
+                                // `\annotation` (Word comment text) is likewise a plain destination
+                                // that this parser previously treated as an unrecognized ignorable
+                                // destination and skipped whole (#86).
+                                if control_word == "annotation" {
+                                    in_annotation = true;
+                                    annotation_depth = group_depth;
+                                    annotation_buf.clear();
+                                    if skip_depth == 0 {
+                                        skip_depth = group_depth;
+                                    }
+                                    continue;
+                                }
+
+                                // Non-ignorable form fallback; the common form is `{\*\atnid N}`,
+                                // handled above under `ignorable_pending`.
+                                if control_word == "atnid" {
+                                    if let Some(id) = _param {
+                                        pending_atnid = Some(id);
+                                    }
+                                    if skip_depth == 0 {
+                                        skip_depth = group_depth;
+                                    }
+                                    continue;
+                                }
+
                                 if SKIP_DESTINATIONS.contains(&control_word.as_str()) {
                                     if skip_depth == 0 {
                                         skip_depth = group_depth;
@@ -1470,7 +1583,7 @@ pub(crate) fn extract_text_from_rtf(
                                 {
                                     default_font_id = Some(val.max(0) as u16);
                                 }
-                                if in_footnote
+                                if (in_footnote || in_shptxt || in_annotation)
                                     && control_word == "u"
                                     && let Some(code_num) = _param
                                 {
@@ -1480,7 +1593,15 @@ pub(crate) fn extract_text_from_rtf(
                                         code_num as u32
                                     };
                                     if let Some(c) = char::from_u32(code_u) {
-                                        footnote_buf.push(c);
+                                        if in_footnote {
+                                            footnote_buf.push(c);
+                                        }
+                                        if in_shptxt {
+                                            shptxt_buf.push(c);
+                                        }
+                                        if in_annotation {
+                                            annotation_buf.push(c);
+                                        }
                                     }
                                     let uc_count = uc_stack.last().copied().unwrap_or(1);
                                     for _ in 0..uc_count {
@@ -1493,8 +1614,18 @@ pub(crate) fn extract_text_from_rtf(
                                         }
                                     }
                                 }
-                                if in_footnote && (control_word == "par" || control_word == "line") {
-                                    footnote_buf.push(' ');
+                                if (in_footnote || in_shptxt || in_annotation)
+                                    && (control_word == "par" || control_word == "line")
+                                {
+                                    if in_footnote {
+                                        footnote_buf.push(' ');
+                                    }
+                                    if in_shptxt {
+                                        shptxt_buf.push(' ');
+                                    }
+                                    if in_annotation {
+                                        annotation_buf.push(' ');
+                                    }
                                 }
                                 continue;
                             }
@@ -1540,10 +1671,16 @@ pub(crate) fn extract_text_from_rtf(
                 if in_footnote {
                     footnote_buf.push(' ');
                 }
-                if skip_depth > 0 && !in_footnote {
+                if in_shptxt {
+                    shptxt_buf.push(' ');
+                }
+                if in_annotation {
+                    annotation_buf.push(' ');
+                }
+                if skip_depth > 0 && !in_footnote && !in_shptxt && !in_annotation {
                     continue;
                 }
-                if in_footnote {
+                if in_footnote || in_shptxt || in_annotation {
                     continue;
                 }
                 if let Some(state) = table_state.as_mut()
@@ -1566,6 +1703,12 @@ pub(crate) fn extract_text_from_rtf(
                 }
                 if in_footnote {
                     footnote_buf.push(ch);
+                }
+                if in_shptxt {
+                    shptxt_buf.push(ch);
+                }
+                if in_annotation {
+                    annotation_buf.push(ch);
                 }
                 if in_listtext {
                     listtext_buf.push(ch);
@@ -1631,6 +1774,30 @@ pub(crate) fn extract_text_from_rtf(
         }
         for (i, note) in footnotes.iter().enumerate() {
             final_result.push_str(&format!("[^{}]: {}", i + 1, note.trim()));
+            final_result.push('\n');
+            final_result.push('\n');
+        }
+    }
+
+    if !text_boxes.is_empty() {
+        if !final_result.ends_with('\n') {
+            final_result.push('\n');
+            final_result.push('\n');
+        }
+        for text_box in &text_boxes {
+            final_result.push_str(text_box);
+            final_result.push('\n');
+            final_result.push('\n');
+        }
+    }
+
+    if !comments.is_empty() {
+        if !final_result.ends_with('\n') {
+            final_result.push('\n');
+            final_result.push('\n');
+        }
+        for comment in &comments {
+            final_result.push_str(comment);
             final_result.push('\n');
             final_result.push('\n');
         }
@@ -2026,5 +2193,69 @@ fn handle_control_word(
             fmt_tracker.reset_all(result.len());
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod issue_86_destination_tests {
+    use super::extract_text_from_rtf;
+
+    /// #86: `\shptxt` (drawing-object/text-box text) is a plain destination,
+    /// but real producers nest it inside an ignorable `{\*\shp{\*\shpinst
+    /// ...}}` ancestor. Before the fix, the outer ignorable-and-unrecognized
+    /// destination set `skip_depth` for the whole subtree, and the nested
+    /// `\shptxt` group -- despite being recognized -- had no way to escape
+    /// that already-active skip, so its text was dropped.
+    #[test]
+    fn test_shptxt_survives_nested_ignorable_ancestor() {
+        let rtf = r"{\rtf1\ansi
+{\*\shp{\*\shpinst{\sp{\sn shapeType}{\sv202}}{\shptxt Text box content}}}
+Body text after the shape.\par
+}";
+        let (text, _tables, _images, _para_metas, _fmt) = extract_text_from_rtf(rtf, false);
+
+        assert!(
+            text.contains("Text box content"),
+            "text-box content should be extracted, got: {text:?}"
+        );
+        assert!(
+            text.contains("Body text after the shape."),
+            "ordinary body text should be unaffected, got: {text:?}"
+        );
+    }
+
+    /// #86: `\annotation` (Word comment text) was previously treated as an
+    /// unrecognized ignorable destination and skipped whole. `\atnid` carries
+    /// the comment's numeric id and should label the extracted comment.
+    #[test]
+    fn test_annotation_and_atnid_are_extracted_as_labeled_comment() {
+        let rtf = r"{\rtf1\ansi
+Body text.\par
+{\annotation{\*\atnid7}Reviewer comment here}
+}";
+        let (text, _tables, _images, _para_metas, _fmt) = extract_text_from_rtf(rtf, false);
+
+        assert!(
+            text.contains("[Comment 7]: Reviewer comment here"),
+            "comment should be extracted and labeled with its atnid, got: {text:?}"
+        );
+        assert!(
+            text.contains("Body text."),
+            "ordinary body text should be unaffected, got: {text:?}"
+        );
+    }
+
+    /// A comment with no `\atnid` falls back to a running 1-based counter
+    /// rather than being dropped or mislabeled.
+    #[test]
+    fn test_annotation_without_atnid_falls_back_to_counter_label() {
+        let rtf = r"{\rtf1\ansi
+{\annotation First comment}
+{\annotation Second comment}
+}";
+        let (text, _tables, _images, _para_metas, _fmt) = extract_text_from_rtf(rtf, false);
+
+        assert!(text.contains("[Comment 1]: First comment"), "got: {text:?}");
+        assert!(text.contains("[Comment 2]: Second comment"), "got: {text:?}");
     }
 }

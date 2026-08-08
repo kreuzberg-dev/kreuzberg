@@ -1,9 +1,220 @@
 //! PDF page rendering using pdf_oxide.
 
 use crate::Result;
+use crate::core::diagnostics::{push_warning_deduped, warning};
 use crate::error::XbergError;
+use crate::types::ProcessingWarning;
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
 use lopdf::{Document, ObjectId};
+use std::cell::RefCell;
+use std::sync::Once;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// `ProcessingWarning::source` used for glyphs the rasterizer could not paint.
+///
+/// See [`take_pdf_oxide_render_warnings`] for why this exists and where the
+/// gap is upstream vs. xberg-side.
+const PDF_RENDER_WARNING_SOURCE: &str = "pdf-render";
+
+thread_local! {
+    /// Buffer for `pdf_oxide`'s `log::warn!` records emitted while a render
+    /// call made by this thread is in flight. `None` when no render call is
+    /// currently capturing (the default, and the state between calls).
+    static PDF_OXIDE_LOG_CAPTURE: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+    /// Deduped warnings drained from completed render calls on this thread,
+    /// awaiting collection by [`take_pdf_oxide_render_warnings`].
+    static PDF_OXIDE_PENDING_WARNINGS: RefCell<Vec<ProcessingWarning>> = const { RefCell::new(Vec::new()) };
+}
+
+static PDF_OXIDE_LOGGER_INIT: Once = Once::new();
+
+/// Whether [`install_pdf_render_diagnostics`] actually won the global `log`
+/// backend. Capture is skipped entirely while this is false, so the render
+/// path costs nothing for the overwhelming majority of embedders who never
+/// opt in.
+static PDF_OXIDE_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// A [`log::Log`] sink that captures `pdf_oxide`'s warning-level records into
+/// the calling thread's [`PDF_OXIDE_LOG_CAPTURE`] buffer.
+///
+/// # Why this exists (#1364)
+///
+/// `pdf_oxide`'s rasterizer can silently drop a glyph — no font resolves for
+/// the current run (`text_rasterizer.rs`: "No font found for '{}'..."),
+/// parsing an embedded font fails (`page_renderer.rs`: "Failed to parse font
+/// '{}'..."), the CJK predefined-CIDFont substitution face is unavailable, or
+/// direct CID/CFF glyph-outline rendering errors mid-run. In every one of
+/// those cases `pdf_oxide` still returns `Ok(RenderedImage { .. })` — the
+/// page just has a gap where the glyph should be, with the text-space cursor
+/// advanced as if it painted. `RenderedImage` carries no diagnostic field, so
+/// none of this is visible to callers through the return value.
+///
+/// `pdf_oxide` *does* report every one of these cases through `log::warn!`,
+/// but this crate never installed a [`log::Log`] backend, so — independent of
+/// this fix — those records were going to the default no-op logger and were
+/// dropped a second time. That is the exact upstream-plus-local gap #1364
+/// describes: pdf_oxide's own diagnostic channel existed but nothing was
+/// listening.
+///
+/// This is the xberg-side fix: install a capturing logger (once per process;
+/// if the host application has already claimed the `log` facade for its own
+/// logger, [`ensure_pdf_oxide_log_capture_installed`] leaves it alone and
+/// this capture path silently yields nothing — no worse than today), and
+/// during each render call collect `pdf_oxide`'s own target-prefixed warnings
+/// into a `ProcessingWarning`. The actual *decision* about which glyph gets
+/// dropped and why remains entirely inside `pdf_oxide`/`ttf-parser` — that
+/// part is upstream and is not touched here.
+struct PdfOxideWarningCapture;
+
+impl log::Log for PdfOxideWarningCapture {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        metadata.level() <= log::Level::Warn
+    }
+
+    /// Records outside `pdf_oxide` are dropped rather than re-emitted.
+    ///
+    /// Forwarding them to `tracing` is the obvious instinct — this sink owns the
+    /// process's only `log` backend, so anything it drops is gone — but it does not
+    /// work here and must not be reintroduced. The `tracing/log` feature is enabled
+    /// in this build (pulled in through `tower`), which makes every `tracing` event
+    /// also emit a `log` record. A forwarding sink therefore feeds itself: one
+    /// `tracing::warn!` becomes a `log` record, which becomes a `tracing::warn!`,
+    /// until the thread's stack is exhausted. That is not hypothetical — it aborted
+    /// the #1364 regression test with `fatal runtime error: stack overflow`.
+    ///
+    /// Dropping them is acceptable precisely because installation is opt-in: before
+    /// [`install_pdf_render_diagnostics`] is called there is no `log` backend at all
+    /// and these records already go nowhere, so an application that opts in is
+    /// choosing this trade knowingly rather than having it imposed.
+    fn log(&self, record: &log::Record<'_>) {
+        if !self.enabled(record.metadata()) || !record.target().starts_with("pdf_oxide") {
+            return;
+        }
+        let message = record.args().to_string();
+        PDF_OXIDE_LOG_CAPTURE.with(|cell| {
+            if let Some(buffer) = cell.borrow_mut().as_mut() {
+                buffer.push(message);
+            }
+        });
+    }
+
+    fn flush(&self) {}
+}
+
+/// Install [`PdfOxideWarningCapture`] as the process-wide `log` backend,
+/// exactly once.
+///
+/// If another component already installed a `log::Log` implementation (an
+/// application wiring `env_logger`, for instance), `log::set_boxed_logger`
+/// fails and this is a no-op: we do not fight over ownership of the global
+/// logger slot, and we do not touch `log::set_max_level` unless our install
+/// won, so we never silently raise or lower a level someone else configured.
+/// In that case `pdf_oxide`'s glyph-drop records go wherever that other
+/// logger sends them instead of into [`take_pdf_oxide_render_warnings`].
+/// **Opt-in.** Nothing calls this automatically, and that is deliberate: xberg
+/// is a library, and `log` has exactly one global backend slot per process. A
+/// library that claims it on its own behalf breaks its embedder — a host that
+/// later calls `env_logger::init()` panics, and until this returns, every
+/// `log` record in the process is routed here rather than wherever the host
+/// intended. That decision belongs to the application, so it is exposed as a
+/// call an application makes knowingly.
+///
+/// Returns `true` if this call (or an earlier one) installed the capture, and
+/// `false` if some other component already owns the `log` backend — in which
+/// case `pdf_oxide`'s glyph-drop records go to that logger and
+/// [`take_pdf_oxide_render_warnings`] stays empty.
+///
+/// Without this call the #1364 warnings are not produced. The glyph drop
+/// itself is decided inside `pdf_oxide`, which reports it only through
+/// `log::warn!`; there is no return-value channel to read instead.
+pub fn install_pdf_render_diagnostics() -> bool {
+    PDF_OXIDE_LOGGER_INIT.call_once(|| {
+        if log::set_boxed_logger(Box::new(PdfOxideWarningCapture)).is_ok() {
+            // Only warnings are captured, so asking the `log` facade for anything
+            // more verbose would cost every dependency a formatted record per call
+            // for output this sink immediately discards.
+            log::set_max_level(log::LevelFilter::Warn);
+            PDF_OXIDE_CAPTURE_ACTIVE.store(true, Ordering::Release);
+        }
+    });
+    PDF_OXIDE_CAPTURE_ACTIVE.load(Ordering::Acquire)
+}
+
+/// Turn one captured `pdf_oxide` log line into a `(page, message)`
+/// [`ProcessingWarning`], naming the page so a multi-page document does not
+/// read as "somewhere in this PDF, something happened".
+fn glyph_drop_warning(page_index: usize, cause: &str) -> ProcessingWarning {
+    warning(
+        PDF_RENDER_WARNING_SOURCE,
+        format!(
+            "Page {} rendering could not paint one or more glyphs and continued anyway \
+             (advance-only, so layout is preserved but the glyph ink is missing): {cause}",
+            page_index + 1
+        ),
+    )
+}
+
+/// Render a page while capturing any `pdf_oxide` glyph-drop warnings it logs
+/// during the call, deduping them into [`PDF_OXIDE_PENDING_WARNINGS`] for
+/// later collection via [`take_pdf_oxide_render_warnings`].
+///
+/// Capture is opt-in: unless the application called
+/// [`install_pdf_render_diagnostics`], this arms nothing and is exactly
+/// equivalent to calling `render` directly, at no cost.
+fn render_page_capturing_glyph_drops(
+    page_index: usize,
+    render: impl FnOnce() -> std::result::Result<pdf_oxide::rendering::RenderedImage, pdf_oxide::Error>,
+) -> std::result::Result<pdf_oxide::rendering::RenderedImage, pdf_oxide::Error> {
+    if !PDF_OXIDE_CAPTURE_ACTIVE.load(Ordering::Acquire) {
+        return render();
+    }
+    PDF_OXIDE_LOG_CAPTURE.with(|cell| *cell.borrow_mut() = Some(Vec::new()));
+    let result = render();
+    let captured = PDF_OXIDE_LOG_CAPTURE.with(|cell| cell.borrow_mut().take().unwrap_or_default());
+    if !captured.is_empty() {
+        PDF_OXIDE_PENDING_WARNINGS.with(|pending| {
+            let mut pending = pending.borrow_mut();
+            for cause in &captured {
+                push_warning_deduped(&mut pending, glyph_drop_warning(page_index, cause));
+            }
+        });
+    }
+    result
+}
+
+/// Drain the glyph-drop [`ProcessingWarning`]s accumulated on this thread by
+/// render calls since the last call to this function.
+///
+/// Callers that render pages as part of extraction should call this after
+/// their render pass and merge the result into
+/// `InternalDocument::processing_warnings` (see the module-level convention
+/// in `crate::core::diagnostics`) so a page with missing glyphs is never
+/// returned to the user without a signal. Warnings are already deduped
+/// per-thread across all pages rendered before this call.
+///
+/// `pub` (rather than `pub(crate)`) so both in-tree render-consumers and the
+/// regression test for #1364 can observe capture without depending on any
+/// one extractor's internal state.
+///
+/// As of #340, `crate::extractors::pdf::mod` drains this unconditionally right
+/// after assembling a document's `processing_warnings`, so every PDF
+/// extraction that renders at least one page picks up any captured
+/// glyph-drop warnings for free. ~keep: that drain only ever observes
+/// warnings from render calls that happened on the *same OS thread* before it
+/// ran, because [`PDF_OXIDE_PENDING_WARNINGS`] is thread-local. OCR page
+/// rendering runs inline on the extracting task's thread, so it is covered.
+/// Layout-detection rasterization runs inside `tokio::task::spawn_blocking`,
+/// which always executes on a different OS thread, so this function alone
+/// would never see those warnings. As of #353,
+/// `extractors::pdf::layout_runner::run_layout_for_pdf_pages_async` drains
+/// this function itself from inside its `spawn_blocking` closure — the only
+/// place that can observe the blocking-pool thread's thread-local buffer —
+/// and threads the drained warnings back through its return value for the
+/// caller in `extractors::pdf::mod` to merge, so layout-path glyph drops are
+/// no longer silently lost.
+pub fn take_pdf_oxide_render_warnings() -> Vec<ProcessingWarning> {
+    PDF_OXIDE_PENDING_WARNINGS.with(|pending| std::mem::take(&mut *pending.borrow_mut()))
+}
 
 /// Reasonable max pixel dimension (on either axis) for a rendered page before we
 /// force a lower DPI. This prevents Pixmap allocation failures or OOM for
@@ -181,7 +392,9 @@ pub(crate) fn render_page_with_safeguards(
         );
     }
     let options = pdf_oxide::rendering::RenderOptions::with_dpi(safe_dpi);
-    pdf_oxide::rendering::render_page(doc, page_index, &options)
+    render_page_capturing_glyph_drops(page_index, || {
+        pdf_oxide::rendering::render_page(doc, page_index, &options)
+    })
 }
 
 /// Open (and optionally authenticate) a PDF document from raw bytes.
@@ -363,7 +576,7 @@ pub(crate) fn build_minimal_pdf_with_mediabox(w: f32, h: f32) -> Vec<u8> {
 /// Adobe's Type 1 to Type 2 converter output that surfaced the bug. The font
 /// is generated with fontTools (no third-party font data); stock ttf-parser
 /// 0.25.1 drops all seven dotsection glyphs from it while the controls keep
-/// their outlines, so the vendored parser (which carries the fix) is what makes
+/// their outlines, so the patched parser (which carries the fix) is what makes
 /// this render. Used by the dotsection regression test below.
 ///
 /// Layout (48pt glyphs, one per 72pt-wide cell starting at x=72):
@@ -548,8 +761,9 @@ mod tests {
     /// charstring with `UnsupportedOperator`, so pdf_oxide painted nothing for
     /// i, j, period, colon, semicolon, exclam and question while still
     /// advancing the cursor: OCR received page images with those letters
-    /// silently missing. Exercises the full render path against the vendored
-    /// ttf-parser this branch routes to, which carries the fix (upstream #228).
+    /// silently missing. Exercises the full render path against the parser the
+    /// workspace `[patch.crates-io]` routes to — `xberg-ttf-parser`, which
+    /// carries the fix (upstream #228).
     #[test]
     fn test_render_paints_cff_glyphs_that_use_dotsection() {
         let names_row1 = ["i", "j", "period", "colon", "semicolon", "exclam", "question"];

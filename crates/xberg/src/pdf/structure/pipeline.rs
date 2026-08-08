@@ -498,6 +498,9 @@ struct PageInput {
     /// When true, paragraphs classified as `PageFooter` by the layout model are
     /// preserved rather than marked as furniture. Mirrors `ContentFilterConfig::include_footers`.
     include_footers: bool,
+    /// When true, paragraphs classified as `Footnote` by the layout model are
+    /// preserved rather than marked as furniture. Mirrors `ContentFilterConfig::include_footnotes`.
+    include_footnotes: bool,
 }
 
 /// Process a single page's data through Stage 3: classification, text repair,
@@ -526,6 +529,7 @@ fn process_single_page(
         paragraph_gap_ys,
         include_headers,
         include_footers,
+        include_footnotes,
     } = input;
     #[cfg(not(feature = "layout-detection"))]
     let _ = preserve_native_semantics;
@@ -552,7 +556,7 @@ fn process_single_page(
                 0.2,
                 doc_body_font_size,
             );
-            un_mark_layout_furniture_per_config(&mut paragraphs, include_headers, include_footers);
+            un_mark_layout_furniture_per_config(&mut paragraphs, include_headers, include_footers, include_footnotes);
             tracing::debug!(
                 page = i,
                 headings = paragraphs.iter().filter(|p| p.heading_level.is_some()).count(),
@@ -589,6 +593,7 @@ fn process_single_page(
                         doc_body_font_size,
                         include_headers,
                         include_footers,
+                        include_footnotes,
                         page_width_pts,
                         apply_layout_overrides: !preserve_native_semantics,
                     },
@@ -619,7 +624,7 @@ fn process_single_page(
                 0.2,
                 doc_body_font_size,
             );
-            un_mark_layout_furniture_per_config(&mut paragraphs, include_headers, include_footers);
+            un_mark_layout_furniture_per_config(&mut paragraphs, include_headers, include_footers, include_footnotes);
         }
         if page_hints.is_some() {
             tracing::debug!(
@@ -834,6 +839,7 @@ struct LayoutParagraphContext<'a> {
     doc_body_font_size: Option<f32>,
     include_headers: bool,
     include_footers: bool,
+    include_footnotes: bool,
     page_width_pts: Option<f32>,
     apply_layout_overrides: bool,
 }
@@ -903,6 +909,7 @@ fn process_layout_segment_groups(
                 &mut group_paragraphs,
                 context.include_headers,
                 context.include_footers,
+                context.include_footnotes,
             );
         } else {
             super::layout_classify::annotate_layout_classes(&mut group_paragraphs, &group_hints, 0.5, 0.2);
@@ -1152,6 +1159,17 @@ fn blocks_to_paragraphs(
                 .is_some_and(|next| (next.baseline_y - line.baseline_y).abs() <= INLINE_STYLE_BASELINE_TOLERANCE);
             let is_list = starts_new_line
                 && (looks_like_list_item(&line.text) || (has_same_line_follower && is_bare_list_marker(&line.text)));
+            // A numbered section heading always begins a new element. Without this
+            // term a run of same-size, same-weight, evenly-spaced headings
+            // ("1.3 Gasinstallatie", "1.4 Elektrische installatie", ...) yields no
+            // break signal at all: `looks_like_list_item` deliberately returns
+            // `false` for numbered section headings, so recognising the line as a
+            // heading removes the only boundary this grouper would otherwise see,
+            // and the whole run collapses into one paragraph. `is_numbered_section_heading`
+            // (not the looser `starts_with_section_number`) is used deliberately so
+            // prose beginning with a bare year — "2024 was een druk jaar" — does not
+            // break its paragraph. See #1386. ~keep
+            let starts_section = starts_new_line && super::classify::is_numbered_section_heading(&line.text);
             let crossed_gap = paragraph_gap_ys.iter().any(|&gap_y| {
                 let (upper, lower) = if prev.baseline_y > line.baseline_y {
                     (prev.baseline_y, line.baseline_y)
@@ -1160,7 +1178,7 @@ fn blocks_to_paragraphs(
                 };
                 gap_y < upper && gap_y > lower
             });
-            font_change || role_change || bold_change || is_list || crossed_gap
+            font_change || role_change || bold_change || is_list || starts_section || crossed_gap
         };
 
         if should_break && !current_lines.is_empty() {
@@ -1649,6 +1667,7 @@ pub(crate) struct SegmentStructureConfig<'a> {
     pub strip_repeating_text: bool,
     pub include_headers: bool,
     pub include_footers: bool,
+    pub include_footnotes: bool,
     pub used_structure_tree: bool,
     pub image_positions: &'a [(u32, u32)],
     pub images: Option<&'a [crate::types::ExtractedImage]>,
@@ -1693,6 +1712,7 @@ pub(crate) fn extract_document_structure_from_segments(
         strip_repeating_text,
         include_headers,
         include_footers,
+        include_footnotes,
         used_structure_tree,
         image_positions,
         images,
@@ -2218,6 +2238,7 @@ pub(crate) fn extract_document_structure_from_segments(
                 paragraph_gap_ys,
                 include_headers,
                 include_footers,
+                include_footnotes,
             }
         })
         .collect();
@@ -3515,14 +3536,20 @@ fn canonical_table_order(left: &crate::types::Table, right: &crate::types::Table
 }
 
 /// Clear `is_page_furniture` on paragraphs whose `layout_class` was set to
-/// `PageHeader` or `PageFooter` by the layout model, when the caller has opted
-/// in to keeping those regions via `include_headers` / `include_footers`.
+/// `PageHeader`, `PageFooter`, or `Footnote` by the layout model, when the
+/// caller has opted in to keeping those regions via `include_headers` /
+/// `include_footers` / `include_footnotes`.
 ///
 /// This must run **before** `retain_page_furniture_safely`, which physically
 /// removes furniture paragraphs via `.retain()`. Un-marking here ensures that
-/// user-opted-in header/footer paragraphs survive that pass.
-fn un_mark_layout_furniture_per_config(paragraphs: &mut [PdfParagraph], include_headers: bool, include_footers: bool) {
-    if !include_headers && !include_footers {
+/// user-opted-in header/footer/footnote paragraphs survive that pass.
+fn un_mark_layout_furniture_per_config(
+    paragraphs: &mut [PdfParagraph],
+    include_headers: bool,
+    include_footers: bool,
+    include_footnotes: bool,
+) {
+    if !include_headers && !include_footers && !include_footnotes {
         return;
     }
     for para in paragraphs.iter_mut() {
@@ -3534,6 +3561,9 @@ fn un_mark_layout_furniture_per_config(paragraphs: &mut [PdfParagraph], include_
                 para.is_page_furniture = false;
             }
             Some(super::types::LayoutHintClass::PageFooter) if include_footers => {
+                para.is_page_furniture = false;
+            }
+            Some(super::types::LayoutHintClass::Footnote) if include_footnotes => {
                 para.is_page_furniture = false;
             }
             _ => {}
@@ -5805,6 +5835,107 @@ mod tests {
         assert_eq!(paragraphs[0].heading_level, Some(2));
     }
 
+    /// Helper: a body-tier segment occupying its own visual line at `baseline_y`.
+    fn body_line_seg(text: &str, baseline_y: f32) -> SegmentData {
+        SegmentData {
+            text: text.to_string(),
+            x: 72.0,
+            y: baseline_y - 11.0,
+            width: 200.0,
+            height: 11.0,
+            font_size: 11.0,
+            is_bold: false,
+            is_italic: false,
+            is_monospace: false,
+            baseline_y,
+            assigned_role: None,
+        }
+    }
+
+    /// All segment text of a paragraph, joined in order.
+    fn paragraph_segment_text(para: &PdfParagraph) -> String {
+        para.lines
+            .iter()
+            .flat_map(|line| line.segments.iter())
+            .map(|s| s.text.trim())
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Regression for #1386 (defect #290). Four consecutive numbered subsection
+    /// headings share a font size, a weight and an even one-line-height spacing,
+    /// so `font_change`, `role_change`, `bold_change` and `crossed_gap` are all
+    /// false — and `looks_like_list_item` deliberately returns `false` for
+    /// numbered section headings, removing the last boundary. Before the fix the
+    /// grouper emitted ONE paragraph with all four headings concatenated.
+    #[test]
+    fn consecutive_numbered_section_headings_are_separate_paragraphs() {
+        let segments = vec![
+            body_line_seg("1.3 Gasinstallatie", 700.0),
+            body_line_seg("1.4 Elektrische installatie", 686.0),
+            body_line_seg("1.5 Waterinstallatie", 672.0),
+            body_line_seg("1.6 Ventilatie", 658.0),
+        ];
+
+        let paragraphs = blocks_to_paragraphs(segments, &[(11.0, None)], &[]);
+
+        assert_eq!(
+            paragraphs.len(),
+            4,
+            "each numbered subsection heading must be its own element"
+        );
+        assert_eq!(paragraph_segment_text(&paragraphs[0]), "1.3 Gasinstallatie");
+        assert_eq!(paragraph_segment_text(&paragraphs[1]), "1.4 Elektrische installatie");
+        assert_eq!(paragraph_segment_text(&paragraphs[2]), "1.5 Waterinstallatie");
+        assert_eq!(paragraph_segment_text(&paragraphs[3]), "1.6 Ventilatie");
+    }
+
+    /// End-to-end through the grouper AND `merge_continuation_paragraphs`: no
+    /// heading ends in `.?!:;`, so the merge pass would re-join the run the
+    /// grouper just split unless it also guards on numbered section starts.
+    #[test]
+    fn consecutive_numbered_section_headings_survive_continuation_merge() {
+        let segments = vec![
+            body_line_seg("1.3 Gasinstallatie", 700.0),
+            body_line_seg("1.4 Elektrische installatie", 686.0),
+            body_line_seg("1.5 Waterinstallatie", 672.0),
+            body_line_seg("1.6 Ventilatie", 658.0),
+        ];
+
+        let paragraphs = segments_to_paragraphs(segments, &[(11.0, None)], &[]);
+
+        assert_eq!(
+            paragraphs.len(),
+            4,
+            "the continuation merge must not re-join numbered section headings"
+        );
+    }
+
+    /// The over-fire guard for #1386: a two-line prose paragraph whose second
+    /// line opens with a bare year must stay ONE paragraph. The looser
+    /// `starts_with_section_number` returns `true` for "2024 was een druk jaar";
+    /// the fix deliberately uses `is_numbered_section_heading`, which does not.
+    #[test]
+    fn prose_starting_with_a_year_stays_one_paragraph() {
+        let segments = vec![
+            body_line_seg("Het bestuur meldt", 700.0),
+            body_line_seg("2024 was een druk jaar", 686.0),
+        ];
+
+        let paragraphs = segments_to_paragraphs(segments, &[(11.0, None)], &[]);
+
+        assert_eq!(
+            paragraphs.len(),
+            1,
+            "prose beginning with a bare year is not a section heading"
+        );
+        assert_eq!(
+            paragraph_segment_text(&paragraphs[0]),
+            "Het bestuur meldt 2024 was een druk jaar"
+        );
+    }
+
     /// Helper: create a segment with positional data.
     fn seg(text: &str, x: f32, width: f32) -> SegmentData {
         SegmentData {
@@ -6452,6 +6583,7 @@ where new shares are issued;";
                 paragraph_gap_ys: Vec::new(),
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -6482,6 +6614,7 @@ where new shares are issued;";
                     paragraph_gap_ys: paragraph_gap_ys.clone(),
                     include_headers: true,
                     include_footers: true,
+                    include_footnotes: false,
                 },
                 &[],
                 None,
@@ -6561,6 +6694,7 @@ where new shares are issued;";
                     paragraph_gap_ys: Vec::new(),
                     include_headers: true,
                     include_footers: true,
+                    include_footnotes: false,
                 },
                 &[],
                 None,
@@ -6634,6 +6768,7 @@ where new shares are issued;";
                 paragraph_gap_ys: Vec::new(),
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -6670,6 +6805,7 @@ where new shares are issued;";
                 paragraph_gap_ys,
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -6707,6 +6843,7 @@ where new shares are issued;";
                 paragraph_gap_ys: Vec::new(),
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -6797,6 +6934,7 @@ where new shares are issued;";
                 paragraph_gap_ys: Vec::new(),
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -6843,6 +6981,7 @@ where new shares are issued;";
                 paragraph_gap_ys: Vec::new(),
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             Some(12.0),
@@ -7080,7 +7219,7 @@ where new shares are issued;";
     #[test]
     fn test_include_headers_clears_page_header_furniture() {
         let mut paras = vec![furniture_para_with_class(LayoutHintClass::PageHeader)];
-        un_mark_layout_furniture_per_config(&mut paras, true, false);
+        un_mark_layout_furniture_per_config(&mut paras, true, false, false);
         assert!(
             !paras[0].is_page_furniture,
             "PageHeader furniture must be cleared when include_headers=true"
@@ -7090,7 +7229,7 @@ where new shares are issued;";
     #[test]
     fn test_include_footers_clears_page_footer_furniture() {
         let mut paras = vec![furniture_para_with_class(LayoutHintClass::PageFooter)];
-        un_mark_layout_furniture_per_config(&mut paras, false, true);
+        un_mark_layout_furniture_per_config(&mut paras, false, true, false);
         assert!(
             !paras[0].is_page_furniture,
             "PageFooter furniture must be cleared when include_footers=true"
@@ -7100,7 +7239,7 @@ where new shares are issued;";
     #[test]
     fn test_include_headers_false_preserves_page_header_furniture() {
         let mut paras = vec![furniture_para_with_class(LayoutHintClass::PageHeader)];
-        un_mark_layout_furniture_per_config(&mut paras, false, false);
+        un_mark_layout_furniture_per_config(&mut paras, false, false, false);
         assert!(
             paras[0].is_page_furniture,
             "PageHeader furniture must remain when include_headers=false"
@@ -7110,7 +7249,7 @@ where new shares are issued;";
     #[test]
     fn test_include_headers_does_not_clear_page_footer_furniture() {
         let mut paras = vec![furniture_para_with_class(LayoutHintClass::PageFooter)];
-        un_mark_layout_furniture_per_config(&mut paras, true, false);
+        un_mark_layout_furniture_per_config(&mut paras, true, false, false);
         assert!(
             paras[0].is_page_furniture,
             "PageFooter furniture must remain when only include_headers=true"
@@ -7123,7 +7262,7 @@ where new shares are issued;";
         para.is_page_furniture = true;
         para.layout_class = None;
         let mut paras = vec![para];
-        un_mark_layout_furniture_per_config(&mut paras, true, true);
+        un_mark_layout_furniture_per_config(&mut paras, true, true, false);
         assert!(
             paras[0].is_page_furniture,
             "Heuristic furniture (no layout_class) must not be cleared"
@@ -7136,9 +7275,64 @@ where new shares are issued;";
             furniture_para_with_class(LayoutHintClass::PageHeader),
             furniture_para_with_class(LayoutHintClass::PageFooter),
         ];
-        un_mark_layout_furniture_per_config(&mut paras, false, false);
+        un_mark_layout_furniture_per_config(&mut paras, false, false, false);
         assert!(paras[0].is_page_furniture);
         assert!(paras[1].is_page_furniture);
+    }
+
+    #[test]
+    fn should_clear_footnote_furniture_when_include_footnotes_is_true() {
+        let mut paras = vec![furniture_para_with_class(LayoutHintClass::Footnote)];
+        un_mark_layout_furniture_per_config(&mut paras, false, false, true);
+        assert!(
+            !paras[0].is_page_furniture,
+            "Footnote furniture must be cleared when include_footnotes=true"
+        );
+    }
+
+    #[test]
+    fn should_preserve_footnote_furniture_when_include_footnotes_is_false() {
+        let mut paras = vec![furniture_para_with_class(LayoutHintClass::Footnote)];
+        un_mark_layout_furniture_per_config(&mut paras, true, true, false);
+        assert!(
+            paras[0].is_page_furniture,
+            "Footnote furniture must remain when include_footnotes=false, even if header/footer flags are true"
+        );
+    }
+
+    #[test]
+    fn should_drop_footnote_body_when_recovery_knob_is_off_and_survive_when_on() {
+        // Regression test for GH#61: a footnote body classified `Footnote` by the
+        // layout model that is (for whatever reason) already marked page furniture
+        // must be recoverable via `include_footnotes`, exactly like header/footer
+        // furniture is recoverable via `include_headers` / `include_footers`.
+        //
+        // A second, substantive body paragraph is included alongside the footnote so
+        // `retain_page_furniture_safely`'s "don't empty the page" safety valve does not
+        // mask the effect of `include_footnotes` under test.
+        let body_text = "A".repeat(200);
+        let body = {
+            let mut p = para(vec![line(vec![seg(&body_text, 0.0, 400.0)])]);
+            p.text = body_text.clone();
+            p.word_count = 1;
+            p
+        };
+        let footnote_body = furniture_para_with_class(LayoutHintClass::Footnote);
+
+        let mut off = vec![body.clone(), footnote_body.clone()];
+        un_mark_layout_furniture_per_config(&mut off, true, true, false);
+        retain_page_furniture_safely(&mut off);
+        assert_eq!(
+            off.len(),
+            1,
+            "footnote body must be dropped when include_footnotes=false"
+        );
+
+        let mut on = vec![body, footnote_body];
+        un_mark_layout_furniture_per_config(&mut on, false, false, true);
+        retain_page_furniture_safely(&mut on);
+        assert_eq!(on.len(), 2, "footnote body must survive when include_footnotes=true");
+        assert!(!on[1].is_page_furniture);
     }
 
     #[test]
@@ -7817,6 +8011,7 @@ where new shares are issued;";
                 paragraph_gap_ys: vec![],
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,
@@ -7871,6 +8066,7 @@ where new shares are issued;";
                 paragraph_gap_ys: vec![],
                 include_headers: true,
                 include_footers: true,
+                include_footnotes: false,
             },
             &[],
             None,

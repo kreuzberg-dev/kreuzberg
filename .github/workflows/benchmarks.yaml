@@ -58,7 +58,6 @@ jobs:
           ref: ${{ github.event.inputs.branch || github.sha }}
 
           submodules: recursive
-          lfs: true
       - name: Pin benchmark source revision
         id: source-revision
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -101,8 +100,10 @@ jobs:
       - name: Build xberg-cli (release, all features + Sceptre tract diagnostic)
         run: cargo build --locked --release -p xberg-cli --features all,xberg/sceptre-ocr-tract
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -253,7 +254,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -276,8 +276,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -370,7 +372,6 @@ jobs:
         with:
           ref: ${{ needs.setup.outputs.source-sha }}
           submodules: recursive
-          lfs: true
 
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
@@ -387,8 +388,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Setup ONNX Runtime
         uses: ./.github/actions/setup-onnx-runtime
@@ -449,7 +452,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -462,8 +464,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -559,7 +563,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -572,8 +575,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -647,7 +652,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -660,8 +664,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -742,7 +748,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -755,8 +760,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -830,7 +837,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -843,8 +849,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -912,13 +920,14 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.sha }}
           submodules: recursive
-          lfs: true
 
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Setup Python
         uses: xberg-io/actions/setup-python-env@v1
@@ -1040,7 +1049,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -1053,8 +1061,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -1169,7 +1179,6 @@ jobs:
           ref: ${{ needs.setup.outputs.source-sha }}
 
           submodules: recursive
-          lfs: true
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1
 
@@ -1182,8 +1191,10 @@ jobs:
       - name: Restore benchmark binary permissions
         run: scripts/benchmarks/restore-binary-permissions.sh
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Bench cohorts span pdf/office/markup/ebook/email/data/images across the
+      # xberg + 6 competitor jobs -- no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -1261,6 +1272,10 @@ jobs:
     steps:
       - name: Create GitHub App token (if credentials available)
         id: app-token
+        # Optional: BOT_APP_ID/BOT_APP_PRIVATE_KEY may be unset (e.g. forked runs), and the
+        # token is only used to widen downstream write permissions, not required for the
+        # aggregation itself. Losing it degrades to default GITHUB_TOKEN, it does not mask a
+        # benchmark result. ~keep
         continue-on-error: true
         uses: actions/create-github-app-token@v2
         with:
@@ -1271,7 +1286,12 @@ jobs:
         with:
           ref: ${{ needs.setup.outputs.source-sha || github.sha }}
           submodules: recursive
-          lfs: true
+
+      # validate-artifacts/consolidate resolve each fixture's ground_truth_file, which
+      # points into the vendor test_documents corpus (quality scoring is on: MEASURE_QUALITY).
+      # Cohorts span nearly every format family, so no glob subset is safe here. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Download reference corpus cache
         uses: actions/download-artifact@v8
@@ -1310,6 +1330,12 @@ jobs:
           ort-version: ${{ env.ORT_VERSION }}
 
       - name: Download all benchmark artifacts
+        # Some cohort jobs are allowed to fail independently (this job's own `if: always()`
+        # gate above tolerates that) and produce no benchmarks-*-<run_id> artifact, so the
+        # wildcard pattern can legitimately match nothing for a subset of cohorts.
+        # "Partition artifacts", "Log downloaded benchmark artifact inventory", and
+        # "Validate benchmark artifacts" below all explicitly handle missing per-cohort
+        # directories and fail the job if a cohort that should have produced results didn't. ~keep
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:

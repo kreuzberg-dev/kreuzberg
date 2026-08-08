@@ -4,8 +4,8 @@
 
 use crate::helpers::set_last_error;
 use std::path::Path;
-use xberg::core::config::ExtractionConfig;
 use xberg::XbergError;
+use xberg::core::config::ExtractionConfig;
 
 /// Load an ExtractionConfig from a file (returns JSON string).
 ///

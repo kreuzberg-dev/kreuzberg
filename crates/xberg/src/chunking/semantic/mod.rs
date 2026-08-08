@@ -10,7 +10,7 @@ pub mod topic;
 
 use crate::chunking::boundaries::{calculate_page_range, calculate_page_spans};
 use crate::chunking::boundary_detection::detect_plain_text_boundaries;
-use crate::chunking::builder::heading_path_from_context;
+use crate::chunking::builder::{heading_path_from_context, resolve_token_counter};
 use crate::chunking::classifier::classify_chunk;
 use crate::chunking::config::{ChunkingConfig, ChunkingResult};
 use crate::chunking::headings::{build_heading_map, resolve_heading_context};
@@ -106,28 +106,35 @@ pub(crate) fn chunk_semantic(
     let heading_map = build_heading_map(text);
     let total_chunks = merged.len();
     let mut chunks = Vec::with_capacity(total_chunks);
+    let token_counter = resolve_token_counter(&config.sizing);
 
     for (index, mc) in merged.into_iter().enumerate() {
         let heading_ctx = resolve_heading_context(mc.byte_start, &heading_map, page_boundaries);
         let chunk_type = classify_chunk(&mc.text, heading_ctx.as_ref());
 
         let (first_page, last_page, page_spans) = if let Some(pb) = page_boundaries {
-            let (first_page, last_page) = calculate_page_range(mc.byte_start, mc.byte_end, pb).unwrap_or((None, None));
-            let page_spans = calculate_page_spans(mc.byte_start, mc.byte_end, pb).unwrap_or_default();
+            // Propagate boundary-validation errors instead of silently discarding page
+            // provenance (#258) — matches the non-semantic path (chunking/builder.rs),
+            // which propagates the same errors via `?`.
+            let (first_page, last_page) = calculate_page_range(mc.byte_start, mc.byte_end, pb)?;
+            let page_spans = calculate_page_spans(mc.byte_start, mc.byte_end, pb)?;
             (first_page, last_page, page_spans)
         } else {
             (None, None, Vec::new())
         };
 
         let heading_path = heading_path_from_context(&heading_ctx);
+        let token_count = token_counter.as_ref().map(|counter| counter(&mc.text));
         chunks.push(Chunk {
             content: mc.text,
             chunk_type,
             embedding: None,
+            sparse_embedding: None,
+            late_interaction: None,
             metadata: ChunkMetadata {
                 byte_start: mc.byte_start,
                 byte_end: mc.byte_end,
-                token_count: None,
+                token_count,
                 chunk_index: index,
                 total_chunks,
                 first_page,
@@ -169,6 +176,28 @@ fn compute_boundaries(_segments: &[Segment<'_>], forced: &[bool], _config: &Chun
     Ok(forced.to_vec())
 }
 
+/// True when `chunker_type='semantic'` will fall back to the structural-boundary
+/// heuristic instead of real embedding-driven topic detection — i.e. no embedding
+/// model is configured, or the crate was built without the `embeddings` feature
+/// (in which case there is no other path: `compute_boundaries` always returns the
+/// structural `forced` boundaries).
+///
+/// Shared by [`warn_if_fallback_path`] (a `tracing` breadcrumb) and
+/// `crate::core::pipeline::features::execute_chunking`, which surfaces the same
+/// condition as a [`crate::types::ProcessingWarning`] so API and binding
+/// consumers — who never see `tracing` output — can detect the degradation too (#258).
+#[cfg_attr(not(feature = "embeddings"), allow(unused_variables))]
+pub(crate) fn semantic_uses_structural_fallback(config: &ChunkingConfig) -> bool {
+    #[cfg(feature = "embeddings")]
+    {
+        config.embedding.is_none()
+    }
+    #[cfg(not(feature = "embeddings"))]
+    {
+        true
+    }
+}
+
 /// Warn when the semantic chunker is invoked without an embedding model.
 ///
 /// Without an embedding, `chunk_semantic` falls back to a structural-boundary
@@ -176,20 +205,17 @@ fn compute_boundaries(_segments: &[Segment<'_>], forced: &[bool], _config: &Chun
 /// Topic-similarity chunking requires an embedding model. This warning makes
 /// the fallback mode discoverable to callers who think they're getting
 /// embedding-driven topic detection.
-#[cfg(feature = "embeddings")]
 fn warn_if_fallback_path(config: &ChunkingConfig) {
-    if config.embedding.is_none() {
+    if semantic_uses_structural_fallback(config) {
         tracing::warn!(
-            "chunker_type='semantic' without an EmbeddingConfig falls back to a \
-             structural-boundary heuristic; topic-similarity chunking requires an \
-             embedding model. Either configure `embedding` or switch to \
+            "chunker_type='semantic' falls back to a structural-boundary heuristic; this \
+             happens when running without an EmbeddingConfig, or when the crate was built \
+             without the 'embeddings' feature. Topic-similarity chunking requires an \
+             embedding model — either configure `embedding` or switch to \
              chunker_type='text'/'markdown' to silence this warning."
         );
     }
 }
-
-#[cfg(not(feature = "embeddings"))]
-fn warn_if_fallback_path(_config: &ChunkingConfig) {}
 
 /// Resolve the size ceiling for merged chunks.
 ///
@@ -491,6 +517,97 @@ mod tests {
         assert!(
             !energy.content.contains("diagnostics"),
             "energy chunk contains healthcare content"
+        );
+    }
+
+    /// Regression test for #255: `chunk_semantic` never consulted `config.sizing`, so
+    /// `token_count` stayed `None` even with `ChunkSizing::Tokenizer` configured.
+    #[cfg(feature = "chunking-tokenizers")]
+    #[test]
+    fn chunk_semantic_populates_token_count_from_registered_tokenizer_backend() {
+        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
+        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
+        use std::sync::Arc;
+
+        struct WordCountTokenizer;
+        impl Plugin for WordCountTokenizer {
+            fn name(&self) -> &str {
+                "chunking-semantic-word-count-tokenizer"
+            }
+            fn version(&self) -> String {
+                "1.0.0".to_string()
+            }
+            fn initialize(&self) -> crate::Result<()> {
+                Ok(())
+            }
+            fn shutdown(&self) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl TokenizerBackend for WordCountTokenizer {
+            fn count_tokens(&self, text: &str) -> usize {
+                text.split_whitespace().count()
+            }
+        }
+
+        let _guard = TokenizerRegistryGuard::acquire();
+        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
+
+        let text = "one two three four five";
+        let config = ChunkingConfig {
+            max_characters: 500,
+            overlap: 0,
+            trim: true,
+            chunker_type: ChunkerType::Semantic,
+            sizing: crate::core::config::ChunkSizing::Tokenizer {
+                model: "chunking-semantic-word-count-tokenizer".to_string(),
+                cache_dir: None,
+            },
+            ..Default::default()
+        };
+        let result = chunk_semantic(text, &config, None).unwrap();
+
+        assert_eq!(result.chunks.len(), 1);
+        assert_eq!(
+            result.chunks[0].metadata.token_count,
+            Some(5),
+            "token_count must be populated from the registered tokenizer backend"
+        );
+    }
+
+    /// Regression test for #258: an invalid page boundary must propagate as an error
+    /// from `chunk_semantic` (matching the non-semantic path in `chunking/builder.rs`,
+    /// which propagates the same error via `?`) instead of being silently swallowed via
+    /// `unwrap_or`/`unwrap_or_default`, which used to produce chunks with no page
+    /// provenance and no indication anything went wrong.
+    #[test]
+    fn chunk_semantic_propagates_invalid_page_boundary_error_instead_of_dropping_provenance() {
+        let text = "Alpha bravo charlie delta echo foxtrot golf hotel india juliet.";
+        let config = ChunkingConfig {
+            max_characters: 500,
+            overlap: 0,
+            trim: true,
+            chunker_type: ChunkerType::Semantic,
+            ..Default::default()
+        };
+        // byte_start > byte_end: rejected by `validate_page_boundaries` inside
+        // `calculate_page_range`/`calculate_page_spans`.
+        let boundaries = vec![PageBoundary {
+            byte_start: 15,
+            byte_end: 10,
+            page_number: 1,
+        }];
+
+        let result = chunk_semantic(text, &config, Some(&boundaries));
+
+        assert!(
+            result.is_err(),
+            "an invalid page boundary must propagate as an error, not silently drop page provenance"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid boundary range"),
+            "unexpected error message: {err}"
         );
     }
 }

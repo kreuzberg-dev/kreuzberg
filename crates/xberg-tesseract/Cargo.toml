@@ -20,9 +20,6 @@ exclude = ["tessdata/*", "third_party/*"]
 features = ["docs-only"]
 rustdoc-args = ["--cfg", "docsrs"]
 
-[package.metadata.cargo-machete]
-ignored = ["cc", "cmake", "reqwest", "zip"]
-
 [lib]
 name = "xberg_tesseract"
 crate-type = ["lib"]
@@ -41,7 +38,7 @@ dynamic-linking = []
 thiserror = { workspace = true }
 
 [build-dependencies]
-cc = { version = "^1.4.0", optional = true }
+cc = { version = "^1.4.1", optional = true }
 cmake = { version = "0.1.58", optional = true }
 zip = { version = ">=7.0.0", optional = true, default-features = false, features = ["deflate-flate2-zlib-rs"] }
 

@@ -36,7 +36,7 @@ fn default_max_concurrency() -> usize {
 /// similarly named labels without relying on the label string alone.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct ChunkClassificationDefinition {
     /// Label name returned in `ChunkMetadata::classifications`.
     pub label: String,
@@ -54,7 +54,7 @@ pub struct ChunkClassificationDefinition {
 /// taxonomies where each label needs its own description rather than a bare name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+#[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
 pub struct ChunkClassificationConfig {
     /// Minijinja prompt template. Receives `{{ definitions }}` (rendered label +
     /// description list) and `{{ chunks }}` (a numbered list of chunk texts in

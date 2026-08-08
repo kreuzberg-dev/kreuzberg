@@ -449,15 +449,76 @@ config = LlmConfig(
 
 ## LlmConfig Reference
 
-| Field          | Type            | Default    | Description                                                         |
-| -------------- | --------------- | ---------- | ------------------------------------------------------------------- |
-| `model`        | `str`           | _required_ | Provider/model in liter-llm format (for example, `"openai/gpt-4o"`) |
-| `api_key`      | `str \| None`   | `None`     | API key (falls back to env vars)                                    |
-| `base_url`     | `str \| None`   | `None`     | Custom endpoint URL                                                 |
-| `timeout_secs` | `int \| None`   | `60`       | Request timeout in seconds                                          |
-| `max_retries`  | `int \| None`   | `3`        | Maximum retry attempts                                              |
-| `temperature`  | `float \| None` | `None`     | Sampling temperature                                                |
-| `max_tokens`   | `int \| None`   | `None`     | Maximum tokens to generate                                          |
+| Field               | Type                        | Default    | Description                                                          |
+| ------------------- | --------------------------- | ---------- | --------------------------------------------------------------------- |
+| `model`             | `str`                       | _required_ | Provider/model in liter-llm format (for example, `"openai/gpt-4o"`)  |
+| `api_key`           | `str \| None`               | `None`     | API key (falls back to env vars)                                     |
+| `base_url`          | `str \| None`               | `None`     | Custom endpoint URL                                                  |
+| `timeout_secs`      | `int \| None`               | `60`       | Request timeout in seconds (300s default for VLM OCR)                |
+| `max_retries`       | `int \| None`               | `3`        | Maximum retry attempts                                               |
+| `temperature`       | `float \| None`             | `None`     | Sampling temperature                                                 |
+| `max_tokens`        | `int \| None`               | `None`     | Maximum tokens to generate                                           |
+| `load_env`          | `bool \| None`              | `None`     | Whether liter-llm loads provider credentials from environment vars   |
+| `headers`           | `dict[str, str] \| None`    | `None`     | Extra HTTP headers sent with every request                           |
+| `providers`         | `list[LlmProviderConfig]`   | `None`     | Custom OpenAI-compatible providers — **accepted but inert**, see below |
+| `cache`             | `LlmCacheConfig \| None`    | `None`     | Response cache settings — requires liter-llm's `tower` feature        |
+| `budget`            | `LlmBudgetConfig \| None`   | `None`     | Spend limits and enforcement — requires liter-llm's `tower` feature   |
+| `rate_limit`        | `LlmRateLimitConfig \| None`| `None`     | Requests/tokens per minute — requires liter-llm's `tower` feature     |
+| `cost_tracking`     | `bool \| None`              | `None`     | Per-request cost tracking — requires liter-llm's `tower` feature      |
+| `tracing`           | `bool \| None`              | `None`     | OpenTelemetry-compatible spans — requires liter-llm's `tower` feature |
+| `cooldown_secs`     | `int \| None`               | `None`     | Cooldown after transient errors — requires liter-llm's `tower` feature|
+| `health_check_secs` | `int \| None`               | `None`     | Background health check interval — requires liter-llm's `tower` feature |
+| `bedrock`           | `BedrockConfig \| None`     | `None`     | AWS region/credentials for `bedrock/`-prefixed models                |
+
+Full field-by-field descriptions, including `LlmProviderConfig`, `LlmCacheConfig`, `LlmBudgetConfig`, `LlmRateLimitConfig`, and `BedrockConfig`, are in the [Configuration Reference](/reference/configuration/#llmconfig).
+
+### Fields That Require liter-llm's `tower` Feature
+
+`cache`, `budget`, `rate_limit`, `cost_tracking`, `tracing`, `cooldown_secs`, and `health_check_secs` are passed straight through to liter-llm's `client::LlmConfig`. They only take effect when liter-llm is compiled with its `tower` feature. Without it, Xberg accepts and round-trips the values (TOML load, JSON serialization, every language binding) but liter-llm ignores them — no error, no warning.
+
+```toml title="xberg.toml"
+[structured_extraction.llm]
+model = "openai/gpt-4o"
+cost_tracking = true
+tracing = true
+cooldown_secs = 30
+health_check_secs = 60
+
+[structured_extraction.llm.cache]
+max_entries = 512
+ttl_seconds = 600
+backend = "memory"
+
+[structured_extraction.llm.budget]
+global_limit = 100.0
+enforcement = "hard"
+
+[structured_extraction.llm.budget.model_limits]
+"openai/gpt-4o" = 25.0
+
+[structured_extraction.llm.rate_limit]
+rpm = 60
+tpm = 100000
+window_seconds = 60
+```
+
+### `providers` Is Accepted But Not Wired
+
+`LlmConfig.providers` mirrors liter-llm's `LlmConfig::providers` field and round-trips through TOML/JSON like every other field. It is **not currently consulted when Xberg builds a client** — liter-llm's own `into_client_builder` does not map `providers` into the client either. Custom/self-hosted OpenAI-compatible providers go through a separate, process-wide liter-llm provider registry with a different shape.
+
+```toml title="xberg.toml — round-trips, has no routing effect today"
+[[structured_extraction.llm.providers]]
+name = "my-provider"
+base_url = "https://my-llm.example.com/v1"
+auth_header = "X-Api-Key"
+model_prefixes = ["my-provider/"]
+```
+
+Setting this will not fail and will not route requests to `my-provider`. Use `base_url` on `LlmConfig` directly for a single custom/self-hosted endpoint (see [Custom Base URL](#local-llm-support) above), or register with liter-llm's provider registry outside of Xberg's config surface.
+
+### Credentials Are Redacted in Debug, Not in Serialized Output
+
+`api_key` and the Bedrock credential fields (`access_key_id`, `secret_access_key`, `session_token`) never appear in `Debug` output or logs. They **do** appear in serialized TOML/JSON — that's how a config file persists them across runs. This is by design, not a defect. If you write a config file containing these fields, handle it like any other secrets file: restrictive permissions, never world-readable, never committed.
 
 ## REST API And MCP
 

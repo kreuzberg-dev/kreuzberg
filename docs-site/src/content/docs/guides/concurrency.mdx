@@ -1,0 +1,98 @@
+---
+title: "Concurrency & Scaling"
+description: "How Xberg sizes its thread pools, why the default caps at 8, and when adding CPU cores does not help."
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+Xberg derives one thread budget per process and shares it across every internal thread pool: the global Rayon pool, ONNX Runtime intra-op threads, and the batch worker count. This page explains how that budget is chosen, why it does not automatically scale past 8 threads, and when it will not help even after you raise it.
+
+## The default: `min(cpu_cores, 8)`
+
+Without an explicit configuration, the effective thread budget is `min(detected_cpu_cores, 8)`. This is a deliberate ceiling for serverless and shared-tenant defaults, not a scaling limit of the underlying pipelines. On a 16-core or 64-core host, the default configuration still uses only 8 threads.
+
+This budget is the ceiling for everything:
+
+- The global Rayon thread pool size
+- ONNX Runtime intra-op thread count
+- The batch worker count — batch extraction divides the total budget between document workers so nested per-document parallelism cannot multiply the process-wide CPU budget (`workers * thread_budget <= total_budget`)
+
+## Raising the cap: `max_threads`
+
+`ConcurrencyConfig::max_threads` is the escape hatch. It must be set explicitly to use more than 8 threads on a bare-metal or VM host with no CPU quota; when unset, the default never scales past 8 on its own.
+
+<Tabs syncKey="lang">
+<TabItem label="CLI">
+
+```bash title="Terminal"
+xberg batch documents/*.pdf --max-concurrent 4 --max-threads 16
+```
+
+</TabItem>
+<TabItem label="Config file">
+
+```toml title="xberg.toml"
+[concurrency]
+max_threads = 16
+```
+
+</TabItem>
+<TabItem label="Rust">
+
+```rust
+use xberg::core::config::ConcurrencyConfig;
+
+let config = ConcurrencyConfig {
+    max_threads: Some(16),
+};
+```
+
+</TabItem>
+</Tabs>
+
+`max_threads` takes priority over both the host core count and any detected cgroup CPU quota.
+
+## Containers: cgroup v2 CPU quota is honoured
+
+When the process runs under a Linux cgroup CPU quota (containers, Kubernetes `resources.limits.cpu`) and `max_threads` is unset, Xberg reads the quota from cgroup v2's `cpu.max` (falling back to cgroup v1's `cpu.cfs_quota_us` / `cpu.cfs_period_us`) and uses it as the ceiling **instead of** the hardcoded 8 — not in addition to it. A quota above 8 cores is honoured in full; a quota below 8 cores is used as-is. The quota is clamped so it never exceeds the actual host core count, and it is read at most once per process since it cannot change while the process is running.
+
+This means a container with `resources.limits.cpu: "24"` gets a 24-thread budget with no configuration required, while the same code running unconfigured on a bare-metal 24-core host with no cgroup quota still caps at 8.
+
+An unset or "unlimited" quota (`max` in cgroup v2, `-1` in cgroup v1) is treated the same as "no quota found," falling back to the default cap.
+
+## Layout inference: adding cores will not help
+
+The largest scaling caveat applies to batches that run native PDF layout detection. The layout model (RT-DETR) is itself multi-threaded, so running multiple documents through it concurrently oversubscribes the CPU rather than speeding anything up:
+
+- A batch where **every** input is a PDF using layout inference gets a single document worker with the full thread budget (`MAX_NATIVE_LAYOUT_BATCH_WORKERS = 1`). RT-DETR inference does not scale enough across multiple half-budget sessions to justify the additional resident memory.
+- A batch with **mixed or uncertain** layout usage is capped at two document workers (`MAX_MIXED_LAYOUT_BATCH_WORKERS = 2`).
+- Batches with no layout inference use the normal worker ceiling — up to the full thread budget, one worker per document, subject to `--max-concurrent`.
+
+For an all-layout-PDF batch, raising `max_threads` still increases the per-document thread budget (more intra-op threads for that one worker), but it will not add more concurrent documents. Throughput for these batches is bound by single-document layout inference speed, not by core count.
+
+A cores-vs-throughput benchmark that sweeps `max_threads` against a non-layout batch (expected to
+scale with cores) and an all-layout-PDF batch (expected to flatten) lives at
+`crates/xberg/benches/concurrency_scaling.rs`:
+
+```bash title="Terminal"
+cargo bench --bench concurrency_scaling --features pdf,layout-detection,ocr
+```
+
+## How do I tell if I'm hitting the default cap?
+
+A one-time `WARN`-level log fires the first time the thread budget is resolved, when the host has more than 8 cores, no cgroup CPU quota was found, and `max_threads` is unset. It names the detected core count and the applied cap:
+
+```text
+detected 16 CPU cores but no `max_threads` is configured and no cgroup CPU
+quota was found; capping the thread budget at 8 (min(cpu_cores, 8)). Set
+`ConcurrencyConfig::max_threads` above 8 to use the remaining cores.
+```
+
+The warning fires at most once per process, not once per extraction.
+
+## See Also
+
+- [CLI Reference](/reference/cli/) - `--max-threads` and `--max-concurrent` flags
+- [Configuration Reference](/reference/configuration/) - `ConcurrencyConfig` and `max_concurrent_extractions`
+- [Docker Deployment](/guides/docker/)
+- [Kubernetes Deployment](/guides/kubernetes/)

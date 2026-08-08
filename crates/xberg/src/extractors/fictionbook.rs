@@ -28,6 +28,9 @@ use quick_xml::events::Event;
 
 use crate::utils::xml_utils::EntityReader;
 
+/// `ProcessingWarning::source` used for every degradation reported by this extractor.
+const FICTIONBOOK_WARNING_SOURCE: &str = "fictionbook";
+
 /// FictionBook document extractor.
 ///
 /// Supports FictionBook 2.0 format with proper section hierarchy and inline formatting.
@@ -662,6 +665,7 @@ impl FictionBookExtractor {
     ) -> Result<InternalDocument> {
         let mut reader = EntityReader::from_bytes(data);
         let mut builder = InternalDocumentBuilder::new("fictionbook");
+        let mut parse_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
 
         let mut in_body = false;
         let mut is_notes_body = false;
@@ -712,12 +716,7 @@ impl FictionBookExtractor {
                             _ => {}
                         }
                     } else if (tag == "p" || tag == "v") && in_body && !is_notes_body {
-                        match Self::extract_paragraph_with_annotations(&mut reader, budget) {
-                            Ok((text, annotations)) if !text.is_empty() => {
-                                builder.push_paragraph(&text, annotations, None, None);
-                            }
-                            _ => {}
-                        }
+                        let _ = Self::extract_paragraph_with_annotations(&mut reader, budget, &mut builder);
                     } else if tag == "subtitle" && in_body && !is_notes_body {
                         match Self::extract_text_content(&mut reader, budget) {
                             Ok(text) if !text.is_empty() => {
@@ -750,10 +749,27 @@ impl FictionBookExtractor {
                             _ => {}
                         }
                     } else if tag == "section" && is_notes_body {
+                        let mut note_id = String::new();
+                        for attr in e.attributes().flatten() {
+                            let attr_name = String::from_utf8_lossy(attr.key.as_ref());
+                            let attr_value = String::from_utf8_lossy(attr.value.as_ref());
+                            budget.check_attr(&attr_name, &attr_value)?;
+                            if attr_name == "id" {
+                                note_id = attr_value.to_string();
+                            }
+                        }
                         match Self::extract_footnote_text(&mut reader, budget) {
                             Ok(text) if !text.is_empty() => {
-                                footnote_counter += 1;
-                                let key = format!("fn-{}", footnote_counter);
+                                // Prefer the note section's own `id` so this definition can be
+                                // matched to its `<a href="#id">` reference in the body (#141).
+                                // Fall back to a synthetic key only when the source document
+                                // omits `id`, to avoid dropping unreferenceable content.
+                                let key = if note_id.is_empty() {
+                                    footnote_counter += 1;
+                                    format!("fn-{}", footnote_counter)
+                                } else {
+                                    note_id
+                                };
                                 builder.push_footnote_definition(&text, &key, None);
                             }
                             _ => {}
@@ -775,7 +791,18 @@ impl FictionBookExtractor {
                     }
                 }
                 Ok(Event::Eof) => break,
-                Err(_) => break,
+                // Bailing out here abandons every remaining section of the book. Returning
+                // `Ok` with a half-read body and no warning is what #133 reports; name the
+                // loss and keep the sections that were already collected.
+                Err(e) => {
+                    crate::core::diagnostics::push_truncated_parse_warning(
+                        &mut parse_warnings,
+                        FICTIONBOOK_WARNING_SOURCE,
+                        "the FictionBook body",
+                        &e,
+                    );
+                    break;
+                }
                 _ => {}
             }
         }
@@ -787,14 +814,28 @@ impl FictionBookExtractor {
             builder.push_image(description.as_deref(), image, None, None);
         }
 
-        Ok(builder.build())
+        let mut doc = builder.build();
+        for warning in parse_warnings {
+            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
+        }
+        Ok(doc)
     }
 
     /// Extract paragraph text with annotation tracking for inline formatting.
+    ///
+    /// Inline footnote/endnote references (`<a type="note" href="#id">marker</a>` or
+    /// `<a xlink:href="#id">marker</a>`) are resolved by `id` and pushed as their own
+    /// `FootnoteRef` element via `builder`, so the renderer can later link them to the
+    /// matching `FootnoteDefinition` pushed from the `<body name="notes">` section (see
+    /// `build_internal_document`). Any text collected before the reference is flushed as
+    /// a paragraph fragment first, preserving reading order. References whose `href` does
+    /// not start with `#` (regular hyperlinks) are left untouched and their label text
+    /// flows into the surrounding paragraph as before.
     fn extract_paragraph_with_annotations(
         reader: &mut EntityReader<'_>,
         budget: &mut SecurityBudget,
-    ) -> Result<(String, Vec<crate::types::document_structure::TextAnnotation>)> {
+        builder: &mut InternalDocumentBuilder,
+    ) -> Result<()> {
         use crate::types::document_structure::{AnnotationKind, TextAnnotation};
 
         let mut text = String::new();
@@ -809,6 +850,29 @@ impl FictionBookExtractor {
                     budget.enter()?;
                     let name = e.name();
                     let tag = crate::utils::xml_tag_name(name.as_ref());
+
+                    if tag == "a" {
+                        let mut href = String::new();
+                        for attr in e.attributes().flatten() {
+                            let attr_name = String::from_utf8_lossy(attr.key.as_ref());
+                            let attr_value = String::from_utf8_lossy(attr.value.as_ref());
+                            budget.check_attr(&attr_name, &attr_value)?;
+                            if attr_name == "l:href" || attr_name == "xlink:href" || attr_name == "href" {
+                                href = attr_value.to_string();
+                            }
+                        }
+                        if let Some(key) = href.strip_prefix('#').filter(|k| !k.is_empty()) {
+                            let key = key.to_string();
+                            if !text.is_empty() {
+                                builder.push_paragraph(&text, std::mem::take(&mut annotations), None, None);
+                                text.clear();
+                            }
+                            let marker = Self::extract_inline_label(reader, budget)?;
+                            builder.push_footnote_ref(&marker, &key, None);
+                            continue;
+                        }
+                    }
+
                     depth += 1;
                     match tag.as_ref() {
                         "emphasis" | "strong" | "strikethrough" | "code" => {
@@ -868,7 +932,56 @@ impl FictionBookExtractor {
             }
         }
 
-        Ok((text.trim().to_string(), annotations))
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            builder.push_paragraph(trimmed, annotations, None, None);
+        }
+
+        Ok(())
+    }
+
+    /// Read the inner text of an `<a>` element whose `Start` event has already been
+    /// consumed, stopping at its matching `End`. Used to recover the footnote marker
+    /// text (e.g. `"1"`) from `<a href="#note1">1</a>`.
+    fn extract_inline_label(reader: &mut EntityReader<'_>, budget: &mut SecurityBudget) -> Result<String> {
+        let mut label = String::new();
+        let mut depth = 1;
+
+        loop {
+            budget.step()?;
+            match reader.read_event() {
+                Ok(Event::Start(_)) => {
+                    budget.enter()?;
+                    depth += 1;
+                }
+                Ok(Event::End(_)) => {
+                    budget.leave();
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Ok(Event::Text(t)) => {
+                    let decoded = String::from_utf8_lossy(t.as_ref());
+                    budget.check_entity(&decoded)?;
+                    budget.account_text(decoded.len())?;
+                    let trimmed = decoded.trim();
+                    if !trimmed.is_empty() {
+                        if !label.is_empty() {
+                            label.push(' ');
+                        }
+                        label.push_str(trimmed);
+                    }
+                }
+                Ok(Event::Eof) => break,
+                Err(e) => {
+                    return Err(crate::error::XbergError::parsing(format!("XML parsing error: {}", e)));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(label.trim().to_string())
     }
 
     /// Extract footnote text from a notes-body section.

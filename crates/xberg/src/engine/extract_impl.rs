@@ -8,6 +8,8 @@
 
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
+#[cfg(feature = "otel")]
+use tracing::Instrument;
 
 #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
 use std::future::Future;
@@ -33,18 +35,133 @@ use crate::types::{ExtractedDocument, UriKind};
 use crate::{Result, XbergError};
 
 use crate::core::extractor::{extract_bytes, extract_file};
+use crate::engine::seams::ProgressEvent;
 
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
 const FILE_SCHEME: &str = "file://";
 
+/// Stable progress-sink stage labels for the single-input [`extract`] entry point.
+///
+/// Chosen at coarse, stable lifecycle points only (session start, cache hit,
+/// completion, error) — never per-page or per-chunk — per the [`ProgressSink`]
+/// "coarse progress" contract (`crate::engine::seams::ProgressSink`).
+const PROGRESS_STAGE_START: &str = "extract_start";
+const PROGRESS_STAGE_CACHE_HIT: &str = "extract_cache_hit";
+const PROGRESS_STAGE_COMPLETE: &str = "extract_complete";
+const PROGRESS_STAGE_ERROR: &str = "extract_error";
+
+/// Namespace prefix mixed into the content-hash cache key so a future,
+/// incompatible key derivation can never collide with entries this version wrote.
+const CACHE_KEY_NAMESPACE: &[u8] = b"xberg-engine-extract-v1";
+
 /// Extract content from a single bytes or URI input.
-pub(crate) async fn extract(input: ExtractInput, config: &ExtractionConfig) -> Result<ExtractionResult> {
+///
+/// Honours the injected [`CacheBackend`](crate::engine::seams::CacheBackend) and
+/// [`ProgressSink`](crate::engine::seams::ProgressSink) seams: a content-hash cache
+/// hit (bytes inputs only, keyed on the raw bytes plus the resolved
+/// [`ExtractionConfig`]) returns the cached [`ExtractionResult`] and skips
+/// extraction entirely; a miss runs extraction as before and, on success,
+/// populates the cache for next time. Both seams default to no-ops
+/// ([`NoopCache`](crate::engine::seams::NoopCache),
+/// [`NoopProgressSink`](crate::engine::seams::NoopProgressSink)), so callers who
+/// inject nothing see byte-identical behavior.
+pub(crate) async fn extract(
+    inner: &super::EngineInner,
+    input: ExtractInput,
+    config: &ExtractionConfig,
+) -> Result<ExtractionResult> {
+    inner.progress.emit(ProgressEvent {
+        stage: PROGRESS_STAGE_START.to_string(),
+        message: None,
+        fraction: Some(0.0),
+    });
+
+    let cache_key = content_cache_key(&input, config);
+    if let Some(key) = cache_key.as_deref()
+        && let Some(cached_bytes) = inner.cache.get(key).await
+        && let Ok(cached_result) = serde_json::from_slice::<ExtractionResult>(&cached_bytes)
+    {
+        inner.progress.emit(ProgressEvent {
+            stage: PROGRESS_STAGE_CACHE_HIT.to_string(),
+            message: None,
+            fraction: Some(1.0),
+        });
+        return Ok(cached_result);
+    }
+
+    // Type-erased so `extract`'s future does not nest `extract_uncached`'s whole
+    // (already very deep) future type inside its own. Without this the compiler
+    // exceeds the recursion limit proving `Send` for the combined future, and any
+    // caller doing `tokio::spawn(xberg::extract(..))` — the canonical usage — fails
+    // to compile with E0275. ~keep
+    let uncached: std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExtractionResult>> + Send>> =
+        Box::pin(extract_uncached(input, config));
+    let result = uncached.await;
+
+    match &result {
+        Ok(output) => {
+            if let Some(key) = cache_key
+                && let Ok(serialized) = serde_json::to_vec(output)
+            {
+                inner.cache.put(&key, serialized, None).await;
+            }
+            inner.progress.emit(ProgressEvent {
+                stage: PROGRESS_STAGE_COMPLETE.to_string(),
+                message: None,
+                fraction: Some(1.0),
+            });
+        }
+        Err(error) => {
+            inner.progress.emit(ProgressEvent {
+                stage: PROGRESS_STAGE_ERROR.to_string(),
+                message: Some(error.to_string()),
+                fraction: None,
+            });
+        }
+    }
+
+    result
+}
+
+/// The extraction path proper, unwrapped from cache/progress bookkeeping so
+/// [`extract`] can wrap it uniformly for both the cache-hit and cache-miss cases.
+async fn extract_uncached(input: ExtractInput, config: &ExtractionConfig) -> Result<ExtractionResult> {
     let mut seen = initial_seen_urls(std::slice::from_ref(&input));
     let seed_hosts = initial_seed_hosts(std::slice::from_ref(&input));
     let mut output = Box::pin(extract_one(input, config, 0)).await?;
     follow_recursive_document_urls(&mut output, config, &mut seen, &seed_hosts).await?;
     Ok(output)
+}
+
+/// Derive a content-hash cache key for `input`, or `None` when the input is not
+/// eligible for caching.
+///
+/// Only `bytes` inputs are cached, per the cache-key contract (content-hash of
+/// file bytes + config, never path-based): a `uri` input's content is not yet
+/// known at this point without fetching it, which would defeat the purpose of a
+/// pre-extraction cache check. The key mixes the byte length and content, the
+/// MIME/filename hints, and the fully-resolved [`ExtractionConfig`] (base config
+/// merged with any per-input override), so a config or override change is a
+/// guaranteed cache miss.
+fn content_cache_key(input: &ExtractInput, base_config: &ExtractionConfig) -> Option<String> {
+    if input.kind != ExtractInputKind::Bytes {
+        return None;
+    }
+    let bytes = input.bytes.as_deref()?;
+    let resolved_config = resolve_input_config(input, base_config);
+    let config_json = serde_json::to_vec(&resolved_config).ok()?;
+
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(CACHE_KEY_NAMESPACE);
+    hasher.update(&(bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+    hasher.update(input.mime_type.as_deref().unwrap_or_default().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(input.filename.as_deref().unwrap_or_default().as_bytes());
+    hasher.update(b"\0");
+    hasher.update(&config_json);
+    Some(hasher.finalize().to_hex().to_string())
 }
 
 /// Extract content from multiple bytes or URI inputs.
@@ -53,21 +170,60 @@ pub(crate) async fn extract_batch(
     inputs: Vec<ExtractInput>,
     config: &ExtractionConfig,
 ) -> Result<ExtractionResult> {
+    #[cfg(feature = "otel")]
+    let batch_span = crate::telemetry::spans::batch_span(inputs.len());
+    // `Instant::now()` panics on wasm32 (no usable timer there, see the wasm32 note on
+    // `extract_file_uncached`'s timeout handling), so the batch counter/histogram pair is
+    // skipped on that target rather than risking a panic for a metrics-only side effect.
+    #[cfg(all(feature = "otel", not(target_arch = "wasm32")))]
+    let batch_started = std::time::Instant::now();
+
     // `extract_batch_concurrent` spawns tasks on `tokio::task::JoinSet`, which requires `Send`
     // futures; extractor futures are `!Send` on wasm32 (async_trait(?Send), see
     // plugins/extractor/trait.rs) and wasm32 has no OS threads to run them on regardless. Use
     // the sequential path there even though `tokio-runtime` is active (it's pulled in by
     // `chunking-tokenizers`/`static-embeddings`, not concurrency support). ~keep
+    // Type-erased for the same reason as the single-extract path above: leaving the
+    // inner future's concrete type visible here makes callers that `tokio::spawn` a
+    // batch exceed the recursion limit proving `Send`. That bit the generated
+    // xberg-node binding (`run_bounded_batch_tasks`), which cannot carry a
+    // `#![recursion_limit]` of its own because it is regenerated from scratch. ~keep
     #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
-    {
-        extract_batch_concurrent(inner, inputs, config).await
-    }
+    let batch: std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExtractionResult>> + Send>> =
+        Box::pin(extract_batch_concurrent(inner, inputs, config));
 
+    // No `+ Send` on wasm32: extractor futures are `!Send` there (async_trait(?Send)).
     #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
-    {
+    let batch: std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExtractionResult>>>> = {
         let _ = inner;
-        extract_batch_sequential(inputs, config).await
-    }
+        Box::pin(extract_batch_sequential(inputs, config))
+    };
+
+    #[cfg(feature = "otel")]
+    let result = batch.instrument(batch_span).await;
+    #[cfg(not(feature = "otel"))]
+    let result = batch.await;
+
+    #[cfg(all(feature = "otel", not(target_arch = "wasm32")))]
+    record_batch_metrics(batch_started.elapsed(), &result);
+
+    result
+}
+
+/// Emit the batch-level counter and duration histogram (#332).
+///
+/// Unlike the per-extraction metrics recorded in `plugins::extractor::instrumented`, there is
+/// exactly one batch span per call, so this carries no per-item attributes — only the
+/// overall `status` of the batch as a whole (an individual item's failure is captured in
+/// `ExtractionResult::errors`, not here).
+#[cfg(all(feature = "otel", not(target_arch = "wasm32")))]
+fn record_batch_metrics(elapsed: std::time::Duration, result: &Result<ExtractionResult>) {
+    let metrics = crate::telemetry::metrics::get_metrics();
+    let status = if result.is_ok() { "ok" } else { "error" };
+    let attrs = [opentelemetry::KeyValue::new("status", status)];
+
+    metrics.batch_total.add(1, &attrs);
+    metrics.batch_duration_ms.record(elapsed.as_secs_f64() * 1000.0, &[]);
 }
 
 #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
@@ -84,7 +240,14 @@ async fn extract_batch_sequential(inputs: Vec<ExtractInput>, config: &Extraction
 
     for (index, input) in inputs.into_iter().enumerate() {
         let source = input_source(&input);
-        match Box::pin(extract_one(input, config, index)).await {
+        let item = Box::pin(extract_one(input, config, index));
+
+        #[cfg(feature = "otel")]
+        let item_result = item.instrument(crate::telemetry::spans::batch_item_span(index)).await;
+        #[cfg(not(feature = "otel"))]
+        let item_result = item.await;
+
+        match item_result {
             Ok(item_output) => append_extraction_output(&mut output, item_output),
             Err(error) => output.errors.push(error_item(index, source, &error)),
         }
@@ -165,10 +328,28 @@ async fn extract_batch_concurrent(
             let resolved_config = resolve_batch_input_config(&input, &base_config, execution_plan.thread_budget);
             let timeout_secs = resolved_config.extraction_timeout_secs;
             let cancel_token = resolved_config.cancel_token.clone();
-            run_batch_item(index, source, timeout_secs, cancel_token, || async move {
-                Box::pin(extract_one_resolved(input, &resolved_config, index)).await
-            })
-            .await
+            let item = run_batch_item(index, source, timeout_secs, cancel_token, || async move {
+                // Type-erased, not merely boxed. `run_bounded_batch_tasks` requires the
+                // enclosing async block to be `Send`, and proving that walks the whole
+                // nested future type -- which reaches h2/hyper/slab through reqwest and
+                // overflows rustc's 128 auto-trait recursion limit (E0275) in the
+                // alef-generated binding crates, which cannot carry `#![recursion_limit]`.
+                // A bare `Box::pin` does not help: it yields `Pin<Box<ConcreteFuture>>`,
+                // so the concrete type stays in the proof. Coercing to `dyn Future` cuts
+                // the chain here.
+                let extraction: std::pin::Pin<Box<dyn Future<Output = Result<ExtractionResult>> + Send + '_>> =
+                    Box::pin(extract_one_resolved(input, &resolved_config, index));
+                extraction.await
+            });
+
+            #[cfg(feature = "otel")]
+            {
+                item.instrument(crate::telemetry::spans::batch_item_span(index)).await
+            }
+            #[cfg(not(feature = "otel"))]
+            {
+                item.await
+            }
         }
     })
     .await?;

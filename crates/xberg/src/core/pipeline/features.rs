@@ -309,13 +309,50 @@ fn classify_code_chunk(node_types: &[String]) -> crate::types::extraction::Chunk
     ChunkType::CodeBlock
 }
 
+/// Names of the user-facing chunking settings that `try_code_chunks` silently
+/// disregards, restricted to those the caller set away from their default value.
+///
+/// Tree-sitter code-aware chunking always bypasses the general-purpose splitter,
+/// so `max_characters`/`overlap`/`chunker_type`/`trim`/`prepend_heading_context`
+/// are *always* ignored in that path — but warning about that unconditionally
+/// would fire on every code-chunked document, including the common case where
+/// the caller never touched chunking config and is relying on defaults. That's
+/// noise, not signal (#260): only settings the caller actually moved away from
+/// their default are worth surfacing.
+#[cfg(all(feature = "tree-sitter", feature = "chunking"))]
+fn overridden_code_chunk_settings(config: &crate::core::config::ChunkingConfig) -> Vec<&'static str> {
+    let default = crate::core::config::ChunkingConfig::default();
+    let mut overridden = Vec::new();
+
+    if config.max_characters != default.max_characters {
+        overridden.push("max_characters");
+    }
+    if config.overlap != default.overlap {
+        overridden.push("overlap");
+    }
+    if config.chunker_type != default.chunker_type {
+        overridden.push("chunker_type");
+    }
+    if config.trim != default.trim {
+        overridden.push("trim");
+    }
+    if config.prepend_heading_context != default.prepend_heading_context {
+        overridden.push("prepend_heading_context");
+    }
+
+    overridden
+}
+
 /// Map TSLP `CodeChunk`s directly to xberg `Chunk`s, bypassing text-splitter.
 ///
 /// When the extraction result contains code intelligence with non-empty chunks,
 /// those chunks already represent semantically meaningful code boundaries produced
 /// by tree-sitter. Using text-splitter would break these boundaries.
 #[cfg(all(feature = "tree-sitter", feature = "chunking"))]
-fn try_code_chunks(result: &ExtractedDocument) -> Option<Vec<crate::types::extraction::Chunk>> {
+fn try_code_chunks(
+    result: &ExtractedDocument,
+    sizing: &crate::core::config::ChunkSizing,
+) -> Option<Vec<crate::types::extraction::Chunk>> {
     use crate::types::extraction::{Chunk, ChunkMetadata};
     use crate::types::metadata::{CodeMetadata, FormatMetadata};
 
@@ -330,29 +367,35 @@ fn try_code_chunks(result: &ExtractedDocument) -> Option<Vec<crate::types::extra
         return None;
     }
 
+    let token_counter = crate::chunking::resolve_token_counter(sizing);
     let total_chunks = code_chunks.len();
     let chunks = code_chunks
         .iter()
         .enumerate()
-        .map(|(chunk_index, chunk)| Chunk {
-            content: chunk.text.clone(),
-            chunk_type: classify_code_chunk(&chunk.node_types),
-            embedding: None,
-            metadata: ChunkMetadata {
-                byte_start: chunk.byte_start,
-                byte_end: chunk.byte_end,
-                token_count: None,
-                chunk_index,
-                total_chunks,
-                first_page: None,
-                last_page: None,
-                heading_context: None,
-                heading_path: chunk.context_path.clone(),
-                image_indices: Vec::new(),
-                node_ids: Vec::new(),
-                page_spans: Vec::new(),
-                classifications: Vec::new(),
-            },
+        .map(|(chunk_index, chunk)| {
+            let token_count = token_counter.as_ref().map(|counter| counter(&chunk.text));
+            Chunk {
+                content: chunk.text.clone(),
+                chunk_type: classify_code_chunk(&chunk.node_types),
+                embedding: None,
+                sparse_embedding: None,
+                late_interaction: None,
+                metadata: ChunkMetadata {
+                    byte_start: chunk.byte_start,
+                    byte_end: chunk.byte_end,
+                    token_count,
+                    chunk_index,
+                    total_chunks,
+                    first_page: None,
+                    last_page: None,
+                    heading_context: None,
+                    heading_path: chunk.context_path.clone(),
+                    image_indices: Vec::new(),
+                    node_ids: Vec::new(),
+                    page_spans: Vec::new(),
+                    classifications: Vec::new(),
+                },
+            }
         })
         .collect();
 
@@ -360,14 +403,54 @@ fn try_code_chunks(result: &ExtractedDocument) -> Option<Vec<crate::types::extra
 }
 
 /// Execute chunking if configured.
-pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &ExtractionConfig) -> Result<()> {
+///
+/// `heading_source_override`, when supplied, is a pre-rendered Markdown version of the
+/// document used solely to resolve heading context for `chunker_type='markdown'` when
+/// the final output format is `Plain` (Markdown syntax stripped from `content` would
+/// otherwise hide heading structure from the chunker). The caller computes this once,
+/// early in the pipeline, from the pre-derivation document — independent of
+/// `result.formatted_content`, which by the time chunking runs (last, per #213) has
+/// already been consumed by `apply_output_format`.
+pub(super) fn execute_chunking(
+    result: &mut ExtractedDocument,
+    config: &ExtractionConfig,
+    heading_source_override: Option<&str>,
+) -> Result<()> {
+    // Referenced only under `#[cfg(feature = "chunking")]` below; this keeps the
+    // parameter warning-free on a build without that feature.
+    let _ = heading_source_override;
+
     #[cfg(feature = "chunking")]
     if let Some(ref chunking_config) = config.chunking {
+        // Synchronous stage — `entered()` is safe here because no `.await` follows.
+        #[cfg(feature = "otel")]
+        let _stage_span =
+            crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::CHUNKING).entered();
+
         #[cfg(feature = "tree-sitter")]
-        if let Some(code_chunks) = try_code_chunks(result) {
+        if let Some(code_chunks) = try_code_chunks(result, &chunking_config.sizing) {
             result.chunks = Some(code_chunks);
 
             let resolved_config = chunking_config.resolve_preset();
+
+            // Tree-sitter code-aware chunking bypasses the general-purpose splitter
+            // entirely, so max_characters/overlap/chunker_type/trim/
+            // prepend_heading_context are silently ignored. Surface that (#260) — but
+            // only when the caller actually moved one of those settings away from its
+            // default; warning on every code-chunked document (the common case, where
+            // chunking config is left at defaults) would be noise, not signal.
+            let overridden_settings = overridden_code_chunk_settings(&resolved_config);
+            if !overridden_settings.is_empty() {
+                let verb = if overridden_settings.len() == 1 { "was" } else { "were" };
+                result.processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("chunking"),
+                    message: Cow::Owned(format!(
+                        "{} {verb} ignored: tree-sitter code intelligence produced structural \
+                         (function/class) chunks instead of honoring the configured chunker",
+                        overridden_settings.join("/"),
+                    )),
+                });
+            }
             #[cfg(feature = "embeddings")]
             if let Some(ref embedding_config) = resolved_config.embedding
                 && let Some(ref mut chunks) = result.chunks
@@ -391,11 +474,74 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
                 });
             }
 
+            #[cfg(feature = "sparse-embeddings")]
+            if let Some(ref sparse_config) = resolved_config.sparse_embedding
+                && let Some(ref mut chunks) = result.chunks
+                && let Err(e) = crate::chunking::vectors::generate_sparse_vectors_for_chunks(chunks, sparse_config)
+            {
+                tracing::warn!("Sparse-embedding generation failed: {e}. Check that ONNX Runtime is installed.");
+                result.processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("sparse_embedding"),
+                    message: Cow::Owned(e.to_string()),
+                });
+            }
+
+            #[cfg(not(feature = "sparse-embeddings"))]
+            if resolved_config.sparse_embedding.is_some() {
+                tracing::warn!(
+                    "Sparse-embedding config provided but sparse-embeddings feature is not enabled. Recompile with --features sparse-embeddings."
+                );
+                result.processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("sparse_embedding"),
+                    message: Cow::Borrowed("sparse-embeddings feature not enabled"),
+                });
+            }
+
+            #[cfg(feature = "late-interaction")]
+            if let Some(ref late_config) = resolved_config.late_interaction
+                && let Some(ref mut chunks) = result.chunks
+                && let Err(e) =
+                    crate::chunking::vectors::generate_late_interaction_vectors_for_chunks(chunks, late_config)
+            {
+                tracing::warn!("Late-interaction generation failed: {e}. Check that ONNX Runtime is installed.");
+                result.processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("late_interaction"),
+                    message: Cow::Owned(e.to_string()),
+                });
+            }
+
+            #[cfg(not(feature = "late-interaction"))]
+            if resolved_config.late_interaction.is_some() {
+                tracing::warn!(
+                    "Late-interaction config provided but late-interaction feature is not enabled. Recompile with --features late-interaction."
+                );
+                result.processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed("late_interaction"),
+                    message: Cow::Borrowed("late-interaction feature not enabled"),
+                });
+            }
+
             return Ok(());
         }
 
         let resolved_config = chunking_config.resolve_preset();
         let chunking_config = &resolved_config;
+
+        // chunker_type='semantic' silently degrades to a structural-boundary heuristic
+        // when no embedding model is configured (or the crate lacks the `embeddings`
+        // feature); `tracing::warn!` alone is invisible to API/binding consumers (#258).
+        if chunking_config.chunker_type == crate::chunking::ChunkerType::Semantic
+            && crate::chunking::semantic::semantic_uses_structural_fallback(chunking_config)
+        {
+            result.processing_warnings.push(ProcessingWarning {
+                source: Cow::Borrowed("chunking"),
+                message: Cow::Borrowed(
+                    "chunker_type='semantic' has no embedding model configured (or the crate was \
+                     built without the 'embeddings' feature); falling back to a \
+                     structural-boundary heuristic instead of embedding-driven topic detection",
+                ),
+            });
+        }
 
         let recomputed_boundaries: Option<Vec<PageBoundary>> = result
             .pages
@@ -432,7 +578,7 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
                 (
                     result.content.as_str(),
                     page_boundaries,
-                    result.formatted_content.as_deref(),
+                    heading_source_override.or(result.formatted_content.as_deref()),
                 )
             };
 
@@ -449,9 +595,21 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
             Ok(chunking_result) => {
                 result.chunks = Some(chunking_result.chunks);
 
+                // `chunk_text_with_heading_source` resolves `heading_context` but never
+                // derives the binding-friendly `heading_path` breadcrumb from it — only
+                // `chunk_for_rag` and the code-chunk path did that (#256).
+                if let Some(ref mut chunks) = result.chunks {
+                    for chunk in chunks.iter_mut() {
+                        chunk.metadata.heading_path =
+                            crate::chunking::heading_path_from_context(&chunk.metadata.heading_context);
+                    }
+                }
+
                 if let Some(ref images) = result.images
                     && let Some(ref mut chunks) = result.chunks
                 {
+                    // Page-addressable chunks (PDF, and any format with page boundaries):
+                    // link an image when its page falls within the chunk's page range.
                     for chunk in chunks.iter_mut() {
                         if let (Some(first), Some(last)) = (chunk.metadata.first_page, chunk.metadata.last_page) {
                             chunk.metadata.image_indices = images
@@ -463,6 +621,24 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
                                 })
                                 .collect();
                         }
+                    }
+
+                    // Page-less formats (DOCX/PPTX/HTML, …) carry no page number on either
+                    // the chunk or its images, so the page-range match above can never link
+                    // them (#256). When the whole document collapses to a single chunk,
+                    // every page-less image unambiguously belongs to it — no page
+                    // correlation is needed to know that. A page-less *multi*-chunk document
+                    // has no reliable image-to-chunk signal today (no byte-position-aware
+                    // image reference in rendered content) and is left unresolved.
+                    if let [only_chunk] = chunks.as_mut_slice()
+                        && only_chunk.metadata.first_page.is_none()
+                        && only_chunk.metadata.last_page.is_none()
+                    {
+                        only_chunk.metadata.image_indices = images
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, img)| img.page_number.is_none().then_some(idx as u32))
+                            .collect();
                     }
                 }
 
@@ -494,6 +670,53 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
                         message: Cow::Borrowed("Embeddings feature not enabled"),
                     });
                 }
+
+                #[cfg(feature = "sparse-embeddings")]
+                if let Some(ref sparse_config) = chunking_config.sparse_embedding
+                    && let Some(ref mut chunks) = result.chunks
+                    && let Err(e) = crate::chunking::vectors::generate_sparse_vectors_for_chunks(chunks, sparse_config)
+                {
+                    tracing::warn!("Sparse-embedding generation failed: {e}. Check that ONNX Runtime is installed.");
+                    result.processing_warnings.push(ProcessingWarning {
+                        source: Cow::Borrowed("sparse_embedding"),
+                        message: Cow::Owned(e.to_string()),
+                    });
+                }
+
+                #[cfg(not(feature = "sparse-embeddings"))]
+                if chunking_config.sparse_embedding.is_some() {
+                    tracing::warn!(
+                        "Sparse-embedding config provided but sparse-embeddings feature is not enabled. Recompile with --features sparse-embeddings."
+                    );
+                    result.processing_warnings.push(ProcessingWarning {
+                        source: Cow::Borrowed("sparse_embedding"),
+                        message: Cow::Borrowed("sparse-embeddings feature not enabled"),
+                    });
+                }
+
+                #[cfg(feature = "late-interaction")]
+                if let Some(ref late_config) = chunking_config.late_interaction
+                    && let Some(ref mut chunks) = result.chunks
+                    && let Err(e) =
+                        crate::chunking::vectors::generate_late_interaction_vectors_for_chunks(chunks, late_config)
+                {
+                    tracing::warn!("Late-interaction generation failed: {e}. Check that ONNX Runtime is installed.");
+                    result.processing_warnings.push(ProcessingWarning {
+                        source: Cow::Borrowed("late_interaction"),
+                        message: Cow::Owned(e.to_string()),
+                    });
+                }
+
+                #[cfg(not(feature = "late-interaction"))]
+                if chunking_config.late_interaction.is_some() {
+                    tracing::warn!(
+                        "Late-interaction config provided but late-interaction feature is not enabled. Recompile with --features late-interaction."
+                    );
+                    result.processing_warnings.push(ProcessingWarning {
+                        source: Cow::Borrowed("late_interaction"),
+                        message: Cow::Borrowed("late-interaction feature not enabled"),
+                    });
+                }
             }
             Err(e) => {
                 result.processing_warnings.push(ProcessingWarning {
@@ -519,6 +742,12 @@ pub(super) fn execute_chunking(result: &mut ExtractedDocument, config: &Extracti
 pub(super) fn execute_language_detection(result: &mut ExtractedDocument, config: &ExtractionConfig) -> Result<()> {
     #[cfg(feature = "language-detection")]
     if let Some(ref lang_config) = config.language_detection {
+        // Synchronous stage — `entered()` is safe here because no `.await` follows.
+        #[cfg(feature = "otel")]
+        let _stage_span =
+            crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::LANGUAGE_DETECTION)
+                .entered();
+
         match crate::language_detection::detect_languages(&result.content, lang_config) {
             Ok(detected) => {
                 result.detected_languages = detected;
@@ -550,6 +779,12 @@ pub(super) fn execute_token_reduction(result: &mut ExtractedDocument, config: &E
         let level = crate::text::token_reduction::ReductionLevel::from(tr_config.mode.as_str());
 
         if !matches!(level, crate::text::token_reduction::ReductionLevel::Off) {
+            // Synchronous stage — `entered()` is safe here because no `.await` follows.
+            #[cfg(feature = "otel")]
+            let _stage_span =
+                crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::TOKEN_REDUCTION)
+                    .entered();
+
             let impl_config = crate::text::token_reduction::TokenReductionConfig {
                 level,
                 ..Default::default()
@@ -824,7 +1059,7 @@ mod tests {
         let config = markdown_chunking_config();
         let mut result = make_result_with_formatted(plain, markdown);
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -871,7 +1106,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -899,7 +1134,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -924,7 +1159,7 @@ mod tests {
         };
         let mut result = make_result_with_formatted(plain, djot);
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -949,7 +1184,7 @@ mod tests {
         let config = markdown_chunking_config();
         let mut result = make_result_with_formatted(plain, markdown);
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -973,7 +1208,7 @@ mod tests {
         let config = markdown_chunking_config();
         let mut result = make_result_with_pages_and_formatted(&plain, &markdown, pages);
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty(), "chunks must be non-empty");
@@ -999,7 +1234,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result
             .chunks
@@ -1040,7 +1275,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(!chunks.is_empty());
@@ -1084,7 +1319,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated for HTML output");
         assert!(!chunks.is_empty());
@@ -1122,7 +1357,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must still be produced");
         assert!(!chunks.is_empty());
@@ -1164,7 +1399,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated for Djot output");
         assert!(!chunks.is_empty());
@@ -1201,7 +1436,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be populated");
         assert!(chunks.len() > 1, "small cap must produce multiple chunks");
@@ -1248,7 +1483,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result.chunks.expect("chunks must be Some for plain single-page");
         assert!(!chunks.is_empty());
@@ -1268,7 +1503,7 @@ mod tests {
             ..Default::default()
         };
 
-        execute_chunking(&mut result, &config).unwrap();
+        execute_chunking(&mut result, &config, None).unwrap();
 
         let chunks = result
             .chunks
@@ -1313,5 +1548,333 @@ mod tests {
         let mb = clamp_boundaries_to_text(&mid, multibyte);
         assert_eq!(mb[0].byte_end, multibyte.len());
         assert!(multibyte.is_char_boundary(mb[0].byte_end));
+    }
+
+    /// Regression test for #258: `chunker_type='semantic'` without an embedding model
+    /// (the default in this feature build, and always the case without the
+    /// `embeddings` feature) silently falls back to a structural-boundary heuristic.
+    /// `tracing::warn!` alone is invisible to API/binding consumers, so a real
+    /// `ProcessingWarning` must be pushed.
+    #[test]
+    fn semantic_chunker_fallback_pushes_processing_warning() {
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig {
+                max_characters: 500,
+                overlap: 0,
+                trim: true,
+                chunker_type: crate::chunking::ChunkerType::Semantic,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut result = ExtractedDocument {
+            content: "Some content to chunk semantically.".to_string(),
+            mime_type: std::borrow::Cow::Borrowed("text/plain"),
+            ..Default::default()
+        };
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        assert!(
+            result
+                .processing_warnings
+                .iter()
+                .any(|w| w.source == "chunking" && w.message.contains("structural-boundary heuristic")),
+            "expected a 'chunking' ProcessingWarning about the structural-boundary fallback, got: {:?}",
+            result.processing_warnings
+        );
+    }
+
+    /// Regression test for #256: `chunk_text_with_heading_source` resolves
+    /// `heading_context` per chunk, but `execute_chunking` never derived the
+    /// binding-friendly `heading_path` breadcrumb from it.
+    #[test]
+    fn heading_path_derived_from_heading_context_after_chunking() {
+        let markdown = "# Title\n\nIntro paragraph text.\n\n## Section\n\nSection body text here.";
+        let config = crate::core::config::ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Markdown,
+            chunking: Some(crate::core::config::ChunkingConfig {
+                max_characters: 40,
+                overlap: 0,
+                trim: true,
+                chunker_type: crate::chunking::ChunkerType::Markdown,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut result = make_result_with_formatted(markdown, markdown);
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        let chunks = result.chunks.expect("chunks must be populated");
+        assert!(!chunks.is_empty());
+        let has_populated_path = chunks
+            .iter()
+            .any(|c| c.metadata.heading_context.is_some() && !c.metadata.heading_path.is_empty());
+        assert!(
+            has_populated_path,
+            "at least one chunk under a heading must have a non-empty heading_path, got: {:?}",
+            chunks.iter().map(|c| &c.metadata.heading_path).collect::<Vec<_>>()
+        );
+        for chunk in &chunks {
+            let expected: Vec<String> = chunk
+                .metadata
+                .heading_context
+                .as_ref()
+                .map(|ctx| ctx.headings.iter().map(|h| h.text.clone()).collect())
+                .unwrap_or_default();
+            assert_eq!(
+                chunk.metadata.heading_path, expected,
+                "heading_path must equal heading_context.headings[].text in order"
+            );
+        }
+    }
+
+    /// Regression test for #256: page-less formats (DOCX/PPTX/HTML, simulated here by a
+    /// document with no `pages`) never linked images to chunks, because the image-index
+    /// filter required `img.page_number` to be `Some(_)` unconditionally. When the whole
+    /// document collapses to a single page-less chunk, every page-less image
+    /// unambiguously belongs to it.
+    #[test]
+    fn image_indices_populated_for_pageless_single_chunk_document() {
+        use crate::types::ExtractedImage;
+
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig {
+                max_characters: 2000,
+                overlap: 0,
+                trim: true,
+                chunker_type: crate::chunking::ChunkerType::Text,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut result = ExtractedDocument {
+            content: "A short document with one embedded image.".to_string(),
+            mime_type: std::borrow::Cow::Borrowed(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            images: Some(vec![ExtractedImage {
+                page_number: None,
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        let chunks = result.chunks.expect("chunks must be populated");
+        assert_eq!(
+            chunks.len(),
+            1,
+            "expected the whole short document to be a single chunk"
+        );
+        assert_eq!(chunks[0].metadata.first_page, None);
+        assert_eq!(chunks[0].metadata.last_page, None);
+        assert_eq!(
+            chunks[0].metadata.image_indices,
+            vec![0u32],
+            "the single page-less chunk must link the single page-less image"
+        );
+    }
+
+    /// A multi-chunk page-less document has no reliable per-chunk image signal today;
+    /// image_indices must stay empty rather than guessing (documented residual gap).
+    #[test]
+    fn image_indices_stay_empty_for_pageless_multi_chunk_document() {
+        use crate::types::ExtractedImage;
+
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig {
+                max_characters: 20,
+                overlap: 0,
+                trim: true,
+                chunker_type: crate::chunking::ChunkerType::Text,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut result = ExtractedDocument {
+            content: "First chunk text here. Second chunk text here. Third chunk text here.".to_string(),
+            mime_type: std::borrow::Cow::Borrowed("text/html"),
+            images: Some(vec![ExtractedImage {
+                page_number: None,
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        let chunks = result.chunks.expect("chunks must be populated");
+        assert!(chunks.len() > 1, "expected multiple chunks, got {}", chunks.len());
+        for chunk in &chunks {
+            assert!(
+                chunk.metadata.image_indices.is_empty(),
+                "multi-chunk page-less documents have no reliable image signal yet"
+            );
+        }
+    }
+
+    /// Builds an `ExtractedDocument` carrying a single tree-sitter code chunk, so
+    /// `try_code_chunks` takes the code-aware path in `execute_chunking`.
+    #[cfg(feature = "tree-sitter")]
+    fn make_code_result() -> ExtractedDocument {
+        use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
+
+        let mut result = ExtractedDocument {
+            content: "fn main() {}".to_string(),
+            mime_type: std::borrow::Cow::Borrowed("text/x-rust"),
+            ..Default::default()
+        };
+        result.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
+            chunks: vec![CodeChunkInfo {
+                text: "fn main() {}".to_string(),
+                context_path: vec![],
+                node_types: vec!["function_item".to_string()],
+                byte_start: 0,
+                byte_end: 12,
+            }],
+            data: None,
+        }));
+        result
+    }
+
+    /// Regression test for #260: tree-sitter code-aware chunking silently bypasses the
+    /// user's `max_characters`/`overlap`/`chunker_type`/`trim`/`prepend_heading_context`
+    /// with no indication anything was overridden. When the caller has actually moved
+    /// settings away from their defaults, the exact overridden names must be surfaced.
+    #[cfg(feature = "tree-sitter")]
+    #[test]
+    fn code_chunking_override_pushes_processing_warning_naming_overridden_settings() {
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig {
+                max_characters: 20,
+                overlap: 5,
+                trim: true,
+                chunker_type: crate::chunking::ChunkerType::Text,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let mut result = make_code_result();
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        assert!(result.chunks.is_some(), "code chunks must still be produced");
+        let warning = result
+            .processing_warnings
+            .iter()
+            .find(|w| w.source == "chunking")
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected a 'chunking' ProcessingWarning, got: {:?}",
+                    result.processing_warnings
+                )
+            });
+        assert_eq!(warning.source, "chunking");
+        assert_eq!(
+            warning.message,
+            "max_characters/overlap were ignored: tree-sitter code intelligence produced \
+             structural (function/class) chunks instead of honoring the configured chunker",
+            "warning must name exactly the settings the caller overrode (trim=true and \
+             chunker_type=Text are both defaults here, so must not be listed)"
+        );
+    }
+
+    /// Regression test for #260 scoping: when the caller leaves chunking config at its
+    /// defaults, tree-sitter code-aware chunking must NOT push an override warning — every
+    /// code-chunked document would otherwise get a warning that is never actionable, which
+    /// is noise rather than signal.
+    #[cfg(feature = "tree-sitter")]
+    #[test]
+    fn code_chunking_with_default_settings_pushes_no_override_warning() {
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig::default()),
+            ..Default::default()
+        };
+        let mut result = make_code_result();
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        assert!(result.chunks.is_some(), "code chunks must still be produced");
+        assert_eq!(
+            result.processing_warnings.len(),
+            0,
+            "no ProcessingWarning must be pushed when chunking config is left at defaults, got: {:?}",
+            result.processing_warnings
+        );
+    }
+
+    /// Regression test for #255: the code-chunk path (`try_code_chunks`) always set
+    /// `token_count: None`, even with `ChunkSizing::Tokenizer` configured.
+    #[cfg(all(feature = "tree-sitter", feature = "chunking-tokenizers"))]
+    #[test]
+    fn code_chunk_token_count_populated_from_registered_tokenizer_backend() {
+        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
+        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
+        use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
+        use std::sync::Arc;
+
+        struct WordCountTokenizer;
+        impl Plugin for WordCountTokenizer {
+            fn name(&self) -> &str {
+                "features-code-chunk-word-count-tokenizer"
+            }
+            fn version(&self) -> String {
+                "1.0.0".to_string()
+            }
+            fn initialize(&self) -> crate::Result<()> {
+                Ok(())
+            }
+            fn shutdown(&self) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl TokenizerBackend for WordCountTokenizer {
+            fn count_tokens(&self, text: &str) -> usize {
+                text.split_whitespace().count()
+            }
+        }
+
+        let _guard = TokenizerRegistryGuard::acquire();
+        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
+
+        let config = crate::core::config::ExtractionConfig {
+            chunking: Some(crate::core::config::ChunkingConfig {
+                sizing: crate::core::config::ChunkSizing::Tokenizer {
+                    model: "features-code-chunk-word-count-tokenizer".to_string(),
+                    cache_dir: None,
+                },
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let code_text = "fn add(a: i32, b: i32) -> i32 { a + b }";
+        let mut result = ExtractedDocument {
+            content: code_text.to_string(),
+            mime_type: std::borrow::Cow::Borrowed("text/x-rust"),
+            ..Default::default()
+        };
+        result.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
+            chunks: vec![CodeChunkInfo {
+                text: code_text.to_string(),
+                context_path: vec![],
+                node_types: vec!["function_item".to_string()],
+                byte_start: 0,
+                byte_end: code_text.len(),
+            }],
+            data: None,
+        }));
+
+        execute_chunking(&mut result, &config, None).unwrap();
+
+        let chunks = result.chunks.expect("code chunks must be produced");
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(
+            chunks[0].metadata.token_count,
+            Some(code_text.split_whitespace().count()),
+            "code chunk token_count must be populated from the registered tokenizer backend"
+        );
     }
 }

@@ -55,6 +55,15 @@ pub struct TokenReductionConfig {
     pub target_reduction: Option<f32>,
     /// Group semantically similar sentences and emit only one per cluster.
     pub enable_semantic_clustering: bool,
+    /// Skip removal of words with "important" characteristics (all-caps
+    /// acronyms, words containing digits, mixed-case identifiers, very long
+    /// words) during the `Aggressive`/`Maximum` common-word removal pass.
+    ///
+    /// `true` (the default) protects those words even when they would
+    /// otherwise be dropped as low-value filler; `false` lets the frequency/
+    /// length heuristics apply uniformly to every word, including ones that
+    /// look like acronyms or technical terms (#269).
+    pub preserve_important_words: bool,
 }
 
 impl Default for TokenReductionConfig {
@@ -71,6 +80,7 @@ impl Default for TokenReductionConfig {
             preserve_patterns: vec![],
             target_reduction: None,
             enable_semantic_clustering: false,
+            preserve_important_words: true,
         }
     }
 }

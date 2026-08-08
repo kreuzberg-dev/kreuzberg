@@ -12,6 +12,11 @@ use std::sync::Arc;
 pub struct PostProcessorRegistry {
     processors: HashMap<ProcessingStage, BTreeMap<i32, Vec<Arc<dyn PostProcessor>>>>,
     name_index: HashMap<String, (ProcessingStage, i32)>,
+    /// Bumped on every structural change (register/remove). Consumers that cache
+    /// a snapshot of this registry (see `core::pipeline::cache::ProcessorCache`,
+    /// #215) record the generation their snapshot was built from and compare it
+    /// against this value to detect a stale cache instead of trusting it forever.
+    generation: u64,
 }
 
 impl PostProcessorRegistry {
@@ -20,7 +25,18 @@ impl PostProcessorRegistry {
         Self {
             processors: HashMap::new(),
             name_index: HashMap::new(),
+            generation: 0,
         }
+    }
+
+    /// Current registration generation.
+    ///
+    /// Increments once per successful `register` and once per successful
+    /// `remove` (including the removals `shutdown_all` performs). A cached
+    /// snapshot is stale whenever this value has moved past the generation
+    /// recorded when the snapshot was taken.
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Register a post-processor.
@@ -74,6 +90,7 @@ impl PostProcessorRegistry {
             .push(Arc::clone(&processor));
 
         self.name_index.insert(name.clone(), (stage, priority));
+        self.generation = self.generation.wrapping_add(1);
         tracing::debug!(
             "Registered post-processor '{}' for stage {:?} with priority {}",
             name,
@@ -124,6 +141,7 @@ impl PostProcessorRegistry {
                 return Ok(());
             }
         };
+        self.generation = self.generation.wrapping_add(1);
 
         let processor_to_shutdown = if let Some(priority_map) = self.processors.get_mut(&stage) {
             let processor = priority_map.get_mut(&priority).and_then(|processors| {
@@ -541,6 +559,31 @@ mod tests {
         assert_eq!(registry.get_for_stage(ProcessingStage::Early).len(), 1);
         assert_eq!(registry.get_for_stage(ProcessingStage::Middle).len(), 1);
         assert_eq!(registry.get_for_stage(ProcessingStage::Late).len(), 1);
+    }
+
+    /// #215: the registry must expose a generation counter that advances on
+    /// every structural change, so a cache built from a snapshot can detect
+    /// that it is stale instead of caching forever.
+    #[test]
+    fn test_post_processor_registry_generation_advances_on_register_and_remove() {
+        let mut registry = PostProcessorRegistry::new();
+        assert_eq!(registry.generation(), 0);
+
+        let processor = Arc::new(MockPostProcessor {
+            name: "gen-processor".to_string(),
+            stage: ProcessingStage::Early,
+            priority: 50,
+        });
+        registry.register(processor).unwrap();
+        assert_eq!(registry.generation(), 1, "register must advance the generation");
+
+        registry.remove("gen-processor").unwrap();
+        assert_eq!(registry.generation(), 2, "remove must advance the generation");
+
+        // A no-op remove (nothing to remove) must not advance the generation —
+        // nothing structurally changed.
+        registry.remove("does-not-exist").unwrap();
+        assert_eq!(registry.generation(), 2);
     }
 
     #[test]

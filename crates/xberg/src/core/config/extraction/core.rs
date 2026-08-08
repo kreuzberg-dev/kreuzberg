@@ -337,6 +337,15 @@ pub struct ExtractionConfig {
     #[serde(default)]
     pub email: Option<super::super::email::EmailConfig>,
 
+    /// CSV/TSV extraction configuration (None = use defaults).
+    ///
+    /// Lets callers set an explicit delimiter and declare comment-line
+    /// prefixes to skip, instead of relying solely on delimiter
+    /// auto-detection. See [`crate::core::config::CsvConfig`] for details.
+    #[serde(default)]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+    pub csv: Option<super::super::csv::CsvConfig>,
+
     /// Concurrency limits for constrained environments (None = use defaults).
     ///
     /// Controls Rayon thread pool size, ONNX Runtime intra-op threads, and the
@@ -374,52 +383,52 @@ pub struct ExtractionConfig {
     /// Named-entity recognition configuration. When set, the NER post-processor runs at
     /// the Middle stage and populates `ExtractedDocument::entities`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub ner: Option<super::super::ner::NerConfig>,
 
     /// Redaction / anonymisation configuration. When set, the redaction post-processor
     /// runs at the Late stage and rewrites every textual field in `ExtractedDocument`,
     /// emitting an audit trail in `ExtractedDocument::redaction_report`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub redaction: Option<super::super::redaction::RedactionConfig>,
 
     /// Summarisation configuration. When set, the summarisation post-processor runs at
     /// the Middle stage and populates `ExtractedDocument::summary`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub summarization: Option<super::super::summarization::SummarizationConfig>,
 
     /// Translation configuration. When set, the translation post-processor runs at the
     /// Middle stage and populates `ExtractedDocument::translation`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub translation: Option<super::super::translation::TranslationConfig>,
 
     /// Per-page classification configuration. When set, the classification post-processor
     /// runs at the Middle stage and populates `ExtractedDocument::page_classifications`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub page_classification: Option<super::super::classification::PageClassificationConfig>,
 
     /// Per-chunk multi-label classification configuration. When set, the
     /// chunk-classification post-processor runs at the Middle stage (after
     /// chunking) and populates `ChunkMetadata::classifications` on every chunk.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub chunk_classification: Option<super::super::chunk_classification::ChunkClassificationConfig>,
 
     /// VLM captioning configuration for extracted images. When set, the captioning
     /// post-processor runs at the Middle stage and writes a caption into each
     /// `ExtractedImage::caption`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub captioning: Option<super::super::captioning::CaptioningConfig>,
 
     /// Enable QR-code detection in extracted images. When `true`, the QR post-processor
     /// runs at the Middle stage and populates `ExtractedImage::qr_codes`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "5.0.0"))]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub qr_codes: Option<bool>,
 
     /// Cancellation token for this extraction (None = no external cancellation).
@@ -496,6 +505,7 @@ impl Default for ExtractionConfig {
             cache_namespace: None,
             cache_ttl_secs: None,
             email: None,
+            csv: None,
             concurrency: None,
             url: UrlExtractionConfig::default(),
             max_archive_depth: default_archive_depth(),
@@ -756,6 +766,67 @@ impl ExtractionConfig {
     /// Validate the configuration, returning an error if any settings are invalid.
     ///
     /// Checks:
+    /// - `ocr`: backend name, VLM backend/model requirements, language codes, and the
+    ///   `vlm_fallback` quality threshold (see [`OcrConfig::validate`]).
+    /// - `chunking`: `max_characters` is non-zero and `overlap` is smaller than it.
+    /// - `token_reduction`: `mode` is one of the recognized reduction levels.
+    /// - `images`: `target_dpi`, `min_dpi`, and `max_dpi` are all positive and within the
+    ///   supported range.
+    /// - `language_detection`: `min_confidence` is a `[0.0, 1.0]` value.
+    /// - `csv`: `delimiter`, when set, is exactly one ASCII character.
+    ///
+    /// Called automatically when a config is loaded from a file
+    /// ([`ExtractionConfig::from_file`] and friends) or built from a JSON override
+    /// (`crate::core::config::merge::merge_config_json`). A config assembled directly through
+    /// the typed Rust API or an FFI builder is **not** automatically validated — call this
+    /// method explicitly before use in that case.
+    ///
+    /// # Errors
+    ///
+    /// Returns `XbergError::Validation` describing the first invalid setting found.
+    pub fn validate(&self) -> Result<(), crate::XbergError> {
+        use crate::core::config_validation::{
+            validate_chunking_params, validate_confidence, validate_csv_delimiter, validate_dpi,
+            validate_token_reduction_level,
+        };
+
+        if let Some(ref ocr) = self.ocr {
+            ocr.validate()?;
+        }
+
+        if let Some(ref chunking) = self.chunking {
+            // Only meaningful when the raw fields are the ones that will be used. A `preset`
+            // replaces both `max_characters` and `overlap` in `ChunkingConfig::resolve_preset`,
+            // and both fields carry serde defaults, so validating them alongside a preset would
+            // reject a config on values the preset discards before anything reads them.
+            if chunking.preset.is_none() {
+                validate_chunking_params(chunking.max_characters, chunking.overlap)?;
+            }
+        }
+
+        if let Some(ref token_reduction) = self.token_reduction {
+            validate_token_reduction_level(&token_reduction.mode)?;
+        }
+
+        if let Some(ref images) = self.images {
+            validate_dpi(images.target_dpi)?;
+            validate_dpi(images.min_dpi)?;
+            validate_dpi(images.max_dpi)?;
+        }
+
+        if let Some(ref language_detection) = self.language_detection {
+            validate_confidence(language_detection.min_confidence)?;
+        }
+
+        if let Some(ref csv) = self.csv
+            && let Some(ref delimiter) = csv.delimiter
+        {
+            validate_csv_delimiter(delimiter)?;
+        }
+
+        Ok(())
+    }
+
     /// Returns the effective disable-OCR value, accounting for both the top-level
     /// `disable_ocr` flag and the `ocr.enabled` shorthand on [`OcrConfig`].
     ///
@@ -1167,5 +1238,51 @@ mod tests {
         let html_output = resolved.html_output.expect("html output override should apply");
         assert_eq!(html_output.css.as_deref(), Some(".kb-p { color: red; }"));
         assert!(!html_output.embed_css);
+    }
+
+    #[test]
+    fn validate_accepts_a_single_ascii_char_csv_delimiter() {
+        let config = ExtractionConfig {
+            csv: Some(crate::core::config::CsvConfig {
+                delimiter: Some(";".to_string()),
+                comment_prefixes: vec![],
+            }),
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_an_empty_csv_delimiter_with_a_helpful_message() {
+        let config = ExtractionConfig {
+            csv: Some(crate::core::config::CsvConfig {
+                delimiter: Some(String::new()),
+                comment_prefixes: vec![],
+            }),
+            ..Default::default()
+        };
+        let err = config.validate().expect_err("empty delimiter must be rejected");
+        assert_eq!(
+            err.to_string(),
+            "Validation error: Invalid CSV delimiter ''. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|')."
+        );
+    }
+
+    #[test]
+    fn validate_rejects_a_multi_byte_csv_delimiter_with_a_helpful_message() {
+        let config = ExtractionConfig {
+            csv: Some(crate::core::config::CsvConfig {
+                delimiter: Some("::".to_string()),
+                comment_prefixes: vec![],
+            }),
+            ..Default::default()
+        };
+        let err = config
+            .validate()
+            .expect_err("multi-character delimiter must be rejected");
+        assert_eq!(
+            err.to_string(),
+            "Validation error: Invalid CSV delimiter '::'. Must be exactly one ASCII character (e.g. ',', ';', '\\t', '|')."
+        );
     }
 }

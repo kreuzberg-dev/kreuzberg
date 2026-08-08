@@ -122,8 +122,8 @@ impl<'a> LatexParser<'a> {
                 *i = new_i;
                 true
             }
-            "tabular" => {
-                let (env_content, new_i) = collect_environment(lines, *i, "tabular");
+            "tabular" | "longtable" | "tabularx" | "tabulary" => {
+                let (env_content, new_i) = collect_environment(lines, *i, &env_name);
                 process_table(&env_content, &mut self.output, &mut self.tables);
                 *i = new_i;
                 true

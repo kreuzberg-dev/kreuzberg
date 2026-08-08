@@ -364,6 +364,8 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 
 - **Paddleocr**
 
+- **Sceptre**
+
 ### OCR Configuration Example
 
 ```cs

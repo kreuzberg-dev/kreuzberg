@@ -119,6 +119,20 @@ fn raw_pixels_to_png(w: u32, h: u32, format: &pdf_oxide::extractors::PixelFormat
     Ok(Bytes::from(png_bytes))
 }
 
+/// Build the `ProcessingWarning` for an image that was dropped because its raw
+/// pixel buffer could not be re-encoded (issue #71). Previously this case only
+/// logged via `tracing::warn!`, so callers had no structured signal that the
+/// output `images` array is shorter than the document's actual image count.
+fn unencodable_image_warning(image_index: u32, page_number: u32, error: &PdfError) -> crate::types::ProcessingWarning {
+    crate::types::ProcessingWarning {
+        source: std::borrow::Cow::Borrowed("pdf_images"),
+        message: std::borrow::Cow::Owned(format!(
+            "skipped image {image_index} on page {page_number}: could not be re-encoded from raw \
+             pixel data ({error})"
+        )),
+    }
+}
+
 /// Collect OCR-ready image bytes for every image XObject on `page_idx`, for use as a
 /// `force_ocr` fallback when whole-page rasterization silently dropped an undecodable
 /// image (issue #1355).
@@ -202,7 +216,9 @@ pub(crate) fn page_ocr_fallback_image_bytes(doc: &pdf_oxide::PdfDocument, page_i
 
 /// Extract full image data from all pages of a PDF.
 ///
-/// Returns a `Vec<ExtractedImage>` with complete image data and metadata.
+/// Returns a `Vec<ExtractedImage>` with complete image data and metadata, plus any
+/// non-fatal `ProcessingWarning`s produced along the way (e.g. an image that could
+/// not be re-encoded and was skipped — see issue #71).
 /// When image extraction is disabled or no images are found, returns an empty vec.
 ///
 /// # Arguments
@@ -213,14 +229,15 @@ pub(crate) fn page_ocr_fallback_image_bytes(doc: &pdf_oxide::PdfDocument, page_i
 ///
 /// # Returns
 ///
-/// A `Vec<ExtractedImage>` containing all extracted images with their data.
+/// A `Vec<ExtractedImage>` containing all extracted images with their data, and a
+/// `Vec<ProcessingWarning>` describing any images that were skipped.
 pub(crate) fn extract_images_with_data(
     doc: &mut OxideDocument,
     max_images_per_page: Option<u32>,
     cancel_token: Option<&CancellationToken>,
-) -> Result<Vec<crate::types::ExtractedImage>> {
+) -> Result<(Vec<crate::types::ExtractedImage>, Vec<crate::types::ProcessingWarning>)> {
     if max_images_per_page == Some(0) {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
 
     tracing::debug!(
@@ -235,7 +252,12 @@ pub(crate) fn extract_images_with_data(
         .map_err(|e| PdfError::MetadataExtractionFailed(format!("pdf_oxide: failed to get page count: {e}")))?;
 
     let mut all_images = Vec::new();
+    let mut warnings = Vec::new();
     let mut global_index = 0u32;
+
+    // Tagged-PDF `/Alt` text for `Figure` structure elements, keyed by 0-based page
+    // index (issue #62). Empty for the (common) untagged-PDF case.
+    let mut alt_text_by_page = super::hierarchy::extract_figure_alt_text_by_page(doc);
 
     for page_idx in 0..page_count {
         if cancel_token.is_some_and(|t| t.is_cancelled()) {
@@ -276,7 +298,12 @@ pub(crate) fn extract_images_with_data(
         };
 
         let page_number = (page_idx + 1) as u32;
-        for oxide_img in &oxide_images {
+        let page_alt_texts = alt_text_by_page.remove(&(page_idx as u32));
+        for (page_image_position, oxide_img) in oxide_images.iter().enumerate() {
+            let alt_text = page_alt_texts
+                .as_ref()
+                .and_then(|alts| alts.get(page_image_position))
+                .and_then(|alt| alt.clone());
             let (data, format) = match oxide_img.data() {
                 pdf_oxide::extractors::ImageData::Jpeg(jpeg_bytes) => {
                     let data_bytes = Bytes::copy_from_slice(jpeg_bytes);
@@ -292,6 +319,7 @@ pub(crate) fn extract_images_with_data(
                                 image_index = global_index,
                                 "skipping raw PDF image that could not be re-encoded: {e}"
                             );
+                            warnings.push(unencodable_image_warning(global_index, page_number, &e));
                             continue;
                         }
                     }
@@ -308,7 +336,7 @@ pub(crate) fn extract_images_with_data(
                 colorspace: Some(format!("{:?}", oxide_img.color_space())),
                 bits_per_component: Some(oxide_img.bits_per_component() as u32),
                 is_mask: false,
-                description: None,
+                description: alt_text,
                 ocr_result: None,
                 bounding_box: oxide_img.bbox().map(|r| crate::types::BoundingBox {
                     x0: r.x as f64,
@@ -330,7 +358,7 @@ pub(crate) fn extract_images_with_data(
         }
     }
 
-    Ok(all_images)
+    Ok((all_images, warnings))
 }
 
 #[cfg(test)]
@@ -407,6 +435,25 @@ mod tests {
         );
     }
 
+    /// Issue #71: an image dropped for failing to re-encode must produce a
+    /// `ProcessingWarning` naming the image index and page, not just a
+    /// `tracing::warn!` log line the caller can never see.
+    #[test]
+    fn test_unencodable_image_warning_names_index_and_page() {
+        let pixels: Vec<u8> = vec![0x00, 0x80, 0xc0, 0xff];
+        let error = raw_pixels_to_png(4, 4, &pdf_oxide::extractors::PixelFormat::Grayscale, &pixels)
+            .expect_err("4x4 grayscale from a 4-byte buffer must fail to re-encode");
+
+        let warning = unencodable_image_warning(3, 2, &error);
+
+        assert_eq!(warning.source.as_ref(), "pdf_images");
+        assert_eq!(
+            warning.message.as_ref(),
+            format!("skipped image 3 on page 2: could not be re-encoded from raw pixel data ({error})"),
+            "warning message must name the exact image index (3) and page (2)"
+        );
+    }
+
     fn test_documents_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -431,7 +478,7 @@ mod tests {
         let bytes = std::fs::read(&pdf_path).expect("failed to read test PDF");
         let mut doc = crate::pdf::oxide::OxideDocument::open_bytes(&bytes).expect("failed to open PDF");
 
-        let result = extract_images_with_data(&mut doc, Some(0), None).expect("cap=0 must not error");
+        let (result, _warnings) = extract_images_with_data(&mut doc, Some(0), None).expect("cap=0 must not error");
 
         assert!(
             result.is_empty(),
@@ -466,7 +513,7 @@ mod tests {
         let bytes = std::fs::read(&pdf_path).expect("failed to read test PDF");
 
         let mut doc_full = crate::pdf::oxide::OxideDocument::open_bytes(&bytes).expect("failed to open PDF");
-        let full_result =
+        let (full_result, _warnings) =
             extract_images_with_data(&mut doc_full, None, None).expect("uncancelled extraction must not error");
         let full_count = full_result.len();
         let page_count = doc_full
@@ -492,7 +539,7 @@ mod tests {
             token_clone.cancel();
         });
 
-        let result =
+        let (result, _warnings) =
             extract_images_with_data(&mut doc_cancel, None, Some(&token)).expect("cancellation must not error");
 
         handle.join().expect("background thread must not panic");
@@ -529,7 +576,8 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let result = extract_images_with_data(&mut doc, None, Some(&token)).expect("extract must not error");
+        let (result, _warnings) =
+            extract_images_with_data(&mut doc, None, Some(&token)).expect("extract must not error");
 
         assert!(
             result.is_empty(),
@@ -554,7 +602,7 @@ mod tests {
         let bytes = std::fs::read(&pdf_path).expect("failed to read test PDF");
         let mut doc = crate::pdf::oxide::OxideDocument::open_bytes(&bytes).expect("failed to open PDF");
 
-        let result = extract_images_with_data(&mut doc, None, None).expect("extraction must not error");
+        let (result, _warnings) = extract_images_with_data(&mut doc, None, None).expect("extraction must not error");
 
         assert!(!result.is_empty(), "fixture must contain at least one image");
         assert!(
@@ -577,7 +625,8 @@ mod tests {
         let bytes = std::fs::read(&pdf_path).expect("failed to read test PDF");
         let mut doc = crate::pdf::oxide::OxideDocument::open_bytes(&bytes).expect("failed to open PDF");
 
-        let result = extract_images_with_data(&mut doc, Some(50), None).expect("extraction must not error");
+        let (result, _warnings) =
+            extract_images_with_data(&mut doc, Some(50), None).expect("extraction must not error");
 
         assert!(!result.is_empty(), "fixture must contain at least one image");
         assert!(
@@ -669,6 +718,39 @@ mod tests {
         assert!(
             fallback_images.is_empty(),
             "out-of-range page must degrade to an empty vec, not panic or error"
+        );
+    }
+
+    /// Issue #62: a tagged PDF's `Figure` structure element carries `/Alt "officeArt
+    /// object"` on page 1 for the image XObject painted there. Before the fix,
+    /// `description` was hardcoded to `None` for every extracted image, so this
+    /// alt text was silently dropped and never reached `ExtractedImage::description`
+    /// (which markdown/plain-text rendering consume as the image's alt/caption text).
+    #[test]
+    fn test_extract_images_with_data_reads_tagged_pdf_alt_text() {
+        let pdf_path = test_documents_dir().join("pdf/nougat_049.pdf");
+        assert!(
+            pdf_path.exists(),
+            "missing fixture: test PDF not found at {}",
+            pdf_path.display()
+        );
+
+        let bytes = std::fs::read(&pdf_path).expect("failed to read test PDF");
+        let mut doc = crate::pdf::oxide::OxideDocument::open_bytes(&bytes).expect("failed to open PDF");
+
+        let (result, _warnings) = extract_images_with_data(&mut doc, None, None).expect("extraction must not error");
+
+        let page_one_images: Vec<_> = result.iter().filter(|img| img.page_number == Some(1)).collect();
+        assert!(
+            !page_one_images.is_empty(),
+            "fixture page 1 must contain at least one extracted image"
+        );
+        assert_eq!(
+            page_one_images[0].description,
+            Some("officeArt object".to_string()),
+            "the first image on page 1 must carry the /Alt text from its Figure structure \
+             element instead of None; got {:?}",
+            page_one_images[0].description
         );
     }
 }

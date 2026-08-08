@@ -177,21 +177,22 @@ fn apply_batch_thread_budget(config: &mut ExtractionConfig, thread_budget: usize
 ///
 /// # Examples
 ///
+/// This function and [`BatchFileItem`] are crate-internal; the public entry point that
+/// reaches them is [`crate::extract_batch`] with URI inputs.
+///
 /// Simple usage with no per-file overrides:
 ///
 /// ```rust,no_run
-/// use xberg::core::extractor::batch_extract_files;
-/// use xberg::core::config::{ExtractionConfig, BatchFileItem};
-/// use std::path::PathBuf;
+/// use xberg::{ExtractInput, ExtractionConfig, extract_batch};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let items = vec![
-///     BatchFileItem { path: "doc1.pdf".into(), config: None },
-///     BatchFileItem { path: "doc2.pdf".into(), config: None },
+/// let inputs = vec![
+///     ExtractInput::from_uri("doc1.pdf"),
+///     ExtractInput::from_uri("doc2.pdf"),
 /// ];
-/// let results = batch_extract_files(items, &config).await?;
-/// println!("Processed {} files", results.len());
+/// let output = extract_batch(inputs, &config).await?;
+/// println!("Processed {} files", output.results.len());
 /// # Ok(())
 /// # }
 /// ```
@@ -199,20 +200,14 @@ fn apply_batch_thread_budget(config: &mut ExtractionConfig, thread_budget: usize
 /// Per-file configuration overrides:
 ///
 /// ```rust,no_run
-/// use xberg::core::extractor::batch_extract_files;
-/// use xberg::core::config::{ExtractionConfig, BatchFileItem, FileExtractionConfig};
-/// use std::path::PathBuf;
+/// use xberg::{ExtractInput, ExtractionConfig, FileExtractionConfig, extract_batch};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let items = vec![
-///     BatchFileItem {
-///         path: "scan.pdf".into(),
-///         config: Some(FileExtractionConfig { force_ocr: Some(true), ..Default::default() }),
-///     },
-///     BatchFileItem { path: "notes.txt".into(), config: None },
-/// ];
-/// let results = batch_extract_files(items, &config).await?;
+/// let mut scan = ExtractInput::from_uri("scan.pdf");
+/// scan.config = Some(FileExtractionConfig { force_ocr: Some(true), ..Default::default() });
+/// let inputs = vec![scan, ExtractInput::from_uri("notes.txt")];
+/// let output = extract_batch(inputs, &config).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -220,7 +215,8 @@ fn apply_batch_thread_budget(config: &mut ExtractionConfig, thread_budget: usize
 #[cfg_attr(feature = "otel", tracing::instrument(
     skip(config, items),
     fields(
-        extraction.batch_size = items.len(),
+        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::BATCH_EXTRACT,
+        { crate::telemetry::conventions::BATCH_SIZE } = items.len(),
     )
 ))]
 pub(crate) async fn batch_extract_files(
@@ -282,20 +278,22 @@ pub(crate) async fn batch_extract_files(
 ///
 /// # Examples
 ///
+/// This function and [`BatchBytesItem`] are crate-internal; the public entry point that
+/// reaches them is [`crate::extract_batch`] with bytes inputs.
+///
 /// Simple usage with no per-item overrides:
 ///
 /// ```rust,no_run
-/// use xberg::core::extractor::batch_extract_bytes;
-/// use xberg::core::config::{ExtractionConfig, BatchBytesItem};
+/// use xberg::{ExtractInput, ExtractionConfig, extract_batch};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let items = vec![
-///     BatchBytesItem { content: b"content 1".to_vec(), mime_type: "text/plain".to_string(), config: None },
-///     BatchBytesItem { content: b"content 2".to_vec(), mime_type: "text/plain".to_string(), config: None },
+/// let inputs = vec![
+///     ExtractInput::from_bytes(b"content 1".to_vec(), "text/plain", None),
+///     ExtractInput::from_bytes(b"content 2".to_vec(), "text/plain", None),
 /// ];
-/// let results = batch_extract_bytes(items, &config).await?;
-/// println!("Processed {} items", results.len());
+/// let output = extract_batch(inputs, &config).await?;
+/// println!("Processed {} items", output.results.len());
 /// # Ok(())
 /// # }
 /// ```
@@ -303,20 +301,17 @@ pub(crate) async fn batch_extract_files(
 /// Per-item configuration overrides:
 ///
 /// ```rust,no_run
-/// use xberg::core::extractor::batch_extract_bytes;
-/// use xberg::core::config::{ExtractionConfig, BatchBytesItem, FileExtractionConfig};
+/// use xberg::{ExtractInput, ExtractionConfig, FileExtractionConfig, extract_batch};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let items = vec![
-///     BatchBytesItem { content: b"content".to_vec(), mime_type: "text/plain".to_string(), config: None },
-///     BatchBytesItem {
-///         content: b"<html>test</html>".to_vec(),
-///         mime_type: "text/html".to_string(),
-///         config: Some(FileExtractionConfig { force_ocr: Some(true), ..Default::default() }),
-///     },
+/// let mut html = ExtractInput::from_bytes(b"<html>test</html>".to_vec(), "text/html", None);
+/// html.config = Some(FileExtractionConfig { force_ocr: Some(true), ..Default::default() });
+/// let inputs = vec![
+///     ExtractInput::from_bytes(b"content".to_vec(), "text/plain", None),
+///     html,
 /// ];
-/// let results = batch_extract_bytes(items, &config).await?;
+/// let output = extract_batch(inputs, &config).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -324,7 +319,8 @@ pub(crate) async fn batch_extract_files(
 #[cfg_attr(feature = "otel", tracing::instrument(
     skip(config, items),
     fields(
-        extraction.batch_size = items.len(),
+        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::BATCH_EXTRACT,
+        { crate::telemetry::conventions::BATCH_SIZE } = items.len(),
     )
 ))]
 pub(crate) async fn batch_extract_bytes(

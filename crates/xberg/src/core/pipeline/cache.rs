@@ -18,6 +18,12 @@ pub(super) struct ProcessorCache {
     pub(super) early: Arc<Vec<Arc<dyn PostProcessor>>>,
     pub(super) middle: Arc<Vec<Arc<dyn PostProcessor>>>,
     pub(super) late: Arc<Vec<Arc<dyn PostProcessor>>>,
+    /// The `PostProcessorRegistry` generation (see `plugins::registry::PostProcessorRegistry::generation`)
+    /// this snapshot was built from. `initialize_processor_cache` (#215) compares
+    /// this against the registry's live generation on every pipeline run and
+    /// rebuilds the snapshot when they diverge, instead of trusting a cache
+    /// populated once on the very first extraction forever.
+    pub(super) generation: u64,
 }
 
 impl ProcessorCache {
@@ -30,6 +36,7 @@ impl ProcessorCache {
             early: Arc::new(registry.get_for_stage(ProcessingStage::Early)),
             middle: Arc::new(registry.get_for_stage(ProcessingStage::Middle)),
             late: Arc::new(registry.get_for_stage(ProcessingStage::Late)),
+            generation: registry.generation(),
         })
     }
 }

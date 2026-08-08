@@ -781,7 +781,7 @@ impl InternalDocumentExtractor for WordPerfectExtractor {
     }
 
     fn supported_mime_types(&self) -> &[&str] {
-        &["application/vnd.wordperfect"]
+        &["application/vnd.wordperfect", "application/wordperfect"]
     }
 
     fn priority(&self) -> i32 {
@@ -799,7 +799,10 @@ mod tests {
         assert_eq!(extractor.name(), "wordperfect-extractor");
         assert_eq!(extractor.version(), env!("CARGO_PKG_VERSION"));
         assert_eq!(extractor.priority(), 50);
-        assert_eq!(extractor.supported_mime_types(), &["application/vnd.wordperfect"]);
+        assert_eq!(
+            extractor.supported_mime_types(),
+            &["application/vnd.wordperfect", "application/wordperfect"]
+        );
     }
 
     #[test]

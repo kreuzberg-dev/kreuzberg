@@ -41,12 +41,14 @@ impl TokenReducer {
             None
         };
 
+        let word_filter = WordFilter::new(config.preserve_important_words);
+
         Ok(Self {
             config,
             text_processor,
             filter_pipeline,
             semantic_analyzer,
-            word_filter: WordFilter::new(),
+            word_filter,
         })
     }
 
@@ -384,6 +386,41 @@ mod tests {
         let result = reducer.reduce(input);
 
         assert!(result.contains("IMPORTANT") || result.contains("COVID") || result.contains("12345"));
+    }
+
+    #[test]
+    fn test_preserve_important_words_false_is_wired_through_to_the_word_filter() {
+        // Same fixture shape as `word_filtering::tests::IMPORTANT_WORD_FIXTURE`:
+        // enough unique long words to keep the primary filtering path active
+        // (never falling back to "keep everything >= 3 chars"), plus a short,
+        // thrice-repeated all-caps acronym that only the important-word guard
+        // saves (#269).
+        let input = "documentation implementation specification organization architecture \
+             infrastructure optimization configuration authentication authorization synchronization \
+             virtualization containerization orchestration serialization CEO CEO CEO";
+
+        let preserving = TokenReductionConfig {
+            level: ReductionLevel::Aggressive,
+            preserve_important_words: true,
+            ..Default::default()
+        };
+        let dropping = TokenReductionConfig {
+            level: ReductionLevel::Aggressive,
+            preserve_important_words: false,
+            ..Default::default()
+        };
+
+        let preserving_result = TokenReducer::new(&preserving, Some("en")).unwrap().reduce(input);
+        let dropping_result = TokenReducer::new(&dropping, Some("en")).unwrap().reduce(input);
+
+        assert!(
+            preserving_result.contains("CEO"),
+            "preserve_important_words: true must keep CEO, got: {preserving_result}"
+        );
+        assert!(
+            !dropping_result.contains("CEO"),
+            "preserve_important_words: false must let CEO be removed, got: {dropping_result}"
+        );
     }
 
     #[test]

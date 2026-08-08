@@ -47,7 +47,9 @@ pub fn embed_command(
             };
 
             let config = xberg::EmbeddingConfig {
-                model: xberg::EmbeddingModelType::Llm { llm: llm_config },
+                model: xberg::EmbeddingModelType::Llm {
+                    llm: Box::new(llm_config),
+                },
                 show_download_progress: true,
                 ..Default::default()
             };

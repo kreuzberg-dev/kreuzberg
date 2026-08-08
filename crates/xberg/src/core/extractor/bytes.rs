@@ -40,15 +40,17 @@ use super::file::extract_bytes_with_extractor;
 ///
 /// # Example
 ///
+/// This function is crate-internal; the public entry point that reaches it is
+/// [`crate::extract`] with a bytes input.
+///
 /// ```rust,no_run
-/// use xberg::core::extractor::extract_bytes;
-/// use xberg::core::config::ExtractionConfig;
+/// use xberg::{ExtractInput, ExtractionConfig, extract};
 ///
 /// # async fn example() -> xberg::Result<()> {
 /// let config = ExtractionConfig::default();
-/// let bytes = b"Hello, world!";
-/// let result = extract_bytes(bytes, "text/plain", &config).await?;
-/// println!("Content: {}", result.content);
+/// let input = ExtractInput::from_bytes(b"Hello, world!".to_vec(), "text/plain", None);
+/// let output = extract(input, &config).await?;
+/// println!("Content: {}", output.results[0].content);
 /// # Ok(())
 /// # }
 /// ```

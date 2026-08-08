@@ -75,10 +75,13 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # gpu_acceleration.rs reads test_documents_dir().join("images/...") exclusively. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            images/**
 
       - name: Verify GPU
         run: |
@@ -237,10 +240,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
-
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
 
       - name: Verify GPU
         run: |

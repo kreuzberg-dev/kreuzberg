@@ -108,12 +108,17 @@ pub(crate) async fn process_images_with_ocr(
 
         match ocr_result {
             Ok(extraction_result) => {
-                images[idx].ocr_result = Some(Box::new(ExtractedDocument {
-                    content: extraction_result.content,
-                    mime_type: extraction_result.mime_type,
-                    ocr_elements: extraction_result.ocr_elements,
-                    ..Default::default()
-                }));
+                // Keep the backend's result whole. Rebuilding it field-by-field silently
+                // dropped everything the backend populated besides content/mime_type/
+                // ocr_elements — tables, metadata (OCR language, PSM, confidence),
+                // formulas, llm_usage (VLM cost accounting), detected_languages and
+                // processing_warnings. The PDF inline-image path already stores the
+                // backend result unmodified; mirror it here.
+                let mut ocr_document = extraction_result;
+                // Recursion guard: OCR output must never carry nested images, or an
+                // archive/recursive consumer would extract images out of OCR output.
+                ocr_document.images = None;
+                images[idx].ocr_result = Some(Box::new(ocr_document));
             }
             Err(e) => {
                 warnings.push(crate::types::ProcessingWarning {

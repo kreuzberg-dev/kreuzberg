@@ -22,16 +22,21 @@ use crate::types::ocr_elements::{OcrConfidence, OcrElement};
 use crate::types::page::PageContent;
 use crate::types::tables::Table;
 
+/// Cap on how many unresolvable keys a single warning names before it summarises
+/// the rest as a count, so a badly broken document cannot produce an unbounded
+/// message.
+const MAX_REPORTED_UNRESOLVED_KEYS: usize = 10;
+
 /// Resolve `RelationshipTarget::Key` entries to `RelationshipTarget::Index`.
 ///
 /// Builds an anchor index from elements with non-`None` anchors, then resolves
-/// each key-based relationship target. Unresolvable keys are logged and skipped
-/// (the relationship is left as `Key` — it will be excluded from the final
-/// `DocumentStructure` relationships).
+/// each key-based relationship target. Unresolvable keys are skipped — the
+/// relationship is left as `Key` and excluded from the final `DocumentStructure`
+/// relationships — and reported in one `ProcessingWarning` naming them.
 pub(crate) fn resolve_relationships(doc: &mut InternalDocument) {
     let mut anchor_map: AHashMap<&str, u32> = AHashMap::new();
     for (idx, elem) in doc.elements.iter().enumerate() {
-        if matches!(elem.kind, ElementKind::FootnoteRef) {
+        if matches!(elem.kind, ElementKind::FootnoteRef | ElementKind::CommentRef) {
             continue;
         }
         if let Some(anchor) = elem.anchor.as_deref() {
@@ -39,6 +44,7 @@ pub(crate) fn resolve_relationships(doc: &mut InternalDocument) {
         }
     }
 
+    let mut unresolved: Vec<String> = Vec::new();
     for rel in &mut doc.relationships {
         if let RelationshipTarget::Key(ref key) = rel.target {
             match anchor_map.get(key.as_str()) {
@@ -47,9 +53,36 @@ pub(crate) fn resolve_relationships(doc: &mut InternalDocument) {
                 }
                 None => {
                     log::debug!("Unresolvable relationship key: {}", key);
+                    unresolved.push(key.clone());
                 }
             }
         }
+    }
+
+    if !unresolved.is_empty() {
+        unresolved.sort();
+        unresolved.dedup();
+        let total = unresolved.len();
+        unresolved.truncate(MAX_REPORTED_UNRESOLVED_KEYS);
+        let listed = unresolved.join(", ");
+        let suffix = if total > unresolved.len() {
+            format!(" (and {} more)", total - unresolved.len())
+        } else {
+            String::new()
+        };
+        // One warning for the document rather than one per key: cross-references usually
+        // break as a set, and a per-key warning would flood `processing_warnings` on a
+        // large document. Previously this was `log::debug!` only, so a citation or
+        // cross-reference that failed to resolve vanished from `DocumentStructure` with
+        // no diagnostic at all (#74).
+        crate::core::diagnostics::push_warning(
+            &mut doc.processing_warnings,
+            "relationships",
+            format!(
+                "{total} cross-reference target(s) could not be resolved and were dropped from the \
+                 document structure: {listed}{suffix}"
+            ),
+        );
     }
 }
 
@@ -87,7 +120,7 @@ fn derive_document_structure_inner(doc: &mut InternalDocument) -> DocumentStruct
                 close_container(&mut stack, &ds, doc.elements[elem_idx].kind);
                 continue;
             }
-            ElementKind::FootnoteRef => {
+            ElementKind::FootnoteRef | ElementKind::CommentRef => {
                 continue;
             }
             _ => {}
@@ -358,6 +391,9 @@ fn element_to_node_content(
         ElementKind::FootnoteDefinition => NodeContent::Footnote {
             text: std::mem::take(&mut elem.text),
         },
+        ElementKind::CommentDefinition => NodeContent::Comment {
+            text: std::mem::take(&mut elem.text),
+        },
         ElementKind::Citation => NodeContent::Citation {
             key: elem.anchor.clone().unwrap_or_default(),
             text: std::mem::take(&mut elem.text),
@@ -440,7 +476,7 @@ fn element_to_node_content(
             level,
             text: std::mem::take(&mut elem.text),
         },
-        ElementKind::FootnoteRef => NodeContent::Paragraph {
+        ElementKind::FootnoteRef | ElementKind::CommentRef => NodeContent::Paragraph {
             text: std::mem::take(&mut elem.text),
         },
         ElementKind::ListEnd | ElementKind::QuoteEnd | ElementKind::GroupEnd => {
@@ -515,7 +551,16 @@ pub fn derive_extraction_result(
     );
     resolve_relationships(&mut doc);
 
-    let content = crate::rendering::render_plain(&doc);
+    // A document produced by `From<ExtractedDocument> for InternalDocument` has no
+    // element tree, so `render_plain` yields nothing. Its already-extracted text lives in
+    // `pre_rendered_content` and must be returned verbatim rather than dropped. Only the
+    // empty rendering falls back, so a document that does have elements always wins.
+    let mut content = crate::rendering::render_plain(&doc);
+    if content.is_empty()
+        && let Some(pre_rendered) = doc.pre_rendered_content.as_ref()
+    {
+        content = pre_rendered.clone();
+    }
 
     let mime_type: Cow<'static, str> = if doc.mime_type != "application/octet-stream" {
         Cow::Owned(std::mem::take(&mut doc.mime_type))
@@ -539,8 +584,20 @@ pub fn derive_extraction_result(
                 Some(crate::rendering::render_djot(&doc))
             }
         }
-        crate::core::config::OutputFormat::Html => Some(crate::rendering::render_html(&doc)),
-        crate::core::config::OutputFormat::Json => Some(crate::rendering::render_json(&doc)),
+        crate::core::config::OutputFormat::Html => {
+            if doc.pre_rendered_content.is_some() && doc.metadata.output_format.as_deref() == Some("html") {
+                doc.pre_rendered_content.take()
+            } else {
+                Some(crate::rendering::render_html(&doc))
+            }
+        }
+        crate::core::config::OutputFormat::Json => {
+            if doc.pre_rendered_content.is_some() && doc.metadata.output_format.as_deref() == Some("json") {
+                doc.pre_rendered_content.take()
+            } else {
+                Some(crate::rendering::render_json(&doc))
+            }
+        }
         crate::core::config::OutputFormat::Structured => None,
         crate::core::config::OutputFormat::Custom(ref name) => {
             let registry = crate::plugins::registry::get_renderer_registry();
@@ -549,6 +606,18 @@ pub fn derive_extraction_result(
                 Ok(rendered) => Some(rendered),
                 Err(e) => {
                     tracing::warn!(renderer = %name, error = %e, "Custom renderer failed, falling back to plain");
+                    // #208: `tracing::warn!` is invisible to API/binding consumers — the
+                    // only channel they can observe is `processing_warnings`. Without
+                    // this, a typo'd or unregistered custom format silently produced
+                    // plain text with no way for the caller to detect the fallback.
+                    crate::core::diagnostics::push_warning(
+                        &mut doc.processing_warnings,
+                        "output-format",
+                        format!(
+                            "requested output format '{name}' has no registered renderer ({e}); \
+                             returned plain text instead"
+                        ),
+                    );
                     None
                 }
             }
@@ -567,6 +636,28 @@ pub fn derive_extraction_result(
 
     let images = if doc.images.is_empty() { None } else { Some(doc.images) };
 
+    // #76: `push_uri` caps collection at `InternalDocument::MAX_URIS` and silently
+    // discarded the rest, so a document with more links than the cap was
+    // indistinguishable from one that genuinely has exactly `MAX_URIS`. Name the
+    // loss; only when it actually happened, so a normal document stays warning-free.
+    if doc.uris_dropped > 0 {
+        let dropped = doc.uris_dropped;
+        // Report the cap itself, not `doc.uris.len()`: the derivation runs a second
+        // time after the captioning prepass, by which point the list has been
+        // de-duplicated and shortened. A length-derived count would produce a second,
+        // differently-worded warning that `push_warning`'s dedup could not collapse.
+        let kept = InternalDocument::MAX_URIS;
+        let found = kept + dropped;
+        crate::core::diagnostics::push_warning(
+            &mut doc.processing_warnings,
+            "uris",
+            format!(
+                "Collected the first {kept} of {found} URIs; {dropped} were dropped at the \
+                 per-document limit and are missing from the result"
+            ),
+        );
+    }
+
     let uris = if doc.uris.is_empty() {
         None
     } else {
@@ -575,8 +666,39 @@ pub fn derive_extraction_result(
         Some(doc.uris)
     };
 
+    // #259: `code_intelligence` is documented (types/extraction.rs) as carrying
+    // the full `tree_sitter_language_pack::ProcessResult` — metrics, structure,
+    // imports, exports, comments, docstrings, symbols, diagnostics, chunks and
+    // the hierarchical data tree. `extractors/code.rs` stashes that entire
+    // serialized result under `CODE_INTELLIGENCE_SCRATCH_KEY` in
+    // `metadata.additional` (the typed `CodeMetadata` on `Metadata::format` only
+    // carries `chunks`/`data`, so it has no room for the rest). Prefer that full
+    // payload; `.remove()` so it never leaks into the final
+    // `ExtractedDocument.metadata.additional` map. Fall back to serializing just
+    // `CodeMetadata` for documents that reach this point without going through
+    // `CodeExtractor` (e.g. synthetic `InternalDocument`s built by tests or other
+    // callers that set `FormatMetadata::Code` directly).
     #[cfg(feature = "tree-sitter")]
-    let code_intelligence: Option<serde_json::Value> = None;
+    let is_code_metadata = matches!(
+        doc.metadata.format.as_ref(),
+        Some(crate::types::metadata::FormatMetadata::Code(_))
+    );
+    #[cfg(feature = "tree-sitter")]
+    let full_process_result = if is_code_metadata {
+        doc.metadata
+            .additional
+            .remove(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY)
+    } else {
+        None
+    };
+    #[cfg(feature = "tree-sitter")]
+    let code_intelligence: Option<serde_json::Value> =
+        full_process_result.or_else(|| match doc.metadata.format.as_ref() {
+            Some(crate::types::metadata::FormatMetadata::Code(code_metadata)) => {
+                serde_json::to_value(code_metadata).ok()
+            }
+            _ => None,
+        });
 
     let extraction_method = doc
         .metadata
@@ -664,6 +786,12 @@ fn build_pages(doc: &InternalDocument) -> Option<Vec<PageContent>> {
             let mut tables = Vec::new();
             let mut image_indices = Vec::new();
             for elem in &elems {
+                // `render_plain` drops everything outside the body layer, so page content
+                // must drop it too — otherwise running headers and footers appear in
+                // `pages[n].content` but not in `result.content` for `OutputFormat::Plain`.
+                if !crate::rendering::common::is_body_element(elem) {
+                    continue;
+                }
                 if elem.kind.is_container_start() || elem.kind.is_container_end() {
                     continue;
                 }
@@ -813,13 +941,17 @@ fn apply_page_content_format(
 }
 
 /// Extract `OcrElement` entries from OCR-typed internal elements.
+///
+/// An element without geometry is kept with a zero bounding box rather than
+/// discarded (#75): backends that report text without word boxes (VLM OCR, hOCR
+/// without `bbox` properties) would otherwise lose their recognised text entirely.
 fn build_ocr_elements(doc: &InternalDocument) -> Option<Vec<OcrElement>> {
     let ocr_elems: Vec<OcrElement> = doc
         .elements
         .iter()
         .filter_map(|elem| {
             if let ElementKind::OcrText { level } = elem.kind {
-                let geometry = elem.ocr_geometry.clone()?;
+                let geometry = elem.ocr_geometry.clone().unwrap_or_default();
                 let confidence = elem.ocr_confidence.clone().unwrap_or(OcrConfidence {
                     detection: None,
                     recognition: 0.0,
@@ -1057,6 +1189,60 @@ mod tests {
         assert_eq!(ds.relationships[0].kind, RelationshipKind::FootnoteReference);
     }
 
+    /// Regression test for #74: an unresolvable relationship key used to disappear at
+    /// `log::debug!` only, so a cross-reference or citation whose target was never
+    /// extracted vanished from `DocumentStructure` with no diagnostic at all — the
+    /// caller could not distinguish "this document has no cross-references" from
+    /// "this document's cross-references were silently dropped".
+    #[test]
+    fn should_warn_when_a_relationship_key_cannot_be_resolved() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "See [ref].", 0));
+        doc.push_relationship(Relationship {
+            source: 0,
+            target: RelationshipTarget::Key("missing-anchor".to_string()),
+            kind: RelationshipKind::CrossReference,
+        });
+
+        resolve_relationships(&mut doc);
+
+        assert_eq!(
+            doc.processing_warnings.len(),
+            1,
+            "one warning per document, not per key"
+        );
+        let warning = &doc.processing_warnings[0];
+        assert_eq!(warning.source, "relationships");
+        assert_eq!(
+            warning.message,
+            "1 cross-reference target(s) could not be resolved and were dropped from the \
+             document structure: missing-anchor"
+        );
+    }
+
+    /// A resolvable key must stay silent — the warning above is only meaningful if the
+    /// common case does not also emit it.
+    #[test]
+    fn should_not_warn_when_every_relationship_key_resolves() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "See note.", 0));
+        doc.push_element(InternalElement::text(ElementKind::FootnoteDefinition, "The note.", 0).with_anchor("fn1"));
+        doc.push_relationship(Relationship {
+            source: 0,
+            target: RelationshipTarget::Key("fn1".to_string()),
+            kind: RelationshipKind::FootnoteReference,
+        });
+
+        resolve_relationships(&mut doc);
+
+        assert!(
+            doc.processing_warnings.is_empty(),
+            "a resolvable key must not warn; got {:?}",
+            doc.processing_warnings
+        );
+        assert_eq!(doc.relationships[0].target, RelationshipTarget::Index(1));
+    }
+
     #[test]
     fn test_list_container() {
         let mut doc = make_doc("markdown");
@@ -1093,6 +1279,152 @@ mod tests {
         assert_eq!(result.content, "Hello world.");
         assert_eq!(result.mime_type, "text/markdown");
         assert!(result.document.is_none());
+    }
+
+    /// #208: requesting a custom output format with no matching renderer must
+    /// leave a `ProcessingWarning` behind — `tracing::warn!` alone is invisible
+    /// to API and binding consumers, who have no other way to learn that the
+    /// requested format ("markdwon", a typo) was not actually produced.
+    #[test]
+    fn test_derive_extraction_result_unregistered_custom_format_emits_processing_warning() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "Hello world.", 0));
+
+        let result = derive_extraction_result(
+            doc,
+            false,
+            crate::core::config::OutputFormat::Custom("markdwon".to_string()),
+        );
+
+        assert!(
+            result.formatted_content.is_none(),
+            "no renderer is registered for 'markdwon'"
+        );
+        assert_eq!(result.processing_warnings.len(), 1);
+        assert_eq!(result.processing_warnings[0].source, "output-format");
+        assert!(
+            result.processing_warnings[0].message.contains("markdwon"),
+            "warning must name the requested format: {}",
+            result.processing_warnings[0].message
+        );
+    }
+
+    /// A custom output format with a registered renderer must produce no
+    /// output-format warning at all.
+    #[test]
+    fn test_derive_extraction_result_registered_custom_format_emits_no_warning() {
+        struct UppercaseRenderer;
+        impl crate::plugins::Plugin for UppercaseRenderer {
+            fn name(&self) -> &str {
+                "shout-259"
+            }
+        }
+        impl crate::plugins::Renderer for UppercaseRenderer {
+            fn render_result(&self, result: &crate::types::ExtractedDocument) -> crate::Result<String> {
+                Ok(result.content.to_uppercase())
+            }
+        }
+        crate::plugins::register_renderer(std::sync::Arc::new(UppercaseRenderer)).unwrap();
+
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "Hello world.", 0));
+
+        let result = derive_extraction_result(
+            doc,
+            false,
+            crate::core::config::OutputFormat::Custom("shout-259".to_string()),
+        );
+
+        assert_eq!(result.formatted_content.as_deref(), Some("HELLO WORLD."));
+        assert!(
+            result.processing_warnings.is_empty(),
+            "a successful custom render must not warn: {:?}",
+            result.processing_warnings
+        );
+
+        crate::plugins::unregister_renderer("shout-259").unwrap();
+    }
+
+    /// #259: `code_intelligence` must surface the tree-sitter-derived
+    /// `FormatMetadata::Code` payload instead of being hardcoded to `None`, even
+    /// for an `InternalDocument` that never went through `CodeExtractor` (so has
+    /// no `CODE_INTELLIGENCE_SCRATCH_KEY` entry in `metadata.additional`) — the
+    /// fallback path serializes `CodeMetadata` directly. See
+    /// `test_derive_extraction_result_prefers_full_process_result_over_code_metadata`
+    /// for the primary, `CodeExtractor`-shaped path.
+    #[cfg(feature = "tree-sitter")]
+    #[test]
+    fn test_derive_extraction_result_populates_code_intelligence_from_code_metadata() {
+        use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
+
+        let mut doc = make_doc("code");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "fn main() {}", 0));
+        doc.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
+            chunks: vec![CodeChunkInfo {
+                text: "fn main() {}".to_string(),
+                context_path: vec!["main".to_string()],
+                node_types: vec!["function_definition".to_string()],
+                byte_start: 0,
+                byte_end: 12,
+            }],
+            data: None,
+        }));
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+
+        let code_intelligence = result
+            .code_intelligence
+            .expect("code_intelligence must be populated when FormatMetadata::Code is present");
+        assert_eq!(
+            code_intelligence["chunks"][0]["context_path"][0],
+            serde_json::json!("main")
+        );
+    }
+
+    /// #259: when `metadata.additional` carries the full serialized
+    /// `tree_sitter_language_pack::ProcessResult` under
+    /// `extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY` (as `CodeExtractor`
+    /// populates it), derivation must prefer that full payload over the
+    /// `CodeMetadata`-only fallback, and must remove the scratch key so it does
+    /// not leak into the final `ExtractedDocument.metadata.additional` map.
+    #[cfg(feature = "tree-sitter")]
+    #[test]
+    fn test_derive_extraction_result_prefers_full_process_result_over_code_metadata() {
+        use crate::types::metadata::{CodeMetadata, FormatMetadata};
+
+        let mut doc = make_doc("code");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "def f(): pass", 0));
+        doc.metadata.format = Some(FormatMetadata::Code(CodeMetadata::default()));
+        doc.metadata.additional.insert(
+            std::borrow::Cow::Borrowed(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
+            serde_json::json!({"language": "python", "metrics": {"total_lines": 1}}),
+        );
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+
+        let code_intelligence = result
+            .code_intelligence
+            .expect("code_intelligence must be populated from the scratch key");
+        assert_eq!(code_intelligence["language"], serde_json::json!("python"));
+        assert_eq!(code_intelligence["metrics"]["total_lines"], serde_json::json!(1));
+        // The stashed key must not leak into the final metadata.
+        assert!(
+            !result
+                .metadata
+                .additional
+                .contains_key(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
+            "scratch key must be removed before assembling the final ExtractedDocument"
+        );
+    }
+
+    #[cfg(feature = "tree-sitter")]
+    #[test]
+    fn test_derive_extraction_result_code_intelligence_none_without_code_metadata() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Paragraph, "Hello world.", 0));
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+        assert!(result.code_intelligence.is_none());
     }
 
     #[cfg(any(feature = "pdf", feature = "ocr"))]

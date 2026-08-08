@@ -16,12 +16,21 @@
 //! For each 30-second audio chunk the engine:
 //! 1. Computes a log-mel spectrogram (shape `[1, n_mels, 3000]`) using `mel_spec`.
 //! 2. Runs the encoder to obtain cross-attention key-value states.
-//! 3. Seeds the decoder with a four-token prompt
-//!    `[<|startoftranscript|>, <|{lang}|>, <|transcribe|>, <|notimestamps|>]`.
+//! 3. Seeds the decoder with a prompt
+//!    `[<|startoftranscript|>, <|{lang}|>, <|transcribe|>, <|notimestamps|>]`
+//!    (the trailing `<|notimestamps|>` token is omitted when timestamps are
+//!    requested — see [`build_decoder_prompt_tokens`]).
 //! 4. Greedily generates tokens by running `decoder` (step 0) and then
 //!    `decoder_with_past` (steps 1…N), accumulating KV-cache tensors.
 //! 5. Stops on `<|endoftext|>` or a configurable max-token limit (448).
-//! 6. Decodes the token IDs back to UTF-8 text via the HuggingFace tokenizer.
+//! 6. When timestamps were requested, pairs up the emitted `<|x.xx|>` tokens
+//!    into per-segment `(start_ms, end_ms, text)` triples (see
+//!    [`parse_timestamped_segments`]) and decodes each segment's text tokens
+//!    separately; otherwise decodes the whole token stream as one segment.
+//!    Whisper timestamp tokens are ordinary (non-`special`) vocabulary
+//!    entries, so `Tokenizer::decode(.., skip_special_tokens=true)` does
+//!    *not* strip them — they must be parsed out explicitly before decoding
+//!    or they leak into the transcript as literal `<|x.xx|>` text.
 
 use std::collections::HashMap;
 
@@ -48,6 +57,12 @@ const WHISPER_N_FFT: usize = 400;
 const WHISPER_HOP_LENGTH: usize = 160;
 /// Maximum number of output tokens produced per chunk (Whisper canonical).
 const WHISPER_MAX_TOKENS: usize = 448;
+/// Milliseconds represented by one increment of a Whisper timestamp token ID.
+///
+/// Whisper's timestamp vocabulary is a contiguous run of IDs starting at
+/// `<|0.00|>`; each successive ID represents 20 ms later, up to `<|30.00|>`
+/// (1501 tokens spanning the 30 s chunk window).
+const WHISPER_TIMESTAMP_TICK_MS: u32 = 20;
 
 /// Errors that can occur during Whisper inference.
 #[derive(Debug, Error)]
@@ -87,6 +102,10 @@ struct SpecialTokens {
     transcribe: u32,
     /// `<|notimestamps|>`
     no_timestamps: u32,
+    /// `<|0.00|>` — the first (lowest-ID) timestamp token. Every ID at or
+    /// above this one is a timestamp token; `id - timestamp_begin` ticks of
+    /// [`WHISPER_TIMESTAMP_TICK_MS`] gives the offset in milliseconds.
+    timestamp_begin: u32,
     /// Language token IDs, keyed by ISO-639-1 code (e.g. `"en"` → token id).
     language_ids: HashMap<String, u32>,
 }
@@ -106,6 +125,7 @@ impl SpecialTokens {
         let end_of_text = resolve("<|endoftext|>")?;
         let transcribe = resolve("<|transcribe|>")?;
         let no_timestamps = resolve("<|notimestamps|>")?;
+        let timestamp_begin = resolve("<|0.00|>")?;
 
         let language_codes = [
             "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca", "cs", "cy", "da", "de", "el",
@@ -129,6 +149,7 @@ impl SpecialTokens {
             end_of_text,
             transcribe,
             no_timestamps,
+            timestamp_begin,
             language_count = language_ids.len(),
             "Resolved Whisper special tokens",
         );
@@ -138,6 +159,7 @@ impl SpecialTokens {
             end_of_text,
             transcribe,
             no_timestamps,
+            timestamp_begin,
             language_ids,
         })
     }
@@ -152,6 +174,80 @@ impl SpecialTokens {
         tracing::warn!(language = lang, "Unknown language code; falling back to English",);
         *self.language_ids.get("en").unwrap_or(&self.start_of_transcript)
     }
+}
+
+/// Build the four (or three) token Whisper decoder prompt.
+///
+/// The canonical Whisper prompt is
+/// `[<|startoftranscript|>, <|{lang}|>, <|transcribe|>, <|notimestamps|>]`.
+/// When `timestamps` is `true`, the trailing `no_timestamps` token is omitted
+/// so the model is free to emit `<|x.xx|>` timestamp tokens in its output
+/// instead of being forced to suppress them.
+pub fn build_decoder_prompt_tokens(
+    start_of_transcript: u32,
+    lang_id: u32,
+    transcribe: u32,
+    no_timestamps: u32,
+    timestamps: bool,
+) -> Vec<i64> {
+    let mut prompt: Vec<i64> = vec![start_of_transcript as i64, lang_id as i64, transcribe as i64];
+    if !timestamps {
+        prompt.push(no_timestamps as i64);
+    }
+    prompt
+}
+
+/// Convert a raw Whisper timestamp token ID to a millisecond offset from the
+/// start of the 30-second chunk it was decoded in.
+///
+/// `token_id` must be `>= timestamp_begin_id`; IDs below that are ordinary
+/// vocabulary tokens, not timestamps.
+pub fn timestamp_token_to_ms(token_id: u32, timestamp_begin_id: u32) -> u32 {
+    token_id.saturating_sub(timestamp_begin_id) * WHISPER_TIMESTAMP_TICK_MS
+}
+
+/// Split a generated token stream into per-segment `(start_id, end_id, text_token_ids)`
+/// triples using Whisper's timestamp-token convention.
+///
+/// Whisper (when not suppressing timestamps via `<|notimestamps|>`) emits
+/// timestamp tokens in pairs bracketing each spoken segment:
+/// `<|t0|> tok tok tok <|t1|>`, with the next segment's opening timestamp
+/// often following immediately. This function pairs up consecutive timestamp
+/// tokens (IDs `>= timestamp_begin_id`) and returns the plain-vocabulary
+/// tokens found strictly between each pair as that segment's text tokens.
+///
+/// Tokens before the first timestamp token, and a trailing unpaired
+/// timestamp token (generation stopped before the model closed its final
+/// segment) together with any text after it, are dropped — there is no
+/// complete `(start, end)` pair to report them under.
+///
+/// Returns an empty `Vec` when `token_ids` contains no timestamp tokens at
+/// all (e.g. `timestamps` was `false`, so `<|notimestamps|>` suppressed
+/// them) — callers should fall back to treating the whole sequence as one
+/// untimed block of text in that case.
+pub fn parse_timestamped_segments(token_ids: &[u32], timestamp_begin_id: u32) -> Vec<(u32, u32, Vec<u32>)> {
+    let mut segments = Vec::new();
+    let mut open_start: Option<u32> = None;
+    let mut current_text: Vec<u32> = Vec::new();
+
+    for &token in token_ids {
+        if token >= timestamp_begin_id {
+            match open_start {
+                None => {
+                    open_start = Some(token);
+                    current_text.clear();
+                }
+                Some(start) => {
+                    segments.push((start, token, std::mem::take(&mut current_text)));
+                    open_start = None;
+                }
+            }
+        } else if open_start.is_some() {
+            current_text.push(token);
+        }
+    }
+
+    segments
 }
 
 /// Build an ONNX Runtime session from a model file path.
@@ -277,21 +373,57 @@ impl WhisperEngine {
     /// chunks; each chunk is transcribed independently and the results are
     /// joined with a single space.
     ///
-    /// The `_timestamps` parameter is accepted for API completeness but has
-    /// no effect in this implementation — v1 always uses `<|notimestamps|>`.
+    /// When `timestamps` is `true` the decoder prompt omits `<|notimestamps|>`,
+    /// letting the model emit `<|x.xx|>`-style timestamp tokens in its raw
+    /// output. This convenience method discards that timing information and
+    /// returns only the concatenated transcript text — use
+    /// [`WhisperEngine::transcribe_segments`] to get per-segment start/end
+    /// timestamps. When `timestamps` is `false` (the default), the prompt
+    /// includes `<|notimestamps|>` and there is only ever one segment per
+    /// chunk, so the two methods produce the same text.
     pub fn transcribe(
         &self,
         pcm: &PcmAudio,
         language: Option<&str>,
-        _timestamps: bool,
+        timestamps: bool,
     ) -> Result<String, TranscriptionError> {
+        let segments = self.transcribe_segments(pcm, language, timestamps)?;
+        Ok(segments
+            .into_iter()
+            .map(|(_, _, text)| text)
+            .collect::<Vec<_>>()
+            .join(" "))
+    }
+
+    /// Transcribe PCM audio to a sequence of `(start_ms, end_ms, text)` segments.
+    ///
+    /// The `pcm` input **must** already be 16 kHz mono f32 as produced by
+    /// [`crate::transcription::decode::decode_audio_to_pcm`]. Passing audio
+    /// at a different sample rate will produce garbage output without an error.
+    ///
+    /// For audio longer than 30 seconds the input is split into 30-second
+    /// chunks; each chunk is transcribed independently. Timestamps in the
+    /// returned segments are absolute — measured from the start of the full
+    /// `pcm` buffer, not from the start of each chunk.
+    ///
+    /// When `timestamps` is `false`, each chunk with non-empty text produces
+    /// exactly one segment spanning the chunk's full duration (there is no
+    /// finer-grained timing available without `<|x.xx|>` tokens in the
+    /// decoder output).
+    pub fn transcribe_segments(
+        &self,
+        pcm: &PcmAudio,
+        language: Option<&str>,
+        timestamps: bool,
+    ) -> Result<Vec<(u32, u32, String)>, TranscriptionError> {
         if pcm.samples.is_empty() {
-            return Ok(String::new());
+            return Ok(Vec::new());
         }
 
         let lang = language.unwrap_or("en");
+        let ms_per_sample = 1000_f64 / pcm.sample_rate_hz.max(1) as f64;
 
-        let mut parts: Vec<String> = Vec::new();
+        let mut segments: Vec<(u32, u32, String)> = Vec::new();
         let mut offset = 0_usize;
 
         loop {
@@ -302,10 +434,15 @@ impl WhisperEngine {
 
             let chunk_end = (offset + WHISPER_CHUNK_SAMPLES).min(pcm.samples.len());
             let chunk = &pcm.samples[offset..chunk_end];
+            let chunk_offset_ms = (offset as f64 * ms_per_sample) as u32;
+            let chunk_duration_ms = ((chunk_end - offset) as f64 * ms_per_sample) as u32;
 
-            let text = self.transcribe_chunk(chunk, lang)?;
-            if !text.is_empty() {
-                parts.push(text);
+            let chunk_segments = self.transcribe_chunk(chunk, lang, timestamps, chunk_duration_ms)?;
+            for (start_ms, end_ms, text) in chunk_segments {
+                if text.is_empty() {
+                    continue;
+                }
+                segments.push((chunk_offset_ms + start_ms, chunk_offset_ms + end_ms, text));
             }
 
             offset += WHISPER_CHUNK_SAMPLES;
@@ -314,14 +451,26 @@ impl WhisperEngine {
             }
         }
 
-        Ok(parts.join(" "))
+        Ok(segments)
     }
 
     /// Transcribe a single chunk of PCM (at most 30 seconds of audio).
     ///
     /// The chunk is zero-padded to exactly [`WHISPER_CHUNK_SAMPLES`] samples
     /// so that the encoder always receives a `[1, n_mels, 3000]` tensor.
-    fn transcribe_chunk(&self, chunk: &[f32], lang: &str) -> Result<String, TranscriptionError> {
+    ///
+    /// Returns chunk-relative `(start_ms, end_ms, text)` segments — relative
+    /// to the start of *this* chunk, not the overall PCM buffer. When
+    /// `timestamps` is `false`, or the model fails to emit a complete
+    /// timestamp pair, this returns a single segment spanning
+    /// `0..chunk_duration_ms`.
+    fn transcribe_chunk(
+        &self,
+        chunk: &[f32],
+        lang: &str,
+        timestamps: bool,
+        chunk_duration_ms: u32,
+    ) -> Result<Vec<(u32, u32, String)>, TranscriptionError> {
         let padded = if chunk.len() == WHISPER_CHUNK_SAMPLES {
             chunk.to_vec()
         } else {
@@ -335,21 +484,53 @@ impl WhisperEngine {
         let encoder_hidden_states = self.run_encoder(mel_flat)?;
 
         let lang_id = self.special_tokens.language_id(lang);
-        let prompt: Vec<i64> = vec![
-            self.special_tokens.start_of_transcript as i64,
-            lang_id as i64,
-            self.special_tokens.transcribe as i64,
-            self.special_tokens.no_timestamps as i64,
-        ];
+        let prompt = build_decoder_prompt_tokens(
+            self.special_tokens.start_of_transcript,
+            lang_id,
+            self.special_tokens.transcribe,
+            self.special_tokens.no_timestamps,
+            timestamps,
+        );
 
         let token_ids = self.greedy_decode(prompt, &encoder_hidden_states)?;
 
+        if timestamps {
+            let timed = parse_timestamped_segments(&token_ids, self.special_tokens.timestamp_begin);
+            if !timed.is_empty() {
+                let mut out = Vec::with_capacity(timed.len());
+                for (start_id, end_id, text_tokens) in timed {
+                    let text = self
+                        .tokenizer
+                        .decode(&text_tokens, true)
+                        .map_err(|e| TranscriptionError::Tokenizer(e.to_string()))?;
+                    let start_ms = timestamp_token_to_ms(start_id, self.special_tokens.timestamp_begin);
+                    let end_ms = timestamp_token_to_ms(end_id, self.special_tokens.timestamp_begin);
+                    out.push((start_ms, end_ms, text.trim().to_string()));
+                }
+                return Ok(out);
+            }
+            // Fall through: the model didn't emit a complete timestamp pair
+            // (e.g. it hit WHISPER_MAX_TOKENS before closing a segment).
+            // Decode everything, dropping any stray timestamp tokens
+            // ourselves — they are ordinary vocabulary entries in the
+            // tokenizer (not marked `special`), so `skip_special_tokens`
+            // would not filter them out.
+        }
+
+        let timestamp_begin = self.special_tokens.timestamp_begin;
+        let filtered_ids: Vec<u32> = token_ids.into_iter().filter(|&t| t < timestamp_begin).collect();
+
         let text = self
             .tokenizer
-            .decode(&token_ids, true)
+            .decode(&filtered_ids, true)
             .map_err(|e| TranscriptionError::Tokenizer(e.to_string()))?;
+        let text = text.trim().to_string();
 
-        Ok(text.trim().to_string())
+        if text.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Ok(vec![(0, chunk_duration_ms, text)])
+        }
     }
 
     /// Compute the Whisper log-mel spectrogram for a 30-second padded chunk.

@@ -12,7 +12,9 @@ use crate::extraction::capacity;
 /// - The first row is treated as the header row
 /// - A separator row is inserted after the header
 /// - Pipe characters (`|`) in cell content are automatically escaped with backslash
-/// - Irregular tables (rows with varying column counts) are padded with empty cells to match the header
+/// - Line breaks in cell content become `<br>` so a cell cannot end its own row
+/// - Irregular tables (rows with varying column counts) are normalised to the widest row: short rows
+///   are padded with empty cells and no cell of an over-wide row is discarded
 /// - Returns an empty string for empty input
 ///
 /// # Arguments
@@ -35,7 +37,7 @@ use crate::extraction::capacity;
 ///
 /// let markdown = cells_to_markdown(&cells);
 /// assert!(markdown.contains("| Name | Age |"));
-/// assert!(markdown.contains("|------|------|"));
+/// assert!(markdown.contains("| --- | --- |"));
 /// ```
 ///
 /// Converts a 2D vector of cell strings into plain text with tab-separated columns.
@@ -78,53 +80,19 @@ pub(crate) fn cells_to_text(cells: &[Vec<String>]) -> String {
     text
 }
 
+/// Delegates to the crate's single table renderer
+/// ([`crate::rendering::common::render_table_markdown`]) so office/XML
+/// extractors emit byte-identical tables to every other source
+/// (xberg-io/xberg#220).
+///
+/// This wrapper previously sized the grid from the *header* row and dropped any
+/// cell past that width, silently losing data from rows wider than their header
+/// (xberg-io/xberg#221). The shared renderer sizes from the widest row.
 pub(crate) fn cells_to_markdown(cells: &[Vec<String>]) -> String {
-    if cells.is_empty() {
-        return String::new();
-    }
-
-    let num_cols = cells.first().map(|r| r.len()).unwrap_or(0);
-    if num_cols == 0 {
-        return String::new();
-    }
-
+    let num_cols = cells.iter().map(Vec::len).max().unwrap_or(0);
     let estimated_capacity = capacity::estimate_table_markdown_capacity(cells.len(), num_cols);
     let mut markdown = String::with_capacity(estimated_capacity);
-
-    if let Some(header) = cells.first() {
-        markdown.push('|');
-        for cell in header {
-            markdown.push(' ');
-            let escaped = cell.replace('|', "\\|");
-            markdown.push_str(&escaped);
-            markdown.push_str(" |");
-        }
-        markdown.push('\n');
-
-        markdown.push('|');
-        for _ in 0..num_cols {
-            markdown.push_str("------|");
-        }
-        markdown.push('\n');
-    }
-
-    for row in cells.iter().skip(1) {
-        markdown.push('|');
-        for (idx, cell) in row.iter().enumerate() {
-            if idx >= num_cols {
-                break;
-            }
-            markdown.push(' ');
-            let escaped = cell.replace('|', "\\|");
-            markdown.push_str(&escaped);
-            markdown.push_str(" |");
-        }
-        for _ in row.len()..num_cols {
-            markdown.push_str(" |");
-        }
-        markdown.push('\n');
-    }
-
+    crate::rendering::common::render_table_markdown_into(&mut markdown, cells);
     markdown
 }
 
@@ -143,12 +111,42 @@ mod tests {
         let markdown = cells_to_markdown(&cells);
 
         assert!(markdown.contains("| Header1 | Header2 |"));
-        assert!(markdown.contains("|------|------|"));
+        assert!(markdown.contains("| --- | --- |"));
         assert!(markdown.contains("| Row1Col1 | Row1Col2 |"));
         assert!(markdown.contains("| Row2Col1 | Row2Col2 |"));
 
         let lines: Vec<&str> = markdown.lines().collect();
         assert_eq!(lines.len(), 4);
+    }
+
+    /// xberg-io/xberg#221: this function sized the grid from the header row and
+    /// `break`-ed out of any wider data row, discarding the overflow cells. It
+    /// is the only call site where the loss was unrecoverable, so it gets an
+    /// exact-value test of its own.
+    #[test]
+    fn should_keep_every_cell_when_row_is_wider_than_header() {
+        let cells = vec![
+            vec!["A".to_string(), "B".to_string()],
+            vec!["1".to_string(), "2".to_string(), "3".to_string()],
+        ];
+
+        let markdown = cells_to_markdown(&cells);
+
+        assert_eq!(markdown, "| A | B |  |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n");
+        assert!(markdown.contains(" 3 "), "the overflow cell must survive: {markdown}");
+    }
+
+    /// xberg-io/xberg#163: cell content must not be able to end its own row.
+    #[test]
+    fn should_escape_pipes_and_line_breaks_in_cells() {
+        let cells = vec![
+            vec!["H1".to_string(), "H2".to_string()],
+            vec!["a|b".to_string(), "x\ny".to_string()],
+        ];
+
+        let markdown = cells_to_markdown(&cells);
+
+        assert_eq!(markdown, "| H1 | H2 |\n| --- | --- |\n| a\\|b | x<br>y |\n");
     }
 
     #[test]
@@ -188,7 +186,7 @@ mod tests {
 
         assert!(markdown.contains("| H1 | H2 | H3 |"));
 
-        assert!(markdown.contains("| R1C1 | R1C2 | |"));
+        assert!(markdown.contains("| R1C1 | R1C2 |  |"));
 
         let lines: Vec<&str> = markdown.lines().filter(|l| !l.is_empty()).collect();
         let pipe_counts: Vec<usize> = lines
@@ -205,7 +203,7 @@ mod tests {
         let markdown = cells_to_markdown(&cells);
 
         assert!(markdown.contains("| OnlyHeader |"));
-        assert!(markdown.contains("|------|"));
+        assert!(markdown.contains("| --- |"));
 
         let lines: Vec<&str> = markdown.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -222,7 +220,7 @@ mod tests {
         let markdown = cells_to_markdown(&cells);
 
         assert!(markdown.contains("| Header |"));
-        assert!(markdown.contains("|------|"));
+        assert!(markdown.contains("| --- |"));
         assert!(markdown.contains("| Data1 |"));
         assert!(markdown.contains("| Data2 |"));
     }

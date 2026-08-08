@@ -123,7 +123,14 @@ fn extract_pdf_specific_metadata(
 }
 
 /// Extract common document metadata (title, author, keywords, dates, creator)
-/// from the PDF Info dictionary.
+/// from the PDF Info dictionary, falling back to XMP metadata for any field
+/// the Info dictionary leaves empty (issue #65).
+///
+/// Modern PDFs (commonly those produced by web exporters, office suites, or
+/// design tools) often carry a sparse or empty Info dictionary and put the
+/// authoritative metadata in the XMP packet instead (ISO 32000-1:2008
+/// §14.3.2). Only fields absent from the Info dict are filled from XMP, so a
+/// document's Info dict always wins where both are present.
 fn extract_common_metadata(doc: &mut OxideDocument) -> Result<CommonPdfMetadata> {
     let title = get_info_string(&mut doc.doc, "Title");
     let subject = get_info_string(&mut doc.doc, "Subject");
@@ -140,6 +147,19 @@ fn extract_common_metadata(doc: &mut OxideDocument) -> Result<CommonPdfMetadata>
     let created_at = get_info_string(&mut doc.doc, "CreationDate").map(|d| parse_pdf_date(&d));
     let modified_at = get_info_string(&mut doc.doc, "ModDate").map(|d| parse_pdf_date(&d));
 
+    let xmp = extract_xmp_metadata(&doc.doc);
+
+    let title = title.or_else(|| xmp.as_ref().and_then(|x| non_empty(x.dc_title.clone())));
+    // Adobe's XMP mapping convention: Info /Subject <-> dc:description (a
+    // single descriptive string), distinct from dc:subject (a keyword bag,
+    // mapped to Keywords below).
+    let subject = subject.or_else(|| xmp.as_ref().and_then(|x| non_empty(x.dc_description.clone())));
+    let created_by = created_by.or_else(|| xmp.as_ref().and_then(|x| non_empty(x.xmp_creator_tool.clone())));
+    let authors = authors.or_else(|| xmp.as_ref().map(|x| x.dc_creator.clone()).filter(|c| !c.is_empty()));
+    let keywords = keywords.or_else(|| xmp.as_ref().map(|x| x.dc_subject.clone()).filter(|s| !s.is_empty()));
+    let created_at = created_at.or_else(|| xmp.as_ref().and_then(|x| non_empty(x.xmp_create_date.clone())));
+    let modified_at = modified_at.or_else(|| xmp.as_ref().and_then(|x| non_empty(x.xmp_modify_date.clone())));
+
     Ok(CommonPdfMetadata {
         title,
         subject,
@@ -149,6 +169,59 @@ fn extract_common_metadata(doc: &mut OxideDocument) -> Result<CommonPdfMetadata>
         modified_at,
         created_by,
     })
+}
+
+/// `None` for `None`/empty strings, otherwise `Some`. XMP fields are optional
+/// strings that may legally be present-but-empty; treat that the same as absent.
+fn non_empty(value: Option<String>) -> Option<String> {
+    value.filter(|s| !s.trim().is_empty())
+}
+
+/// Extract XMP metadata (ISO 32000-1:2008 §14.3.2) from the document catalog's
+/// `/Metadata` stream, if present (issue #65).
+///
+/// Returns `None` when the document has no `/Metadata` entry, the XMP packet
+/// could not be parsed, or it parsed but carried no recognized fields — all
+/// non-error outcomes; XMP is optional and most PDFs of any age lack it.
+fn extract_xmp_metadata(doc: &pdf_oxide::PdfDocument) -> Option<pdf_oxide::extractors::xmp::XmpMetadata> {
+    match pdf_oxide::extractors::xmp::XmpExtractor::extract(doc) {
+        Ok(Some(xmp)) if !xmp.is_empty() => Some(xmp),
+        Ok(_) => None,
+        Err(e) => {
+            tracing::debug!("pdf_oxide: XMP extraction failed: {e}");
+            None
+        }
+    }
+}
+
+/// Extract per-page display labels from `/PageLabels` (ISO 32000-1:2008
+/// §12.4.2) — e.g. roman-numeral front matter followed by arabic body pages,
+/// or per-section prefixed numbering (issue #66).
+///
+/// Returns `None` when the document defines no `/PageLabels` (the common
+/// case), in which case every page uses its plain 1-based number, which
+/// callers already have via `page_count`/`PageBoundary::page_number`.
+pub(crate) fn extract_page_labels_all(doc: &mut OxideDocument) -> Result<Option<Vec<String>>> {
+    let page_count = doc
+        .doc
+        .page_count()
+        .map_err(|e| PdfError::MetadataExtractionFailed(format!("Failed to get page count for page labels: {}", e)))?;
+
+    let ranges = match pdf_oxide::extractors::page_labels::PageLabelExtractor::extract(&doc.doc) {
+        Ok(ranges) => ranges,
+        Err(e) => {
+            tracing::debug!("pdf_oxide: page label extraction failed: {e}");
+            return Ok(None);
+        }
+    };
+
+    if ranges.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(
+        pdf_oxide::extractors::page_labels::PageLabelExtractor::get_all_labels(&ranges, page_count),
+    ))
 }
 
 /// Retrieve a string value from the PDF Info dictionary.
@@ -183,7 +256,10 @@ fn get_info_string(doc: &mut pdf_oxide::PdfDocument, key: &str) -> Option<String
 ///
 /// Handles UTF-16BE encoding (BOM: 0xFE 0xFF) and falls back to Latin-1
 /// (PDFDocEncoding) for byte strings without a BOM.
-fn decode_pdf_string(bytes: &[u8]) -> Option<String> {
+///
+/// `pub(crate)` so other oxide submodules (e.g. `hierarchy`'s `/Alt` text
+/// reader, issue #62) can reuse this decoding instead of duplicating it.
+pub(crate) fn decode_pdf_string(bytes: &[u8]) -> Option<String> {
     if bytes.is_empty() {
         return None;
     }

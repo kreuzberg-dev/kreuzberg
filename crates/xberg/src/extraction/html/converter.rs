@@ -187,7 +187,10 @@ fn extract_tables_from_document(result: &html_to_markdown_rs::types::ConversionR
                         .iter()
                         .map(|c| (c.row, c.row_span, c.col_span, c.content.clone())),
                 );
-                let markdown = cells_to_markdown(&cells_2d);
+                // Single crate-wide table renderer, so an HTML table serialises
+                // identically to the same table from any other source
+                // (xberg-io/xberg#220).
+                let markdown = crate::rendering::common::render_table_markdown(&cells_2d);
                 Some(TableData {
                     grid: grid.clone(),
                     markdown,
@@ -197,31 +200,6 @@ fn extract_tables_from_document(result: &html_to_markdown_rs::types::ConversionR
             }
         })
         .collect()
-}
-
-/// Build a simple markdown table string from a 2D cell grid.
-fn cells_to_markdown(cells: &[Vec<String>]) -> String {
-    if cells.is_empty() {
-        return String::new();
-    }
-    let mut out = String::new();
-    for (i, row) in cells.iter().enumerate() {
-        out.push('|');
-        for cell in row {
-            out.push(' ');
-            out.push_str(cell);
-            out.push_str(" |");
-        }
-        out.push('\n');
-        if i == 0 {
-            out.push('|');
-            for _ in row {
-                out.push_str(" --- |");
-            }
-            out.push('\n');
-        }
-    }
-    out
 }
 
 /// Extract inline images (data URIs and SVGs) from HTML.

@@ -19,6 +19,7 @@ use crate::Result;
 use crate::types::entity::{Entity, EntityCategory};
 
 use super::backend::NerBackend;
+use super::offsets;
 
 /// Hugging Face repository that stores xberg-managed GLiNER ONNX exports.
 pub const GLINER_MODELS_REPO: &str = "xberg-io/gliner-models";
@@ -45,6 +46,13 @@ pub const KNOWN_MODELS: &[&str] = &["gliner_small-v2.5", "gliner_medium-v2.5", "
 
 /// Default entity labels used when the caller supplies an empty `categories` slice.
 const DEFAULT_LABELS: &[&str] = &["person", "organization", "location", "date", "email"];
+
+/// Number of windows submitted to one GLiNER inference call.
+///
+/// Must stay at or below `xberg_gliner`'s own batch cap (32). Kept well under it
+/// so a long document's windows are processed in bounded-memory groups instead
+/// of one enormous padded batch.
+const WINDOW_BATCH_SIZE: usize = 8;
 
 type BackendCache = AHashMap<GlineBackendCacheKey, Arc<GlineBackend>>;
 
@@ -311,11 +319,17 @@ fn default_labels() -> Vec<String> {
     DEFAULT_LABELS.iter().map(|label| (*label).to_string()).collect()
 }
 
+/// Narrow a GLiNER byte offset to the `u32` the entity type carries.
+///
+/// `text` is only used for its length: the matched span is the PII this
+/// pipeline exists to hide, so it must never reach an error message, a log
+/// line, or telemetry.
 fn checked_offset_to_u32(offset: usize, field: &str, text: &str, class: &str) -> Result<u32> {
     u32::try_from(offset).map_err(|error| {
+        let span_len = text.len();
         crate::XbergError::validation_with_source(
             format!(
-                "GLiNER returned {field} offset {offset} for class '{class}' in span '{text}', \
+                "GLiNER returned {field} offset {offset} for class '{class}' in a {span_len}-byte span, \
                  which exceeds the u32 entity offset limit"
             ),
             error,
@@ -378,6 +392,10 @@ pub struct GlineBackend {
     /// Local path to the cached tokenizer file.
     pub tokenizer_path: PathBuf,
     model: Arc<Gliner>,
+    /// Word-token budget of a single inference call, taken from the
+    /// `Parameters` this model was built with. Input longer than this is
+    /// windowed rather than truncated (xberg-io/xberg#262).
+    window_tokens: usize,
 }
 
 impl GlineBackend {
@@ -394,8 +412,12 @@ impl GlineBackend {
     fn new_with_thread_budget(model_name: Option<&str>, thread_budget: usize) -> Result<Self> {
         let requested = requested_model_name(model_name)?;
         let files = ensure_model(&requested, None)?;
+        let parameters = Parameters::default();
+        // `TokenizedInput::from` truncates the word stream at `max_length`, so this
+        // is the hard ceiling a single inference call can actually see. ~keep
+        let window_tokens = parameters.max_length.unwrap_or(offsets::GLINER_WINDOW_TOKENS);
         let gliner = Gliner::with_runtime(
-            Parameters::default(),
+            parameters,
             RuntimeConfig::default().with_intra_threads(thread_budget),
             &files.tokenizer_path,
             &files.model_path,
@@ -409,6 +431,7 @@ impl GlineBackend {
             model_path: files.model_path,
             tokenizer_path: files.tokenizer_path,
             model: Arc::new(gliner),
+            window_tokens,
         })
     }
 }
@@ -444,59 +467,88 @@ impl NerBackend for GlineBackend {
 }
 
 impl GlineBackend {
+    /// Run inference over `text`, windowing it so nothing past the model's word
+    /// budget is silently dropped.
+    ///
+    /// The GLiNER preprocessor truncates its input at `Parameters::max_length`
+    /// words. Feeding a long document in one call therefore returned entities
+    /// for the head only, and the PII in the tail was never redacted
+    /// (xberg-io/xberg#262). Windows overlap so a mention on a boundary is
+    /// still seen whole by one of them, and the per-window spans are folded
+    /// back into source coordinates by
+    /// [`offsets::merge_windowed_entities`].
     async fn detect_labels(&self, text: &str, labels: Vec<String>) -> Result<Vec<Entity>> {
         if text.trim().is_empty() {
             return Ok(Vec::new());
         }
 
-        let text = text.to_string();
+        let windows = offsets::split_into_windows(text, self.window_tokens, offsets::GLINER_WINDOW_OVERLAP_TOKENS);
+        if windows.is_empty() {
+            return Ok(Vec::new());
+        }
+        let window_offsets: Vec<usize> = windows.iter().map(|window| window.byte_offset).collect();
+
         let backend = Arc::clone(&self.model);
         let model_path = self.model_path.clone();
         let tokenizer_path = self.tokenizer_path.clone();
 
-        tokio::task::spawn_blocking(move || {
+        let per_window = tokio::task::spawn_blocking(move || -> Result<Vec<Vec<Entity>>> {
             let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
-            let input =
-                TextInput::from_str(&[text.as_str()], &label_refs).map_err(|error| crate::XbergError::Plugin {
+            let mut per_window: Vec<Vec<Entity>> = Vec::with_capacity(windows.len());
+
+            for batch in windows.chunks(WINDOW_BATCH_SIZE) {
+                let texts: Vec<&str> = batch.iter().map(|window| window.text.as_str()).collect();
+                let input = TextInput::from_str(&texts, &label_refs).map_err(|error| crate::XbergError::Plugin {
                     message: format!("Failed to build GLiNER input: {error}"),
                     plugin_name: "ner-gliner".to_string(),
                 })?;
-            let output = backend.inference(input).map_err(|error| crate::XbergError::Plugin {
-                message: format!(
-                    "GLiNER inference failed for model '{}' (tokenizer '{}'): {error}",
-                    model_path.display(),
-                    tokenizer_path.display()
-                ),
-                plugin_name: "ner-gliner".to_string(),
-            })?;
+                let output = backend.inference(input).map_err(|error| crate::XbergError::Plugin {
+                    message: format!(
+                        "GLiNER inference failed for model '{}' (tokenizer '{}'): {error}",
+                        model_path.display(),
+                        tokenizer_path.display()
+                    ),
+                    plugin_name: "ner-gliner".to_string(),
+                })?;
 
-            let entities = output
-                .spans
-                .into_iter()
-                .next()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|span| {
-                    let (start, end) = span.offsets();
-                    let start = checked_offset_to_u32(start, "start", span.text(), span.class())?;
-                    let end = checked_offset_to_u32(end, "end", span.text(), span.class())?;
-                    Ok(Entity {
-                        category: label_to_category(span.class()),
-                        text: span.text().to_string(),
-                        start,
-                        end,
-                        confidence: Some(span.probability()),
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-            Ok(entities)
+                // One span list per batched window; pad if the engine returns fewer so
+                // window offsets stay aligned with their detections. ~keep
+                let mut batch_spans = output.spans;
+                batch_spans.resize_with(batch.len(), Vec::new);
+                for spans in batch_spans.into_iter().take(batch.len()) {
+                    per_window.push(spans_to_entities(spans)?);
+                }
+            }
+
+            Ok(per_window)
         })
         .await
         .map_err(|error| crate::XbergError::Plugin {
             message: format!("GLiNER spawn_blocking task panicked: {error}"),
             plugin_name: "ner-gliner".to_string(),
-        })?
+        })??;
+
+        Ok(offsets::merge_windowed_entities(&window_offsets, per_window))
     }
+}
+
+/// Convert one window's decoded spans into window-relative entities.
+fn spans_to_entities(spans: Vec<xberg_gliner::Span>) -> Result<Vec<Entity>> {
+    spans
+        .into_iter()
+        .map(|span| {
+            let (start, end) = span.offsets();
+            let start = checked_offset_to_u32(start, "start", span.text(), span.class())?;
+            let end = checked_offset_to_u32(end, "end", span.text(), span.class())?;
+            Ok(Entity {
+                category: label_to_category(span.class()),
+                text: span.text().to_string(),
+                start,
+                end,
+                confidence: Some(span.probability()),
+            })
+        })
+        .collect()
 }
 
 #[cfg(all(test, feature = "ner-onnx"))]

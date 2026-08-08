@@ -100,20 +100,20 @@ Add to your `pom.xml`:
 <dependency>
     <groupId>io.xberg</groupId>
     <artifactId>xberg</artifactId>
-    <version>1.0.13</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
 Kotlin DSL (`build.gradle.kts`):
 
 ```kotlin
-implementation("io.xberg:xberg:1.0.13")
+implementation("io.xberg:xberg:1.1.0")
 ```
 
 Groovy DSL (`build.gradle`):
 
 ```groovy
-implementation 'io.xberg:xberg:1.0.13'
+implementation 'io.xberg:xberg:1.1.0'
 ```
 
 ### System Requirements
@@ -367,6 +367,8 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 - **Tesseract**
 
 - **Paddleocr**
+
+- **Sceptre**
 
 ### OCR Configuration Example
 

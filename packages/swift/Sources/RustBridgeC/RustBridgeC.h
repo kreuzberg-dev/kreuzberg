@@ -346,6 +346,18 @@ void *__swift_bridge__$Vec_ContentFilterConfig$get_mut(void *vec_ptr,
 uintptr_t __swift_bridge__$Vec_ContentFilterConfig$len(void *vec_ptr);
 void *__swift_bridge__$Vec_ContentFilterConfig$as_ptr(void *vec_ptr);
 
+typedef struct CsvConfig CsvConfig;
+void __swift_bridge__$CsvConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_CsvConfig$new(void);
+void __swift_bridge__$Vec_CsvConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_CsvConfig$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_CsvConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_CsvConfig$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_CsvConfig$get_mut(void *vec_ptr, uintptr_t index);
+uintptr_t __swift_bridge__$Vec_CsvConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_CsvConfig$as_ptr(void *vec_ptr);
+
 typedef struct EmailConfig EmailConfig;
 void __swift_bridge__$EmailConfig$_free(void *self);
 
@@ -566,6 +578,74 @@ void *__swift_bridge__$Vec_LlmConfig$get(void *vec_ptr, uintptr_t index);
 void *__swift_bridge__$Vec_LlmConfig$get_mut(void *vec_ptr, uintptr_t index);
 uintptr_t __swift_bridge__$Vec_LlmConfig$len(void *vec_ptr);
 void *__swift_bridge__$Vec_LlmConfig$as_ptr(void *vec_ptr);
+
+typedef struct LlmProviderConfig LlmProviderConfig;
+void __swift_bridge__$LlmProviderConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_LlmProviderConfig$new(void);
+void __swift_bridge__$Vec_LlmProviderConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_LlmProviderConfig$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_LlmProviderConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmProviderConfig$get(void *vec_ptr,
+                                                 uintptr_t index);
+void *__swift_bridge__$Vec_LlmProviderConfig$get_mut(void *vec_ptr,
+                                                     uintptr_t index);
+uintptr_t __swift_bridge__$Vec_LlmProviderConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmProviderConfig$as_ptr(void *vec_ptr);
+
+typedef struct LlmCacheConfig LlmCacheConfig;
+void __swift_bridge__$LlmCacheConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_LlmCacheConfig$new(void);
+void __swift_bridge__$Vec_LlmCacheConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_LlmCacheConfig$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_LlmCacheConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmCacheConfig$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_LlmCacheConfig$get_mut(void *vec_ptr,
+                                                  uintptr_t index);
+uintptr_t __swift_bridge__$Vec_LlmCacheConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmCacheConfig$as_ptr(void *vec_ptr);
+
+typedef struct LlmBudgetConfig LlmBudgetConfig;
+void __swift_bridge__$LlmBudgetConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_LlmBudgetConfig$new(void);
+void __swift_bridge__$Vec_LlmBudgetConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_LlmBudgetConfig$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_LlmBudgetConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmBudgetConfig$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_LlmBudgetConfig$get_mut(void *vec_ptr,
+                                                   uintptr_t index);
+uintptr_t __swift_bridge__$Vec_LlmBudgetConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmBudgetConfig$as_ptr(void *vec_ptr);
+
+typedef struct LlmRateLimitConfig LlmRateLimitConfig;
+void __swift_bridge__$LlmRateLimitConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_LlmRateLimitConfig$new(void);
+void __swift_bridge__$Vec_LlmRateLimitConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_LlmRateLimitConfig$push(void *vec_ptr,
+                                                  void *item_ptr);
+void *__swift_bridge__$Vec_LlmRateLimitConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmRateLimitConfig$get(void *vec_ptr,
+                                                  uintptr_t index);
+void *__swift_bridge__$Vec_LlmRateLimitConfig$get_mut(void *vec_ptr,
+                                                      uintptr_t index);
+uintptr_t __swift_bridge__$Vec_LlmRateLimitConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_LlmRateLimitConfig$as_ptr(void *vec_ptr);
+
+typedef struct BedrockConfig BedrockConfig;
+void __swift_bridge__$BedrockConfig$_free(void *self);
+
+void *__swift_bridge__$Vec_BedrockConfig$new(void);
+void __swift_bridge__$Vec_BedrockConfig$drop(void *vec_ptr);
+void __swift_bridge__$Vec_BedrockConfig$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_BedrockConfig$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_BedrockConfig$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_BedrockConfig$get_mut(void *vec_ptr,
+                                                 uintptr_t index);
+uintptr_t __swift_bridge__$Vec_BedrockConfig$len(void *vec_ptr);
+void *__swift_bridge__$Vec_BedrockConfig$as_ptr(void *vec_ptr);
 
 typedef struct StructuredExtractionConfig StructuredExtractionConfig;
 void __swift_bridge__$StructuredExtractionConfig$_free(void *self);
@@ -1272,6 +1352,21 @@ void *__swift_bridge__$Vec_DocumentCounts$get_mut(void *vec_ptr,
                                                   uintptr_t index);
 uintptr_t __swift_bridge__$Vec_DocumentCounts$len(void *vec_ptr);
 void *__swift_bridge__$Vec_DocumentCounts$as_ptr(void *vec_ptr);
+
+typedef struct LanguageConfidence LanguageConfidence;
+void __swift_bridge__$LanguageConfidence$_free(void *self);
+
+void *__swift_bridge__$Vec_LanguageConfidence$new(void);
+void __swift_bridge__$Vec_LanguageConfidence$drop(void *vec_ptr);
+void __swift_bridge__$Vec_LanguageConfidence$push(void *vec_ptr,
+                                                  void *item_ptr);
+void *__swift_bridge__$Vec_LanguageConfidence$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_LanguageConfidence$get(void *vec_ptr,
+                                                  uintptr_t index);
+void *__swift_bridge__$Vec_LanguageConfidence$get_mut(void *vec_ptr,
+                                                      uintptr_t index);
+uintptr_t __swift_bridge__$Vec_LanguageConfidence$len(void *vec_ptr);
+void *__swift_bridge__$Vec_LanguageConfidence$as_ptr(void *vec_ptr);
 
 typedef struct ExtractedDocument ExtractedDocument;
 void __swift_bridge__$ExtractedDocument$_free(void *self);
@@ -3105,6 +3200,19 @@ void *__swift_bridge__$Vec_UrlExtractionMode$get_mut(void *vec_ptr,
 uintptr_t __swift_bridge__$Vec_UrlExtractionMode$len(void *vec_ptr);
 void *__swift_bridge__$Vec_UrlExtractionMode$as_ptr(void *vec_ptr);
 
+typedef struct BreadcrumbTarget BreadcrumbTarget;
+void __swift_bridge__$BreadcrumbTarget$_free(void *self);
+
+void *__swift_bridge__$Vec_BreadcrumbTarget$new(void);
+void __swift_bridge__$Vec_BreadcrumbTarget$drop(void *vec_ptr);
+void __swift_bridge__$Vec_BreadcrumbTarget$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_BreadcrumbTarget$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_BreadcrumbTarget$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_BreadcrumbTarget$get_mut(void *vec_ptr,
+                                                    uintptr_t index);
+uintptr_t __swift_bridge__$Vec_BreadcrumbTarget$len(void *vec_ptr);
+void *__swift_bridge__$Vec_BreadcrumbTarget$as_ptr(void *vec_ptr);
+
 typedef struct OutputFormat OutputFormat;
 void __swift_bridge__$OutputFormat$_free(void *self);
 
@@ -4313,12 +4421,17 @@ bool __swift_bridge__$PageClassificationConfig$multi_label(void *self);
 void *__swift_bridge__$PageClassificationConfig$llm(void *self);
 void *__swift_bridge__$ContentFilterConfig$new(bool include_headers,
                                                bool include_footers,
+                                               bool include_footnotes,
                                                bool strip_repeating_text,
                                                bool include_watermarks);
 bool __swift_bridge__$ContentFilterConfig$include_headers(void *self);
 bool __swift_bridge__$ContentFilterConfig$include_footers(void *self);
+bool __swift_bridge__$ContentFilterConfig$include_footnotes(void *self);
 bool __swift_bridge__$ContentFilterConfig$strip_repeating_text(void *self);
 bool __swift_bridge__$ContentFilterConfig$include_watermarks(void *self);
+void *__swift_bridge__$CsvConfig$new(void *delimiter, void *comment_prefixes);
+void *__swift_bridge__$CsvConfig$delimiter(void *self);
+void *__swift_bridge__$CsvConfig$comment_prefixes(void *self);
 void *__swift_bridge__$EmailConfig$new(
     struct __private__OptionU32 msg_fallback_codepage);
 struct __private__OptionU32
@@ -4336,10 +4449,11 @@ void *__swift_bridge__$ExtractionConfig$new(
     bool escape_markdown, bool table_anchors, void *jupyter_cell_rendering,
     void *layout, void *transcription, bool use_layout_for_markdown,
     bool include_document_structure, void *acceleration, void *cache_namespace,
-    struct __private__OptionU64 cache_ttl_secs, void *email, void *url,
-    uintptr_t max_archive_depth, void *tree_sitter, void *structured_extraction,
-    void *ner, void *redaction, void *summarization, void *translation,
-    void *page_classification, void *chunk_classification, void *captioning,
+    struct __private__OptionU64 cache_ttl_secs, void *email, void *csv,
+    void *url, uintptr_t max_archive_depth, void *tree_sitter,
+    void *structured_extraction, void *ner, void *redaction,
+    void *summarization, void *translation, void *page_classification,
+    void *chunk_classification, void *captioning,
     struct __private__OptionBool qr_codes);
 bool __swift_bridge__$ExtractionConfig$use_cache(void *self);
 bool __swift_bridge__$ExtractionConfig$enable_quality_processing(void *self);
@@ -4380,6 +4494,7 @@ void *__swift_bridge__$ExtractionConfig$cache_namespace(void *self);
 struct __private__OptionU64
 __swift_bridge__$ExtractionConfig$cache_ttl_secs(void *self);
 void *__swift_bridge__$ExtractionConfig$email(void *self);
+void *__swift_bridge__$ExtractionConfig$csv(void *self);
 void *__swift_bridge__$ExtractionConfig$url(void *self);
 uintptr_t __swift_bridge__$ExtractionConfig$max_archive_depth(void *self);
 void *__swift_bridge__$ExtractionConfig$tree_sitter(void *self);
@@ -4393,6 +4508,8 @@ void *__swift_bridge__$ExtractionConfig$chunk_classification(void *self);
 void *__swift_bridge__$ExtractionConfig$captioning(void *self);
 struct __private__OptionBool
 __swift_bridge__$ExtractionConfig$qr_codes(void *self);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$extraction_config_validate_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$extraction_config_needs_image_data_from_json(void *json);
 struct __private__ResultPtrAndPtr
@@ -4575,13 +4692,18 @@ __swift_bridge__$LayoutDetectionConfig$table_overlap_preference(void *self);
 void *__swift_bridge__$LayoutDetectionConfig$acceleration(void *self);
 bool __swift_bridge__$LayoutDetectionConfig$enable_chart_understanding(
     void *self);
-void *__swift_bridge__$LlmConfig$new(void *model, void *api_key, void *base_url,
-                                     struct __private__OptionU64 timeout_secs,
-                                     struct __private__OptionU32 max_retries,
-                                     struct __private__OptionF64 temperature,
-                                     struct __private__OptionU64 max_tokens,
-                                     struct __private__OptionBool load_env,
-                                     void *headers);
+void *__swift_bridge__$LlmConfig$new(
+    void *model, void *api_key, void *base_url,
+    struct __private__OptionU64 timeout_secs,
+    struct __private__OptionU32 max_retries,
+    struct __private__OptionF64 temperature,
+    struct __private__OptionU64 max_tokens,
+    struct __private__OptionBool load_env, void *headers, void *providers,
+    void *cache, void *budget, void *rate_limit,
+    struct __private__OptionBool cost_tracking,
+    struct __private__OptionBool tracing,
+    struct __private__OptionU64 cooldown_secs,
+    struct __private__OptionU64 health_check_secs, void *bedrock);
 void *__swift_bridge__$LlmConfig$model(void *self);
 void *__swift_bridge__$LlmConfig$api_key(void *self);
 void *__swift_bridge__$LlmConfig$base_url(void *self);
@@ -4591,6 +4713,59 @@ struct __private__OptionF64 __swift_bridge__$LlmConfig$temperature(void *self);
 struct __private__OptionU64 __swift_bridge__$LlmConfig$max_tokens(void *self);
 struct __private__OptionBool __swift_bridge__$LlmConfig$load_env(void *self);
 void *__swift_bridge__$LlmConfig$headers(void *self);
+void *__swift_bridge__$LlmConfig$providers(void *self);
+void *__swift_bridge__$LlmConfig$cache(void *self);
+void *__swift_bridge__$LlmConfig$budget(void *self);
+void *__swift_bridge__$LlmConfig$rate_limit(void *self);
+struct __private__OptionBool
+__swift_bridge__$LlmConfig$cost_tracking(void *self);
+struct __private__OptionBool __swift_bridge__$LlmConfig$tracing(void *self);
+struct __private__OptionU64
+__swift_bridge__$LlmConfig$cooldown_secs(void *self);
+struct __private__OptionU64
+__swift_bridge__$LlmConfig$health_check_secs(void *self);
+void *__swift_bridge__$LlmConfig$bedrock(void *self);
+void *__swift_bridge__$LlmProviderConfig$new(void *name, void *base_url,
+                                             void *auth_header,
+                                             void *model_prefixes);
+void *__swift_bridge__$LlmProviderConfig$name(void *self);
+void *__swift_bridge__$LlmProviderConfig$base_url(void *self);
+void *__swift_bridge__$LlmProviderConfig$auth_header(void *self);
+void *__swift_bridge__$LlmProviderConfig$model_prefixes(void *self);
+void *
+__swift_bridge__$LlmCacheConfig$new(struct __private__OptionUsize max_entries,
+                                    struct __private__OptionU64 ttl_seconds,
+                                    void *backend, void *backend_config);
+struct __private__OptionUsize
+__swift_bridge__$LlmCacheConfig$max_entries(void *self);
+struct __private__OptionU64
+__swift_bridge__$LlmCacheConfig$ttl_seconds(void *self);
+void *__swift_bridge__$LlmCacheConfig$backend(void *self);
+void *__swift_bridge__$LlmCacheConfig$backend_config(void *self);
+void *
+__swift_bridge__$LlmBudgetConfig$new(struct __private__OptionF64 global_limit,
+                                     void *model_limits, void *enforcement);
+struct __private__OptionF64
+__swift_bridge__$LlmBudgetConfig$global_limit(void *self);
+void *__swift_bridge__$LlmBudgetConfig$model_limits(void *self);
+void *__swift_bridge__$LlmBudgetConfig$enforcement(void *self);
+void *__swift_bridge__$LlmRateLimitConfig$new(
+    struct __private__OptionU32 rpm, struct __private__OptionU64 tpm,
+    struct __private__OptionU64 window_seconds);
+struct __private__OptionU32 __swift_bridge__$LlmRateLimitConfig$rpm(void *self);
+struct __private__OptionU64 __swift_bridge__$LlmRateLimitConfig$tpm(void *self);
+struct __private__OptionU64
+__swift_bridge__$LlmRateLimitConfig$window_seconds(void *self);
+void *__swift_bridge__$BedrockConfig$new(void *region,
+                                         void *cross_region_prefix,
+                                         void *access_key_id,
+                                         void *secret_access_key,
+                                         void *session_token);
+void *__swift_bridge__$BedrockConfig$region(void *self);
+void *__swift_bridge__$BedrockConfig$cross_region_prefix(void *self);
+void *__swift_bridge__$BedrockConfig$access_key_id(void *self);
+void *__swift_bridge__$BedrockConfig$secret_access_key(void *self);
+void *__swift_bridge__$BedrockConfig$session_token(void *self);
 void *__swift_bridge__$StructuredExtractionConfig$schema(void *self);
 void *__swift_bridge__$StructuredExtractionConfig$schema_name(void *self);
 void *
@@ -4725,19 +4900,24 @@ void *__swift_bridge__$PostProcessorConfig$enabled_set(void *self);
 void *__swift_bridge__$PostProcessorConfig$disabled_set(void *self);
 void *__swift_bridge__$ChunkingConfig$new(
     uintptr_t max_characters, uintptr_t overlap, bool trim, void *chunker_type,
-    void *embedding, void *preset, void *sizing, bool prepend_heading_context,
-    struct __private__OptionF32 topic_threshold, void *table_chunking);
+    void *embedding, void *sparse_embedding, void *late_interaction,
+    void *preset, void *sizing, bool prepend_heading_context,
+    struct __private__OptionF32 topic_threshold, void *table_chunking,
+    void *breadcrumb_target);
 uintptr_t __swift_bridge__$ChunkingConfig$max_characters(void *self);
 uintptr_t __swift_bridge__$ChunkingConfig$overlap(void *self);
 bool __swift_bridge__$ChunkingConfig$trim(void *self);
 void *__swift_bridge__$ChunkingConfig$chunker_type(void *self);
 void *__swift_bridge__$ChunkingConfig$embedding(void *self);
+void *__swift_bridge__$ChunkingConfig$sparse_embedding(void *self);
+void *__swift_bridge__$ChunkingConfig$late_interaction(void *self);
 void *__swift_bridge__$ChunkingConfig$preset(void *self);
 void *__swift_bridge__$ChunkingConfig$sizing(void *self);
 bool __swift_bridge__$ChunkingConfig$prepend_heading_context(void *self);
 struct __private__OptionF32
 __swift_bridge__$ChunkingConfig$topic_threshold(void *self);
 void *__swift_bridge__$ChunkingConfig$table_chunking(void *self);
+void *__swift_bridge__$ChunkingConfig$breadcrumb_target(void *self);
 void *__swift_bridge__$EmbeddingConfig$new(
     void *model, bool normalize, uintptr_t batch_size,
     bool show_download_progress, void *cache_dir, void *acceleration,
@@ -4873,6 +5053,8 @@ void *__swift_bridge__$StructuredDataResult$content(void *self);
 void *__swift_bridge__$StructuredDataResult$format(void *self);
 void *__swift_bridge__$StructuredDataResult$metadata(void *self);
 void *__swift_bridge__$StructuredDataResult$text_fields(void *self);
+void *__swift_bridge__$StructuredDataResult$value(void *self);
+void *__swift_bridge__$StructuredDataResult$flattened(void *self);
 void *__swift_bridge__$DocxAppProperties$new(
     void *application, void *app_version, void *template,
     struct __private__OptionI32 total_time, struct __private__OptionI32 pages,
@@ -5011,7 +5193,7 @@ void *__swift_bridge__$TokenReductionConfig$new(
     bool preserve_code, float semantic_threshold, bool enable_parallel,
     bool use_simd, void *custom_stopwords, void *preserve_patterns,
     struct __private__OptionF32 target_reduction,
-    bool enable_semantic_clustering);
+    bool enable_semantic_clustering, bool preserve_important_words);
 void *__swift_bridge__$TokenReductionConfig$level(void *self);
 void *__swift_bridge__$TokenReductionConfig$language_hint(void *self);
 bool __swift_bridge__$TokenReductionConfig$preserve_markdown(void *self);
@@ -5025,6 +5207,7 @@ struct __private__OptionF32
 __swift_bridge__$TokenReductionConfig$target_reduction(void *self);
 bool __swift_bridge__$TokenReductionConfig$enable_semantic_clustering(
     void *self);
+bool __swift_bridge__$TokenReductionConfig$preserve_important_words(void *self);
 uintptr_t __swift_bridge__$PatternMatch$start(void *self);
 uintptr_t __swift_bridge__$PatternMatch$end(void *self);
 void *__swift_bridge__$PatternMatch$category(void *self);
@@ -5047,6 +5230,12 @@ void *__swift_bridge__$PdfAnnotation$annotation_type(void *self);
 void *__swift_bridge__$PdfAnnotation$content(void *self);
 uint32_t __swift_bridge__$PdfAnnotation$page_number(void *self);
 void *__swift_bridge__$PdfAnnotation$bounding_box(void *self);
+void *__swift_bridge__$PdfAnnotation$author(void *self);
+void *__swift_bridge__$PdfAnnotation$modified(void *self);
+void *__swift_bridge__$PdfAnnotation$color(void *self);
+void *__swift_bridge__$PdfAnnotation$subject(void *self);
+void *__swift_bridge__$PdfAnnotation$quad_points(void *self);
+void *__swift_bridge__$PdfAnnotation$marked_text(void *self);
 uint32_t __swift_bridge__$PageClassification$page_number(void *self);
 void *__swift_bridge__$PageClassification$labels(void *self);
 void *__swift_bridge__$ClassificationLabel$label(void *self);
@@ -5124,17 +5313,23 @@ void *__swift_bridge__$DocumentCounts$new(uintptr_t pages, uintptr_t tables,
 uintptr_t __swift_bridge__$DocumentCounts$pages(void *self);
 uintptr_t __swift_bridge__$DocumentCounts$tables(void *self);
 uintptr_t __swift_bridge__$DocumentCounts$images(void *self);
+void *__swift_bridge__$LanguageConfidence$language(void *self);
+double __swift_bridge__$LanguageConfidence$confidence(void *self);
+double __swift_bridge__$LanguageConfidence$proportion(void *self);
+void *__swift_bridge__$LanguageConfidence$script(void *self);
+bool __swift_bridge__$LanguageConfidence$reliable(void *self);
 void *__swift_bridge__$ExtractedDocument$new(
     void *content, void *mime_type, void *metadata, void *extraction_method,
-    void *tables, void *counts, void *detected_languages, void *chunks,
-    void *images, void *pages, void *elements, void *djot_content,
-    void *ocr_elements, void *document, void *extracted_keywords,
+    void *tables, void *counts, void *detected_languages,
+    void *detected_language_confidences, void *chunks, void *images,
+    void *pages, void *elements, void *djot_content, void *ocr_elements,
+    void *document, void *extracted_keywords,
     struct __private__OptionF64 quality_score, void *processing_warnings,
     void *annotations, void *children, void *uris, void *revisions,
     void *structured_output, void *code_intelligence, void *llm_usage,
     void *entities, void *summary, void *extraction_confidence,
     void *translation, void *page_classifications, void *redaction_report,
-    void *formulas, void *form_fields, void *formatted_content);
+    void *formulas, void *form_fields);
 void *__swift_bridge__$ExtractedDocument$content(void *self);
 void *__swift_bridge__$ExtractedDocument$mime_type(void *self);
 void *__swift_bridge__$ExtractedDocument$metadata(void *self);
@@ -5142,6 +5337,8 @@ void *__swift_bridge__$ExtractedDocument$extraction_method(void *self);
 void *__swift_bridge__$ExtractedDocument$tables(void *self);
 void *__swift_bridge__$ExtractedDocument$counts(void *self);
 void *__swift_bridge__$ExtractedDocument$detected_languages(void *self);
+void *
+__swift_bridge__$ExtractedDocument$detected_language_confidences(void *self);
 void *__swift_bridge__$ExtractedDocument$chunks(void *self);
 void *__swift_bridge__$ExtractedDocument$images(void *self);
 void *__swift_bridge__$ExtractedDocument$pages(void *self);
@@ -5168,7 +5365,6 @@ void *__swift_bridge__$ExtractedDocument$page_classifications(void *self);
 void *__swift_bridge__$ExtractedDocument$redaction_report(void *self);
 void *__swift_bridge__$ExtractedDocument$formulas(void *self);
 void *__swift_bridge__$ExtractedDocument$form_fields(void *self);
-void *__swift_bridge__$ExtractedDocument$formatted_content(void *self);
 void *__swift_bridge__$ArchiveEntry$path(void *self);
 void *__swift_bridge__$ArchiveEntry$mime_type(void *self);
 void *__swift_bridge__$ArchiveEntry$result(void *self);
@@ -5191,6 +5387,8 @@ void *__swift_bridge__$LlmUsage$finish_reason(void *self);
 void *__swift_bridge__$Chunk$content(void *self);
 void *__swift_bridge__$Chunk$chunk_type(void *self);
 void *__swift_bridge__$Chunk$embedding(void *self);
+void *__swift_bridge__$Chunk$sparse_embedding(void *self);
+void *__swift_bridge__$Chunk$late_interaction(void *self);
 void *__swift_bridge__$Chunk$metadata(void *self);
 void *__swift_bridge__$HeadingContext$headings(void *self);
 uint8_t __swift_bridge__$HeadingLevel$level(void *self);
@@ -6241,6 +6439,7 @@ void *__swift_bridge__$ExecutionProviderType$to_string(void *self);
 void *__swift_bridge__$ImageOutputFormat$to_string(void *self);
 void *__swift_bridge__$ExtractInputKind$to_string(void *self);
 void *__swift_bridge__$UrlExtractionMode$to_string(void *self);
+void *__swift_bridge__$BreadcrumbTarget$to_string(void *self);
 void *__swift_bridge__$OutputFormat$to_string(void *self);
 void *__swift_bridge__$JupyterCellRendering$to_string(void *self);
 void *__swift_bridge__$HtmlTheme$to_string(void *self);
@@ -6329,6 +6528,7 @@ struct __private__ResultPtrAndPtr __swift_bridge__$extract(void *input,
 struct __private__ResultPtrAndPtr __swift_bridge__$extract_batch(void *inputs,
                                                                  void *config);
 void *__swift_bridge__$list_supported_formats(void);
+void *__swift_bridge__$ensure_initialized(void);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$list_embedding_backends(void);
 struct __private__ResultPtrAndPtr
@@ -6346,6 +6546,15 @@ double __swift_bridge__$max_sim_score(void *query, void *doc);
 void *__swift_bridge__$max_sim_rank(void *query, void *docs);
 void *__swift_bridge__$find_unmarked_claims(void *markdown);
 bool __swift_bridge__$verify_excerpt(void *excerpt, void *source_text);
+bool __swift_bridge__$install_pdf_render_diagnostics(void);
+void *__swift_bridge__$take_pdf_oxide_render_warnings(void);
+void *__swift_bridge__$build_decoder_prompt_tokens(uint32_t start_of_transcript,
+                                                   uint32_t lang_id,
+                                                   uint32_t transcribe,
+                                                   uint32_t no_timestamps,
+                                                   bool timestamps);
+uint32_t __swift_bridge__$timestamp_token_to_ms(uint32_t token_id,
+                                                uint32_t timestamp_begin_id);
 struct __private__ResultPtrAndPtr __swift_bridge__$map_url(void *uri,
                                                            void *config);
 void *__swift_bridge__$alef_phantom_vec_ocr_backend(void);
@@ -6427,6 +6636,8 @@ __swift_bridge__$page_classification_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$content_filter_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
+__swift_bridge__$csv_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
 __swift_bridge__$email_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$file_extraction_config_from_json(void *json);
@@ -6452,6 +6663,16 @@ struct __private__ResultPtrAndPtr
 __swift_bridge__$layout_detection_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$llm_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$llm_provider_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$llm_cache_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$llm_budget_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$llm_rate_limit_config_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$bedrock_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$structured_extraction_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
@@ -6555,6 +6776,8 @@ __swift_bridge__$text_annotation_from_json(void *json);
 struct __private__ResultPtrAndPtr __swift_bridge__$entity_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$document_counts_from_json(void *json);
+struct __private__ResultPtrAndPtr
+__swift_bridge__$language_confidence_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$archive_entry_from_json(void *json);
 struct __private__ResultPtrAndPtr
@@ -6826,6 +7049,8 @@ __swift_bridge__$extract_input_kind_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$url_extraction_mode_from_json(void *json);
 struct __private__ResultPtrAndPtr
+__swift_bridge__$breadcrumb_target_from_json(void *json);
+struct __private__ResultPtrAndPtr
 __swift_bridge__$output_format_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$jupyter_cell_rendering_from_json(void *json);
@@ -6976,6 +7201,7 @@ void *__swift_bridge__$__alef_phantom_vec_chunk_classification_definition(void);
 void *__swift_bridge__$__alef_phantom_vec_chunk_classification_config(void);
 void *__swift_bridge__$__alef_phantom_vec_page_classification_config(void);
 void *__swift_bridge__$__alef_phantom_vec_content_filter_config(void);
+void *__swift_bridge__$__alef_phantom_vec_csv_config(void);
 void *__swift_bridge__$__alef_phantom_vec_email_config(void);
 void *__swift_bridge__$__alef_phantom_vec_extraction_config(void);
 void *__swift_bridge__$__alef_phantom_vec_file_extraction_config(void);
@@ -6989,6 +7215,11 @@ void *__swift_bridge__$__alef_phantom_vec_token_reduction_options(void);
 void *__swift_bridge__$__alef_phantom_vec_language_detection_config(void);
 void *__swift_bridge__$__alef_phantom_vec_late_interaction_config(void);
 void *__swift_bridge__$__alef_phantom_vec_llm_config(void);
+void *__swift_bridge__$__alef_phantom_vec_llm_provider_config(void);
+void *__swift_bridge__$__alef_phantom_vec_llm_cache_config(void);
+void *__swift_bridge__$__alef_phantom_vec_llm_budget_config(void);
+void *__swift_bridge__$__alef_phantom_vec_llm_rate_limit_config(void);
+void *__swift_bridge__$__alef_phantom_vec_bedrock_config(void);
 void *__swift_bridge__$__alef_phantom_vec_structured_extraction_config(void);
 void *__swift_bridge__$__alef_phantom_vec_ner_config(void);
 void *__swift_bridge__$__alef_phantom_vec_ocr_quality_thresholds(void);
@@ -7029,6 +7260,7 @@ void *__swift_bridge__$__alef_phantom_vec_grid_cell(void);
 void *__swift_bridge__$__alef_phantom_vec_text_annotation(void);
 void *__swift_bridge__$__alef_phantom_vec_entity(void);
 void *__swift_bridge__$__alef_phantom_vec_document_counts(void);
+void *__swift_bridge__$__alef_phantom_vec_language_confidence(void);
 void *__swift_bridge__$__alef_phantom_vec_extracted_document(void);
 void *__swift_bridge__$__alef_phantom_vec_archive_entry(void);
 void *__swift_bridge__$__alef_phantom_vec_processing_warning(void);
@@ -7122,6 +7354,7 @@ void *__swift_bridge__$__alef_phantom_vec_execution_provider_type(void);
 void *__swift_bridge__$__alef_phantom_vec_image_output_format(void);
 void *__swift_bridge__$__alef_phantom_vec_extract_input_kind(void);
 void *__swift_bridge__$__alef_phantom_vec_url_extraction_mode(void);
+void *__swift_bridge__$__alef_phantom_vec_breadcrumb_target(void);
 void *__swift_bridge__$__alef_phantom_vec_output_format(void);
 void *__swift_bridge__$__alef_phantom_vec_jupyter_cell_rendering(void);
 void *__swift_bridge__$__alef_phantom_vec_late_interaction_model_type(void);

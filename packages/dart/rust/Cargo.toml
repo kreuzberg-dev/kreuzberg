@@ -12,7 +12,7 @@ ignored = ["async-trait", "crawlberg", "html-to-markdown-rs", "tracing", "xberg"
 [lib]
 crate-type = ["cdylib", "staticlib"]
 [features]
-default = ["api", "api-types", "auto-rotate-types", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction-presets", "layout-types", "liter-llm", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker-presets", "sparse-embedding-presets", "svg", "tokio-runtime", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"]
+default = ["api", "api-types", "auto-rotate-types", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction-presets", "layout-types", "liter-llm", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker-presets", "sparse-embedding-presets", "svg", "tokio-runtime", "transcription", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"]
 api = ["xberg/api"]
 api-types = ["xberg/api-types"]
 auto-rotate-types = ["xberg/auto-rotate-types"]
@@ -43,6 +43,7 @@ sparse-embedding-presets = ["xberg/sparse-embedding-presets"]
 sparse-embeddings = ["xberg/sparse-embeddings"]
 svg = ["xberg/svg"]
 tokio-runtime = ["xberg/tokio-runtime"]
+transcription = ["xberg/transcription"]
 transcription-types = ["xberg/transcription-types"]
 tree-sitter = ["xberg/tree-sitter"]
 url-config-types = ["xberg/url-config-types"]
@@ -58,6 +59,8 @@ html-to-markdown-rs = { default-features = false, workspace = true }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 tracing = "0.1"
+[target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
+xberg = { path = "../../../crates/xberg", default-features = false, features = ["macos-intel-target"] }
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_os = "windows", all(target_os = "macos", target_arch = "x86_64"))))'.dependencies]
 xberg = { path = "../../../crates/xberg", features = ["pdf", "excel", "office", "hwp", "hwpx", "iwork", "email", "html", "xml", "archives", "mdx", "svg", "language-detection", "chunking", "chunking-tokenizers", "quality", "keywords", "diff", "api", "api-types", "mcp", "ocr", "paddle-ocr", "paddle-ocr-types", "layout-detection", "layout-types", "embeddings", "embedding-presets", "reranker", "reranker-presets", "sparse-embeddings", "sparse-embedding-presets", "late-interaction", "late-interaction-presets", "transcription-types", "tree-sitter", "liter-llm", "tokio-runtime", "ner-llm", "ner-onnx", "redaction", "summarization", "classification", "captioning", "qr-codes", "auto-rotate-types", "stopwords"] }
 [target.'cfg(target_os = "android")'.dependencies]
@@ -66,8 +69,6 @@ xberg = { path = "../../../crates/xberg", default-features = false, features = [
 xberg = { path = "../../../crates/xberg", default-features = false, features = ["android-target"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 xberg = { path = "../../../crates/xberg", default-features = false, features = ["windows-target"] }
-[target.'cfg(all(target_os = "macos", target_arch = "x86_64"))'.dependencies]
-xberg = { path = "../../../crates/xberg", default-features = false, features = ["macos-intel-target"] }
 
 [lints.rust]
 # flutter_rust_bridge uses #[cfg(frb_expand)] internally during macro expansion.

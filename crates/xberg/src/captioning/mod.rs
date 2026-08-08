@@ -75,6 +75,35 @@ pub async fn caption_image(
     .await
 }
 
+/// Same as [`caption_image`], but also returns the [`LlmUsage`](crate::types::LlmUsage)
+/// captured from the VLM call.
+///
+/// [`caption_image`] returns a bare `String`, so every caller of it silently discards the
+/// token / cost record for the call it just paid for. Callers that own an
+/// [`ExtractedDocument`](crate::types::ExtractedDocument) must use this variant and append
+/// the usage to
+/// [`ExtractedDocument::llm_usage`](crate::types::ExtractedDocument::llm_usage), the way
+/// the built-in captioning post-processor does (#263).
+///
+/// # Errors
+///
+/// Same as [`caption_image`].
+pub(crate) async fn caption_image_with_usage(
+    image_bytes: &[u8],
+    llm_config: &LlmConfig,
+    custom_prompt: Option<&str>,
+) -> crate::Result<(String, Option<crate::types::LlmUsage>)> {
+    let mime = infer_mime_type(image_bytes);
+    crate::llm::region_extractor::extract_region_with_vlm_usage(
+        image_bytes,
+        mime,
+        crate::llm::region_extractor::RegionKind::Caption,
+        llm_config,
+        custom_prompt,
+    )
+    .await
+}
+
 /// Caption a single image from a file path.
 ///
 /// # Arguments

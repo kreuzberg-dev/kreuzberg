@@ -125,22 +125,35 @@ impl PpDocLayoutV3Model {
     /// Map PP-DocLayout-V3 class ID (0-24) to [`LayoutClass`].
     ///
     /// The 25-class taxonomy is:
-    /// 0 abstract, 1 algorithm, 2 aside_text, **3 chart**, 4 content,
-    /// **5 display_formula**, 6 doc_title, 7 figure_title, 8 footer, 9 footer_image,
-    /// 10 footnote, **11 formula_number**, 12 header, 13 header_image, **14 image**,
+    /// 0 abstract, **1 algorithm**, 2 aside_text, **3 chart**, **4 content**,
+    /// **5 display_formula**, 6 doc_title, **7 figure_title**, 8 footer, 9 footer_image,
+    /// **10 footnote**, **11 formula_number**, 12 header, 13 header_image, **14 image**,
     /// **15 inline_formula**, 16 number, **17 paragraph_title**, 18 reference,
     /// 19 reference_content, 20 seal, **21 table**, **22 text**, 23 vertical_text,
-    /// 24 vision_footnote.
+    /// **24 vision_footnote**.
+    ///
+    /// `content` (4) is PP-DocLayout-V3's table-of-contents region, so it maps to
+    /// [`LayoutClass::DocumentIndex`] rather than `Text`. `figure_title` (7) is a
+    /// figure/table caption, not a document title, so it maps to
+    /// [`LayoutClass::Caption`] and no longer shares a bucket with `doc_title` (6)
+    /// / `paragraph_title` (17). `footnote` (10) and `vision_footnote` (24) map to
+    /// [`LayoutClass::Footnote`]. `algorithm` (1) is a code-like listing and maps
+    /// to [`LayoutClass::Code`]. This keeps PP-DocLayout-V3 consistent with
+    /// RT-DETR's mapping for the classes both taxonomies share (#178).
     fn class_from_id(id: i64) -> Option<LayoutClass> {
         match id {
+            1 => Some(LayoutClass::Code),
             3 => Some(LayoutClass::Chart),
+            4 => Some(LayoutClass::DocumentIndex),
             5 | 11 | 15 => Some(LayoutClass::Formula),
-            6 | 7 | 17 => Some(LayoutClass::Title),
+            6 | 17 => Some(LayoutClass::Title),
+            7 => Some(LayoutClass::Caption),
             8 | 9 => Some(LayoutClass::PageFooter),
+            10 | 24 => Some(LayoutClass::Footnote),
             12 | 13 => Some(LayoutClass::PageHeader),
             14 | 20 => Some(LayoutClass::Picture),
             21 => Some(LayoutClass::Table),
-            0 | 1 | 2 | 4 | 10 | 16 | 18 | 19 | 22 | 23 | 24 => Some(LayoutClass::Text),
+            0 | 2 | 16 | 18 | 19 | 22 | 23 => Some(LayoutClass::Text),
             _ => None,
         }
     }
@@ -531,14 +544,44 @@ mod tests {
         assert_eq!(PpDocLayoutV3Model::class_from_id(6), Some(LayoutClass::Title));
     }
 
+    /// #178: `figure_title` (7) is a figure/table caption, not a document title.
+    /// It must not share a bucket with `doc_title` (6) / `paragraph_title` (17).
     #[test]
-    fn class_from_id_figure_title_maps_to_title() {
-        assert_eq!(PpDocLayoutV3Model::class_from_id(7), Some(LayoutClass::Title));
+    fn class_from_id_figure_title_maps_to_caption() {
+        assert_eq!(PpDocLayoutV3Model::class_from_id(7), Some(LayoutClass::Caption));
     }
 
     #[test]
     fn class_from_id_paragraph_title_maps_to_title() {
         assert_eq!(PpDocLayoutV3Model::class_from_id(17), Some(LayoutClass::Title));
+    }
+
+    /// #178: `footnote` (10) and `vision_footnote` (24) must map to
+    /// `LayoutClass::Footnote`, which exists and is consumed by
+    /// `layout_hints::map_class`, rather than being collapsed into `Text`.
+    #[test]
+    fn class_from_id_footnote_classes_map_to_footnote() {
+        for id in [10i64, 24] {
+            assert_eq!(
+                PpDocLayoutV3Model::class_from_id(id),
+                Some(LayoutClass::Footnote),
+                "class_id {id} should map to Footnote"
+            );
+        }
+    }
+
+    /// #178: `content` (4) is the table-of-contents region and must map to
+    /// `LayoutClass::DocumentIndex`, matching RT-DETR's dedicated TOC class.
+    #[test]
+    fn class_from_id_content_maps_to_document_index() {
+        assert_eq!(PpDocLayoutV3Model::class_from_id(4), Some(LayoutClass::DocumentIndex));
+    }
+
+    /// #178: `algorithm` (1) is a code-like listing and must map to
+    /// `LayoutClass::Code`, matching RT-DETR's dedicated code class.
+    #[test]
+    fn class_from_id_algorithm_maps_to_code() {
+        assert_eq!(PpDocLayoutV3Model::class_from_id(1), Some(LayoutClass::Code));
     }
 
     #[test]
@@ -578,7 +621,7 @@ mod tests {
 
     #[test]
     fn class_from_id_text_classes_map_to_text() {
-        for id in [0i64, 1, 2, 4, 10, 16, 18, 19, 22, 23, 24] {
+        for id in [0i64, 2, 16, 18, 19, 22, 23] {
             assert_eq!(
                 PpDocLayoutV3Model::class_from_id(id),
                 Some(LayoutClass::Text),

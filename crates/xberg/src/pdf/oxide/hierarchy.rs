@@ -11,6 +11,10 @@
 use std::collections::HashMap;
 
 use super::OxideDocument;
+// Inline-script rejoining measures baselines and character origins in raw page
+// coordinates, so it needs the strict page-axis predicate, not the
+// rotation-agnostic writing-mode one.
+use super::span_geometry::is_horizontal_ltr;
 use crate::pdf::error::Result;
 use crate::pdf::hierarchy::SegmentData;
 
@@ -193,6 +197,67 @@ fn select_reading_order(
     }
 }
 
+/// Reorder a page's spans into reading order for the element-based
+/// extraction path (GH#1397).
+///
+/// Applies the guarded sparse-column repair unconditionally, then attempts
+/// the dense two-column band-split repair
+/// (`super::text::reorder_dense_two_column_page`). That repair carries its
+/// own conservative gates (minimum content width, per-line gutter agreement,
+/// a minimum span count per column per band, and a prose/table region gate —
+/// see its doc comment), so once it reports success the page's reading order
+/// is already correct. pdf_oxide's own `ColumnAware` XY-Cut pass is then
+/// skipped entirely: XY-Cut re-orders the whole span list from scratch and
+/// would otherwise silently discard the band order just applied. This
+/// matters because XY-Cut's own valley detection can miss exactly the narrow
+/// gutter the dense repair's per-line detector picks up (XY-Cut's default
+/// `min_valley_width` is wider than the dense repair's own gutter floor),
+/// which is why GH#1397 saw identical output whether `ColumnAware` or
+/// `TopToBottom` was requested — XY-Cut was never actually splitting the
+/// page. When the dense repair does not apply (single-column page,
+/// table-shaped columns, an undetectable gutter, etc.) the previous
+/// heuristic-selected XY-Cut fallback runs exactly as before, so non-dense
+/// pages are unaffected.
+fn reorder_page_reading_order(
+    spans: &mut Vec<pdf_oxide::layout::TextSpan>,
+    page_width: f32,
+    page_height: f32,
+    page_index: usize,
+) {
+    super::text::reorder_sparse_two_column_page(spans, page_width);
+    if super::text::reorder_dense_two_column_page(spans, page_width) {
+        return;
+    }
+    apply_xy_cut_if_column_aware(spans, page_width, page_height, page_index);
+}
+
+/// Run pdf_oxide's `ColumnAware` XY-Cut pass when `select_reading_order`
+/// judges the page a balanced two-column prose layout.
+///
+/// A failed XY-Cut pass is logged and leaves `spans` in top-to-bottom order
+/// (the pre-existing fallback behavior).
+fn apply_xy_cut_if_column_aware(
+    spans: &mut Vec<pdf_oxide::layout::TextSpan>,
+    page_width: f32,
+    page_height: f32,
+    page_index: usize,
+) {
+    use pdf_oxide::pipeline::{ReadingOrderContext, ReadingOrderStrategy, XYCutStrategy};
+
+    let order = select_reading_order(spans.as_slice(), page_width, page_height);
+    if order != pdf_oxide::document::ReadingOrder::ColumnAware {
+        return;
+    }
+    let context = ReadingOrderContext::new().with_page(page_index as u32);
+    match XYCutStrategy::new().apply(spans.clone(), &context) {
+        Ok(ordered) => *spans = ordered.into_iter().map(|item| item.span).collect(),
+        Err(error) => tracing::debug!(
+            page = page_index,
+            "pdf_oxide column-aware hierarchy ordering failed; retaining top-to-bottom order: {error}"
+        ),
+    }
+}
+
 fn rejoin_inline_scripts(spans: Vec<pdf_oxide::layout::TextSpan>) -> Vec<pdf_oxide::layout::TextSpan> {
     let mut by_base: HashMap<usize, Vec<ScriptAttachment>> = HashMap::new();
     let mut attached = vec![false; spans.len()];
@@ -321,10 +386,6 @@ fn is_compact_horizontal_ascii_span(span: &pdf_oxide::layout::TextSpan) -> bool 
             character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '=' | '(' | ')' | ',' | '.')
         })
         && is_horizontal_ltr(span)
-}
-
-fn is_horizontal_ltr(span: &pdf_oxide::layout::TextSpan) -> bool {
-    span.wmode == 0 && !span.rtl_draw_logical && span.rotation_degrees.abs() <= f32::EPSILON
 }
 
 fn has_valid_span_geometry(span: &pdf_oxide::layout::TextSpan) -> bool {
@@ -517,24 +578,12 @@ fn extract_segments_from_page_inner(
             return Ok(Vec::new());
         }
     };
-    super::text::reorder_sparse_two_column_page(&mut page_text_data.spans, page_text_data.page_width);
-    let reading_order = select_reading_order(
-        &page_text_data.spans,
+    reorder_page_reading_order(
+        &mut page_text_data.spans,
         page_text_data.page_width,
         page_text_data.page_height,
+        page_index,
     );
-    if reading_order == pdf_oxide::document::ReadingOrder::ColumnAware {
-        use pdf_oxide::pipeline::{ReadingOrderContext, ReadingOrderStrategy, XYCutStrategy};
-
-        let context = ReadingOrderContext::new().with_page(page_index as u32);
-        match XYCutStrategy::new().apply(page_text_data.spans.clone(), &context) {
-            Ok(ordered) => page_text_data.spans = ordered.into_iter().map(|item| item.span).collect(),
-            Err(error) => tracing::debug!(
-                page = page_index,
-                "pdf_oxide column-aware hierarchy ordering failed; retaining top-to-bottom order: {error}"
-            ),
-        }
-    }
     let spans = rejoin_inline_scripts(page_text_data.spans);
 
     let segments: Vec<SegmentData> = spans
@@ -735,6 +784,214 @@ pub(crate) fn extract_all_segments(doc: &mut OxideDocument) -> Result<(Vec<Vec<S
     Ok((all_pages, false))
 }
 
+/// Extract `/Alt` (alternate description) text for `Figure` structure elements,
+/// grouped by 0-based page index, in structure-tree document order (issue #62).
+///
+/// Tagged PDFs attach accessibility alt text to `Figure` structure elements via
+/// the `/Alt` entry (ISO 32000-1:2008 §14.9.3), not to the image XObject itself.
+/// Since the structure tree has no direct MCID/OBJR link back to a specific
+/// `PdfImage` handle that callers can match on, this returns per-page alt-text
+/// slots in tree order; callers pair the Nth `Figure` on a page with the Nth
+/// image extracted from that page (both walk the page in document/paint order),
+/// which holds for the common one-image-per-figure case.
+///
+/// Returns an empty map when the document has no `/StructTreeRoot`, no `/Pages`,
+/// or either could not be read; this is not an error, most PDFs are untagged.
+///
+/// # Implementation note
+///
+/// This walks the raw `/StructTreeRoot` dictionary directly via `pdf_oxide`'s
+/// low-level `Object`/`ObjectRef` accessors rather than `PdfDocument::structure_tree()`.
+/// The latter is built for reading-order/heading detection and deliberately skips
+/// parsing `/A` and `/Alt` (pdf_oxide's `structure::parser` module never populates
+/// `StructElem::alt_text`), so it cannot be used here.
+pub(crate) fn extract_figure_alt_text_by_page(doc: &mut OxideDocument) -> HashMap<u32, Vec<Option<String>>> {
+    let mut by_page: HashMap<u32, Vec<Option<String>>> = HashMap::new();
+
+    let Ok(catalog) = doc.doc.catalog() else {
+        return by_page;
+    };
+    let Some(catalog_dict) = catalog.as_dict() else {
+        return by_page;
+    };
+
+    let page_id_map = build_page_id_map(doc, catalog_dict);
+    if page_id_map.is_empty() {
+        return by_page;
+    }
+
+    let Some(struct_root_obj) = catalog_dict.get("StructTreeRoot") else {
+        return by_page;
+    };
+    let struct_root = resolve_pdf_object(doc, struct_root_obj);
+    let Some(struct_root_dict) = struct_root.as_dict() else {
+        return by_page;
+    };
+
+    if let Some(k_obj) = struct_root_dict.get("K") {
+        walk_struct_kids(doc, k_obj, &page_id_map, None, &mut by_page, 0);
+    }
+
+    by_page
+}
+
+/// Depth cap for `/Pages` and `/StructTreeRoot` tree walks, guarding against
+/// cyclic or pathologically deep object graphs in untrusted PDF input.
+const MAX_PDF_OBJECT_TREE_DEPTH: usize = 128;
+
+/// Resolve `obj` to its underlying value if it is an indirect reference,
+/// otherwise clone it. Unresolvable references degrade to `Object::Null`.
+fn resolve_pdf_object(doc: &OxideDocument, obj: &pdf_oxide::object::Object) -> pdf_oxide::object::Object {
+    match obj.as_reference() {
+        Some(object_ref) => doc
+            .doc
+            .load_object(object_ref)
+            .unwrap_or(pdf_oxide::object::Object::Null),
+        None => obj.clone(),
+    }
+}
+
+/// Build a map from PDF object id to 0-based page index by walking the
+/// `/Pages` tree from the document catalog, in the same left-to-right,
+/// depth-first order `page_count()`/`get_page(idx)` use. Generation numbers
+/// are ignored (a `/Pg` reference and the corresponding `/Pages` leaf always
+/// share the same object id per ISO 32000-1:2008 §7.3.10).
+fn build_page_id_map(
+    doc: &OxideDocument,
+    catalog_dict: &HashMap<String, pdf_oxide::object::Object>,
+) -> HashMap<u32, u32> {
+    let mut map = HashMap::new();
+    let Some(pages_obj) = catalog_dict.get("Pages") else {
+        return map;
+    };
+    let Some(pages_ref) = pages_obj.as_reference() else {
+        return map;
+    };
+
+    let mut index = 0u32;
+    let mut visited = std::collections::HashSet::new();
+    walk_pages_tree(doc, pages_ref, &mut map, &mut index, &mut visited, 0);
+    map
+}
+
+fn walk_pages_tree(
+    doc: &OxideDocument,
+    node_ref: pdf_oxide::object::ObjectRef,
+    map: &mut HashMap<u32, u32>,
+    index: &mut u32,
+    visited: &mut std::collections::HashSet<u32>,
+    depth: usize,
+) {
+    if depth > MAX_PDF_OBJECT_TREE_DEPTH || !visited.insert(node_ref.id) {
+        return;
+    }
+    let Ok(node_obj) = doc.doc.load_object(node_ref) else {
+        return;
+    };
+    let Some(node_dict) = node_obj.as_dict() else {
+        return;
+    };
+
+    match node_dict.get("Kids").map(|kids_obj| resolve_pdf_object(doc, kids_obj)) {
+        Some(pdf_oxide::object::Object::Array(kids)) => {
+            for kid in &kids {
+                if let Some(kid_ref) = kid.as_reference() {
+                    walk_pages_tree(doc, kid_ref, map, index, visited, depth + 1);
+                }
+            }
+        }
+        _ => {
+            // No /Kids (or an unresolvable one): this is a leaf page node.
+            map.insert(node_ref.id, *index);
+            *index += 1;
+        }
+    }
+}
+
+/// Walk a `/K` value of a structure element (or `StructTreeRoot`): a single
+/// structure-element dict/reference, or an array mixing structure elements,
+/// MCID integers, and marked-content-reference dicts. Only structure-element
+/// entries (dicts carrying `/S`) are descended into.
+fn walk_struct_kids(
+    doc: &OxideDocument,
+    k_obj: &pdf_oxide::object::Object,
+    page_id_map: &HashMap<u32, u32>,
+    inherited_page: Option<u32>,
+    by_page: &mut HashMap<u32, Vec<Option<String>>>,
+    depth: usize,
+) {
+    if depth > MAX_PDF_OBJECT_TREE_DEPTH {
+        return;
+    }
+    match resolve_pdf_object(doc, k_obj) {
+        pdf_oxide::object::Object::Array(items) => {
+            for item in &items {
+                walk_struct_elem(doc, item, page_id_map, inherited_page, by_page, depth + 1);
+            }
+        }
+        resolved @ pdf_oxide::object::Object::Dictionary(_) => {
+            walk_struct_elem_resolved(doc, &resolved, page_id_map, inherited_page, by_page, depth + 1);
+        }
+        _ => {}
+    }
+}
+
+fn walk_struct_elem(
+    doc: &OxideDocument,
+    elem_obj: &pdf_oxide::object::Object,
+    page_id_map: &HashMap<u32, u32>,
+    inherited_page: Option<u32>,
+    by_page: &mut HashMap<u32, Vec<Option<String>>>,
+    depth: usize,
+) {
+    let resolved = resolve_pdf_object(doc, elem_obj);
+    walk_struct_elem_resolved(doc, &resolved, page_id_map, inherited_page, by_page, depth);
+}
+
+/// Core of the structure-element walk: records `/Alt` for `Figure` elements,
+/// then recurses into `/K` with the page inherited down for descendants that
+/// omit their own `/Pg` (ISO 32000-1:2008 §14.7.2, Table 323).
+fn walk_struct_elem_resolved(
+    doc: &OxideDocument,
+    resolved: &pdf_oxide::object::Object,
+    page_id_map: &HashMap<u32, u32>,
+    inherited_page: Option<u32>,
+    by_page: &mut HashMap<u32, Vec<Option<String>>>,
+    depth: usize,
+) {
+    if depth > MAX_PDF_OBJECT_TREE_DEPTH {
+        return;
+    }
+    let Some(dict) = resolved.as_dict() else {
+        return;
+    };
+    // Marked-content references and OBJR dicts have no /S; only real
+    // structure elements do (ISO 32000-1:2008 §14.7.2).
+    let Some(struct_type) = dict.get("S").and_then(|s| s.as_name()) else {
+        return;
+    };
+
+    let own_page = dict
+        .get("Pg")
+        .and_then(|pg| pg.as_reference())
+        .and_then(|pg_ref| page_id_map.get(&pg_ref.id).copied());
+    let effective_page = own_page.or(inherited_page);
+
+    if struct_type == "Figure"
+        && let Some(page) = effective_page
+    {
+        let alt_text = dict
+            .get("Alt")
+            .and_then(|alt| alt.as_string())
+            .and_then(super::metadata::decode_pdf_string);
+        by_page.entry(page).or_default().push(alt_text);
+    }
+
+    if let Some(k_obj) = dict.get("K") {
+        walk_struct_kids(doc, k_obj, page_id_map, effective_page, by_page, depth + 1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pdf_oxide::document::ReadingOrder;
@@ -830,6 +1087,141 @@ mod tests {
         assert_eq!(
             super::select_reading_order(&prose_columns(), 612.0, 792.0),
             ReadingOrder::ColumnAware
+        );
+    }
+
+    /// Page width shared by the GH#1397 element-path fixtures below, matching
+    /// the other `select_reading_order` tests in this module.
+    const GH1397_PAGE_WIDTH: f32 = 612.0;
+    const GH1397_PAGE_HEIGHT: f32 = 792.0;
+
+    /// Eight-row two-column prose page (GH#1397) with a gutter that clears
+    /// `reorder_dense_two_column_page`'s own floor
+    /// (`max(page_width * 0.02, 10.0)` = 12.24pt at `GH1397_PAGE_WIDTH`) but
+    /// sits under pdf_oxide XY-Cut's default 15pt `min_valley_width`
+    /// (`pdf_oxide::pipeline::XYCutStrategy::default().min_valley_width`) —
+    /// the shape that let the reported document's `ColumnAware` and
+    /// `TopToBottom` reading orders come out byte-identical: XY-Cut's own
+    /// valley search never found a gutter this narrow.
+    fn dense_two_column_spans_narrow_gutter() -> Vec<TextSpan> {
+        const LEFT_X: f32 = 60.0;
+        const LEFT_WIDTH: f32 = 200.0;
+        const NARROW_GUTTER_PTS: f32 = 13.0;
+        const RIGHT_X: f32 = LEFT_X + LEFT_WIDTH + NARROW_GUTTER_PTS;
+        const RIGHT_WIDTH: f32 = 190.0;
+        const ROW_HEIGHT_PTS: f32 = 14.0;
+        const TOP_Y: f32 = 816.0;
+
+        let left_body = [
+            "The committee reviewed annual budget totals",
+            "and approved new funding for the coming year",
+            "after several rounds of careful review by",
+            "senior staff members from every department",
+            "who evaluated priorities across the whole",
+            "organization before reaching a final decision",
+            "that reflected both short and long term goals",
+            "for sustainable growth across all programs",
+        ];
+        let right_body = [
+            "Numerous studies have examined similar",
+            "programs across comparable institutions",
+            "using consistent methodology and controls",
+            "for measuring outcomes over multiple years",
+            "researchers found consistent positive trends",
+            "supporting continued investment going forward",
+            "additional citations appear in the appendix",
+            "for readers seeking further detail here",
+        ];
+
+        let mut spans = Vec::new();
+        for (row, (left_line, right_line)) in left_body.iter().copied().zip(right_body.iter().copied()).enumerate() {
+            let y = TOP_Y - row as f32 * ROW_HEIGHT_PTS;
+            spans.push(text_span(left_line, LEFT_X, y, LEFT_WIDTH));
+            spans.push(text_span(right_line, RIGHT_X, y, RIGHT_WIDTH));
+        }
+        spans
+    }
+
+    /// GH#1397: the element-based extraction path (`extract_segments_from_page_inner`,
+    /// via `reorder_page_reading_order`) must apply the same dense
+    /// two-column band-split repair the plain-text path already used
+    /// (`super::text::reorder_dense_two_column_page`), not rely solely on
+    /// pdf_oxide's own `ColumnAware` XY-Cut pass.
+    ///
+    /// Revert check: reverting `reorder_page_reading_order` to its pre-fix
+    /// form (drop the `reorder_dense_two_column_page` call and unconditionally
+    /// run `apply_xy_cut_if_column_aware`, i.e. restore the old
+    /// `extract_segments_from_page_inner` body) makes this test fail, because
+    /// `select_reading_order` selects `ColumnAware` for this fixture (its
+    /// gutter test only requires an 8pt gap) and XY-Cut's own 15pt
+    /// `min_valley_width` floor then leaves the 13pt-gutter page in
+    /// unrepaired top-to-bottom (row-interleaved) order.
+    #[test]
+    fn element_path_reorders_narrow_gutter_dense_two_column_page() {
+        let mut spans = dense_two_column_spans_narrow_gutter();
+
+        super::reorder_page_reading_order(&mut spans, GH1397_PAGE_WIDTH, GH1397_PAGE_HEIGHT, 0);
+
+        let texts: Vec<&str> = spans.iter().map(|span| span.text.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "The committee reviewed annual budget totals",
+                "and approved new funding for the coming year",
+                "after several rounds of careful review by",
+                "senior staff members from every department",
+                "who evaluated priorities across the whole",
+                "organization before reaching a final decision",
+                "that reflected both short and long term goals",
+                "for sustainable growth across all programs",
+                "Numerous studies have examined similar",
+                "programs across comparable institutions",
+                "using consistent methodology and controls",
+                "for measuring outcomes over multiple years",
+                "researchers found consistent positive trends",
+                "supporting continued investment going forward",
+                "additional citations appear in the appendix",
+                "for readers seeking further detail here",
+            ],
+            "dense two-column band-split repair must run in the element path and group each column together"
+        );
+    }
+
+    /// Regression guard for GH#1397: a genuine single-column page (numbered
+    /// lines beside monospace code, from `single_column_code_gutter_uses_top_to_bottom`
+    /// above) must come out of `reorder_page_reading_order` byte-identical to
+    /// its input order. `reorder_dense_two_column_page`'s own gate rejects it
+    /// (pdf_oxide's region classifier does not treat monospace code as a
+    /// reorderable prose column), and `select_reading_order` already returns
+    /// `TopToBottom` for this shape, so XY-Cut is never invoked either.
+    #[test]
+    fn element_path_leaves_single_column_code_page_unchanged() {
+        let mut spans = Vec::new();
+        for index in 0..6 {
+            spans.push(text_span(
+                &(index + 1).to_string(),
+                50.0,
+                700.0 - index as f32 * 14.0,
+                12.0,
+            ));
+            let mut code = text_span(
+                "fn parse_value(input: &str) {",
+                90.0,
+                700.0 - index as f32 * 14.0,
+                240.0,
+            );
+            code.is_monospace = true;
+            spans.push(code);
+        }
+        let original: Vec<String> = spans.iter().map(|span| span.text.clone()).collect();
+
+        super::reorder_page_reading_order(&mut spans, GH1397_PAGE_WIDTH, GH1397_PAGE_HEIGHT, 0);
+
+        let texts: Vec<&str> = spans.iter().map(|span| span.text.as_str()).collect();
+        assert_eq!(
+            texts,
+            original.iter().map(String::as_str).collect::<Vec<_>>(),
+            "a single-column page must not be reordered by either the dense repair or XY-Cut"
         );
     }
 

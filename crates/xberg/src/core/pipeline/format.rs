@@ -29,6 +29,16 @@ use std::borrow::Cow;
 #[cfg_attr(alef, alef(skip))]
 pub fn apply_output_format(result: ExtractedDocument, output_format: OutputFormat) -> ExtractedDocument {
     let mut result = result;
+
+    // #208: a `Custom(name)` format with no matching renderer plugin falls back to
+    // plain text during derivation (`extraction::derive::derive_extraction_result`),
+    // leaving `formatted_content` unset. That is the only way a `Custom` format can
+    // reach this function with no pre-rendered content — every successful custom
+    // render always produces `Some(_)`. Detect that fallback here so metadata does
+    // not claim a format that was never actually produced.
+    let custom_fallback_to_plain =
+        matches!(output_format, OutputFormat::Custom(_)) && result.formatted_content.is_none();
+
     let format_name = match output_format {
         OutputFormat::Plain => "plain",
         OutputFormat::Markdown => "markdown",
@@ -36,7 +46,13 @@ pub fn apply_output_format(result: ExtractedDocument, output_format: OutputForma
         OutputFormat::Html => "html",
         OutputFormat::Json => "json",
         OutputFormat::Structured => "structured",
-        OutputFormat::Custom(ref name) => name.as_str(),
+        OutputFormat::Custom(ref name) => {
+            if custom_fallback_to_plain {
+                "plain"
+            } else {
+                name.as_str()
+            }
+        }
     };
     result.metadata.output_format = Some(format_name.to_string());
 
@@ -189,6 +205,46 @@ mod tests {
 
         assert_eq!(result.tables.len(), 1);
         assert_eq!(result.tables[0].cells[0][0], "A");
+    }
+
+    /// #208: an unknown/renderer-less `Custom` format must not be mislabeled in
+    /// metadata as the requested (unproduced) format. `formatted_content` being
+    /// `None` for a `Custom` format only ever happens via the derivation
+    /// fallback-to-plain path, so metadata must say "plain", not the typo'd name.
+    #[test]
+    fn test_apply_output_format_custom_without_renderer_reports_plain_not_the_requested_name() {
+        let result = ExtractedDocument {
+            content: "plain text".to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            formatted_content: None,
+            ..Default::default()
+        };
+
+        let result = apply_output_format(result, OutputFormat::Custom("markdwon".to_string()));
+
+        assert_eq!(result.content, "plain text");
+        assert_eq!(
+            result.metadata.output_format,
+            Some("plain".to_string()),
+            "metadata must not claim the requested custom format was produced when it was not"
+        );
+    }
+
+    /// A `Custom` format that *did* render successfully must still be labelled
+    /// with the requested name, not overridden to "plain".
+    #[test]
+    fn test_apply_output_format_custom_with_renderer_reports_the_requested_name() {
+        let result = ExtractedDocument {
+            content: "plain text".to_string(),
+            mime_type: Cow::Borrowed("text/plain"),
+            formatted_content: Some("<custom/>".to_string()),
+            ..Default::default()
+        };
+
+        let result = apply_output_format(result, OutputFormat::Custom("my-xml".to_string()));
+
+        assert_eq!(result.content, "<custom/>");
+        assert_eq!(result.metadata.output_format, Some("my-xml".to_string()));
     }
 
     #[test]

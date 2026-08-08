@@ -45,6 +45,15 @@ fn main() {
             // invocation — including the rebuild that fires during `dart pub get`
             // in e2e flows, which is when this otherwise reverts.
             fix_handler_executor_calls();
+
+            // FRB is not feature-aware: it emits a wire wrapper and a dispatch arm for
+            // every `pub fn` it can see, including ones behind `#[cfg(feature = ...)]`.
+            // Under a reduced feature set (Android: --no-default-features --features
+            // android-target) those functions are configured out and the glue fails with
+            // E0425. alef injects the gates during `alef generate`, but the FRB run above
+            // rewrites the file from scratch and drops them — same reversion the handler
+            // rewrite above exists to survive, so this re-applies for the same reason.
+            carry_frb_cfg_gates();
         }
         Ok(status) => panic!("flutter_rust_bridge_codegen generate failed (exit code: {status})"),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
@@ -60,88 +69,205 @@ const FRB_GENERATED_DART: &str = "../lib/src/xberg_bridge_generated/frb_generate
 const FRB_HANDLER_EXECUTOR_MARKER: &str = "handler.executeSync(";
 const LOADER_MARKER: &str = "_alefResolveExternalLibrary";
 const FRB_INIT_PROLOGUE: &str = "  /// Initialize flutter_rust_bridge\n  static Future<void> init({\n    RustLibApi? api,\n    BaseHandler? handler,\n    ExternalLibrary? externalLibrary,\n    bool forceSameCodegenVersion = true,\n  }) async {\n";
-const FRB_INIT_REPLACEMENT: &str = r#"  /// Resolve the prebuilt native library from this package's own installed
-  /// location so the load works from any working directory and under hardened
-  /// runtimes. Returns `null` to defer to flutter_rust_bridge's default loader.
+const FRB_INIT_REPLACEMENT: &str = r#"  /// Resolve the prebuilt native library from the environment, the package's bundled
+  /// natives, or the versioned user cache — downloading it if the cache is cold.
   ///
-  /// Resolution order:
-  /// 1. `$nativeLibDirEnv` env var override (dev/test path, no network).
-  /// 2. Published pub.dev packages stage natives under `lib/src/native/<rid>/`
-  ///    (e.g. `macos-arm64`, `linux-x64`).
-  /// 3. For local FRB-dev builds the dylib is emitted into
-  ///    `lib/src/xberg_bridge_generated/`; that path is searched next.
-  /// 4. The versioned user-cache directory (`nativeCachedLibPath()`); on a cache
-  ///    miss the native is downloaded and cached (`nativeDownloadAndCacheLibrary()`).
+  /// Never returns `null`. The return type stays nullable to match flutter_rust_bridge's
+  /// `init` signature, but an unresolvable native throws a descriptive `StateError`
+  /// instead of deferring to FRB's default loader, whose relative-path dlopen would fail
+  /// anyway under a hardened runtime.
+  ///
+  /// Checks in order:
+  /// 1. The `nativeLibDirEnv` environment variable
+  ///    (allows test harnesses to point to development build paths)
+  /// 2. Package-installed location with RID subdirectory (lib/src/native/<rid>/)
+  ///    (for published pub.dev packages with platform-specific bundled native libraries)
+  /// 3. Package-installed location (lib/src/xberg_bridge_generated/)
+  ///    (legacy fallback for development or packages without per-platform binaries)
+  /// 4. Versioned user cache populated by `dart run xberg:download_libs`
+  ///    (`<cache>/xberg/<version>/<rid>/`), shared with the download script
+  ///    via `nativeCachedLibPath()` in `native_loader.dart`.
+  /// 5. On a cache miss, downloads and caches the release asset via
+  ///    `nativeDownloadAndCacheLibrary()` and opens the result.
+  /// 6. Throws a StateError naming the expected release asset URL, the
+  ///    download command, and the env-var override (never a silent null miss).
   static Future<ExternalLibrary?> _alefResolveExternalLibrary() async {
     try {
-      final envDir = Platform.environment[nativeLibDirEnv];
-      if (envDir != null && envDir.isNotEmpty) {
-        final envUri = Uri.directory(envDir);
-        for (final name in _alefHostLibNames()) {
-          final libPath = envUri.resolve(name).toFilePath();
-          if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
-            return ExternalLibrary.open(libPath);
-          }
+      const candidates = <String>[
+        // macOS: framework bundle (preferred modern packaging)
+        'xberg_dart.framework',
+        // macOS: bare dylib fallback
+        'libxberg_dart.dylib',
+        // Linux
+        'libxberg_dart.so',
+        // Windows
+        'xberg_dart.dll',
+      ];
+
+      // Helper to open a native library by absolute path.
+      // Normalizes path to absolute to avoid hardened-runtime "relative path rejected" errors.
+      ExternalLibrary? tryOpenAbsolute(String libPath) {
+        try {
+          final absPath = File(libPath).absolute.path;
+          return ExternalLibrary.open(absPath);
+        } catch (_) {
+          return null;
         }
       }
 
-      final packageRoot =
-          await Isolate.resolvePackageUri(Uri.parse('package:xberg/xberg.dart'));
-      if (packageRoot != null) {
-        final libNames = _alefHostLibNames();
-        final searchDirs = <Uri>[
-          if (_alefHostRid() != null) packageRoot.resolve('src/native/${_alefHostRid()}/'),
-          packageRoot.resolve('src/xberg_bridge_generated/'),
-        ];
-        for (final dir in searchDirs) {
-          for (final name in libNames) {
-            final libPath = dir.resolve(name).toFilePath();
-            if (File(libPath).existsSync() || Directory(libPath).existsSync()) {
-              return ExternalLibrary.open(libPath);
+      bool candidateExists(String libPath) {
+        return File(libPath).existsSync() || Directory(libPath).existsSync();
+      }
+
+      // Check the env-var override first, so test harnesses can point at a development
+      // build path. Read through `nativeLibDirEnv` rather than repeating the literal, so
+      // this and the error message below can never name different variables.
+      final envDir = Platform.environment[nativeLibDirEnv];
+      if (envDir != null && envDir.isNotEmpty) {
+        final absEnvDir = Directory(envDir).absolute.path;
+        final libDir = Directory(absEnvDir);
+        if (libDir.existsSync()) {
+          for (final candidate in candidates) {
+            final libPath = '$absEnvDir/$candidate';
+            if (candidateExists(libPath)) {
+              final result = tryOpenAbsolute(libPath);
+              if (result != null) return result;
             }
           }
         }
       }
 
-      final cachedPath = nativeCachedLibPath();
-      if (cachedPath != null && File(cachedPath).existsSync()) {
-        return ExternalLibrary.open(cachedPath);
+      // Compute RID (runtime identifier) from platform and architecture using Abi.current().
+      // This is more reliable than parsing Platform.version.
+      String? computeRid() {
+        final abi = Abi.current();
+        final os = Platform.operatingSystem;
+
+        // Map from (os, Abi) to RID string.
+        String? ridFromAbi() {
+          if (os == 'linux') {
+            if (abi == Abi.linuxX64) return 'linux-x64';
+            if (abi == Abi.linuxArm64) return 'linux-arm64';
+          } else if (os == 'macos') {
+            if (abi == Abi.macosX64) return 'macos-x64';
+            if (abi == Abi.macosArm64) return 'macos-arm64';
+          } else if (os == 'windows') {
+            if (abi == Abi.windowsX64) return 'windows-x64';
+            if (abi == Abi.windowsArm64) return 'windows-arm64';
+          }
+          return null;
+        }
+
+        return ridFromAbi();
       }
 
-      final downloadedPath = await nativeDownloadAndCacheLibrary();
-      return ExternalLibrary.open(downloadedPath);
+      final rid = computeRid();
+      if (rid != null) {
+        final packageRoot =
+            await Isolate.resolvePackageUri(Uri.parse('package:xberg/xberg.dart'));
+        if (packageRoot != null) {
+          final ridDir = packageRoot.resolve('src/native/$rid/');
+          for (final candidate in candidates) {
+            final libPath = ridDir.resolve(candidate).toFilePath();
+            if (candidateExists(libPath)) {
+              final result = tryOpenAbsolute(libPath);
+              if (result != null) return result;
+            }
+          }
+        }
+      }
+
+      // Check legacy package-installed location as fallback.
+      final packageRoot =
+          await Isolate.resolvePackageUri(Uri.parse('package:xberg/xberg.dart'));
+      if (packageRoot != null) {
+        final libDir = packageRoot.resolve('src/xberg_bridge_generated/');
+        for (final candidate in candidates) {
+          final libPath = libDir.resolve(candidate).toFilePath();
+          if (candidateExists(libPath)) {
+            final result = tryOpenAbsolute(libPath);
+            if (result != null) return result;
+          }
+        }
+      }
+
+      // As a last resort, resolve the running test/script's package root via
+      // `Platform.script` and search standard RID-relative locations there.
+      // Critical on macOS: `Directory.current` under hardened-runtime `dart` is
+      // the dart binary's own bin dir (relative-path dlopen rejected), whereas
+      // `Platform.script` resolves to the running .dart file's absolute URI,
+      // from which we can walk up to find the package root (the dir containing
+      // `pubspec.yaml`) and look for the bundled native library at standard
+      // paths. This handles the case where `Isolate.resolvePackageUri`
+      // resolution did not yield the actual staging location (e.g., a path
+      // dependency in local development, or a test_app whose host package
+      // contains the native lib directly rather than via the bridged package).
+      try {
+        final scriptPath = Platform.script.toFilePath();
+        var dir = File(scriptPath).absolute.parent;
+        while (dir.parent.path != dir.path
+            && !File('${dir.path}/pubspec.yaml').existsSync()) {
+          dir = dir.parent;
+        }
+        if (File('${dir.path}/pubspec.yaml').existsSync()) {
+          final rid = computeRid();
+          final absRootPath = dir.absolute.path;
+          final searchRoots = <String>[
+            if (rid != null) '$absRootPath/lib/src/native/$rid',
+            '$absRootPath/lib',
+            absRootPath,
+          ];
+          for (final root in searchRoots) {
+            final absRoot = Directory(root).absolute.path;
+            for (final candidate in candidates) {
+              final libPath = '$absRoot/$candidate';
+              if (candidateExists(libPath)) {
+                final result = tryOpenAbsolute(libPath);
+                if (result != null) return result;
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // fall through to the versioned-cache lookup below
+      }
+
+      // Versioned user cache populated by `dart run xberg:download_libs`.
+      // Shares its cache-path logic with the download script via
+      // `nativeCachedLibPath()` so the two can never disagree on the location.
+      final cachedLibPath = nativeCachedLibPath();
+      if (cachedLibPath != null && candidateExists(cachedLibPath)) {
+        final result = tryOpenAbsolute(cachedLibPath);
+        if (result != null) return result;
+      }
+
+      // Cache miss: download and cache the release asset, then open it. Any
+      // failure here (network, checksum mismatch) falls through to the loud
+      // StateError below rather than propagating a raw download exception.
+      try {
+        final downloadedPath = await nativeDownloadAndCacheLibrary();
+        final result = tryOpenAbsolute(downloadedPath);
+        if (result != null) return result;
+      } catch (_) {
+        // fall through to the descriptive miss below
+      }
     } catch (_) {
-      // Fall through to the default loader on any resolution failure.
+      // Fall through to the descriptive miss below on any resolution failure.
     }
-    return null;
-  }
 
-  /// Map the host platform to the pub.dev native staging RID. Returns `null`
-  /// for unrecognized host triples so the FRB-dev fallback path runs instead.
-  static String? _alefHostRid() {
-    final abi = Abi.current();
-    if (abi == Abi.macosArm64) return 'macos-arm64';
-    if (abi == Abi.macosX64) return 'macos-x64';
-    if (abi == Abi.linuxArm64) return 'linux-arm64';
-    if (abi == Abi.linuxX64) return 'linux-x64';
-    if (abi == Abi.windowsArm64) return 'windows-arm64';
-    if (abi == Abi.windowsX64) return 'windows-x64';
-    return null;
-  }
-
-  static List<String> _alefHostLibNames() {
-    // The Dart-binding Rust crate is `{stem}-dart` (per the cargo manifest
-    // template), which produces a cdylib named `lib{stem}_dart.{ext}` on Unix
-    // and `{stem}_dart.dll` on Windows. On macOS, pub.dev-published packages
-    // may ship the binary as a Framework bundle (preferred modern packaging)
-    // — list that first so the loader finds it before the bare dylib.
-    if (Platform.isMacOS)
-      return const [
-        'xberg_dart.framework',
-        'libxberg_dart.dylib',
-      ];
-    if (Platform.isWindows) return const ['xberg_dart.dll'];
-    return const ['libxberg_dart.so'];
+    // Nothing bundled and nothing staged in the cache: fail loudly rather than
+    // let flutter_rust_bridge attempt a doomed relative-path dlopen. Name the
+    // exact release asset, the fetch command, and the env-var override so the
+    // consumer can recover.
+    final rid = nativeComputeRid() ?? Platform.operatingSystem;
+    throw StateError(
+      'Native library for xberg ($rid) was not found. '
+      'Expected it in the versioned cache (${nativeCacheDir() ?? '<unresolved cache dir>'}) '
+      'or bundled with the package. Download it with '
+      '`dart run xberg:download_libs`, which fetches '
+      '${nativeAssetUrlBase()}.tar.gz and verifies its SHA-256, '
+      'or point $nativeLibDirEnv at a directory containing the native library.',
+    );
   }
 
   /// Initialize flutter_rust_bridge
@@ -447,5 +573,96 @@ mod tests {
             "signature extraction should stop before body"
         );
         assert_eq!(sig, "void process(String data) {");
+    }
+}
+
+const FRB_GENERATED_RUST: &str = "src/frb_generated.rs";
+
+/// Collect `name -> #[cfg(...)]` for every column-0 `pub fn`/`pub async fn` in `lib.rs`
+/// that sits directly under a column-0 `#[cfg(...)]` attribute.
+///
+/// Only top-level free functions matter here: those are the only items FRB turns into a
+/// wire wrapper. A gate on an `impl` block is out of scope and currently unreachable.
+fn cfg_gated_free_functions(lib_rs: &str) -> Vec<(String, String)> {
+    let lines: Vec<&str> = lib_rs.lines().collect();
+    let mut gated = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        if !lines[index].starts_with("#[cfg(") {
+            index += 1;
+            continue;
+        }
+        // Join a multi-line predicate (e.g. `any(\n feature = "a",\n ...)`) back together.
+        let mut attribute = String::from(lines[index]);
+        let mut cursor = index;
+        while !attribute.trim_end().ends_with(")]") && cursor + 1 < lines.len() {
+            cursor += 1;
+            attribute.push_str(lines[cursor].trim());
+        }
+        // Skip any further attributes stacked on the same item.
+        let mut item = cursor + 1;
+        while item < lines.len() && lines[item].starts_with('#') {
+            item += 1;
+        }
+        if let Some(rest) = lines
+            .get(item)
+            .and_then(|l| l.strip_prefix("pub async fn ").or_else(|| l.strip_prefix("pub fn ")))
+            && let Some(name) = rest.split(['(', '<', ' ']).next()
+            && !name.is_empty()
+        {
+            gated.push((name.to_string(), attribute));
+        }
+        index = cursor + 1;
+    }
+    gated
+}
+
+/// Re-apply `lib.rs`'s cfg gates to the FRB glue: the `wire__crate__<name>_impl`
+/// definition and its numeric dispatch arm.
+///
+/// Dispatch arms are keyed by an explicit numeric literal fixed at generation time, not
+/// by position, so removing one cannot renumber its siblings. Idempotent — a site that
+/// already carries its gate is left alone.
+fn carry_frb_cfg_gates() {
+    let Ok(lib_rs) = std::fs::read_to_string("src/lib.rs") else {
+        println!("cargo:warning=carry_frb_cfg_gates: src/lib.rs unreadable — skipping");
+        return;
+    };
+    let Ok(generated) = std::fs::read_to_string(FRB_GENERATED_RUST) else {
+        println!("cargo:warning=carry_frb_cfg_gates: {FRB_GENERATED_RUST} unreadable — skipping");
+        return;
+    };
+
+    let gated = cfg_gated_free_functions(&lib_rs);
+    if gated.is_empty() {
+        return;
+    }
+
+    let mut lines: Vec<String> = generated.lines().map(str::to_string).collect();
+    let mut applied = 0usize;
+    for (name, attribute) in &gated {
+        let definition = format!("fn wire__crate__{name}_impl(");
+        let dispatch = format!("=> wire__crate__{name}_impl(");
+        let mut index = 0;
+        while index < lines.len() {
+            let hit =
+                lines[index].trim_start().starts_with(definition.as_str()) || lines[index].contains(dispatch.as_str());
+            if hit && !lines[index.saturating_sub(1)].trim_start().starts_with("#[cfg(") {
+                let indent = " ".repeat(lines[index].len() - lines[index].trim_start().len());
+                lines.insert(index, format!("{indent}{attribute}"));
+                applied += 1;
+                index += 1;
+            }
+            index += 1;
+        }
+    }
+
+    if applied == 0 {
+        return;
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    if let Err(err) = std::fs::write(FRB_GENERATED_RUST, out) {
+        println!("cargo:warning=carry_frb_cfg_gates: failed to write {FRB_GENERATED_RUST}: {err}");
     }
 }

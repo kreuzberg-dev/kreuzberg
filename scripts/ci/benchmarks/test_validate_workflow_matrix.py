@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import unittest
 from pathlib import Path
-
-import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 VALIDATOR_PATH = Path(__file__).with_name("validate-workflow-matrix.py")
@@ -14,13 +13,13 @@ SPEC.loader.exec_module(VALIDATOR)
 WORKFLOW = (REPOSITORY_ROOT / ".github/workflows/benchmarks.yaml").read_text()
 
 
-class TestWorkflowMatrixValidation:
+class TestWorkflowMatrixValidation(unittest.TestCase):
     def test_expands_every_exact_contract_cell_once(self) -> None:
         cells = VALIDATOR.workflow_cells(WORKFLOW)
 
-        assert len(cells) == 116
-        assert len({VALIDATOR.cell_key(cell) for cell in cells}) == 116
-        assert sum(not cell["optional"] for cell in cells) == 80
+        assert len(cells) == 140
+        assert len({VALIDATOR.cell_key(cell) for cell in cells}) == 140
+        assert sum(not cell["optional"] for cell in cells) == 104
 
     def test_framework_env_drift_changes_cell_even_when_artifact_name_is_unchanged(self) -> None:
         mutated = WORKFLOW.replace("FRAMEWORK: docling", "FRAMEWORK: docling-wrong", 1)
@@ -40,7 +39,7 @@ class TestWorkflowMatrixValidation:
             1,
         )
 
-        with pytest.raises(ValueError, match="must not use continue-on-error"):
+        with self.assertRaisesRegex(ValueError, "must not use continue-on-error"):
             VALIDATOR.workflow_cells(mutated)
 
     def test_artifacts_must_be_validated_before_consolidation(self) -> None:
@@ -62,5 +61,9 @@ class TestWorkflowMatrixValidation:
             )
         )
 
-        with pytest.raises(ValueError, match="validation gates must precede publication"):
+        with self.assertRaisesRegex(ValueError, "validation gates must precede publication"):
             VALIDATOR.workflow_cells(mutated)
+
+
+if __name__ == "__main__":
+    unittest.main()

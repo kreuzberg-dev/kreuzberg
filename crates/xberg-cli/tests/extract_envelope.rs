@@ -11,17 +11,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Returns path to the compiled `xberg` binary (debug build).
+/// Returns path to the compiled `xberg` binary for this test target.
 fn xberg_bin() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .expect("crates/xberg-cli parent")
-        .parent()
-        .expect("crates parent")
-        .join("target")
-        .join("debug")
-        .join("xberg")
+    PathBuf::from(env!("CARGO_BIN_EXE_xberg"))
 }
 
 /// Returns path to the small reference PDF used in these tests.
@@ -50,15 +42,6 @@ fn txt_fixture() -> PathBuf {
         .join("fake_text.txt")
 }
 
-/// Build the binary once before running. Panics on failure.
-fn build_binary() {
-    let status = Command::new("cargo")
-        .args(["build", "--bin", "xberg"])
-        .status()
-        .expect("cargo build invocation failed");
-    assert!(status.success(), "cargo build failed — binary unavailable");
-}
-
 /// Skip-guard: returns `true` when the fixture exists so the test can run.
 fn fixture_exists(path: &Path) -> bool {
     path.exists() && path.is_file()
@@ -66,8 +49,6 @@ fn fixture_exists(path: &Path) -> bool {
 
 #[test]
 fn test_extract_json_has_result_and_timing() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());
@@ -107,8 +88,6 @@ fn test_extract_json_has_result_and_timing() {
 
 #[test]
 fn test_extract_json_includes_plausible_peak_memory_bytes() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());
@@ -144,8 +123,6 @@ fn test_extract_json_includes_plausible_peak_memory_bytes() {
 
 #[test]
 fn test_batch_json_has_results_and_timing() {
-    build_binary();
-
     let pdf = pdf_fixture();
     let txt = txt_fixture();
     if !fixture_exists(&pdf) || !fixture_exists(&txt) {
@@ -205,8 +182,6 @@ fn test_batch_json_has_results_and_timing() {
 
 #[test]
 fn test_pdf_backend_invalid_value_exits_nonzero() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());
@@ -232,8 +207,6 @@ fn test_pdf_backend_invalid_value_exits_nonzero() {
 
 #[test]
 fn test_extract_json_omits_stage_timings_by_default() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());
@@ -261,8 +234,6 @@ fn test_extract_json_omits_stage_timings_by_default() {
 
 #[test]
 fn test_extract_json_includes_stage_timings_when_requested() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());
@@ -312,8 +283,6 @@ fn test_extract_json_includes_stage_timings_when_requested() {
 
 #[test]
 fn test_pdf_backend_valid_value_succeeds() {
-    build_binary();
-
     let pdf = pdf_fixture();
     if !fixture_exists(&pdf) {
         eprintln!("SKIP: PDF fixture not found at {}", pdf.display());

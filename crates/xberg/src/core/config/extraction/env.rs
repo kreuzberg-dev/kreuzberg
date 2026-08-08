@@ -5,10 +5,11 @@
 
 use crate::{Result, XbergError};
 
+use super::super::csv::CsvConfig;
 use super::super::ocr::OcrConfig;
 use super::super::processing::ChunkingConfig;
 use super::core::ExtractionConfig;
-use super::types::TokenReductionOptions;
+use super::types::{BreadcrumbTarget, TokenReductionOptions};
 
 impl ExtractionConfig {
     /// Apply environment variable overrides to configuration.
@@ -22,6 +23,9 @@ impl ExtractionConfig {
     /// - `XBERG_OCR_MODEL_TIER`: PaddleOCR model tier (e.g. "medium"/"small"/"tiny" for v6, "mobile"/"server" for v5)
     /// - `XBERG_CHUNKING_MAX_CHARS`: Maximum characters per chunk (positive integer)
     /// - `XBERG_CHUNKING_MAX_OVERLAP`: Maximum overlap between chunks (non-negative integer)
+    /// - `XBERG_CHUNKING_BREADCRUMB_TARGET`: Where the heading-path breadcrumb is written
+    ///   when `prepend_heading_context` is enabled ("content", "metadata", or "both")
+    ///   — see [`BreadcrumbTarget`](crate::core::config::extraction::BreadcrumbTarget)
     /// - `XBERG_CACHE_ENABLED`: Cache enabled flag ("true" or "false")
     /// - `XBERG_TOKEN_REDUCTION_MODE`: Token reduction mode ("off", "light", "moderate", "aggressive", or "maximum")
     /// - `XBERG_CHUNKING_TOKENIZER`: HuggingFace tokenizer model ID for token-based chunk sizing (requires `chunking-tokenizers` feature)
@@ -33,6 +37,10 @@ impl ExtractionConfig {
     /// - `XBERG_VLM_EMBEDDING_MODEL`: LLM model for embedding generation (e.g., "openai/text-embedding-3-small")
     /// - `XBERG_EMBEDDING_PLUGIN_NAME`: Name of an in-process embedding backend registered via `plugins::register_embedding_backend`
     /// - `XBERG_MSG_FALLBACK_CODEPAGE`: (deferred) Windows codepage for MSG PT_STRING8 fallback
+    /// - `XBERG_CSV_DELIMITER`: CSV/TSV field delimiter, exactly one ASCII character
+    ///   (e.g. ",", ";", "\t", "|"). Overrides delimiter auto-detection.
+    /// - `XBERG_CSV_COMMENT_PREFIXES`: comma-separated list of line prefixes marking a
+    ///   CSV/TSV comment line to skip (e.g. "#,//")
     ///
     /// # Behavior
     ///
@@ -147,6 +155,30 @@ impl ExtractionConfig {
             if let Some(ref mut chunking) = self.chunking {
                 validate_chunking_params(chunking.max_characters, max_overlap)?;
                 chunking.overlap = max_overlap;
+            }
+        }
+
+        if let Ok(target_str) = std::env::var("XBERG_CHUNKING_BREADCRUMB_TARGET") {
+            let target = match target_str.to_lowercase().as_str() {
+                "content" => BreadcrumbTarget::Content,
+                "metadata" => BreadcrumbTarget::Metadata,
+                _ => {
+                    return Err(XbergError::Validation {
+                        message: format!(
+                            "Invalid value for XBERG_CHUNKING_BREADCRUMB_TARGET: '{}'. Must be 'content' or 'metadata'.",
+                            target_str
+                        ),
+                        source: None,
+                    });
+                }
+            };
+
+            if self.chunking.is_none() {
+                self.chunking = Some(ChunkingConfig::default());
+            }
+
+            if let Some(ref mut chunking) = self.chunking {
+                chunking.breadcrumb_target = target;
             }
         }
 
@@ -377,12 +409,12 @@ impl ExtractionConfig {
             if let Some(ref mut chunking) = self.chunking {
                 chunking.embedding = Some(super::super::processing::EmbeddingConfig {
                     model: super::super::processing::EmbeddingModelType::Llm {
-                        llm: super::super::llm::LlmConfig {
+                        llm: Box::new(super::super::llm::LlmConfig {
                             model: value,
                             api_key: None,
                             base_url: None,
                             ..Default::default()
-                        },
+                        }),
                     },
                     ..super::super::processing::EmbeddingConfig::default()
                 });
@@ -413,6 +445,37 @@ impl ExtractionConfig {
                     model: super::super::processing::EmbeddingModelType::Plugin { name: value },
                     ..super::super::processing::EmbeddingConfig::default()
                 });
+            }
+        }
+
+        if let Ok(value) = std::env::var("XBERG_CSV_DELIMITER") {
+            crate::core::config_validation::validate_csv_delimiter(&value)?;
+            if self.csv.is_none() {
+                self.csv = Some(CsvConfig::default());
+            }
+            if let Some(ref mut csv) = self.csv {
+                csv.delimiter = Some(value);
+            }
+        }
+
+        if let Ok(value) = std::env::var("XBERG_CSV_COMMENT_PREFIXES") {
+            let prefixes: Vec<String> = value
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
+            if prefixes.is_empty() {
+                return Err(XbergError::Validation {
+                    message: "XBERG_CSV_COMMENT_PREFIXES must contain at least one non-empty prefix".to_string(),
+                    source: None,
+                });
+            }
+            if self.csv.is_none() {
+                self.csv = Some(CsvConfig::default());
+            }
+            if let Some(ref mut csv) = self.csv {
+                csv.comment_prefixes = prefixes;
             }
         }
 
@@ -548,6 +611,41 @@ mod tests {
         clear_llm_cred_env();
     }
 
+    fn clear_breadcrumb_target_env() {
+        unsafe {
+            std::env::remove_var("XBERG_CHUNKING_BREADCRUMB_TARGET");
+        }
+    }
+
+    #[test]
+    fn breadcrumb_target_env_sets_chunking_field() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_breadcrumb_target_env();
+        unsafe { std::env::set_var("XBERG_CHUNKING_BREADCRUMB_TARGET", "metadata") };
+        let mut config = ExtractionConfig::default();
+        config
+            .apply_env_overrides()
+            .expect("valid breadcrumb target should apply");
+        assert_eq!(
+            config.chunking.as_ref().unwrap().breadcrumb_target,
+            BreadcrumbTarget::Metadata
+        );
+        clear_breadcrumb_target_env();
+    }
+
+    #[test]
+    fn breadcrumb_target_env_rejects_invalid_value() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_breadcrumb_target_env();
+        unsafe { std::env::set_var("XBERG_CHUNKING_BREADCRUMB_TARGET", "nonsense") };
+        let mut config = ExtractionConfig::default();
+        let err = config
+            .apply_env_overrides()
+            .expect_err("invalid breadcrumb target should be rejected");
+        assert!(matches!(err, XbergError::Validation { .. }));
+        clear_breadcrumb_target_env();
+    }
+
     fn clear_paddle_model_env() {
         unsafe {
             std::env::remove_var("XBERG_OCR_MODEL_VERSION");
@@ -600,5 +698,65 @@ mod tests {
         assert_eq!(paddle.get("drop_score").and_then(|v| v.as_f64()), Some(0.7));
         assert!(paddle.get("model_tier").is_none());
         clear_paddle_model_env();
+    }
+
+    fn clear_csv_env() {
+        unsafe {
+            std::env::remove_var("XBERG_CSV_DELIMITER");
+            std::env::remove_var("XBERG_CSV_COMMENT_PREFIXES");
+        }
+    }
+
+    #[test]
+    fn csv_delimiter_env_sets_csv_config() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_csv_env();
+        unsafe { std::env::set_var("XBERG_CSV_DELIMITER", ";") };
+        let mut config = ExtractionConfig::default();
+        config.apply_env_overrides().expect("valid delimiter should apply");
+        assert_eq!(config.csv.as_ref().unwrap().delimiter.as_deref(), Some(";"));
+        clear_csv_env();
+    }
+
+    #[test]
+    fn csv_delimiter_env_rejects_multi_byte_value() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_csv_env();
+        unsafe { std::env::set_var("XBERG_CSV_DELIMITER", "::") };
+        let mut config = ExtractionConfig::default();
+        let err = config
+            .apply_env_overrides()
+            .expect_err("multi-byte delimiter should be rejected");
+        assert!(matches!(err, XbergError::Validation { .. }));
+        clear_csv_env();
+    }
+
+    #[test]
+    fn csv_comment_prefixes_env_sets_csv_config() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_csv_env();
+        unsafe { std::env::set_var("XBERG_CSV_COMMENT_PREFIXES", "#, //") };
+        let mut config = ExtractionConfig::default();
+        config
+            .apply_env_overrides()
+            .expect("valid comment prefixes should apply");
+        assert_eq!(
+            config.csv.as_ref().unwrap().comment_prefixes,
+            vec!["#".to_string(), "//".to_string()]
+        );
+        clear_csv_env();
+    }
+
+    #[test]
+    fn csv_comment_prefixes_env_rejects_empty_value() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_csv_env();
+        unsafe { std::env::set_var("XBERG_CSV_COMMENT_PREFIXES", " , ") };
+        let mut config = ExtractionConfig::default();
+        let err = config
+            .apply_env_overrides()
+            .expect_err("blank comment prefixes should be rejected");
+        assert!(matches!(err, XbergError::Validation { .. }));
+        clear_csv_env();
     }
 }

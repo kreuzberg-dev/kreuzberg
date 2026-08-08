@@ -347,6 +347,8 @@ Xberg supports multiple OCR backends for extracting text from scanned documents 
 
 - **Tesseract-Wasm**
 
+- **Sceptre (Opt-In Worker Api)**
+
 ### OCR Configuration Example
 
 ```ts

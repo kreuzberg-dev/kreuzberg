@@ -6,7 +6,7 @@
 use crate::types::{BoundingBox, Element, ElementMetadata, ElementType};
 use std::collections::HashMap;
 
-use super::elements::{add_paragraphs, detect_list_items, generate_element_id};
+use super::elements::{add_paragraphs, detect_list_items, generate_element_id, normalize_line_endings};
 
 /// Detect a markdown ATX heading and return its level (1-6) when matched.
 fn detect_markdown_heading(line: &str) -> Option<u8> {
@@ -80,8 +80,9 @@ fn add_paragraphs_with_classification(
         return;
     }
 
+    let normalized = normalize_line_endings(text);
     let mut leftover = String::new();
-    for paragraph in text.split("\n\n").filter(|p| !p.trim().is_empty()) {
+    for paragraph in normalized.split("\n\n").filter(|p| !p.trim().is_empty()) {
         let para_text = paragraph.trim();
         if para_text.is_empty() {
             continue;

@@ -43,11 +43,19 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 #[cfg(feature = "office")]
-static IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"#image\("([^"]*)""#).unwrap());
+static IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"#?image\("([^"]*)""#).unwrap());
 #[cfg(feature = "office")]
 static COLUMNS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"columns:\s*(\d+)").unwrap());
 #[cfg(feature = "office")]
 static LINK_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^#link\("([^"]*)"\)\[([^\]]*)\]"#).unwrap());
+#[cfg(feature = "office")]
+static CITE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#cite\(<([^>]+)>\)").unwrap());
+#[cfg(feature = "office")]
+static AT_CITE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(^|[\s(])@([A-Za-z][A-Za-z0-9_:.-]*)").unwrap());
+
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+#[cfg(feature = "office")]
+const TYPST_WARNING_SOURCE: &str = "typst";
 
 /// Typst document extractor
 #[cfg_attr(alef, alef(skip))]
@@ -88,6 +96,8 @@ impl TypstExtractor {
         let mut table_bracket_depth: i32 = 0;
         let mut footnote_counter: u32 = 0;
         let mut active_list: Option<bool> = None;
+        let mut in_display_math = false;
+        let mut math_buf = String::new();
 
         let lines: Vec<&str> = content.lines().collect();
         let mut line_idx = 0;
@@ -127,6 +137,30 @@ impl TypstExtractor {
                 if paren_depth <= 0 {
                     in_set_document = false;
                     paren_depth = 0;
+                }
+                continue;
+            }
+
+            if in_display_math {
+                if let Some(close_idx) = trimmed.find('$') {
+                    let before_close = trimmed[..close_idx].trim();
+                    if !before_close.is_empty() {
+                        if !math_buf.is_empty() {
+                            math_buf.push('\n');
+                        }
+                        math_buf.push_str(before_close);
+                    }
+                    in_display_math = false;
+                    let math_text = math_buf.trim().to_string();
+                    math_buf.clear();
+                    if !math_text.is_empty() {
+                        builder.push_formula(&math_text, None, None);
+                    }
+                } else {
+                    if !math_buf.is_empty() {
+                        math_buf.push('\n');
+                    }
+                    math_buf.push_str(trimmed);
                 }
                 continue;
             }
@@ -177,15 +211,45 @@ impl TypstExtractor {
                 continue;
             }
 
+            // `#include "path"` inlines another file's rendered content at this
+            // point; unlike `#import` (which only brings names into scope and
+            // renders nothing itself), skipping it always drops real content
+            // this single-file, line-based parser has no way to read (#171).
+            if let Some(target) = trimmed.strip_prefix("#include ") {
+                builder.add_warning(crate::core::diagnostics::warning(
+                    TYPST_WARNING_SOURCE,
+                    format!(
+                        "#include {} references an external file that was not read; \
+                         its content is missing from the extracted text",
+                        target.trim()
+                    ),
+                ));
+                continue;
+            }
+
             if trimmed.starts_with("#set ")
                 || trimmed.starts_with("#let ")
                 || trimmed.starts_with("#import ")
-                || trimmed.starts_with("#include ")
                 || trimmed.starts_with("#pagebreak")
                 || trimmed.starts_with("#colbreak")
                 || trimmed.starts_with("#v(")
                 || trimmed.starts_with("#h(")
+                || trimmed.starts_with("#bibliography(")
             {
+                continue;
+            }
+
+            if let Some(after_marker) = trimmed.strip_prefix("/ ") {
+                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
+                let rest = after_marker.trim();
+                if let Some(colon_idx) = rest.find(':') {
+                    let term = rest[..colon_idx].trim();
+                    let definition = rest[colon_idx + 1..].trim();
+                    if !term.is_empty() {
+                        builder.push_definition_term(term, None);
+                        builder.push_definition_description(definition, None);
+                    }
+                }
                 continue;
             }
 
@@ -224,11 +288,29 @@ impl TypstExtractor {
                 continue;
             }
 
+            if trimmed == "$" {
+                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
+                in_display_math = true;
+                math_buf.clear();
+                continue;
+            }
+
             if trimmed.starts_with('$') && trimmed.ends_with('$') && trimmed.len() > 1 {
                 Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
                 let math = trimmed.trim_matches('$').trim();
                 if !math.is_empty() {
                     builder.push_formula(math, None, None);
+                }
+                continue;
+            }
+
+            if trimmed.starts_with('$') && trimmed.len() > 1 {
+                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
+                in_display_math = true;
+                math_buf.clear();
+                let opening_content = trimmed[1..].trim();
+                if !opening_content.is_empty() {
+                    math_buf.push_str(opening_content);
                 }
                 continue;
             }
@@ -262,6 +344,54 @@ impl TypstExtractor {
                 continue;
             }
 
+            if trimmed.starts_with("#quote[") {
+                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
+                if let Some(text) = Self::extract_bracket_content(trimmed, "#quote[") {
+                    builder.push_quote_start();
+                    builder.push_paragraph(&text, vec![], None, None);
+                    builder.push_quote_end();
+                }
+                continue;
+            }
+
+            if trimmed.starts_with("#figure(") {
+                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
+                let mut figure_buf = trimmed.to_string();
+                let mut figure_paren_depth: i32 = trimmed.chars().fold(0, |acc, ch| match ch {
+                    '(' => acc + 1,
+                    ')' => acc - 1,
+                    _ => acc,
+                });
+                while figure_paren_depth > 0 && line_idx < lines.len() {
+                    let next_line = lines[line_idx].trim();
+                    line_idx += 1;
+                    figure_buf.push('\n');
+                    figure_buf.push_str(next_line);
+                    for ch in next_line.chars() {
+                        match ch {
+                            '(' => figure_paren_depth += 1,
+                            ')' => figure_paren_depth -= 1,
+                            _ => {}
+                        }
+                    }
+                }
+
+                let image_path = IMAGE_RE
+                    .captures(&figure_buf)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+                let caption = Self::extract_figure_caption(&figure_buf);
+
+                if let Some(path) = &image_path {
+                    builder.push_uri(ExtractedUri::image(path, caption.clone()));
+                    builder.push_paragraph(&format!("[Image: {}]", path), vec![], None, None);
+                }
+                if let Some(cap) = &caption {
+                    builder.push_paragraph(cap, vec![], None, None);
+                }
+                continue;
+            }
+
             if trimmed.starts_with("#footnote[") {
                 Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
                 if let Some(text) = Self::extract_bracket_content(trimmed, "#footnote[") {
@@ -290,6 +420,13 @@ impl TypstExtractor {
             paragraph_buf.push_str(trimmed);
         }
 
+        if in_display_math {
+            let math_text = math_buf.trim().to_string();
+            if !math_text.is_empty() {
+                builder.push_formula(&math_text, None, None);
+            }
+        }
+
         if active_list.is_some() {
             builder.end_list();
         }
@@ -298,10 +435,17 @@ impl TypstExtractor {
     }
 
     /// Flush accumulated paragraph text into the internal builder,
-    /// parsing inline annotations (bold, italic, code, links).
+    /// parsing inline annotations (bold, italic, code, links) and citations
+    /// (`#cite(<key>)` and `@key`).
+    ///
+    /// Citations are emitted as dedicated `Citation` elements immediately after
+    /// the paragraph they were found in, so the paragraph text (with citation
+    /// markers normalized to `[key]`) is preserved alongside the structured
+    /// citation reference.
     fn flush_paragraph_internal(buf: &mut String, builder: &mut InternalDocumentBuilder) {
         if !buf.is_empty() {
-            let (text, annotations) = Self::parse_inline_annotations(buf.trim());
+            let (with_citations_resolved, citation_keys) = Self::extract_citations(buf.trim());
+            let (text, annotations) = Self::parse_inline_annotations(&with_citations_resolved);
             for ann in &annotations {
                 if let crate::types::document_structure::AnnotationKind::Link { url, .. } = &ann.kind
                     && !url.is_empty()
@@ -311,8 +455,55 @@ impl TypstExtractor {
                 }
             }
             builder.push_paragraph(&text, annotations, None, None);
+            for key in &citation_keys {
+                builder.push_citation(key, key, None);
+            }
             buf.clear();
         }
+    }
+
+    /// Recognize `#cite(<key>)` and `@key` citation references, returning the
+    /// text with each raw Typst citation form replaced by a readable `[key]`
+    /// marker, plus the ordered list of citation keys found.
+    fn extract_citations(raw: &str) -> (String, Vec<String>) {
+        let mut keys: Vec<String> = Vec::new();
+
+        let after_cite = CITE_RE.replace_all(raw, |caps: &regex::Captures| {
+            let key = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            keys.push(key.to_string());
+            format!("[{}]", key)
+        });
+        let after_at = AT_CITE_RE.replace_all(&after_cite, |caps: &regex::Captures| {
+            let prefix = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            let key = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            keys.push(key.to_string());
+            format!("{}[{}]", prefix, key)
+        });
+
+        (after_at.into_owned(), keys)
+    }
+
+    /// Extract the `caption: [...]` argument content from a `#figure(...)` call,
+    /// respecting nested brackets inside the caption body.
+    fn extract_figure_caption(figure_source: &str) -> Option<String> {
+        let idx = figure_source.find("caption:")?;
+        let after = &figure_source[idx + "caption:".len()..];
+        let start = after.find('[')?;
+
+        let mut depth: i32 = 0;
+        for (index, ch) in after.char_indices().skip(start) {
+            match ch {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(after[start + 1..index].trim().to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     /// Parse a `#table(...)` block and emit it as a table element in the internal builder.
@@ -1455,5 +1646,47 @@ Actual content"#;
         assert!(output.contains("🎉"), "Emoji preserved");
         assert!(output.contains("bold"), "Bold content present");
         assert!(output.contains("🌍"), "Trailing emoji preserved");
+    }
+
+    fn typst_warnings(doc: &InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == TYPST_WARNING_SOURCE)
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #171: `#include "path"` inlines another file's content, which this
+    /// single-file, line-based parser has no way to read; it must not be
+    /// dropped without a trace.
+    #[test]
+    fn should_warn_when_typst_include_is_skipped() {
+        let content = "#include \"chapter1.typ\"\n\n= Heading\nBody text";
+        let doc = TypstExtractor::build_internal_document(content);
+
+        let warnings = typst_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one typst warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("#include \"chapter1.typ\"") && warnings[0].contains("was not read"),
+            "warning must name the skipped #include target, got {warnings:?}"
+        );
+    }
+
+    /// `#import` only brings names into scope and renders nothing itself, so
+    /// it must not warn.
+    #[test]
+    fn should_not_warn_for_typst_import() {
+        let content = "#import \"@preview/foo:1.0\"\n\n= Heading\nBody text";
+        let doc = TypstExtractor::build_internal_document(content);
+
+        assert!(
+            typst_warnings(&doc).is_empty(),
+            "#import must not warn, got {:?}",
+            typst_warnings(&doc)
+        );
     }
 }

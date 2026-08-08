@@ -14,6 +14,9 @@ on:
       - "rust-toolchain.toml"
       - ".github/workflows/ci-rust.yaml"
       - "scripts/ci/rust/**"
+      # The gitlink selects which corpus fixtures the include_bytes! tests compile against, so a
+      # pin bump changes what this workflow actually verifies. ~keep
+      - "test_documents"
   pull_request:
     branches: [main]
     paths:
@@ -27,6 +30,9 @@ on:
       - "rust-toolchain.toml"
       - ".github/workflows/ci-rust.yaml"
       - "scripts/ci/rust/**"
+      # The gitlink selects which corpus fixtures the include_bytes! tests compile against, so a
+      # pin bump changes what this workflow actually verifies. ~keep
+      - "test_documents"
   workflow_dispatch:
 
 concurrency:
@@ -63,10 +69,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
 
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
+      # Broad workspace test surface (task rust:test:ci runs `cargo test --workspace
+      # --all-features`-equivalent across every crate) -- no single glob prefix is safe
+      # to drop, so fetch the full corpus. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
 
       - name: Free disk space
         if: runner.os == 'Linux'
@@ -122,12 +130,53 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ env.DYLD_LIBRARY_PATH || '' }}
           DYLD_FALLBACK_LIBRARY_PATH: ${{ env.DYLD_FALLBACK_LIBRARY_PATH || '' }}
 
+      # `task rust:test:ci` passes `--all-targets`, which runs --lib/--bins/--tests/
+      # --examples/--benches but deliberately EXCLUDES `--doc`. That left every rustdoc
+      # example in `-p xberg` with zero CI coverage, so they rotted into ~25 compile
+      # failures before anyone noticed (#313). This is the leg that catches that.
+      #
+      # Feature set matches the unit-test leg on purpose: (a) rustdoc forwards the crate's
+      # `--cfg feature="..."` flags to doctests, so a narrower set would silently *strip*
+      # the `# #[cfg(feature = "...")]`-guarded doctest bodies instead of checking them,
+      # and (b) reusing the same set means this step reuses that leg's warm build
+      # artifacts rather than rebuilding the dependency graph.
+      # The Linux-aarch64 substitution mirrors scripts/ci/rust/run-unit-tests.sh, which is
+      # the source of truth for why `full` is unbuildable there (candle -> gemm-f16 aarch64
+      # asm needs fullfp16). Keep the two in sync. ~keep
+      - name: Run doctests
+        run: |
+          features=full
+          if [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "aarch64" ]; then
+            features=full-no-heic,heic
+          fi
+          echo "xberg doctest features: ${features}"
+          cargo test --locked -p xberg --features "${features}" --doc
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: ${{ env.LD_LIBRARY_PATH || '' }}
+          DYLD_LIBRARY_PATH: ${{ env.DYLD_LIBRARY_PATH || '' }}
+          DYLD_FALLBACK_LIBRARY_PATH: ${{ env.DYLD_FALLBACK_LIBRARY_PATH || '' }}
+
       - name: Check no-default-features
         run: cargo check --locked -p xberg --no-default-features
         shell: bash
 
       - name: Check ocr-wasm backend
         run: cargo check --locked -p xberg --no-default-features --features ocr-wasm --lib
+        shell: bash
+
+      # Regression coverage for #320: `layout-detection` compiles standalone (no `ocr`/
+      # `ocr-pipeline`), so the PDF OCR-coordinate-transform helpers it calls must not
+      # depend on the `ocr` module or on items gated behind `ocr`/`ocr-pipeline` alone.
+      - name: Check layout-detection without OCR
+        run: cargo check --locked -p xberg --no-default-features --features "tokio-runtime,pdf,layout-detection" --lib
+        shell: bash
+
+      # Cheap standalone check of the exact feature closure the `all` Docker images build
+      # (default features + `all`, not `--no-default-features`). Catches a feature-closure
+      # compile break in minutes instead of via the ~20-minute Docker build (#325).
+      - name: Check xberg-cli --features all
+        run: cargo check --locked -p xberg-cli --features all
         shell: bash
 
       - name: Check xberg-cli feature profiles
@@ -155,6 +204,71 @@ jobs:
           done
         shell: bash
 
+  # GH#1389 regression guard: `cargo add xberg --features full` then `cargo build` on
+  # x86_64-pc-windows-msvc used to die at LINK with an LNK2038 RuntimeLibrary mismatch,
+  # 'MT_StaticRelease' (libesaxx_rs) against 'MD_DynamicRelease' (libxberg_tesseract
+  # capi.obj). That wording is reconstructed from the mechanism, not copied from a CI
+  # log -- do not grep past runs for it verbatim. This job is what will produce the real
+  # line if it ever regresses; it had never executed as of 2026-08-07, so treat it as
+  # unexercised rather than passing until a Windows run reports on it.
+  # The cause: model2vec-rs's tokenizers instance used to pull `tokenizers/esaxx_fast` (=
+  # `esaxx-rs/cpp`, whose build.rs forces `.static_crt(true)` i.e. /MT) while the Tesseract
+  # capi object links dynamically (/MD). The fix (crates/xberg/Cargo.toml, 2026-08-06) takes
+  # neither of model2vec-rs's regex features and instead hands its shared tokenizers 0.21
+  # instance `fancy-regex` via the `tokenizers-model2vec` alias dep, so esaxx_fast is never
+  # activated. That fix was previously verified only via `cargo tree` feature inspection and
+  # an isolated macOS compile probe -- nothing exercised the actual MSVC LINK step, so a
+  # future dependency bump silently re-enabling `esaxx_fast` would go undetected.
+  #
+  # `--features "ocr,static-embeddings"` (not `--no-default-features --features full`) is
+  # the minimal combination that genuinely reproduces both halves of the mismatch:
+  #   - `ocr` pulls `dep:xberg-tesseract`, whose native capi object is the /MD side.
+  #   - `static-embeddings` pulls `dep:model2vec-rs` + `dep:tokenizers-model2vec`, the path
+  #     that used to pull the /MT `esaxx-rs/cpp` object.
+  # Neither feature needs ONNX Runtime (static-embeddings's whole point is a pure-Rust,
+  # ORT-free embedder), so this leg skips the ORT setup step entirely and stays cheap
+  # relative to a `full` build.
+  #
+  # `cargo test --no-run` (not `cargo check`, which never invokes link.exe, and not plain
+  # `cargo build`, which only produces an rlib) builds the crate's test harness binary --
+  # a real MSVC link of every native object, including the two above -- without spending
+  # time actually running the (fixture-heavy) test suite.
+  windows-static-embeddings-link:
+    name: Rust (windows-latest, static-embeddings link)
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # `--lib` (not `--all-targets`) keeps the fixture surface to extraction::image's
+      # ocr-gated `#[cfg(test)]` modules, whose include_bytes! fixtures must exist at
+      # compile time even though the tests never run -- so `images/**` is sufficient.
+      # `static-embeddings`'s test fixtures are synthetic in-memory safetensors bytes.
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            images/**
+
+      - name: Setup Rust
+        uses: xberg-io/actions/setup-rust@v1
+        with:
+          target: x86_64-pc-windows-msvc
+          cache-key-prefix: rust-windows-static-embeddings
+          use-sccache: "true"
+
+      # Provisions Tesseract (for `ocr`'s xberg-tesseract capi object) on Windows. No ORT
+      # setup is needed here -- neither `ocr` nor `static-embeddings` links ONNX Runtime.
+      - name: Install system dependencies
+        uses: ./.github/actions/install-system-deps
+
+      - name: Build xberg test harness (ocr + static-embeddings, real MSVC link)
+        run: cargo test --locked -p xberg --no-default-features --features "ocr,static-embeddings" --lib --no-run
+        shell: bash
+
   # `cfg(target_os = "windows")` dependency blocks (ureq/tokenizers/liter-llm).
   # Also the only job that builds/tests xberg-libwpd on Windows.
   clippy-windows:
@@ -166,7 +280,18 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
+
+      # `windows-target` enables `email`+`ocr` but excludes `heic`: --all-targets compiles
+      # the email.rs/image.rs test modules gated on those features, whose include_bytes!
+      # fixtures (email/*.msg, vendored/unstructured/msg/*.msg, images/*.jp2) must exist at
+      # compile time or the build fails outright. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            email/**
+            vendored/**
+            images/**
 
       - name: Setup Rust
         uses: xberg-io/actions/setup-rust@v1
@@ -215,6 +340,16 @@ jobs:
         with:
           submodules: recursive
 
+      # `--lib` with TRACT_FEATURES ("ocr,...") compiles extraction::image's
+      # `#[cfg(test)]`/`#[cfg(all(test, feature = "ocr"))]` modules unconditionally --
+      # their include_bytes! jp2 fixtures must exist at compile time. `email`/`office`
+      # are not in TRACT_FEATURES, so no other corpus dirs are pulled in. ~keep
+      - name: Fetch test_documents fixtures
+        uses: xberg-io/actions/fetch-test-documents@v1
+        with:
+          include: |
+            images/**
+
       - name: Setup Rust
         uses: xberg-io/actions/setup-rust@v1
         with:
@@ -253,10 +388,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          lfs: true
-
-      - name: Pull test_documents LFS objects
-        run: git -C test_documents lfs pull
 
       - name: Free disk space
         uses: xberg-io/actions/free-disk-space-linux@v1

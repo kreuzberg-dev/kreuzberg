@@ -1,3 +1,4 @@
+use super::DecodeOutcome;
 use ahash::AHashMap;
 use chardetng::EncodingDetector;
 use encoding_rs::Encoding;
@@ -154,16 +155,48 @@ fn calculate_cache_key(data: &[u8]) -> String {
 /// The function prefers an explicit `encoding`, falls back to the cached guess, probes
 /// an encoding detector, and finally tries a small curated list before returning a
 /// mojibake-cleaned string.
+///
+/// Thin wrapper over [`super::decode_with_provenance`] for the many existing callers
+/// that only want the text. Callers that need to know whether the decode was lossy
+/// should call [`super::decode_with_provenance`] directly (#395): the U+FFFD marker
+/// this function's mojibake cleanup used to leave behind is stripped before it gets
+/// here, so checking the returned `String` for it can never detect a lossy decode.
 pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
+    let outcome = super::decode_with_provenance(byte_data, encoding);
+    // Surface the provenance this wrapper otherwise discards so it is not silently
+    // lost for every caller that has not migrated to `decode_with_provenance` yet
+    // (#395) -- cheap at `trace` level, and the only place in a `safe_decode`-only
+    // call chain where `fell_back` / `replaced_characters` are ever inspected.
+    tracing::trace!(
+        target: "xberg::encoding",
+        fell_back = outcome.fell_back,
+        replaced_characters = outcome.replaced_characters,
+        "safe_decode provenance"
+    );
+    outcome.text
+}
+
+/// Decode raw bytes into UTF-8 like [`safe_decode`], but report fallback/replacement
+/// provenance captured at the point each decode actually happens -- before
+/// [`fix_mojibake_internal`] can strip the only evidence of a lossy decode (#395).
+pub(crate) fn safe_decode_with_provenance(byte_data: &[u8], encoding: Option<&str>) -> DecodeOutcome {
     if byte_data.is_empty() {
-        return String::new();
+        return DecodeOutcome {
+            text: String::new(),
+            fell_back: false,
+            replaced_characters: false,
+        };
     }
 
     if let Some(enc_name) = encoding
         && let Some(enc) = Encoding::for_label(enc_name.as_bytes())
     {
-        let (decoded, _, _) = enc.decode(byte_data);
-        return fix_mojibake_internal(&decoded).into_owned();
+        let (decoded, actual_encoding, had_errors) = enc.decode(byte_data);
+        return DecodeOutcome {
+            text: fix_mojibake_internal(&decoded).into_owned(),
+            fell_back: actual_encoding != encoding_rs::UTF_8,
+            replaced_characters: had_errors,
+        };
     }
 
     let cache_key = calculate_cache_key(byte_data);
@@ -172,8 +205,12 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
     match ENCODING_CACHE.write() {
         Ok(mut cache) => {
             if let Some(cached_encoding) = cache.get(&cache_key) {
-                let (decoded, _, _) = cached_encoding.decode(byte_data);
-                return fix_mojibake_internal(&decoded).into_owned();
+                let (decoded, actual_encoding, had_errors) = cached_encoding.decode(byte_data);
+                return DecodeOutcome {
+                    text: fix_mojibake_internal(&decoded).into_owned(),
+                    fell_back: actual_encoding != encoding_rs::UTF_8,
+                    replaced_characters: had_errors,
+                };
             }
         }
         Err(e) => {
@@ -184,12 +221,12 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
 
     let mut detector = EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
     detector.feed(byte_data, true);
-    let encoding = detector.guess(None, chardetng::Utf8Detection::Allow);
+    let guessed_encoding = detector.guess(None, chardetng::Utf8Detection::Allow);
 
     // OSError/RuntimeError must bubble up - system errors need user reports ~keep
     match ENCODING_CACHE.write() {
         Ok(mut cache) => {
-            cache.insert(cache_key, encoding);
+            cache.insert(cache_key, guessed_encoding);
         }
         Err(e) => {
             // Lock poisoning should never happen in normal operation ~keep
@@ -197,7 +234,7 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
         }
     }
 
-    let (decoded, _, had_errors) = encoding.decode(byte_data);
+    let (decoded, actual_encoding, had_errors) = guessed_encoding.decode(byte_data);
 
     if had_errors {
         for enc_name in &[
@@ -209,9 +246,15 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
             "cp1251",
         ] {
             if let Some(enc) = Encoding::for_label(enc_name.as_bytes()) {
-                let (test_decoded, _, test_errors) = enc.decode(byte_data);
+                let (test_decoded, test_actual_encoding, test_errors) = enc.decode(byte_data);
                 if !test_errors && calculate_text_confidence_internal(&test_decoded) > 0.5 {
-                    return fix_mojibake_internal(&test_decoded).into_owned();
+                    return DecodeOutcome {
+                        text: fix_mojibake_internal(&test_decoded).into_owned(),
+                        fell_back: test_actual_encoding != encoding_rs::UTF_8,
+                        // Gated on `!test_errors` above, so this is always false --
+                        // the candidate is only accepted when it decoded cleanly.
+                        replaced_characters: false,
+                    };
                 }
             }
         }
@@ -227,7 +270,7 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
             tracing::debug!(
                 target: "xberg::encoding",
                 "safe_decode produced low-confidence output after fallback attempts; encoding={}, confidence={:.3}, len={}, preview=\"{}\"",
-                encoding.name(),
+                guessed_encoding.name(),
                 confidence,
                 final_text.len(),
                 preview
@@ -235,7 +278,11 @@ pub(crate) fn safe_decode(byte_data: &[u8], encoding: Option<&str>) -> String {
         }
     }
 
-    final_text
+    DecodeOutcome {
+        text: final_text,
+        fell_back: actual_encoding != encoding_rs::UTF_8,
+        replaced_characters: had_errors,
+    }
 }
 
 fn calculate_text_confidence_internal(text: &str) -> f64 {
@@ -302,6 +349,84 @@ mod tests {
     fn test_safe_decode_utf8() {
         let text = "Hello, 世界! مرحبا".as_bytes();
         assert_eq!(safe_decode(text, None), "Hello, 世界! مرحبا");
+    }
+
+    /// #395: `safe_decode` must remain a pure wrapper over
+    /// `safe_decode_with_provenance` -- the text it returns must never diverge from
+    /// the `text` field of the provenance-carrying call, for any input.
+    #[test]
+    fn should_return_same_text_as_provenance_wrapper_for_every_input() {
+        let cases: &[(&[u8], Option<&str>)] = &[
+            (b"", None),
+            (b"Hello, World!", None),
+            ("Hello, 世界! مرحبا".as_bytes(), None),
+            (&[b'A', 0xFF, 0xFE, b'B'], Some("utf-8")),
+            (&[b'r', 0xE9, b's', 0xE9], Some("windows-1252")),
+        ];
+
+        for (bytes, encoding) in cases {
+            assert_eq!(
+                safe_decode(bytes, *encoding),
+                safe_decode_with_provenance(bytes, *encoding).text,
+                "safe_decode diverged from safe_decode_with_provenance for {bytes:?} / {encoding:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_report_no_fallback_and_no_replacement_for_empty_input() {
+        let outcome = safe_decode_with_provenance(b"", None);
+        assert_eq!(outcome.text, "");
+        assert!(!outcome.fell_back);
+        assert!(!outcome.replaced_characters);
+    }
+
+    #[test]
+    fn should_report_no_fallback_and_no_replacement_for_valid_utf8() {
+        let input = "Hello, 世界! مرحبا".as_bytes();
+        let outcome = safe_decode_with_provenance(input, None);
+
+        assert_eq!(outcome.text, "Hello, 世界! مرحبا");
+        assert!(!outcome.fell_back, "valid UTF-8 must not report a fallback");
+        assert!(
+            !outcome.replaced_characters,
+            "valid UTF-8 must not report a replacement"
+        );
+    }
+
+    /// windows-1252 maps every byte 0x00-0xFF (WHATWG Encoding Standard), so an
+    /// explicit windows-1252 decode can reinterpret bytes but never drop them.
+    #[test]
+    fn should_report_fallback_without_replacement_for_windows_1252_bytes() {
+        let input: &[u8] = &[b'r', 0xE9, b's', b'u', b'm', 0xE9];
+        let outcome = safe_decode_with_provenance(input, Some("windows-1252"));
+
+        assert_eq!(outcome.text, "résumé");
+        assert!(
+            outcome.fell_back,
+            "windows-1252 is not UTF-8, so this must report a fallback"
+        );
+        assert!(
+            !outcome.replaced_characters,
+            "windows-1252 maps every byte 0x00-0xFF, so no replacement character can occur"
+        );
+    }
+
+    /// #395: this is the case that used to be undetectable under `quality` -- the
+    /// text has its U+FFFD characters stripped by `fix_mojibake_internal`, but
+    /// `replaced_characters` must still report the loss because it is captured
+    /// before that cleanup runs.
+    #[test]
+    fn should_report_replacement_when_utf8_decode_forces_it() {
+        let input: &[u8] = &[b'A', 0xFF, 0xFE, b'B'];
+        let outcome = safe_decode_with_provenance(input, Some("utf-8"));
+
+        assert_eq!(outcome.text, "AB", "fix_mojibake_internal strips the U+FFFD characters");
+        assert!(!outcome.fell_back, "UTF-8 was used, so this must not report a fallback");
+        assert!(
+            outcome.replaced_characters,
+            "undecodable bytes must be reported as a replacement"
+        );
     }
 
     #[test]

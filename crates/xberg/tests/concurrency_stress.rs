@@ -1,4 +1,11 @@
-#![allow(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)] // ~keep: test/bench binaries print by design; org logging policy exempts tests
+#![allow(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
+// ~keep: test/bench binaries print by design; org logging policy exempts tests
+// `tokio::spawn`ing an extraction future requires proving it `Send`. Under `full`
+// features that proof walks into h2's `PollMessage` -> `slab::Entry` -> `PhantomData`
+// chain (reqwest/hyper, pulled in by api/mcp/liter-llm), which exceeds the default
+// 128 limit. The chain is entirely third-party — no xberg type appears in it — and
+// rustc's own diagnostic recommends exactly this. ~keep
+#![recursion_limit = "256"]
 //! Comprehensive concurrency and parallelism stress tests.
 //!
 //! Validates that the Xberg core handles concurrent operations correctly:

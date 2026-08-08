@@ -11,6 +11,7 @@
 //! `XbergError::LockPoisoned` error paths for these fields.
 
 use crate::error::{Result, XbergError};
+use crate::telemetry::conventions;
 use ahash::AHashSet;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use super::cleanup::smart_cleanup_cache;
+use super::namespace::validate_namespace;
+use super::version::versioned_cache_key;
 
 /// Minimum seconds between automatic cleanup runs (5 minutes).
 const CLEANUP_INTERVAL_SECS: u64 = 300;
@@ -255,7 +258,58 @@ impl GenericCache {
 
         bytes.extend_from_slice(&ttl_secs.unwrap_or(0).to_le_bytes());
 
-        let _ = fs::write(meta_path, bytes);
+        if let Err(e) = fs::write(&meta_path, bytes) {
+            // Not fatal — the blob is already on disk and `is_valid` degrades to
+            // the age check — but a persistent failure here silently disables
+            // source-file and TTL invalidation, so it must not be swallowed.
+            tracing::warn!(
+                { conventions::OPERATION } = conventions::operations::CACHE_WRITE,
+                { conventions::CACHE_KEY } = cache_key,
+                error = %e,
+                "Failed to write cache metadata sidecar; source-file and TTL invalidation are disabled for this entry"
+            );
+        }
+    }
+
+    /// Validate a caller-supplied namespace, logging and wrapping the rejection.
+    ///
+    /// A namespace becomes a directory component under the cache root, so an
+    /// unvalidated one is a path-traversal primitive. See [`validate_namespace`].
+    fn check_namespace(namespace: Option<&str>, operation: &'static str) -> Result<()> {
+        let Some(namespace) = namespace else {
+            return Ok(());
+        };
+
+        validate_namespace(namespace).map_err(|e| {
+            tracing::warn!(
+                { conventions::OPERATION } = operation,
+                error = %e,
+                "Rejected cache namespace"
+            );
+            e
+        })
+    }
+
+    /// Emit cache-lookup telemetry for a resolved key.
+    fn record_lookup(versioned_key: &str, hit: bool) {
+        #[cfg(feature = "otel")]
+        {
+            tracing::Span::current().record("cache.hit", hit);
+
+            let metrics = crate::telemetry::metrics::get_metrics();
+            if hit {
+                metrics.cache_hits.add(1, &[]);
+            } else {
+                metrics.cache_misses.add(1, &[]);
+            }
+        }
+
+        tracing::debug!(
+            { conventions::OPERATION } = conventions::operations::CACHE_LOOKUP,
+            { conventions::CACHE_KEY } = versioned_key,
+            { conventions::CACHE_HIT } = hit,
+            "Cache lookup"
+        );
     }
 
     #[cfg_attr(feature = "otel", tracing::instrument(
@@ -272,39 +326,44 @@ impl GenericCache {
         namespace: Option<&str>,
         ttl_override_secs: Option<u64>,
     ) -> Result<Option<Vec<u8>>> {
-        let cache_path = self.get_cache_path(cache_key, namespace);
+        Self::check_namespace(namespace, conventions::operations::CACHE_LOOKUP)?;
+
+        let versioned_key = versioned_cache_key(cache_key);
+        let cache_path = self.get_cache_path(&versioned_key, namespace);
 
         {
             let deleting = self.read_deleting_files();
             if deleting.contains(&cache_path) {
-                #[cfg(feature = "otel")]
-                tracing::Span::current().record("cache.hit", false);
+                Self::record_lookup(&versioned_key, false);
                 return Ok(None);
             }
         }
 
         if !self.is_valid(&cache_path, source_file, ttl_override_secs) {
-            #[cfg(feature = "otel")]
-            tracing::Span::current().record("cache.hit", false);
+            Self::record_lookup(&versioned_key, false);
             return Ok(None);
         }
 
         match fs::read(&cache_path) {
             Ok(content) => {
-                #[cfg(feature = "otel")]
-                tracing::Span::current().record("cache.hit", true);
+                Self::record_lookup(&versioned_key, true);
                 Ok(Some(content))
             }
-            Err(_) => {
+            Err(e) => {
+                tracing::warn!(
+                    { conventions::OPERATION } = conventions::operations::CACHE_LOOKUP,
+                    { conventions::CACHE_KEY } = versioned_key.as_str(),
+                    error = %e,
+                    "Failed to read a cache entry that passed validation; discarding it and treating the lookup as a miss"
+                );
                 if let Err(e) = fs::remove_file(&cache_path) {
                     tracing::debug!("Failed to remove corrupted cache file: {}", e);
                 }
-                let meta_path = self.get_metadata_path(cache_key, namespace);
+                let meta_path = self.get_metadata_path(&versioned_key, namespace);
                 if let Err(e) = fs::remove_file(meta_path) {
                     tracing::debug!("Failed to remove corrupted metadata file: {}", e);
                 }
-                #[cfg(feature = "otel")]
-                tracing::Span::current().record("cache.hit", false);
+                Self::record_lookup(&versioned_key, false);
                 Ok(None)
             }
         }
@@ -331,23 +390,57 @@ impl GenericCache {
         namespace: Option<&str>,
         ttl_secs: Option<u64>,
     ) -> Result<()> {
+        // Validate BEFORE `create_dir_all` — an unvalidated namespace is what
+        // turns the directory creation below into a path-traversal primitive.
+        Self::check_namespace(namespace, conventions::operations::CACHE_WRITE)?;
+
+        let versioned_key = versioned_cache_key(cache_key);
         let dir = self.resolve_dir(namespace);
-        fs::create_dir_all(&dir)
-            .map_err(|e| XbergError::cache(format!("Failed to create cache namespace dir: {}", e)))?;
+        fs::create_dir_all(&dir).map_err(|e| {
+            tracing::warn!(
+                { conventions::OPERATION } = conventions::operations::CACHE_WRITE,
+                { conventions::CACHE_KEY } = versioned_key.as_str(),
+                error = %e,
+                "Failed to create the cache namespace directory; the result will not be cached"
+            );
+            XbergError::cache(format!("Failed to create cache namespace dir: {}", e))
+        })?;
 
-        let cache_path = self.get_cache_path(cache_key, namespace);
+        let cache_path = self.get_cache_path(&versioned_key, namespace);
 
-        fs::write(&cache_path, &data).map_err(|e| XbergError::cache(format!("Failed to write cache file: {}", e)))?;
+        fs::write(&cache_path, &data).map_err(|e| {
+            tracing::warn!(
+                { conventions::OPERATION } = conventions::operations::CACHE_WRITE,
+                { conventions::CACHE_KEY } = versioned_key.as_str(),
+                error = %e,
+                "Failed to write the cache entry; the result will not be cached"
+            );
+            XbergError::cache(format!("Failed to write cache file: {}", e))
+        })?;
 
-        self.save_metadata(cache_key, source_file, namespace, ttl_secs);
+        self.save_metadata(&versioned_key, source_file, namespace, ttl_secs);
+
+        tracing::debug!(
+            { conventions::OPERATION } = conventions::operations::CACHE_WRITE,
+            { conventions::CACHE_KEY } = versioned_key.as_str(),
+            size_bytes = data.len(),
+            "Cache write"
+        );
 
         if self.should_run_cleanup() {
-            if let Some(cache_path_str) = self.cache_dir.to_str() {
-                let _ = smart_cleanup_cache(
+            if let Some(cache_path_str) = self.cache_dir.to_str()
+                && let Err(e) = smart_cleanup_cache(
                     cache_path_str,
                     self.max_age_days,
                     self.max_cache_size_mb,
                     self.min_free_space_mb,
+                )
+            {
+                // Swallowing this hides an unbounded cache from the operator.
+                tracing::warn!(
+                    { conventions::OPERATION } = conventions::operations::CACHE_WRITE,
+                    error = %e,
+                    "Cache cleanup failed; the cache may exceed its configured size and age limits"
                 );
             }
             self.touch_cleanup_marker();
@@ -383,7 +476,10 @@ impl GenericCache {
     /// Touch the cleanup marker file to record last cleanup time.
     fn touch_cleanup_marker(&self) {
         let marker = self.cache_dir.join(".last_cleanup");
-        let _ = fs::write(&marker, []);
+        if let Err(e) = fs::write(&marker, []) {
+            // Without the marker every `set` re-runs the cleanup scan.
+            tracing::debug!("Failed to touch the cache cleanup marker: {}", e);
+        }
     }
 
     #[cfg(test)]

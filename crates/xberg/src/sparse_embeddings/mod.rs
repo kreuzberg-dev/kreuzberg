@@ -184,6 +184,7 @@ fn get_or_init_engine(
     additional_files: &[String],
     max_length: usize,
     cache_dir: Option<std::path::PathBuf>,
+    progress: crate::core::config::DownloadProgress,
     accel: Option<crate::core::config::acceleration::AccelerationConfig>,
 ) -> crate::Result<Arc<SparseEmbeddingEngine>> {
     let revision = (repo_name == "xberg-io/sparse-embeddings").then_some(SPARSE_EMBEDDING_REVISION);
@@ -219,6 +220,7 @@ fn get_or_init_engine(
         additional_files,
         revision,
         cache_dir.as_deref(),
+        progress,
         Some(SPARSE_EMBEDDING_SHA256_MANIFEST),
         sparse_err,
     )?;
@@ -278,6 +280,7 @@ pub fn embed_sparse<T: AsRef<str>>(
         &additional,
         max_len,
         config.cache_dir.clone(),
+        config.into(),
         config.acceleration.clone(),
     )?;
 

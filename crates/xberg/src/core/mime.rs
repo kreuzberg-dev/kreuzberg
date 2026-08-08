@@ -32,6 +32,95 @@ pub struct SupportedFormat {
 #[cfg(feature = "api")]
 pub(crate) const OCTET_STREAM_MIME_TYPE: &str = "application/octet-stream";
 pub(crate) const HTML_MIME_TYPE: &str = "text/html";
+
+/// Element names that identify a markup fragment as HTML rather than generic XML.
+///
+/// Deliberately conservative: every entry is an element that exists in HTML and is not a
+/// plausible root for the XML vocabularies this crate also extracts (DocBook, JATS, FB2,
+/// OPML, RSS). Ambiguous names shared with those vocabularies — `title`, `table`, `para`,
+/// `section`, `article`, `link`, `code` — are omitted on purpose, so a borderline document
+/// keeps its current XML routing instead of being silently rerouted.
+const HTML_FRAGMENT_ELEMENTS: &[&str] = &[
+    "a",
+    "b",
+    "blockquote",
+    "body",
+    "br",
+    "button",
+    "div",
+    "em",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "head",
+    "header",
+    "hr",
+    "i",
+    "iframe",
+    "img",
+    "input",
+    "label",
+    "li",
+    "main",
+    "meta",
+    "nav",
+    "ol",
+    "option",
+    "p",
+    "pre",
+    "script",
+    "select",
+    "span",
+    "strong",
+    "style",
+    "table",
+    "tbody",
+    "td",
+    "textarea",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+];
+
+/// Return `true` when `trimmed` opens as HTML rather than as generic XML.
+///
+/// Recognises the two document preambles case-insensitively (`<!doctype html>` is at least
+/// as common in the wild as the uppercase spelling) and, for fragments that carry no
+/// preamble at all, the name of the first element.
+fn looks_like_html(trimmed: &str) -> bool {
+    let lowered_prefix: String = trimmed.chars().take(16).flat_map(char::to_lowercase).collect();
+    if lowered_prefix.starts_with("<!doctype html") || lowered_prefix.starts_with("<html") {
+        return true;
+    }
+
+    let Some(after_bracket) = trimmed.strip_prefix('<') else {
+        return false;
+    };
+    let name_length = after_bracket
+        .find(|character: char| !character.is_ascii_alphanumeric())
+        .unwrap_or(after_bracket.len());
+    let (name, rest) = after_bracket.split_at(name_length);
+    // Require the tag to actually close here, so `<tr:foo>` (a namespace prefix that happens
+    // to collide with an HTML name) stays XML.
+    if !matches!(
+        rest.chars().next(),
+        Some('>') | Some(' ') | Some('/') | Some('\t') | Some('\n') | Some('\r')
+    ) {
+        return false;
+    }
+
+    let name = name.to_ascii_lowercase();
+    HTML_FRAGMENT_ELEMENTS.contains(&name.as_str())
+}
 pub(crate) const PDF_MIME_TYPE: &str = "application/pdf";
 pub(crate) const PLAIN_TEXT_MIME_TYPE: &str = "text/plain";
 pub(crate) const POWER_POINT_MIME_TYPE: &str =
@@ -98,26 +187,12 @@ static FORMATS: &[FormatEntry] = &[
         mime_type: "text/vtt",
         aliases: &[],
     },
-    FormatEntry {
-        extensions: &[],
-        mime_type: "text/troff",
-        aliases: &[],
-    },
-    FormatEntry {
-        extensions: &[],
-        mime_type: "text/x-mdoc",
-        aliases: &[],
-    },
-    FormatEntry {
-        extensions: &[],
-        mime_type: "text/x-pod",
-        aliases: &[],
-    },
-    FormatEntry {
-        extensions: &[],
-        mime_type: "text/x-dokuwiki",
-        aliases: &[],
-    },
+    // text/troff, text/x-mdoc, text/x-pod and text/x-dokuwiki were removed here (#228). They
+    // carried no extensions, so they were unreachable except via a caller-supplied MIME, and
+    // the only "extractor" behind them was the plain-text one — which BOM-stripped and split
+    // on blank lines, turning roff macros and POD commands into prose that looked like a
+    // successful extraction. Listing them made `validate_mime_type` return Ok for formats
+    // nothing could actually parse, which is the advertised-but-unroutable half of GH#1387.
     FormatEntry {
         extensions: &["md", "markdown"],
         mime_type: "text/markdown",
@@ -883,12 +958,17 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
             return Ok(JSON_MIME_TYPE.to_string());
         }
 
-        if trimmed.starts_with("<?xml") || trimmed.starts_with('<') {
-            return Ok(XML_MIME_TYPE.to_string());
+        // The HTML checks must precede the generic `<` fallback. They used to follow it,
+        // where `trimmed.starts_with('<')` matched every tag first and made them dead code
+        // (#235). HTML still routed correctly for whole documents only because `infer::get`
+        // recognises those earlier in this function; a bare fragment reached here and was
+        // typed `application/xml`, then handed to the XML extractor.
+        if !trimmed.starts_with("<?xml") && looks_like_html(trimmed) {
+            return Ok(HTML_MIME_TYPE.to_string());
         }
 
-        if trimmed.starts_with("<!DOCTYPE html") || trimmed.starts_with("<html") {
-            return Ok(HTML_MIME_TYPE.to_string());
+        if trimmed.starts_with("<?xml") || trimmed.starts_with('<') {
+            return Ok(XML_MIME_TYPE.to_string());
         }
 
         if trimmed.starts_with("%PDF") {
@@ -1175,11 +1255,21 @@ pub fn get_extensions_for_mime(mime_type: &str) -> Result<Vec<String>> {
 /// Formats that have no registered file extension (such as source code,
 /// which is detected dynamically) are not included.
 ///
+/// The static `EXT_TO_MIME` table lists every format the *codebase* knows how
+/// to describe, regardless of which Cargo features were compiled in. Advertising
+/// that table directly would claim support for extractors that may not exist in
+/// this build (see GH#1387). To keep the advertised catalogue honest, the table
+/// is intersected with the document extractor registry: an extension is only
+/// included if some registered extractor actually claims its MIME type in this
+/// build. This can never drift from reality and automatically covers
+/// third-party extractors registered at runtime.
+///
 /// The list is sorted alphabetically by file extension.
 ///
 /// # Returns
 ///
-/// A vector of [`SupportedFormat`] entries sorted by extension.
+/// A vector of [`SupportedFormat`] entries sorted by extension, limited to
+/// formats with a registered extractor in this build.
 ///
 /// # Example
 ///
@@ -1188,11 +1278,18 @@ pub fn get_extensions_for_mime(mime_type: &str) -> Result<Vec<String>> {
 ///
 /// let formats = list_supported_formats();
 /// assert!(!formats.is_empty());
-/// assert!(formats.iter().any(|f| f.extension == "pdf"));
 /// ```
 pub fn list_supported_formats() -> Vec<SupportedFormat> {
+    if let Err(error) = crate::extractors::ensure_initialized() {
+        tracing::warn!(%error, "failed to initialize document extractor registry before listing formats");
+    }
+
+    let registry = crate::plugins::registry::get_document_extractor_registry();
+    let registry_guard = registry.read();
+
     let mut formats: Vec<SupportedFormat> = EXT_TO_MIME
         .iter()
+        .filter(|(_ext, mime)| registry_guard.get(mime).is_ok())
         .map(|(ext, mime)| SupportedFormat {
             extension: ext.to_string(),
             mime_type: mime.to_string(),
@@ -1754,16 +1851,23 @@ mod tests {
 
     #[test]
     fn test_list_supported_formats_includes_common_formats() {
+        // `list_supported_formats` now filters against the registered extractor set
+        // (#308), so assertions for extensions gated behind optional Cargo features
+        // only hold when those features are compiled in.
         let formats = list_supported_formats();
         let extensions: Vec<&str> = formats.iter().map(|f| f.extension.as_str()).collect();
 
+        #[cfg(feature = "pdf")]
         assert!(extensions.contains(&"pdf"), "Should include pdf");
         assert!(extensions.contains(&"md"), "Should include md");
+        #[cfg(feature = "office")]
         assert!(extensions.contains(&"docx"), "Should include docx");
+        #[cfg(feature = "html")]
         assert!(extensions.contains(&"html"), "Should include html");
         assert!(extensions.contains(&"txt"), "Should include txt");
         assert!(extensions.contains(&"csv"), "Should include csv");
         assert!(extensions.contains(&"json"), "Should include json");
+        #[cfg(any(feature = "excel", feature = "excel-wasm"))]
         assert!(extensions.contains(&"xlsx"), "Should include xlsx");
     }
 
@@ -1814,5 +1918,52 @@ mod tests {
         );
         assert!(SUPPORTED_MIME_TYPES.contains("text/rtf"), "rtf alias");
         assert!(SUPPORTED_MIME_TYPES.contains("text/x-typst"), "typst alias");
+    }
+
+    /// Every alias in [`FORMATS`] must route to the same extractor as its canonical MIME
+    /// type.
+    ///
+    /// `validate_mime_type` accepts an alias verbatim — it does not normalize it to the
+    /// canonical form — and `DocumentExtractorRegistry::get` resolves by exact string with
+    /// no alias awareness. So an alias that no extractor lists in `supported_mime_types()`
+    /// is advertised as supported by `list_supported_formats()` and then rejected as
+    /// `UnsupportedFormat` at extraction time (#229, and #289 for the same shape).
+    ///
+    /// Formats whose canonical MIME has no registered extractor are skipped, so this stays
+    /// valid under any feature set: it only ever asserts that an alias is no worse off than
+    /// the canonical name beside it.
+    #[test]
+    fn every_declared_alias_resolves_to_the_same_extractor_as_its_canonical_mime() {
+        crate::extractors::ensure_initialized().expect("failed to initialize default extractors");
+        let registry = crate::plugins::registry::get_document_extractor_registry();
+        let registry = registry.read();
+
+        let mut unclaimed = Vec::new();
+        for format in FORMATS {
+            let Ok(canonical) = registry.get(format.mime_type) else {
+                continue;
+            };
+            for alias in format.aliases {
+                match registry.get(alias) {
+                    Ok(aliased) if aliased.name() == canonical.name() => {}
+                    Ok(aliased) => unclaimed.push(format!(
+                        "{alias} (alias of {}) resolves to {}, not {}",
+                        format.mime_type,
+                        aliased.name(),
+                        canonical.name()
+                    )),
+                    Err(_) => unclaimed.push(format!(
+                        "{alias} (alias of {}) resolves to no extractor, but {} does",
+                        format.mime_type, format.mime_type
+                    )),
+                }
+            }
+        }
+
+        assert!(
+            unclaimed.is_empty(),
+            "declared alias MIME types are advertised as supported but unroutable:\n  {}",
+            unclaimed.join("\n  ")
+        );
     }
 }

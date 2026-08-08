@@ -6,12 +6,20 @@ use super::analysis::TextAnalyzer;
 /// Handles word filtering and token removal operations.
 pub struct WordFilter {
     cjk_tokenizer: CjkTokenizer,
+    /// Mirrors `TokenReductionConfig::preserve_important_words` (#269): when
+    /// `true`, words with "important" characteristics (all-caps, digits,
+    /// mixed case, very long) are always kept by
+    /// [`Self::remove_additional_common_words`] regardless of frequency;
+    /// when `false`, those words are judged by the same frequency/length
+    /// heuristics as everything else.
+    preserve_important_words: bool,
 }
 
 impl WordFilter {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(preserve_important_words: bool) -> Self {
         Self {
             cjk_tokenizer: CjkTokenizer::new(),
+            preserve_important_words,
         }
     }
 
@@ -70,7 +78,7 @@ impl WordFilter {
                 let freq = word_freq.get(&clean_word).unwrap_or(&0);
                 let word_len = clean_word.chars().count() as f32;
 
-                if TextAnalyzer::has_important_characteristics(word)
+                if (self.preserve_important_words && TextAnalyzer::has_important_characteristics(word))
                     || (*freq <= 2 && word_len >= avg_length * 0.8)
                     || (word_len >= avg_length * 1.5)
                 {
@@ -96,7 +104,7 @@ impl WordFilter {
 
                 if clean_word.is_empty()
                     || clean_word.chars().count() >= 3
-                    || TextAnalyzer::has_important_characteristics(word)
+                    || (self.preserve_important_words && TextAnalyzer::has_important_characteristics(word))
                 {
                     fallback_words.push(word.clone());
                 }
@@ -124,7 +132,7 @@ impl WordFilter {
 
 impl Default for WordFilter {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -134,23 +142,54 @@ mod tests {
 
     #[test]
     fn test_universal_tokenize_english() {
-        let filter = WordFilter::new();
+        let filter = WordFilter::new(true);
         let tokens = filter.universal_tokenize("hello world test");
         assert_eq!(tokens, vec!["hello", "world", "test"]);
     }
 
     #[test]
     fn test_universal_tokenize_cjk() {
-        let filter = WordFilter::new();
+        let filter = WordFilter::new(true);
         let tokens = filter.universal_tokenize("中文");
         assert!(!tokens.is_empty());
     }
 
     #[test]
     fn test_fallback_threshold() {
-        let filter = WordFilter::new();
+        let filter = WordFilter::new(true);
         let input = "a the is of to in for on at by";
         let result = filter.remove_additional_common_words(input);
         assert!(!result.is_empty());
+    }
+
+    /// Shared fixture for the `preserve_important_words` tests below.
+    ///
+    /// Fifteen distinct long words (each appearing once) keep
+    /// `filtered_words` comfortably above the fallback threshold on their
+    /// own — via the frequency/length heuristic, independent of
+    /// `preserve_important_words` — so the fallback path (which would mask
+    /// the effect under test by keeping every word of length >= 3) never
+    /// triggers. "CEO" (all-caps, len 3) repeats three times and is short
+    /// relative to the average word length, so neither of those heuristics
+    /// keeps it: only `has_important_characteristics` does (#269).
+    const IMPORTANT_WORD_FIXTURE: &str = "documentation implementation specification organization architecture \
+         infrastructure optimization configuration authentication authorization synchronization virtualization \
+         containerization orchestration serialization CEO CEO CEO";
+
+    #[test]
+    fn preserve_important_words_true_keeps_the_acronym() {
+        let filter = WordFilter::new(true);
+        let result = filter.remove_additional_common_words(IMPORTANT_WORD_FIXTURE);
+        assert!(result.contains("CEO"), "expected CEO to survive, got: {result}");
+    }
+
+    #[test]
+    fn preserve_important_words_false_lets_the_acronym_be_removed() {
+        let filter = WordFilter::new(false);
+        let result = filter.remove_additional_common_words(IMPORTANT_WORD_FIXTURE);
+        assert!(
+            !result.contains("CEO"),
+            "expected CEO to be removed once the important-word guard is disabled, got: {result}"
+        );
     }
 }

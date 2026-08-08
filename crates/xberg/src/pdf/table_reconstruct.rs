@@ -905,6 +905,113 @@ pub(crate) fn is_well_formed_table(grid: &[Vec<String>]) -> bool {
     is_well_formed_table_core(grid, false)
 }
 
+/// Share of (column boundary, row) pairs whose boundary has a word running
+/// across it, above which a rule-less candidate is treated as prose (#1399).
+///
+/// Deliberately NOT the ~30% the issue proposed. Measured over 147 genuine
+/// ruled-table regions from `test_documents/pdf/`, each scored on its own
+/// bounding box (the reconstructor only ever sees a pre-segmented region, so
+/// scoring whole pages mixes in surrounding prose and inflates the ratio):
+/// min 11.9%, median 33.0%, p90 45.6%, max 74.7%. A 30% cut rejects 94 of
+/// those 147 real tables; 50% rejects 8; 60% rejects 4. The #1399 prose region
+/// scores 65.0%, and every prose page in that document scores 47.8-75.5%, so
+/// 60% separates the reported defect from real tables with the least collateral
+/// damage this signal can achieve on its own. It is deliberately a weak gate:
+/// the ruling-line check below is the load-bearing one. ~keep
+const MAX_STRADDLED_BOUNDARY_RATIO: f64 = 0.60;
+
+/// Row-grouping tolerance as a multiple of median word height, matching the
+/// value `reconstruct_table` itself uses so both see the same rows.
+const STRADDLE_ROW_THRESHOLD_RATIO: f64 = 0.5;
+
+/// Fraction of (column boundary, row) pairs crossed by a word's bounding box.
+///
+/// A column boundary is the *start* of the next column, not the midpoint
+/// between two column positions. [`crate::table_core::detect_columns`] returns
+/// each column's **median left edge**, so a midpoint between two such medians
+/// falls inside the left column's own text rather than in the gutter, and any
+/// word wider than half the column pitch straddles it — flagging legitimate
+/// tables that merely contain one long word.
+///
+/// Measured per row rather than over the whole region: the issue's definition
+/// is that a column boundary is a vertical band of whitespace which holds on
+/// every row, so text running across it *on most rows* is what disqualifies it.
+/// A single long word on one row is not evidence of prose.
+pub(crate) fn straddled_boundary_ratio(region: &[HocrWord], column_positions: &[u32]) -> f64 {
+    if column_positions.len() < 2 || region.is_empty() {
+        return 0.0;
+    }
+
+    let row_positions = crate::table_core::detect_rows(region, STRADDLE_ROW_THRESHOLD_RATIO);
+    if row_positions.is_empty() {
+        return 0.0;
+    }
+
+    let mut rows: Vec<Vec<&HocrWord>> = vec![Vec::new(); row_positions.len()];
+    for word in region {
+        let y_center = word.y_center() as u32;
+        let Some((index, _)) = row_positions
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, row_y)| row_y.abs_diff(y_center))
+        else {
+            continue;
+        };
+        rows[index].push(word);
+    }
+
+    let mut total = 0usize;
+    let mut straddled = 0usize;
+    for &boundary in &column_positions[1..] {
+        for row in &rows {
+            total += 1;
+            if row
+                .iter()
+                .any(|word| word.left < boundary && word.left.saturating_add(word.width) > boundary)
+            {
+                straddled += 1;
+            }
+        }
+    }
+
+    if total == 0 {
+        return 0.0;
+    }
+    straddled as f64 / total as f64
+}
+
+/// Well-formedness gate for the borderless heuristic path, which is the only
+/// caller holding raw word geometry and the page's drawn-rule count.
+///
+/// Implements the two-signal admission test from xberg-io/xberg#1399:
+///
+/// 1. **Drawn ruling lines (positive).** A page whose region carries horizontal
+///    rules had a producer that drew a table, so the candidate is admitted. The
+///    reporter's survey found no real table lacking rules, and this is the
+///    strong signal — see [`MAX_STRADDLED_BOUNDARY_RATIO`] for why the
+///    geometric signal alone cannot carry the decision.
+/// 2. **Are the column boundaries actually whitespace (fallback)?** With no
+///    rules to go on, test the definition of a column. Continuous prose that
+///    merely aligns into column-like x-buckets has words running across those
+///    boundaries on most rows; a real borderless table does not, because its
+///    cells do not overlap.
+///
+/// This only ever narrows acceptance relative to [`is_well_formed_table`].
+pub(crate) fn is_well_formed_borderless_table(
+    grid: &[Vec<String>],
+    region: &[HocrWord],
+    column_positions: &[u32],
+    horizontal_rules: usize,
+) -> bool {
+    if !is_well_formed_table(grid) {
+        return false;
+    }
+    if horizontal_rules > 0 {
+        return true;
+    }
+    straddled_boundary_ratio(region, column_positions) < MAX_STRADDLED_BOUNDARY_RATIO
+}
+
 /// Core well-formedness check. `skip_columnar_prose_guard` drops only the
 /// uniform-column-length prose heuristic, for callers that have already vetted
 /// the region's columnar structure geometrically (the #1319 text-heavy geometric
@@ -3053,5 +3160,114 @@ mod tests {
             "a real numeric/name table row must not be mistaken for shredded prose"
         );
         assert!(!looks_like_shredded_prose_row(&grid[1], grid[0].len()));
+    }
+
+    /// Single-word `HocrWord` at a given position, for the #1399 geometry tests.
+    fn geometry_word(text: &str, left: u32, top: u32, width: u32) -> HocrWord {
+        HocrWord {
+            text: text.to_string(),
+            left,
+            top,
+            width,
+            height: 20,
+            confidence: 95.0,
+        }
+    }
+
+    /// GH#1399: prose whose lines run across the inferred column boundaries on
+    /// every row must score as almost entirely straddled. Three rows of words
+    /// each spanning both boundaries — the shape the reported page has.
+    #[test]
+    fn straddled_ratio_is_near_total_for_prose_running_across_every_boundary() {
+        let mut region = Vec::new();
+        for (row, top) in [0u32, 40, 80].iter().enumerate() {
+            // Each word starts inside one column and ends inside the next.
+            region.push(geometry_word(&format!("a{row}"), 0, *top, 130));
+            region.push(geometry_word(&format!("b{row}"), 140, *top, 130));
+        }
+        let columns = vec![0u32, 100, 200];
+
+        let ratio = straddled_boundary_ratio(&region, &columns);
+        assert_eq!(
+            ratio, 1.0,
+            "every boundary is crossed on every row, so the ratio must be exactly 1.0; got {ratio}"
+        );
+        assert!(
+            !is_well_formed_borderless_table(
+                &[
+                    vec!["a0".to_string(), "b0".to_string(), String::new()],
+                    vec!["a1".to_string(), "b1".to_string(), String::new()],
+                ],
+                &region,
+                &columns,
+                0,
+            ),
+            "a rule-less region straddled on every row must be rejected as prose"
+        );
+    }
+
+    /// The false-positive guard. A legitimate table whose first column holds
+    /// one long word must NOT be rejected. An earlier attempt at this gate put
+    /// the boundary at the midpoint between two column *medians* and used
+    /// `any()` rather than a per-row proportion, so this exact shape — one wide
+    /// word, every other cell clean — was misread as bridging.
+    #[test]
+    fn long_word_in_a_wide_column_does_not_read_as_a_straddled_boundary() {
+        let region = vec![
+            geometry_word("Department", 0, 0, 80),
+            geometry_word("Head", 200, 0, 30),
+            geometry_word("Telecommunications", 0, 40, 150),
+            geometry_word("Alice", 200, 40, 40),
+            geometry_word("Finance", 0, 80, 60),
+            geometry_word("Bob", 200, 80, 30),
+        ];
+        let columns = vec![0u32, 200];
+
+        let ratio = straddled_boundary_ratio(&region, &columns);
+        assert_eq!(
+            ratio, 0.0,
+            "no word reaches column 1's start at x=200, so nothing straddles; got {ratio}"
+        );
+    }
+
+    /// Signal 1 outranks Signal 2: a producer that drew ruling lines gets the
+    /// benefit of the doubt even when the geometry looks prose-like, because
+    /// the geometric signal alone is too weak to overrule drawn structure.
+    #[test]
+    fn drawn_ruling_lines_admit_a_region_the_geometric_gate_would_reject() {
+        let mut region = Vec::new();
+        for (row, top) in [0u32, 40, 80].iter().enumerate() {
+            region.push(geometry_word(&format!("a{row}"), 0, *top, 130));
+            region.push(geometry_word(&format!("b{row}"), 140, *top, 130));
+        }
+        let columns = vec![0u32, 100, 200];
+        let grid = vec![
+            vec!["Name".to_string(), "Role".to_string()],
+            vec!["Alice".to_string(), "Engineer".to_string()],
+            vec!["Bob".to_string(), "Designer".to_string()],
+        ];
+
+        assert_eq!(
+            straddled_boundary_ratio(&region, &columns),
+            1.0,
+            "precondition: this geometry is fully straddled"
+        );
+        assert!(
+            is_well_formed_borderless_table(&grid, &region, &columns, 3),
+            "3 horizontal rules must admit the candidate despite the straddled geometry"
+        );
+        assert!(
+            !is_well_formed_borderless_table(&grid, &region, &columns, 0),
+            "the same candidate with no rules must fall through to the geometric gate and be rejected"
+        );
+    }
+
+    /// Fewer than two detected columns means there is no boundary to straddle.
+    #[test]
+    fn straddled_ratio_is_zero_when_there_is_no_column_boundary() {
+        let region = vec![geometry_word("only", 0, 0, 50)];
+        assert_eq!(straddled_boundary_ratio(&region, &[0]), 0.0);
+        assert_eq!(straddled_boundary_ratio(&region, &[]), 0.0);
+        assert_eq!(straddled_boundary_ratio(&[], &[0, 100]), 0.0);
     }
 }

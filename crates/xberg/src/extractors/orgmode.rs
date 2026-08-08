@@ -49,6 +49,10 @@ use std::borrow::Cow;
 ///
 /// Provides native Rust-based Org Mode extraction using the `org` library,
 /// extracting structured content and metadata.
+/// `ProcessingWarning::source` for every warning this extractor emits (#171).
+#[cfg(feature = "office")]
+const ORGMODE_WARNING_SOURCE: &str = "orgmode";
+
 #[cfg_attr(alef, alef(skip))]
 #[cfg(feature = "office")]
 pub struct OrgModeExtractor;
@@ -348,8 +352,26 @@ impl OrgModeExtractor {
                 }
                 if let Some((key, val)) = rest.split_once(':') {
                     let key_upper = key.trim().to_uppercase();
+                    // `#+CAPTION:`/`#+NAME:` are body-level affiliated keywords that attach to
+                    // the immediately-following element (image link, table, ...), not
+                    // document-level preamble metadata — hand them to the body loop below
+                    // instead of swallowing them into `metadata_entries`.
+                    if key_upper == "CAPTION" || key_upper == "NAME" {
+                        break;
+                    }
                     let value = val.trim().to_string();
                     if !value.is_empty() {
+                        if key_upper == "INCLUDE" {
+                            // Recorded as preamble metadata below, but the referenced file's
+                            // content itself is never read by this single-file parser (#171).
+                            b.add_warning(crate::core::diagnostics::warning(
+                                ORGMODE_WARNING_SOURCE,
+                                format!(
+                                    "'#+INCLUDE: {value}' references an external file that was not read; \
+                                     its content is missing from the extracted text"
+                                ),
+                            ));
+                        }
                         metadata_entries.push((key_upper, value));
                     }
                 }
@@ -365,8 +387,23 @@ impl OrgModeExtractor {
             b.push_metadata_block(&metadata_entries, None);
         }
 
+        let mut pending_caption: Option<String> = None;
+        let mut pending_name: Option<String> = None;
+
         while i < lines.len() {
             let trimmed = lines[i].trim();
+
+            if !trimmed.is_empty()
+                && (pending_caption.is_some() || pending_name.is_some())
+                && !Self::is_caption_keyword_line(trimmed)
+                && !Self::is_caption_target_line(trimmed)
+            {
+                // The buffered `#+CAPTION:`/`#+NAME:` line was not immediately followed by an
+                // element that can carry it (image link or table); drop it rather than
+                // mis-attaching it to an unrelated, later element.
+                pending_caption = None;
+                pending_name = None;
+            }
 
             if trimmed.starts_with("#+")
                 && !trimmed.starts_with("#+BEGIN")
@@ -374,6 +411,30 @@ impl OrgModeExtractor {
                 && !trimmed.starts_with("#+END")
                 && !trimmed.starts_with("#+end")
             {
+                if let Some((key, val)) = trimmed[2..].split_once(':') {
+                    let key_upper = key.trim().to_ascii_uppercase();
+                    let value = val.trim();
+                    if key_upper == "CAPTION" && !value.is_empty() {
+                        pending_caption = Some(match pending_caption.take() {
+                            Some(existing) => format!("{existing} {value}"),
+                            None => value.to_string(),
+                        });
+                    } else if key_upper == "NAME" && !value.is_empty() {
+                        pending_name = Some(value.to_string());
+                    } else if key_upper == "INCLUDE" && !value.is_empty() {
+                        // `#+INCLUDE: "file.org"` inlines another file's rendered content at
+                        // this point. This parser works on a single in-memory document and
+                        // never resolves the reference, so the referenced file's content is
+                        // always missing from the extracted text (#171).
+                        b.add_warning(crate::core::diagnostics::warning(
+                            ORGMODE_WARNING_SOURCE,
+                            format!(
+                                "'#+INCLUDE: {value}' references an external file that was not read; \
+                                 its content is missing from the extracted text"
+                            ),
+                        ));
+                    }
+                }
                 i += 1;
                 continue;
             }
@@ -551,7 +612,8 @@ impl OrgModeExtractor {
                     i += 1;
                 }
                 if !table_cells.is_empty() {
-                    Self::push_org_table(&mut b, table_cells, has_header_separator);
+                    let element_idx = Self::push_org_table(&mut b, table_cells, has_header_separator);
+                    Self::attach_pending_caption_and_name(&mut b, element_idx, &mut pending_caption, &mut pending_name);
                 }
                 continue;
             }
@@ -616,7 +678,7 @@ impl OrgModeExtractor {
                     let alt = if display == url { String::new() } else { display.clone() };
                     let kind = ElementKind::Image { image_index: u32::MAX };
                     let id = InternalElementId::generate(kind.discriminant(), &alt, None, 0);
-                    b.push_element(InternalElement {
+                    let element_idx = b.push_element(InternalElement {
                         id,
                         kind,
                         text: alt,
@@ -631,6 +693,7 @@ impl OrgModeExtractor {
                         ocr_confidence: None,
                         ocr_rotation: None,
                     });
+                    Self::attach_pending_caption_and_name(&mut b, element_idx, &mut pending_caption, &mut pending_name);
                     let label = if display == url { None } else { Some(display) };
                     b.push_uri(ExtractedUri::image(&url, label));
                     i += 1;
@@ -703,7 +766,10 @@ impl OrgModeExtractor {
     }
 
     /// Push an Org table while preserving whether the source declared a header separator.
-    fn push_org_table(b: &mut InternalDocumentBuilder, cells: Vec<Vec<String>>, has_header: bool) {
+    ///
+    /// Returns the index of the created `Table` element so callers can attach a preceding
+    /// `#+CAPTION:`/`#+NAME:` affiliated keyword to it (see `attach_pending_caption_and_name`).
+    fn push_org_table(b: &mut InternalDocumentBuilder, cells: Vec<Vec<String>>, has_header: bool) -> u32 {
         let columns = has_header.then(|| cells[0].clone());
         let mut markdown_cells = cells.clone();
         if !has_header {
@@ -716,7 +782,52 @@ impl OrgModeExtractor {
             columns,
             ..Default::default()
         };
-        b.push_table(table, None, None);
+        b.push_table(table, None, None)
+    }
+
+    /// Check whether a trimmed line is a `#+CAPTION:` or `#+NAME:` affiliated keyword line.
+    /// Used to decide whether a still-pending caption/name should keep being carried forward
+    /// to a subsequent line (multi-line captions, or a `#+NAME:` line following `#+CAPTION:`).
+    fn is_caption_keyword_line(trimmed: &str) -> bool {
+        let Some(rest) = trimmed.strip_prefix("#+") else {
+            return false;
+        };
+        let Some((key, _)) = rest.split_once(':') else {
+            return false;
+        };
+        matches!(key.trim().to_ascii_uppercase().as_str(), "CAPTION" | "NAME")
+    }
+
+    /// Check whether a trimmed line starts an element that Org "affiliated keywords"
+    /// (`#+CAPTION:`, `#+NAME:`) can attach to: an image link or a table row.
+    fn is_caption_target_line(trimmed: &str) -> bool {
+        if trimmed.starts_with('|') && trimmed.ends_with('|') {
+            return true;
+        }
+        if let Some((_, _, consumed_to)) = Self::parse_org_link(trimmed, 0)
+            && consumed_to == trimmed.len()
+        {
+            return true;
+        }
+        false
+    }
+
+    /// Attach any buffered `#+CAPTION:` / `#+NAME:` affiliated keywords to the element at
+    /// `element_idx`, consuming (`take`-ing) them so they are not applied a second time.
+    fn attach_pending_caption_and_name(
+        b: &mut InternalDocumentBuilder,
+        element_idx: u32,
+        pending_caption: &mut Option<String>,
+        pending_name: &mut Option<String>,
+    ) {
+        if let Some(caption) = pending_caption.take() {
+            let mut attributes: AHashMap<String, String> = AHashMap::default();
+            attributes.insert("caption".to_string(), caption);
+            b.set_attributes(element_idx, attributes);
+        }
+        if let Some(name) = pending_name.take() {
+            b.set_anchor(element_idx, name);
+        }
     }
 
     fn is_org_table_horizontal_line(line: &str) -> bool {
@@ -881,32 +992,15 @@ impl OrgModeExtractor {
     }
 
     /// Convert table cells to markdown format.
+    ///
+    /// Delegates to the crate's single table renderer
+    /// ([`crate::rendering::common::render_table_markdown`]) so an Org table
+    /// serialises identically to the same table from any other source
+    /// (xberg-io/xberg#220). Org cells may legitimately contain `|` (escaped as
+    /// `\vert` in the source, but literal after unescaping), which this copy
+    /// emitted raw and thereby split into extra columns (xberg-io/xberg#163).
     fn cells_to_markdown(cells: &[Vec<String>]) -> String {
-        if cells.is_empty() {
-            return String::new();
-        }
-
-        let mut md = String::new();
-
-        for (row_idx, row) in cells.iter().enumerate() {
-            md.push('|');
-            for cell in row {
-                md.push(' ');
-                md.push_str(cell);
-                md.push_str(" |");
-            }
-            md.push('\n');
-
-            if row_idx == 0 && cells.len() > 1 {
-                md.push('|');
-                for _ in row {
-                    md.push_str(" --- |");
-                }
-                md.push('\n');
-            }
-        }
-
-        md
+        crate::rendering::common::render_table_markdown(cells)
     }
 }
 
@@ -1410,6 +1504,64 @@ mod tests {
         assert!(
             !code_elements.is_empty(),
             "Should produce Code element for lowercase #+begin_example block"
+        );
+    }
+
+    fn orgmode_warnings(doc: &crate::types::internal::InternalDocument) -> Vec<String> {
+        doc.processing_warnings
+            .iter()
+            .filter(|w| w.source == ORGMODE_WARNING_SOURCE)
+            .map(|w| w.message.to_string())
+            .collect()
+    }
+
+    /// #171: `#+INCLUDE: "file.org"` inlines another file's rendered content,
+    /// which this single-file parser has no way to read, whether the keyword
+    /// appears in the document preamble or later in the body.
+    #[test]
+    fn should_warn_when_orgmode_include_keyword_in_preamble_is_skipped() {
+        let org_text = "#+TITLE: Doc\n#+INCLUDE: \"chapter1.org\"\n\n* Heading\nBody text\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        let warnings = orgmode_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one orgmode warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("chapter1.org") && warnings[0].contains("was not read"),
+            "warning must name the skipped #+INCLUDE target, got {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn should_warn_when_orgmode_include_keyword_in_body_is_skipped() {
+        let org_text = "* Heading\nBody text\n#+INCLUDE: \"chapter2.org\"\nMore text\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        let warnings = orgmode_warnings(&doc);
+        assert_eq!(
+            warnings.len(),
+            1,
+            "expected exactly one orgmode warning, got {warnings:?}"
+        );
+        assert!(
+            warnings[0].contains("chapter2.org"),
+            "warning must name the skipped #+INCLUDE target, got {warnings:?}"
+        );
+    }
+
+    /// A document with no `#+INCLUDE` keyword must not warn.
+    #[test]
+    fn should_not_warn_for_orgmode_document_without_include() {
+        let org_text = "#+TITLE: Doc\n\n* Heading\nBody text\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        assert!(
+            orgmode_warnings(&doc).is_empty(),
+            "a document without #+INCLUDE must not warn, got {:?}",
+            orgmode_warnings(&doc)
         );
     }
 }

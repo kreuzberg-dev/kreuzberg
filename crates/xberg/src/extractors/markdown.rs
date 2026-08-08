@@ -12,7 +12,9 @@
 //! - Data URI image extraction
 //!
 use super::annotation_utils::adjust_annotations_for_trim;
-use super::frontmatter_utils::{extract_frontmatter, extract_metadata_from_yaml, extract_title_from_content};
+use super::frontmatter_utils::{
+    extract_frontmatter_with_warning, extract_metadata_from_yaml, extract_title_from_content,
+};
 use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::extractors::security::SecurityBudget;
@@ -95,7 +97,27 @@ impl MarkdownExtractor {
     }
 
     /// Build an `InternalDocument` from pulldown-cmark events and optional YAML frontmatter.
+    ///
+    /// Kept as a 2-argument function for existing callers (e.g. the Jupyter notebook
+    /// extractor's Markdown cell rendering) that have no JSX blocks to record. See
+    /// [`Self::build_internal_document_with_jsx`] for the MDX entry point.
     pub(crate) fn build_internal_document(events: &[Event], yaml: &Option<serde_yaml_ng::Value>) -> InternalDocument {
+        Self::build_internal_document_with_jsx(events, yaml, &[])
+    }
+
+    /// Build an `InternalDocument` from pulldown-cmark events and optional YAML frontmatter.
+    ///
+    /// This is the single shared event-stream builder for both the Markdown and MDX
+    /// extractors (see issue #273: the two used to be a ~470-line copy-paste fork that
+    /// drifted, silently dropping math/inline-HTML/superscript/subscript/definition-list
+    /// support in `.mdx` files). `raw_jsx_blocks` carries MDX-specific stripped JSX
+    /// fragments to be recorded as raw blocks; pass an empty slice for plain Markdown
+    /// (that's what [`Self::build_internal_document`] does).
+    pub(crate) fn build_internal_document_with_jsx(
+        events: &[Event],
+        yaml: &Option<serde_yaml_ng::Value>,
+        raw_jsx_blocks: &[String],
+    ) -> InternalDocument {
         use crate::types::builder;
         use crate::types::document_structure::TextAnnotation;
         let mut b = InternalDocumentBuilder::new("markdown");
@@ -114,6 +136,12 @@ impl MarkdownExtractor {
                 .collect();
             if !entries.is_empty() {
                 b.push_metadata_block(&entries, None);
+            }
+        }
+
+        for jsx in raw_jsx_blocks {
+            if !jsx.trim().is_empty() {
+                b.push_raw_block("jsx", jsx, None);
             }
         }
 
@@ -707,7 +735,7 @@ impl MarkdownExtractor {
                 Event::FootnoteReference(name) => {
                     b.push_footnote_ref(name, name, None);
                 }
-                Event::Html(s) | Event::InlineHtml(s) => {
+                Event::InlineHtml(s) => {
                     if in_heading {
                         heading_text.push_str(s);
                     } else if in_table_cell {
@@ -720,6 +748,30 @@ impl MarkdownExtractor {
                         def_buf.push_str(s);
                     } else if in_paragraph {
                         paragraph_text.push_str(s);
+                    }
+                }
+                // Block-level raw HTML (e.g. a bare `<div>...</div>` between blank lines) is
+                // emitted by pulldown-cmark with no enclosing paragraph/heading/etc. buffer open.
+                // It used to be silently dropped in that case; it is now recorded as a raw block
+                // so callers can recover it. See issue #135.
+                Event::Html(s) => {
+                    if in_heading {
+                        heading_text.push_str(s);
+                    } else if in_table_cell {
+                        current_cell.push_str(s);
+                    } else if in_list_item {
+                        list_item_text.push_str(s);
+                    } else if footnote_def_label.is_some() {
+                        footnote_def_text.push_str(s);
+                    } else if in_def_title || in_def_desc {
+                        def_buf.push_str(s);
+                    } else if in_paragraph {
+                        paragraph_text.push_str(s);
+                    } else {
+                        let trimmed = s.trim();
+                        if !trimmed.is_empty() {
+                            b.push_raw_block("html", trimmed, None);
+                        }
                     }
                 }
                 Event::TaskListMarker(checked) if in_list_item => {
@@ -779,7 +831,7 @@ impl InternalDocumentExtractor for MarkdownExtractor {
         budget.account_text(content.len())?;
         let text = String::from_utf8_lossy(content).into_owned();
 
-        let (yaml, remaining_content) = extract_frontmatter(&text);
+        let (yaml, remaining_content, frontmatter_warning) = extract_frontmatter_with_warning(&text);
 
         let mut metadata = if let Some(ref yaml_value) = yaml {
             extract_metadata_from_yaml(yaml_value)
@@ -802,6 +854,7 @@ impl InternalDocumentExtractor for MarkdownExtractor {
         let mut doc = Self::build_internal_document(&events, &yaml);
         doc.metadata = metadata;
         doc.mime_type = mime_type.to_string();
+        doc.processing_warnings.extend(frontmatter_warning);
 
         tracing::debug!(
             element_count = doc.elements.len(),
@@ -830,6 +883,12 @@ impl InternalDocumentExtractor for MarkdownExtractor {
             "text/x-multimarkdown",
             "text/x-pandoc",
             "text/x-quarto",
+            // `application/x-quarto` is declared as an alias of `text/x-quarto` in the
+            // static format table (core/mime.rs), so `validate_mime_type` accepts it —
+            // but the registry looks extractors up by exact string with no alias
+            // resolution, so an unclaimed alias reaches extraction and fails as
+            // UnsupportedFormat despite being advertised as supported (#229).
+            "application/x-quarto",
             "text/x-r-markdown",
         ]
     }

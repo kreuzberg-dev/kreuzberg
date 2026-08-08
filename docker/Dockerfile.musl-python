@@ -1,0 +1,74 @@
+# =============================================================================
+FROM alpine:3.22 AS builder
+
+ARG RUST_TOOLCHAIN=nightly-2026-03-10
+ARG TARGET=x86_64-unknown-linux-musl
+
+WORKDIR /build
+
+RUN apk add --no-cache \
+    curl musl-dev cmake make pkgconf bash patchelf zip unzip \
+    perl linux-headers git file python3 python3-dev py3-pip && \
+    apk add --no-cache \
+        gcc g++ libstdc++ libstdc++-dev \
+        onnxruntime-dev libheif-dev libde265-dev aom-dev x265-dev dav1d-dev \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main
+
+# Alpine's system python3 is externally-managed (PEP 668); use an isolated venv
+# for maturin instead of `pip install --break-system-packages`.
+RUN python3 -m venv /venv && /venv/bin/pip install --no-cache-dir maturin
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain "${RUST_TOOLCHAIN}" --component rust-src && \
+    echo "Rust host: $(~/.cargo/bin/rustc -vV | grep host)" && \
+    echo "Default target: $(~/.cargo/bin/rustc --print cfg | grep target)"
+ENV PATH="/root/.cargo/bin:/venv/bin:${PATH}"
+
+ENV ORT_LIB_LOCATION=/usr/lib
+ENV ORT_PREFER_DYNAMIC_LINK=1
+ENV ORT_SKIP_DOWNLOAD=1
+ENV ORT_STRATEGY=system
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/xberg/ crates/xberg/
+COPY crates/ttf-parser-compat/ crates/ttf-parser-compat/
+COPY crates/xberg-gliner/ crates/xberg-gliner/
+COPY crates/xberg-py/ crates/xberg-py/
+COPY crates/xberg-tesseract/ crates/xberg-tesseract/
+COPY crates/xberg-paddle-ocr/ crates/xberg-paddle-ocr/
+COPY crates/xberg-candle-ocr/ crates/xberg-candle-ocr/
+COPY crates/xberg-libheif/ crates/xberg-libheif/
+COPY crates/xberg-libwpd/ crates/xberg-libwpd/
+COPY packages/python/ packages/python/
+
+RUN sed -i '/xberg-ffi/d; /xberg_rb/d; /xberg-node/d; /xberg-cli/d; /xberg-jni/d; /xberg-php/d; /xberg-rag/d; /xberg_rustler/d; /xberg_nif/d; /packages\/dart\/rust/d; /packages\/swift\/rust/d; /"crates\/xberg-wasm"/d; /^\[profile\.release\.package\.xberg-wasm\]$/,$d; /benchmark-harness/d; /e2e-generator/d; /snippet-runner/d; /e2e\/rust/d' Cargo.toml
+
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+
+ENV CC_aarch64_unknown_linux_musl=gcc
+ENV CXX_aarch64_unknown_linux_musl=g++
+ENV CC_x86_64_unknown_linux_musl=gcc
+ENV CXX_x86_64_unknown_linux_musl=g++
+
+# `manifest-path` in packages/python/pyproject.toml points at
+# ../../crates/xberg-py/Cargo.toml, so maturin must run with packages/python as
+# its working directory to resolve that relative path against this layout.
+RUN export RUSTFLAGS='-C target-feature=-crt-static -C link-arg=-Wl,-rpath,$ORIGIN' && \
+    rustup target add "${TARGET}" && \
+    cd packages/python && \
+    maturin build --release --strip --target "${TARGET}" --interpreter python3 --out /build/wheelhouse && \
+    test -n "$(find /build/wheelhouse -name '*.whl')" || { echo "no wheel produced for ${TARGET}"; exit 1; }
+
+# Vendor the shared-lib closure (ONNX Runtime + image codecs) beside the
+# extension module inside the wheel, same as every other native target in
+# this workflow — vendor-native-closure.sh already understands `.whl`
+# artifacts and matches the `_xberg*.so` extension-module naming.
+COPY scripts/ci/vendor-native-closure.sh /usr/local/bin/vendor-native-closure.sh
+RUN for w in /build/wheelhouse/*.whl; do bash /usr/local/bin/vendor-native-closure.sh "$w"; done
+
+RUN echo "=== Wheels produced ===" && ls -la /build/wheelhouse/*.whl
+
+FROM scratch
+COPY --from=builder /build/wheelhouse/*.whl /

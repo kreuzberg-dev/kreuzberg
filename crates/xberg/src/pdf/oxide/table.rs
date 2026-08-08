@@ -357,11 +357,24 @@ pub(crate) fn extract_tables_heuristic(
             regions.truncate(MAX_REGIONS_PER_PAGE);
         }
 
+        // Signal 1 of the #1399 admission test: a page whose producer drew
+        // ruling lines is one where a table candidate is credible on its face.
+        // One `extract_paths` call per page, reusing the layout gate's own rule
+        // counter. A page whose paths cannot be read counts as unruled, which
+        // is the conservative direction (the geometric gate still applies).
+        let horizontal_rules = super::guard_oxide_panic(
+            || doc.doc.extract_paths(page_idx).map_err(|error| error.to_string()),
+            |message| message,
+        )
+        .ok()
+        .map_or(0, |paths| crate::pdf::rules::count_rules(&paths).0);
+
         tables.extend(reconstruct_page_region_tables(
             &regions,
             page_height,
             page_number,
             allow_single_column,
+            horizontal_rules,
         ));
     }
 
@@ -379,6 +392,7 @@ fn reconstruct_page_region_tables(
     page_height: f32,
     page_number: u32,
     allow_single_column: bool,
+    horizontal_rules: usize,
 ) -> Vec<Table> {
     let mut tables = Vec::new();
     let mut index = 0;
@@ -391,6 +405,7 @@ fn reconstruct_page_region_tables(
                 page_height,
                 page_number,
                 allow_single_column,
+                horizontal_rules,
             ));
             index += 1;
             continue;
@@ -428,6 +443,7 @@ fn reconstruct_page_region_tables(
                 page_height,
                 page_number,
                 allow_single_column,
+                horizontal_rules,
             ));
             index += 1;
             continue;
@@ -717,8 +733,11 @@ fn reconstruct_region_tables(
     page_height: f32,
     page_number: u32,
     allow_single_column: bool,
+    horizontal_rules: usize,
 ) -> Vec<Table> {
-    let Some(parent) = reconstruct_region_table(region, page_height, page_number, allow_single_column) else {
+    let Some(parent) =
+        reconstruct_region_table(region, page_height, page_number, allow_single_column, horizontal_rules)
+    else {
         return Vec::new();
     };
     if parent.cells.first().map_or(0, Vec::len) < SIDE_BY_SIDE_MIN_PARENT_COLUMNS {
@@ -728,11 +747,22 @@ fn reconstruct_region_tables(
     let Some((left_region, right_region)) = split_side_by_side_region(region) else {
         return vec![parent];
     };
-    let Some(left) = reconstruct_side_by_side_child(&left_region, page_height, page_number, allow_single_column) else {
+    let Some(left) = reconstruct_side_by_side_child(
+        &left_region,
+        page_height,
+        page_number,
+        allow_single_column,
+        horizontal_rules,
+    ) else {
         return vec![parent];
     };
-    let Some(right) = reconstruct_side_by_side_child(&right_region, page_height, page_number, allow_single_column)
-    else {
+    let Some(right) = reconstruct_side_by_side_child(
+        &right_region,
+        page_height,
+        page_number,
+        allow_single_column,
+        horizontal_rules,
+    ) else {
         return vec![parent];
     };
     if !side_tables_have_independent_shape(&left, &right) {
@@ -755,6 +785,7 @@ fn reconstruct_side_by_side_child(
     page_height: f32,
     page_number: u32,
     allow_single_column: bool,
+    horizontal_rules: usize,
 ) -> Option<Table> {
     let mut heights: Vec<u32> = region.iter().map(|word| word.height).collect();
     heights.sort_unstable();
@@ -763,7 +794,15 @@ fn reconstruct_side_by_side_child(
         .copied()?
         .max(1)
         .saturating_mul(SIDE_BY_SIDE_CHILD_GAP_HEIGHT_MULTIPLIER);
-    reconstruct_region_table_with_column_gap(region, page_height, page_number, allow_single_column, child_gap).ok()
+    reconstruct_region_table_with_column_gap(
+        region,
+        page_height,
+        page_number,
+        allow_single_column,
+        child_gap,
+        horizontal_rules,
+    )
+    .ok()
 }
 
 fn normalize_side_by_side_financial_tables(mut left: Table, mut right: Table) -> (Table, Table) {
@@ -1284,8 +1323,10 @@ fn reconstruct_region_table(
     page_height: f32,
     page_number: u32,
     allow_single_column: bool,
+    horizontal_rules: usize,
 ) -> Option<Table> {
-    match reconstruct_region_table_with_reason(region, page_height, page_number, allow_single_column) {
+    match reconstruct_region_table_with_reason(region, page_height, page_number, allow_single_column, horizontal_rules)
+    {
         Ok(table) => Some(table),
         Err(reason) => {
             tracing::trace!(
@@ -1304,12 +1345,20 @@ fn reconstruct_region_table_with_reason(
     page_height: f32,
     page_number: u32,
     allow_single_column: bool,
+    horizontal_rules: usize,
 ) -> std::result::Result<Table, HeuristicTableRejection> {
     let region_left = region.iter().map(|w| w.left).min().unwrap_or(0);
     let region_right = region.iter().map(|w| w.left + w.width).max().unwrap_or(0);
     let region_width = region_right.saturating_sub(region_left) as f32;
     let col_gap = heuristic_column_gap(region, region_width);
-    reconstruct_region_table_with_column_gap(region, page_height, page_number, allow_single_column, col_gap)
+    reconstruct_region_table_with_column_gap(
+        region,
+        page_height,
+        page_number,
+        allow_single_column,
+        col_gap,
+        horizontal_rules,
+    )
 }
 
 fn reconstruct_region_table_with_column_gap(
@@ -1318,9 +1367,11 @@ fn reconstruct_region_table_with_column_gap(
     page_number: u32,
     allow_single_column: bool,
     col_gap: u32,
+    horizontal_rules: usize,
 ) -> std::result::Result<Table, HeuristicTableRejection> {
     use crate::pdf::table_reconstruct::{
-        is_well_formed_table, looks_like_code_listing, post_process_table, reconstruct_table, table_to_markdown,
+        is_well_formed_borderless_table, looks_like_code_listing, post_process_table, reconstruct_table,
+        table_to_markdown,
     };
 
     let column_positions = crate::table_core::detect_columns(region, col_gap);
@@ -1349,7 +1400,12 @@ fn reconstruct_region_table_with_column_gap(
         return Err(HeuristicTableRejection::CodeListing);
     }
 
-    if !is_well_formed_table(&cleaned) {
+    // Beyond the text-statistics gate, reject candidates that have no drawn
+    // ruling lines AND whose inferred column boundaries are not actually
+    // whitespace (xberg-io/xberg#1399): continuous prose bucketed into a wide
+    // grid by vertical-only clustering has words running across those
+    // boundaries on most rows, which text statistics alone cannot see.
+    if !is_well_formed_borderless_table(&cleaned, region, &column_positions, horizontal_rules) {
         return Err(HeuristicTableRejection::NotWellFormed);
     }
 
@@ -2005,15 +2061,15 @@ mod tests {
 
         let (left, right) = split_side_by_side_region(&words).expect("central seam should be credible");
         assert!(
-            reconstruct_region_table(&left, 792.0, 1, false).is_some(),
+            reconstruct_region_table(&left, 792.0, 1, false, 0).is_some(),
             "left child must independently pass the existing validation chain"
         );
         assert!(
-            reconstruct_region_table(&right, 792.0, 1, false).is_some(),
+            reconstruct_region_table(&right, 792.0, 1, false, 0).is_some(),
             "right child must independently pass the existing validation chain"
         );
 
-        let tables = reconstruct_region_tables(&words, 792.0, 1, false);
+        let tables = reconstruct_region_tables(&words, 792.0, 1, false, 0);
         assert_eq!(
             tables.len(),
             2,
@@ -2397,7 +2453,7 @@ mod tests {
             "a large normalized vertical gap must stop same-track tables from chaining"
         );
 
-        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false);
+        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false, 0);
         assert_eq!(tables.len(), 2, "independent aligned tables must remain distinct");
     }
 
@@ -2423,7 +2479,7 @@ mod tests {
             "a nearby table without a descriptor-only section label must not chain"
         );
 
-        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false);
+        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false, 0);
         assert_eq!(tables.len(), 2, "nearby independent tables must remain distinct");
     }
 
@@ -2445,7 +2501,7 @@ mod tests {
             "a nearby Security/Value header must not be treated as a continuation label"
         );
 
-        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false);
+        let tables = reconstruct_page_region_tables(&[first, second], 792.0, 1, false, 0);
         assert_eq!(tables.len(), 2, "ordinary table headers must remain distinct");
     }
 
@@ -2455,7 +2511,7 @@ mod tests {
         extend_grid_words(&mut words, &[20, 100, 180, 260]);
         extend_grid_words(&mut words, &[320, 400, 480, 560]);
 
-        let tables = reconstruct_region_tables(&words, 792.0, 1, false);
+        let tables = reconstruct_region_tables(&words, 792.0, 1, false, 0);
         assert_eq!(
             tables.len(),
             1,
@@ -2821,7 +2877,8 @@ mod tests {
             1,
             "header and compact numeric body should form one candidate"
         );
-        let table = reconstruct_region_table(&regions[0], 792.0, 1, false).expect("compact table should reconstruct");
+        let table =
+            reconstruct_region_table(&regions[0], 792.0, 1, false, 0).expect("compact table should reconstruct");
 
         assert_eq!(table.cells.len(), 7);
         assert!(table.cells.iter().all(|row| row.len() == 7));
@@ -2959,7 +3016,7 @@ mod tests {
 
     #[test]
     fn heuristic_empty_region_reports_rejection_reason() {
-        let rejection = reconstruct_region_table_with_reason(&[], 792.0, 1, false).unwrap_err();
+        let rejection = reconstruct_region_table_with_reason(&[], 792.0, 1, false, 0).unwrap_err();
         assert_eq!(rejection, HeuristicTableRejection::EmptyGrid);
     }
 
@@ -2973,7 +3030,7 @@ mod tests {
             make_word("}", 20, 124, 10),
             make_word("// end", 100, 124, 50),
         ];
-        let rejection = reconstruct_region_table_with_reason(&words, 792.0, 1, false).unwrap_err();
+        let rejection = reconstruct_region_table_with_reason(&words, 792.0, 1, false, 0).unwrap_err();
         assert!(
             matches!(
                 rejection,
