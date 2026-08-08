@@ -703,6 +703,11 @@ impl PdfExtractor {
         };
         let (outline_entries, bookmark_uris, pdf_revisions) = compatibility_data.unwrap_or_default();
 
+        // Recovered before the document is handed on, which is the last point
+        // it is still borrowable. Pages that draw nothing graph-shaped cost one
+        // path parse and stop there.
+        let diagrams = crate::extraction::diagram::pdf::recover(&mut oxide_document);
+
         #[allow(unused_variables, unused_mut)]
         let (
             mut pdf_metadata,
@@ -1545,10 +1550,13 @@ impl PdfExtractor {
             doc.llm_usage = Some(ocr_llm_usage);
         }
 
+        doc.diagrams = diagrams;
+
         tracing::debug!(
             elements = doc.elements.len(),
             tables = doc.tables.len(),
             has_pages = doc.prebuilt_pages.is_some(),
+            diagrams = doc.diagrams.len(),
             "InternalDocument finalized (oxide path)"
         );
 

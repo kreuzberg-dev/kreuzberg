@@ -6,12 +6,16 @@
 //! probabilistic, and it carries the styling that a detection model cannot
 //! recover at all.
 //!
-//! [`svg`] turns one source format into the geometry-carrying intermediates
-//! below; [`assemble`] turns those into a [`DiagramGraph`]. The split is what
-//! lets a second source format (vector PDF, DrawingML) reuse the matching rules
-//! without reimplementing them.
+//! Each front end turns one source format into the geometry-carrying
+//! intermediates below; [`assemble`] turns those into a [`DiagramGraph`]. The
+//! split is what lets [`svg`] and [`pdf`] share every matching rule while
+//! agreeing on nothing but the intermediates, and what would let a third
+//! format (DrawingML, EMF) join them without touching the matching at all.
 
+#[cfg(feature = "pdf")]
+pub(crate) mod pdf;
 mod polyline;
+#[cfg(all(feature = "svg", feature = "xml"))]
 pub(crate) mod svg;
 
 use crate::types::diagram::{DiagramEdge, DiagramGraph, DiagramNode, DiagramShape};
