@@ -308,6 +308,11 @@ pub(crate) fn assemble(
 /// actually reaches.
 fn collapse_concentric(outlines: &mut Vec<Outline>) {
     let mut inner = vec![false; outlines.len()];
+    // Styling is split across the two rings. Graphviz fills the inner disc of a
+    // `doublecircle` and leaves the outer ring unpainted, so keeping the outer
+    // geometry while dropping the inner one loses the node's colour unless the
+    // two are merged.
+    let mut merged: Vec<(usize, Outline)> = Vec::new();
     for (i, a) in outlines.iter().enumerate() {
         for (j, b) in outlines.iter().enumerate() {
             if i == j || inner[j] {
@@ -319,9 +324,18 @@ fn collapse_concentric(outlines: &mut Vec<Outline>) {
             }
             if b.bbox.encloses(&a.bbox) && area >= b.bbox.area() * CONCENTRIC_AREA_RATIO {
                 inner[i] = true;
+                let mut outer = b.clone();
+                outer.fill = outer.fill.or_else(|| a.fill.clone());
+                outer.stroke = outer.stroke.or_else(|| a.stroke.clone());
+                outer.stroke_width = outer.stroke_width.or(a.stroke_width);
+                outer.dashed |= a.dashed;
+                merged.push((j, outer));
                 break;
             }
         }
+    }
+    for (index, outline) in merged {
+        outlines[index] = outline;
     }
     let mut keep = inner.iter().map(|i| !i);
     outlines.retain(|_| keep.next().unwrap_or(true));
@@ -665,6 +679,32 @@ mod tests {
         assert_eq!(graph.nodes.len(), 2);
         assert_eq!(graph.nodes[1].label, "done");
         assert_eq!((graph.edges[0].from, graph.edges[0].to), (0, 1));
+    }
+
+    /// Graphviz fills the inner disc of a `doublecircle` and leaves the outer
+    /// ring unpainted, so keeping the outer geometry has to keep the inner
+    /// paint or the node loses its colour.
+    #[test]
+    fn a_double_border_keeps_the_styling_of_both_rings() {
+        let mut outer = outline(0.0, 200.0, 100.0, 250.0);
+        outer.fill = None;
+        outer.stroke = Some("#000000".to_string());
+        let mut inner = outline(4.0, 204.0, 96.0, 246.0);
+        inner.fill = Some("#fb8072".to_string());
+        inner.stroke = None;
+
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![outline(0.0, 0.0, 100.0, 50.0), outer, inner],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            Vec::new(),
+        )
+        .expect("graph");
+
+        assert_eq!(graph.nodes.len(), 2);
+        assert_eq!(graph.nodes[1].fill.as_deref(), Some("#fb8072"));
+        assert_eq!(graph.nodes[1].stroke.as_deref(), Some("#000000"));
     }
 
     /// A panel encloses its boxes too, but it is far larger, so it must not be

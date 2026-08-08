@@ -110,7 +110,7 @@ fn collect_geometry(group: &usvg::Group, outlines: &mut Vec<Outline>, connectors
                     connectors.push(Connector {
                         start: points[0],
                         end: points[points.len() - 1],
-                        midpoint: points[points.len() / 2],
+                        midpoint: halfway_along(&points),
                         stroke: stroke_color,
                         dashed,
                     });
@@ -176,6 +176,36 @@ fn flatten(path: &usvg::tiny_skia_path::Path) -> Vec<(f32, f32)> {
     }
 
     points
+}
+
+/// The point half way along a polyline, measured by arc length.
+///
+/// Indexing to the middle of the point list is not the same thing. A straight
+/// `<line>` flattens to exactly two points, so the middle index is its end, and
+/// curves are sampled uniformly in `t` rather than in length.
+fn halfway_along(points: &[(f32, f32)]) -> (f32, f32) {
+    let total: f32 = points
+        .windows(2)
+        .map(|w| (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1))
+        .sum();
+    if total <= 0.0 {
+        return points[0];
+    }
+    let mut travelled = 0.0f32;
+    for window in points.windows(2) {
+        let (a, b) = (window[0], window[1]);
+        let step = (b.0 - a.0).hypot(b.1 - a.1);
+        if travelled + step >= total / 2.0 {
+            let along = if step > 0.0 {
+                (total / 2.0 - travelled) / step
+            } else {
+                0.0
+            };
+            return (a.0 + (b.0 - a.0) * along, a.1 + (b.1 - a.1) * along);
+        }
+        travelled += step;
+    }
+    points[points.len() - 1]
 }
 
 fn quad_at(p0: (f32, f32), p1: (f32, f32), p2: (f32, f32), t: f32) -> (f32, f32) {
@@ -717,6 +747,31 @@ mod tests {
 
         assert!(parse_transform("").is_none());
         assert!(parse_transform("nonsense").is_none());
+    }
+
+    /// A straight `<line>` flattens to exactly two points, so the middle
+    /// *index* is its end. Getting this wrong meant no straight connector could
+    /// ever carry a label.
+    #[test]
+    fn the_midpoint_is_measured_along_the_line_not_indexed() {
+        assert_eq!(halfway_along(&[(0.0, 0.0), (10.0, 0.0)]), (5.0, 0.0));
+        // Uneven segments: half the length falls inside the long one.
+        assert_eq!(halfway_along(&[(0.0, 0.0), (2.0, 0.0), (12.0, 0.0)]), (6.0, 0.0));
+        assert_eq!(halfway_along(&[(0.0, 0.0), (0.0, 0.0)]), (0.0, 0.0));
+    }
+
+    #[test]
+    fn an_edge_label_on_a_straight_connector_is_found() {
+        let graph = recovered(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+              <rect x="100" y="20" width="120" height="60"/>
+              <rect x="100" y="200" width="120" height="60"/>
+              <line x1="160" y1="80" x2="160" y2="200" stroke="#333"/>
+              <text x="168" y="140">on error</text>
+            </svg>"##,
+        );
+
+        assert_eq!(graph.edges[0].label.as_deref(), Some("on error"));
     }
 
     #[test]
