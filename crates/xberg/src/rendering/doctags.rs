@@ -77,6 +77,9 @@ pub(crate) fn render_doctags(doc: &InternalDocument) -> String {
         match elem.kind {
             ElementKind::QuoteStart | ElementKind::QuoteEnd | ElementKind::GroupStart | ElementKind::GroupEnd => {}
             ElementKind::FootnoteRef => {}
+            // Reviewer comments are annotations on the document, not content of
+            // it. djot, plain and the comrak bridge all drop them here too.
+            ElementKind::CommentRef | ElementKind::CommentDefinition => {}
             ElementKind::PageBreak => {
                 out.push_str("<page_break>\n");
             }
