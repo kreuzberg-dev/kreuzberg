@@ -106,10 +106,14 @@ pub(crate) fn extract_all_from_oxide_document(
         .pdf_options
         .as_ref()
         .is_some_and(|options| options.hierarchy.as_ref().is_some_and(|hierarchy| hierarchy.enabled));
+    // `Custom` covers renderers registered in the `RendererRegistry`, e.g.
+    // `doctags`. They consume structure and geometry exactly as the built-in
+    // markup formats do, and the flat path would leave their elements with no
+    // headings and no bounding boxes at all.
     let needs_structured = hierarchy_enabled
         || matches!(
             config.output_format,
-            OutputFormat::Markdown | OutputFormat::Djot | OutputFormat::Html
+            OutputFormat::Markdown | OutputFormat::Djot | OutputFormat::Html | OutputFormat::Custom(_)
         )
         || ocr_inline_images;
     let retain_hierarchy_segments = needs_structured && !config.force_ocr;
