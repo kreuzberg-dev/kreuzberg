@@ -51,6 +51,13 @@ impl Rect {
         self.x0 <= other.x0 && self.y0 <= other.y0 && self.x1 >= other.x1 && self.y1 >= other.y1
     }
 
+    /// Area shared with `other`.
+    fn overlap_area(&self, other: &Rect) -> f32 {
+        let width = (self.x1.min(other.x1) - self.x0.max(other.x0)).max(0.0);
+        let height = (self.y1.min(other.y1) - self.y0.max(other.y0)).max(0.0);
+        width * height
+    }
+
     /// Distance from a point to the rectangle, zero when inside.
     fn distance_to(&self, x: f32, y: f32) -> f32 {
         let dx = (self.x0 - x).max(0.0).max(x - self.x1);
@@ -123,6 +130,31 @@ const SNAP_CEILING: f32 = 40.0;
 /// area is the inner ring of a double border, not a node of its own.
 const CONCENTRIC_AREA_RATIO: f32 = 0.5;
 
+/// Shapes an outline must enclose before it is read as a container rather than
+/// a node. Graphviz clusters, BPMN pools, PlantUML swimlanes and grouping
+/// panels all draw a box around their members, and the box is not a node.
+///
+/// Two, because one enclosed shape is a double border, which
+/// [`collapse_concentric`] has already dealt with by this point.
+const CONTAINER_MIN_MEMBERS: usize = 2;
+
+/// Text runs an outline must hold before its layout is worth reading as a
+/// grid. Two is a wrapped caption; a table has a header row and a body.
+const GRID_MIN_CELLS: usize = 3;
+
+/// How far apart two text anchors must be, as a fraction of the shape they sit
+/// in, to count as different rows or columns.
+const GRID_CLUSTER_RATIO: f32 = 0.1;
+
+/// How much of the smaller of two shapes must be shared before they count as
+/// overlapping rather than merely adjacent. Boxes drawn edge to edge, and the
+/// rounding slack around them, must not trip it.
+const OVERLAP_RATIO: f32 = 0.1;
+
+/// An unlabelled shape below this fraction of the median labelled node's area
+/// is decoration rather than a node.
+const UNLABELLED_DECORATION_RATIO: f32 = 0.25;
+
 /// An arrowhead covers at most this fraction of the largest shape's area.
 /// Graphviz draws a 7x10 head against nodes an order of magnitude larger.
 const ARROWHEAD_AREA_RATIO: f32 = 0.2;
@@ -193,6 +225,7 @@ pub(crate) fn assemble(
     // outlines around one node, and reporting the ring and the disc separately
     // both invents a node and gives the connectors two things to land on.
     collapse_concentric(&mut kept);
+    drop_containers(&mut kept);
 
     if kept.is_empty() {
         return None;
@@ -238,9 +271,61 @@ pub(crate) fn assemble(
         )
         .collect();
 
+    // The labels each candidate owns, which is what separates a node from the
+    // two things that look most like one: a table and a piece of decoration.
+    let mut owned: Vec<Vec<&Label>> = vec![Vec::new(); kept.len()];
+    for (label, owner) in labels.iter().zip(&owners) {
+        if let Some(index) = owner {
+            owned[*index].push(label);
+        }
+    }
+    let grids: Vec<bool> = kept
+        .iter()
+        .zip(&owned)
+        .map(|(outline, texts)| holds_a_grid(&outline.bbox, texts))
+        .collect();
+
+    // Named nodes are nodes whatever their geometry does, so both tests below
+    // only ever condemn a shape nobody labelled.
+    //
+    // Overlap: a run of anonymous shapes lying on top of each other is one
+    // drawing rather than several nodes. The wedges of a pie all meet at its
+    // centre, and the parts of an icon glyph all sit inside its footprint,
+    // where a layout engine keeps real nodes apart.
+    let overlapping: Vec<bool> = kept
+        .iter()
+        .enumerate()
+        .map(|(i, outline)| {
+            kept.iter().enumerate().any(|(j, other)| {
+                i != j
+                    && outline.bbox.overlap_area(&other.bbox)
+                        > outline.bbox.area().min(other.bbox.area()) * OVERLAP_RATIO
+            })
+        })
+        .collect();
+
+    // Size: an anonymous shape much smaller than the shapes that are labelled
+    // is decoration, such as a PlantUML terminal dot or a leader bullet. Size
+    // carries this rather than the missing label alone, because a shape the
+    // same size as its labelled neighbours is a node whether or not anyone
+    // named it.
+    let decoration_cutoff = median_area(
+        kept.iter()
+            .enumerate()
+            .filter(|(i, _)| !arrowheads[*i] && !grids[*i] && !owned[*i].is_empty())
+            .map(|(_, o)| o.bbox.area()),
+    )
+    .map(|median| median * UNLABELLED_DECORATION_RATIO);
+
     // Arrowheads are geometry belonging to the connector that ends in them, not
     // shapes in their own right, so they never become nodes.
-    let node_indices: Vec<usize> = (0..kept.len()).filter(|i| !arrowheads[*i]).collect();
+    let node_indices: Vec<usize> = (0..kept.len())
+        .filter(|i| {
+            let anonymous_decoration = owned[*i].is_empty()
+                && (overlapping[*i] || decoration_cutoff.is_some_and(|cutoff| kept[*i].bbox.area() < cutoff));
+            !arrowheads[*i] && !grids[*i] && !anonymous_decoration
+        })
+        .collect();
     if node_indices.is_empty() {
         return None;
     }
@@ -292,7 +377,15 @@ pub(crate) fn assemble(
         ) else {
             continue;
         };
-        if from == to {
+        // A connector returning to the shape it left is a self-loop, but only
+        // if it actually went somewhere: a real one arcs clear of the node so
+        // it can be seen, while a stroke lying entirely within a shape is
+        // interior detail, a divider or a glyph, and joins nothing.
+        if from == to
+            && node_outlines[from]
+                .bbox
+                .contains(connector.midpoint.0, connector.midpoint.1)
+        {
             continue;
         }
 
@@ -333,6 +426,76 @@ pub(crate) fn assemble(
 /// also contains them, but it is far larger, so the ratio keeps the two cases
 /// apart. The outer outline survives, since that is the shape a connector
 /// actually reaches.
+/// Median of a set of areas, or `None` when the set is empty.
+fn median_area(areas: impl Iterator<Item = f32>) -> Option<f32> {
+    let mut sorted: Vec<f32> = areas.filter(|a| a.is_finite()).collect();
+    sorted.sort_by(f32::total_cmp);
+    sorted.get(sorted.len() / 2).copied()
+}
+
+/// Whether an outline's text is laid out as a grid, which makes it a table
+/// rather than a node.
+///
+/// The discriminator is rows *and* columns together, because each on its own is
+/// something a real node does. A node's caption wraps onto several lines, which
+/// is many rows in one column. A Graphviz record divides one node into fields
+/// side by side, which is one row in many columns. Only a table is both, and a
+/// ruled table sitting on the same page as a diagram is otherwise a perfect
+/// node: one closed rectangle with text inside it.
+fn holds_a_grid(bbox: &Rect, texts: &[&Label]) -> bool {
+    if texts.len() < GRID_MIN_CELLS {
+        return false;
+    }
+    let rows = cluster_count(texts.iter().map(|t| t.y), bbox.height() * GRID_CLUSTER_RATIO);
+    let columns = cluster_count(texts.iter().map(|t| t.x), bbox.width() * GRID_CLUSTER_RATIO);
+    rows > 1 && columns > 1
+}
+
+/// How many distinct values a set of coordinates falls into, given how far
+/// apart two of them must be to count as distinct.
+fn cluster_count(values: impl Iterator<Item = f32>, tolerance: f32) -> usize {
+    let mut sorted: Vec<f32> = values.filter(|v| v.is_finite()).collect();
+    sorted.sort_by(f32::total_cmp);
+    let mut clusters = 0;
+    let mut current = f32::NEG_INFINITY;
+    for value in sorted {
+        if clusters == 0 || value - current > tolerance.max(f32::EPSILON) {
+            clusters += 1;
+        }
+        current = value;
+    }
+    clusters
+}
+
+/// Drop outlines that group other shapes rather than being shapes themselves.
+///
+/// A Graphviz cluster, a BPMN pool and a PlantUML swimlane are all a box drawn
+/// around their members with a caption on the rim. Left in, each one both
+/// invents a node and steals the edges: a connector running between two boxes
+/// inside a cluster reaches the cluster's border first, so it lands there
+/// instead of on the box it was drawn to.
+///
+/// Enclosure is the whole test. Nesting is allowed to any depth, since each
+/// container is judged against what it directly contains.
+fn drop_containers(outlines: &mut Vec<Outline>) {
+    let members: Vec<usize> = outlines
+        .iter()
+        .map(|outer| {
+            outlines
+                .iter()
+                .filter(|inner| !std::ptr::eq(*inner, outer) && outer.bbox.encloses(&inner.bbox))
+                .count()
+        })
+        .collect();
+
+    let mut index = 0;
+    outlines.retain(|_| {
+        let container = members[index] >= CONTAINER_MIN_MEMBERS;
+        index += 1;
+        !container
+    });
+}
+
 fn collapse_concentric(outlines: &mut Vec<Outline>) {
     let mut inner = vec![false; outlines.len()];
     // Styling is split across the two rings. Graphviz fills the inner disc of a
@@ -490,6 +653,139 @@ mod tests {
             y,
             text: text.to_string(),
         }
+    }
+
+    /// A connector leaving a node and returning to it is a self-loop, and the
+    /// arc has to bulge clear of the node or nobody could see it.
+    #[test]
+    fn a_self_loop_arcing_clear_of_its_node_is_an_edge() {
+        let mut loop_back = connector((30.0, 200.0), (70.0, 200.0));
+        loop_back.midpoint = (50.0, 280.0);
+
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![outline(0.0, 0.0, 100.0, 50.0), outline(0.0, 200.0, 100.0, 250.0)],
+            vec![connector((50.0, 50.0), (50.0, 200.0)), loop_back],
+            Vec::new(),
+        )
+        .expect("graph");
+
+        let self_loop = graph.edges.iter().find(|e| e.from == e.to);
+        assert!(self_loop.is_some(), "a self-loop is an edge: {:?}", graph.edges);
+        assert_eq!(self_loop.expect("checked").from, 1);
+    }
+
+    /// A ruled table on the same page as a diagram is one closed rectangle with
+    /// text in it, which is a node in every respect except that its text is
+    /// laid out in rows *and* columns.
+    #[test]
+    fn a_box_holding_a_grid_of_text_is_a_table_not_a_node() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![
+                outline(0.0, 0.0, 100.0, 50.0),
+                outline(0.0, 200.0, 100.0, 250.0),
+                outline(200.0, 0.0, 380.0, 100.0),
+            ],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            vec![
+                label(240.0, 20.0, "Stage"),
+                label(320.0, 20.0, "Owner"),
+                label(240.0, 70.0, "Build"),
+                label(320.0, 70.0, "Ada"),
+            ],
+        )
+        .expect("graph");
+
+        assert_eq!(graph.nodes.len(), 2, "the table is not a node: {:?}", graph.nodes);
+    }
+
+    /// A caption wrapped onto several lines is many rows in one column, which
+    /// is not a grid however many lines it runs to.
+    #[test]
+    fn a_wrapped_caption_is_not_a_grid() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![outline(0.0, 0.0, 100.0, 50.0), outline(0.0, 200.0, 100.0, 250.0)],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            vec![
+                label(50.0, 210.0, "Release"),
+                label(50.0, 225.0, "engineer"),
+                label(50.0, 240.0, "on call"),
+            ],
+        )
+        .expect("graph");
+
+        assert_eq!(graph.nodes.len(), 2);
+        assert_eq!(graph.nodes[1].label, "Release\nengineer\non call");
+    }
+
+    /// Pie wedges all meet at the centre, so their boxes overlap. Nothing a
+    /// layout engine draws does that, and none of them is named.
+    #[test]
+    fn overlapping_anonymous_shapes_are_one_drawing_not_nodes() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![
+                outline(0.0, 0.0, 100.0, 50.0),
+                outline(0.0, 200.0, 100.0, 250.0),
+                outline(200.0, 100.0, 300.0, 200.0),
+                outline(210.0, 110.0, 310.0, 210.0),
+            ],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            vec![label(50.0, 25.0, "from"), label(50.0, 225.0, "to")],
+        )
+        .expect("graph");
+
+        assert_eq!(
+            graph.nodes.len(),
+            2,
+            "overlapping wedges are not nodes: {:?}",
+            graph.nodes
+        );
+    }
+
+    /// Overlap only condemns a shape nobody named. Two labelled nodes placed
+    /// close enough to overlap are still two nodes.
+    #[test]
+    fn overlapping_labelled_shapes_are_still_nodes() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![outline(0.0, 0.0, 100.0, 100.0), outline(60.0, 60.0, 160.0, 160.0)],
+            vec![connector((50.0, 50.0), (110.0, 110.0))],
+            vec![label(20.0, 20.0, "left"), label(140.0, 140.0, "right")],
+        )
+        .expect("graph");
+
+        assert_eq!(graph.nodes.len(), 2);
+    }
+
+    /// A terminal dot beside labelled activities is decoration, but a shape the
+    /// size of its labelled neighbours is a node even unnamed.
+    #[test]
+    fn a_tiny_unlabelled_shape_beside_labelled_ones_is_decoration() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![
+                outline(0.0, 0.0, 100.0, 50.0),
+                outline(0.0, 200.0, 100.0, 250.0),
+                outline(40.0, 300.0, 52.0, 312.0),
+            ],
+            vec![
+                connector((50.0, 50.0), (50.0, 200.0)),
+                connector((50.0, 250.0), (46.0, 300.0)),
+            ],
+            vec![label(50.0, 25.0, "from"), label(50.0, 225.0, "to")],
+        )
+        .expect("graph");
+
+        assert_eq!(graph.nodes.len(), 2, "the dot is decoration: {:?}", graph.nodes);
     }
 
     #[test]
@@ -735,7 +1031,7 @@ mod tests {
     /// A panel encloses its boxes too, but it is far larger, so it must not be
     /// collapsed into them.
     #[test]
-    fn an_enclosing_panel_is_not_a_double_border() {
+    fn an_enclosing_panel_is_a_container_not_a_node() {
         let graph = assemble(
             None,
             (400.0, 400.0),
@@ -749,11 +1045,16 @@ mod tests {
         )
         .expect("graph");
 
-        assert_eq!(graph.nodes.len(), 3);
+        // The panel groups the two boxes, so it is a container: reporting it
+        // would both invent a node and give the connector a third thing to
+        // land on. It is still not a double border, which is what would
+        // happen if it were merged into the shape it encloses.
+        assert_eq!(graph.nodes.len(), 2);
+        assert_eq!(graph.edges.len(), 1);
     }
 
     #[test]
-    fn self_loops_are_dropped() {
+    fn a_stroke_inside_one_shape_is_not_a_self_loop() {
         assert!(
             assemble(
                 None,

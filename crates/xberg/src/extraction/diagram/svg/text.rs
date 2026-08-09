@@ -60,6 +60,24 @@ impl TextPass {
             // group, which is where Graphviz and Mermaid put the diagram's
             // name. Deeper than that a `<title>` is a tooltip on one shape.
             "title" if self.depth.len() <= 2 && self.title.is_none() => self.in_title = true,
+            // Mermaid, and any tool that lays labels out with HTML, draws no
+            // `<text>` at all: the caption is XHTML inside a `<foreignObject>`,
+            // which carries a box rather than an anchor. Its centre is the
+            // anchor, and the text comes from the `<p>`/`<span>` inside it,
+            // which the ordinary text handler below then collects.
+            "foreignObject" => {
+                self.flush();
+                let x = attribute(e, "x").and_then(|v| first_number(&v)).unwrap_or(0.0);
+                let y = attribute(e, "y").and_then(|v| first_number(&v)).unwrap_or(0.0);
+                let width = attribute(e, "width").and_then(|v| first_number(&v)).unwrap_or(0.0);
+                let height = attribute(e, "height").and_then(|v| first_number(&v)).unwrap_or(0.0);
+                let (x, y) = map_point(&combined, x + width / 2.0, y + height / 2.0);
+                self.pending = Some(Label {
+                    x,
+                    y,
+                    text: String::new(),
+                });
+            }
             "text" | "tspan" => {
                 let position = (
                     attribute(e, "x").and_then(|v| first_number(&v)),
@@ -97,7 +115,7 @@ impl TextPass {
         }
         match name {
             "title" => self.in_title = false,
-            "text" => self.flush(),
+            "text" | "foreignObject" => self.flush(),
             _ => {}
         }
     }
