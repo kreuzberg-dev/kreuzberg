@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- PDF OCR formulas now report their bounding boxes in PDF point coordinates (origin bottom-left),
+  comparable to native PDF geometry, instead of rendered-image pixels whose DPI varied per page.
+  Image inputs, and PDF pages whose geometry is unavailable, keep pixel coordinates and say so.
 - The RST text path now renders `.. math::` directives inside `$$` display-math delimiters instead
   of a literal `math:` prose prefix.
 - Alef now extracts Crawlberg binding types from the pinned registry dependency instead of a
