@@ -17,7 +17,7 @@ use regex::Regex;
 
 use crate::core::config::LlmConfig;
 use crate::plugins::{OcrBackend, OcrBackendType, Plugin};
-use crate::types::{BoundingBox, FormatMetadata, Formula, Metadata, OcrMetadata, Table};
+use crate::types::{FormatMetadata, Formula, Metadata, OcrMetadata, Table};
 
 // Taken from the ungated `crate::ocr_metadata_keys` rather than `crate::ocr`, which is
 // gated on `feature = "ocr"` / `"ocr-wasm"` — neither of which `liter-llm` implies, so a

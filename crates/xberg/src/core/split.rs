@@ -608,7 +608,7 @@ mod enrichment_preservation_tests {
     use crate::types::document_structure::DocumentStructure;
     use crate::types::entity::{Entity, EntityCategory};
     use crate::types::extraction::{
-        ArchiveEntry, BoundingBox, Chunk, ChunkMetadata, ChunkType, Element, ElementId, ElementMetadata, ElementType,
+        ArchiveEntry, Chunk, ChunkMetadata, ChunkType, Element, ElementId, ElementMetadata, ElementType,
         ExtractionMethod, LlmUsage, PageSpan,
     };
     use crate::types::form_field::{FormFieldType, PdfFormField};

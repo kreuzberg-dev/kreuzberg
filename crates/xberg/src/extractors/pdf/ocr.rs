@@ -5516,13 +5516,13 @@ Buffers:           50000 kB
                     content: "page text".to_string(),
                     formulas: vec![crate::types::Formula {
                         latex: "E = mc^2".to_string(),
-                        bbox: BoundingBox {
+                        bbox: Some(BoundingBox {
                             x0: 0.0,
                             y0: 0.0,
                             x1: 100.0,
                             y1: 50.0,
-                        },
-                        page: 0,
+                        }),
+                        page: None,
                     }],
                     ..Default::default()
                 })
