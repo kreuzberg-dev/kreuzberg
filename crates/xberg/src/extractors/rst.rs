@@ -229,19 +229,25 @@ impl RstExtractor {
                 }
 
                 if directive.starts_with("math::") {
-                    let math = directive.strip_prefix("math::").unwrap_or("").trim();
-                    if !math.is_empty() {
-                        output.push_str("math: ");
-                        output.push_str(math);
-                        output.push('\n');
+                    let mut math_content = String::new();
+                    let arg = directive.strip_prefix("math::").unwrap_or("").trim();
+                    if !arg.is_empty() {
+                        math_content.push_str(arg);
                     }
                     i += 1;
                     while i < lines.len() && (lines[i].starts_with("   ") || lines[i].is_empty()) {
                         if !lines[i].is_empty() {
-                            output.push_str(lines[i].trim());
-                            output.push('\n');
+                            if !math_content.is_empty() {
+                                math_content.push('\n');
+                            }
+                            math_content.push_str(lines[i].trim());
                         }
                         i += 1;
+                    }
+                    if !math_content.is_empty() {
+                        output.push_str("$$\n");
+                        output.push_str(&math_content);
+                        output.push_str("\n$$\n");
                     }
                     continue;
                 }
@@ -1556,6 +1562,27 @@ Another paragraph.
         assert!(output.contains("Title"));
         assert!(output.contains("This is a paragraph"));
         assert!(output.contains("Another paragraph"));
+    }
+
+    #[test]
+    fn test_extract_text_from_rst_math_directive_keeps_math_markup() {
+        let content = r#"
+Intro paragraph.
+
+.. math::
+
+   E = mc^2
+
+Closing paragraph.
+"#;
+
+        let mut metadata = AHashMap::new();
+        let output = RstExtractor::extract_text_from_rst(content, &mut metadata);
+        assert!(
+            output.contains("$$\nE = mc^2\n$$"),
+            "math directive must emit display-math delimiters; got: {output}"
+        );
+        assert!(!output.contains("math: "), "the old prose marker must be gone");
     }
 
     #[test]
