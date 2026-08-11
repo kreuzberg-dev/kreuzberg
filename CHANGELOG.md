@@ -9,8 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `Formula.bbox` and `Formula.page` are now optional. Markup sources (DOCX, PPTX,
+  ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats) produce formulas with no geometry;
+  the old required fields forced fake values on those paths (a zeroed bbox and `page: 1` on VLM
+  OCR results). Layout-guided OCR still reports both. The C FFI reports an absent bbox as a null
+  pointer and an absent page as `0`; JSON omits absent fields. The field docs now state the real
+  coordinate space: pixels of the rendered page image at the OCR render DPI (base 150, reduced
+  automatically for very large pages), not the previously claimed 300 DPI (#1385).
+
+### Added
+
+- `ExtractedDocument.formulas` is now populated for every format, not only layout-guided OCR.
+  Formula elements produced by markup extractors are projected into the public list in reading
+  order, with `$$` delimiters stripped, after any OCR-detected formulas. A new public element type
+  `formula` identifies these elements in element-based output, where they previously degraded to
+  `narrative_text` (#1385).
+- JATS `disp-formula` and `inline-formula` content now yields LaTeX. A `tex-math` alternative is
+  used verbatim when present; otherwise the `mml:math` subtree runs through the shared MathML
+  converter; plain text remains the fallback. Inline formulas in the all-in-one path render as
+  `$...$` (#1385).
+
 ### Fixed
 
+- The RST text path now renders `.. math::` directives inside `$$` display-math delimiters instead
+  of a literal `math:` prose prefix.
 - Alef now extracts Crawlberg binding types from the pinned registry dependency instead of a
   neighboring checkout, keeping generated bindings aligned with the version Cargo compiles.
 
