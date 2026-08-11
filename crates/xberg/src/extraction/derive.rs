@@ -714,6 +714,25 @@ pub fn derive_extraction_result(
         .and_then(serde_json::Value::as_str)
         .and_then(ExtractionMethod::from_metadata_value);
 
+    // The OCR pipeline fills `doc.formulas` directly (with geometry). Markup
+    // extractors emit `ElementKind::Formula` elements instead. Append the
+    // element-derived formulas so every source reaches the public list. The
+    // FFI round-trip (`InternalDocument::from(ExtractedDocument)`) restores
+    // `doc.formulas` with an empty element list, so re-derivation cannot
+    // duplicate entries.
+    let mut formulas = std::mem::take(&mut doc.formulas);
+    formulas.extend(
+        doc.elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .filter(|e| !e.text.trim().is_empty())
+            .map(|e| crate::types::Formula {
+                latex: strip_math_delimiters(&e.text).to_string(),
+                bbox: e.bbox,
+                page: e.page,
+            }),
+    );
+
     tracing::debug!(
         content_length = content.len(),
         has_document_structure = document.is_some(),
@@ -736,12 +755,29 @@ pub fn derive_extraction_result(
         llm_usage: std::mem::take(&mut doc.llm_usage),
         revisions: std::mem::take(&mut doc.revisions),
         form_fields: std::mem::take(&mut doc.form_fields),
-        formulas: std::mem::take(&mut doc.formulas),
+        formulas,
         #[cfg(feature = "tree-sitter")]
         code_intelligence,
         formatted_content,
         ..Default::default()
     }
+}
+
+/// Remove one pair of `$$..$$` or `\[..\]` delimiters from formula text.
+///
+/// `Formula.latex` holds bare LaTeX; extractors that store delimited math in
+/// the element text stay renderable while the projection stays delimiter-free.
+fn strip_math_delimiters(text: &str) -> &str {
+    let t = text.trim();
+    let t = t
+        .strip_prefix("$$")
+        .and_then(|s| s.strip_suffix("$$"))
+        .unwrap_or(t);
+    let t = t
+        .strip_prefix("\\[")
+        .and_then(|s| s.strip_suffix("\\]"))
+        .unwrap_or(t);
+    t.trim()
 }
 
 /// Map source format identifiers to MIME types.
@@ -994,6 +1030,51 @@ mod tests {
     /// Helper: create a minimal internal document.
     fn make_doc(source_format: &'static str) -> InternalDocument {
         InternalDocument::new(source_format)
+    }
+
+    #[test]
+    fn test_markup_formula_elements_reach_public_formulas() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Formula, "E = mc^2", 0));
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Markdown);
+        assert_eq!(result.formulas.len(), 1);
+        assert_eq!(result.formulas[0].latex, "E = mc^2");
+        assert_eq!(result.formulas[0].page, None);
+        assert_eq!(result.formulas[0].bbox, None);
+    }
+
+    #[test]
+    fn test_ocr_side_channel_formulas_stay_first() {
+        let mut doc = make_doc("pdf");
+        doc.push_element(InternalElement::text(ElementKind::Formula, "b", 0));
+        doc.formulas.push(crate::types::Formula {
+            latex: "a".to_string(),
+            bbox: None,
+            page: Some(1),
+        });
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+        let latexes: Vec<&str> = result.formulas.iter().map(|f| f.latex.as_str()).collect();
+        assert_eq!(latexes, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn test_formula_projection_strips_dollar_delimiters() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Formula, "$$x + 1$$", 0));
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+        assert_eq!(result.formulas[0].latex, "x + 1");
+    }
+
+    #[test]
+    fn test_empty_formula_elements_are_skipped() {
+        let mut doc = make_doc("markdown");
+        doc.push_element(InternalElement::text(ElementKind::Formula, "   ", 0));
+
+        let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
+        assert!(result.formulas.is_empty());
     }
 
     #[test]
