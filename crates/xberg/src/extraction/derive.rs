@@ -763,21 +763,21 @@ pub fn derive_extraction_result(
     }
 }
 
-/// Remove one pair of `$$..$$` or `\[..\]` delimiters from formula text.
+/// Remove one pair of TeX math delimiters (`$$..$$`, `\[..\]`, or `$..$`)
+/// from formula text.
 ///
 /// `Formula.latex` holds bare LaTeX; extractors that store delimited math in
 /// the element text stay renderable while the projection stays delimiter-free.
-fn strip_math_delimiters(text: &str) -> &str {
+pub(crate) fn strip_math_delimiters(text: &str) -> &str {
     let t = text.trim();
-    let t = t
-        .strip_prefix("$$")
-        .and_then(|s| s.strip_suffix("$$"))
-        .unwrap_or(t);
-    let t = t
-        .strip_prefix("\\[")
-        .and_then(|s| s.strip_suffix("\\]"))
-        .unwrap_or(t);
-    t.trim()
+    for (open, close) in [("$$", "$$"), ("\\[", "\\]"), ("$", "$")] {
+        if t.len() > open.len() + close.len()
+            && let Some(inner) = t.strip_prefix(open).and_then(|s| s.strip_suffix(close))
+        {
+            return inner.trim();
+        }
+    }
+    t
 }
 
 /// Map source format identifiers to MIME types.

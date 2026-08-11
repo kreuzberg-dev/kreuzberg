@@ -40,20 +40,7 @@ fn write_start_tag(buf: &mut String, event: &BytesStart<'_>, self_closing: bool)
     buf.push('>');
 }
 
-/// Remove one pair of TeX math delimiters (`$$..$$`, `\[..\]`, or `$..$`)
-/// from `tex-math` content. `Formula` elements hold bare LaTeX; the
-/// renderers add delimiters.
-fn strip_tex_delimiters(text: &str) -> &str {
-    let t = text.trim();
-    for (open, close) in [("$$", "$$"), ("\\[", "\\]"), ("$", "$")] {
-        if t.len() > open.len() + close.len()
-            && let Some(inner) = t.strip_prefix(open).and_then(|s| s.strip_suffix(close))
-        {
-            return inner.trim();
-        }
-    }
-    t
-}
+use crate::extraction::derive::strip_math_delimiters;
 
 /// Extract the LaTeX for a `disp-formula` / `inline-formula` subtree.
 ///
@@ -171,7 +158,7 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
         }
     };
 
-    let tex = strip_tex_delimiters(tex_math.trim());
+    let tex = strip_math_delimiters(tex_math.trim());
     if !tex.is_empty() {
         return Ok(with_tag(tex));
     }
