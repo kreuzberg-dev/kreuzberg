@@ -66,7 +66,7 @@ const NORM_STD: f32 = 0.1738;
 
 /// Local filenames of the downloaded model set.
 #[derive(Debug, Clone)]
-pub(crate) struct FormulaModelPaths {
+pub struct FormulaModelPaths {
     pub resizer: std::path::PathBuf,
     pub encoder: std::path::PathBuf,
     pub decoder: std::path::PathBuf,
@@ -214,7 +214,6 @@ impl FormulaRecognizer {
     /// The upstream adaptive-resize loop: the resizer model predicts the best
     /// model width bucket for the current render; iterate until stable.
     fn resize_to_model_width(&mut self, gray: &GrayCanvas) -> Result<Array4<f32>, LayoutError> {
-        let mut ratio = 1.0f32;
         let mut width = gray.width;
         let mut height = gray.height;
         let mut tensor = gray.to_tensor(width, height);
@@ -241,7 +240,7 @@ impl FormulaRecognizer {
             if predicted == padded_width {
                 break;
             }
-            ratio = predicted as f32 / padded_width as f32;
+            let ratio = predicted as f32 / padded_width as f32;
             width = ((width as f32) * ratio).round().max(1.0) as u32;
             height = ((height as f32) * ratio).round().max(1.0) as u32;
             tensor = gray.to_tensor(width, height);
