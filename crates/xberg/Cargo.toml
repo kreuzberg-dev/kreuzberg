@@ -354,7 +354,7 @@ layout-detection = [
 # LaTeX recognition for layout-detected formula regions (RapidLaTeXOCR ONNX,
 # MIT). ORT-dependent: excluded from `full`, `formats`, and every no-ORT
 # target, like `candle-vlm-ocr`. Opt in explicitly.
-formula-recognition = ["layout-detection", "dep:tokenizers"]
+formula-recognition = ["layout-detection", "dep:tokenizers", "dep:ureq"]
 # layout-tract: no-ORT sibling of `layout-detection` (issue #1275, Phase 5). Runs RT-DETR
 # layout detection and the PP-LCNet table (wired/wireless) classifier through the pure-Rust
 # `tract` engine instead of ONNX Runtime, so it builds on no-ORT targets (Android x86_64

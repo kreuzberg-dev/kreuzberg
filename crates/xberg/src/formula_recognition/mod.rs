@@ -75,7 +75,7 @@ pub(crate) struct FormulaModelPaths {
 
 /// Cache directory for the formula recognition models.
 fn cache_dir() -> std::path::PathBuf {
-    crate::model_download::resolve_cache_dir("formula-recognition")
+    hf_hub::resolve_cache_dir().join("formula-recognition")
 }
 
 /// The manifest for `cache manifest` / MCP model listings.
@@ -129,7 +129,8 @@ pub fn ensure_models() -> Result<FormulaModelPaths, String> {
             continue;
         }
         let url = format!("{RELEASE_BASE_URL}/{name}");
-        crate::model_download::with_download_deadline(name, || download_file(&url, &target))?;
+        let dl_target = target.clone();
+        crate::model_download::with_download_deadline(name, move || download_file(&url, &dl_target))?;
         crate::model_download::verify_sha256(&target, sha256, name)?;
     }
 
@@ -182,7 +183,7 @@ impl FormulaRecognizer {
         let encoder = build_session(&paths.encoder.to_string_lossy(), accel, threads)?;
         let decoder = build_session(&paths.decoder.to_string_lossy(), accel, threads)?;
         let tokenizer = tokenizers::Tokenizer::from_file(&paths.tokenizer)
-            .map_err(|e| LayoutError::Config(format!("formula tokenizer failed to load: {e}")))?;
+            .map_err(|e| LayoutError::ModelDownload(format!("formula tokenizer failed to load: {e}")))?;
         Ok(Self {
             resizer,
             encoder,
@@ -205,7 +206,7 @@ impl FormulaRecognizer {
         let raw = self
             .tokenizer
             .decode(&ids.iter().map(|&i| i as u32).collect::<Vec<_>>(), false)
-            .map_err(|e| LayoutError::Config(format!("formula token decode failed: {e}")))?;
+            .map_err(|e| LayoutError::InvalidOutput(format!("formula token decode failed: {e}")))?;
         let cleaned = post_process(&raw);
         Ok(if cleaned.is_empty() { None } else { Some(cleaned) })
     }
@@ -259,13 +260,13 @@ impl FormulaRecognizer {
             .map_err(LayoutError::Ort)?;
         let dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
         if dims.len() != 3 {
-            return Err(LayoutError::Config(format!(
+            return Err(LayoutError::InvalidOutput(format!(
                 "formula encoder returned rank {} output, expected 3",
                 dims.len()
             )));
         }
         ndarray::Array3::from_shape_vec((dims[0], dims[1], dims[2]), data.to_vec())
-            .map_err(|e| LayoutError::Config(format!("formula encoder output reshape failed: {e}")))
+            .map_err(|e| LayoutError::InvalidOutput(format!("formula encoder output reshape failed: {e}")))
     }
 
     /// Greedy decode without KV cache: each step feeds the full prefix.
@@ -276,7 +277,7 @@ impl FormulaRecognizer {
             let window = &out[out.len().saturating_sub(MAX_SEQ_LEN)..];
             let len = window.len();
             let x = Array2::from_shape_vec((1, len), window.to_vec())
-                .map_err(|e| LayoutError::Config(format!("decoder input build failed: {e}")))?;
+                .map_err(|e| LayoutError::InvalidOutput(format!("decoder input build failed: {e}")))?;
             let mask = Array2::from_elem((1, len), true);
 
             let x_t = Tensor::from_array(x).map_err(LayoutError::Ort)?;
