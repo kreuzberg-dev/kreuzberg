@@ -1610,7 +1610,10 @@ Closing paragraph.
             output.contains("$$\na + b\n$$"),
             "block form must emit math without option lines; got: {output}"
         );
-        assert!(!output.contains(":label:"), "directive options are not math; got: {output}");
+        assert!(
+            !output.contains(":label:"),
+            "directive options are not math; got: {output}"
+        );
     }
 
     #[test]

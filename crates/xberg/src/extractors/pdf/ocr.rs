@@ -970,7 +970,13 @@ pub(crate) async fn extract_mixed_ocr_native(
                     let page_number = (*page_idx + 1) as u32;
                     for mut formula in formulas {
                         formula.page = Some(page_number);
-                        formula_bbox_to_page_points(&mut formula, &render_doc, *page_idx, image.width(), image.height());
+                        formula_bbox_to_page_points(
+                            &mut formula,
+                            &render_doc,
+                            *page_idx,
+                            image.width(),
+                            image.height(),
+                        );
                         accumulated_formulas.push(formula);
                     }
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
