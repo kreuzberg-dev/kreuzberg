@@ -37,9 +37,8 @@ fn write_start_tag(buf: &mut String, event: &BytesStart<'_>, self_closing: bool)
         if written.contains(&local_key) {
             continue;
         }
-        let value = attr
-            .unescape_value()
-            .unwrap_or_else(|_| std::borrow::Cow::Owned(String::from_utf8_lossy(&attr.value).into_owned()));
+        let raw = String::from_utf8_lossy(&attr.value);
+        let value = quick_xml::escape::unescape(&raw).unwrap_or_else(|_| raw.clone());
         buf.push(' ');
         buf.push_str(&local_key);
         buf.push_str("=\"");
