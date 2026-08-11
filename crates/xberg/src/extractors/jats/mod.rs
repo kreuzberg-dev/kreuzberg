@@ -37,6 +37,7 @@ use crate::utils::xml_utils::EntityReader;
 use elements::extract_jats_all_in_one;
 use parser::extract_citation_text as jats_extract_citation;
 use parser::extract_fig_content as jats_extract_fig;
+use parser::extract_formula_latex as jats_extract_formula;
 use parser::extract_text_content as jats_extract_text;
 
 /// `ProcessingWarning::source` for every warning this extractor emits (#171).
@@ -297,9 +298,9 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "disp-formula" | "inline-formula" if in_body => {
-                        let text = jats_extract_text(&mut reader, budget)?;
-                        if !text.is_empty() {
-                            builder.push_formula(&text, None, None);
+                        let latex = jats_extract_formula(&mut reader, budget)?;
+                        if !latex.is_empty() {
+                            builder.push_formula(&latex, None, None);
                         }
                         continue;
                     }

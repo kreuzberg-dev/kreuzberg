@@ -59,12 +59,12 @@ pub mod doc;
 #[cfg(feature = "office")]
 pub mod docx;
 
-#[cfg(feature = "office")]
+#[cfg(any(feature = "office", feature = "xml"))]
 pub mod mathml;
 
 /// Unicode-to-LaTeX symbol table shared by the OMML (`docx::math`) and MathML
 /// (`mathml`) converters.
-#[cfg(feature = "office")]
+#[cfg(any(feature = "office", feature = "xml"))]
 pub(crate) mod math_symbols;
 
 #[cfg(feature = "office")]

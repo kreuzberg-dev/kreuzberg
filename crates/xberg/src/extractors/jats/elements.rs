@@ -1,7 +1,7 @@
 //! Element extraction (title, abstract, body, references, tables).
 
 use super::metadata::JatsMetadataExtracted;
-use super::parser::extract_text_content;
+use super::parser::{extract_formula_latex, extract_text_content};
 use crate::Result;
 use crate::extraction::cells_to_markdown;
 use crate::extractors::security::SecurityBudget;
@@ -218,10 +218,11 @@ pub(super) fn extract_jats_all_in_one(content: &str) -> Result<(JatsMetadataExtr
                         in_para = true;
                     }
                     "inline-formula" if in_body => {
-                        let formula_text = extract_text_content(&mut reader, &mut budget)?;
-                        if !formula_text.is_empty() {
-                            body_content.push_str(&formula_text);
-                            body_content.push(' ');
+                        let latex = extract_formula_latex(&mut reader, &mut budget)?;
+                        if !latex.is_empty() {
+                            body_content.push('$');
+                            body_content.push_str(&latex);
+                            body_content.push_str("$ ");
                         }
                         continue;
                     }

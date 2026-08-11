@@ -3,9 +3,165 @@
 use crate::Result;
 use crate::extractors::security::SecurityBudget;
 use crate::text::utf8_validation;
-use quick_xml::events::Event;
+use quick_xml::events::{BytesStart, Event};
 
 use crate::utils::xml_utils::EntityReader;
+
+/// Return the local part of a possibly prefixed XML qualified name.
+fn local_name_of(qname: &[u8]) -> String {
+    let name = String::from_utf8_lossy(qname);
+    match name.rsplit(':').next() {
+        Some(local) => local.to_string(),
+        None => name.into_owned(),
+    }
+}
+
+/// Append a start tag to `buf` with the prefix stripped and namespace
+/// declarations dropped, so the captured subtree parses without the
+/// document's namespace context.
+fn write_start_tag(buf: &mut String, event: &BytesStart<'_>, self_closing: bool) {
+    buf.push('<');
+    buf.push_str(&local_name_of(event.name().as_ref()));
+    for attr in event.attributes().flatten() {
+        let key = String::from_utf8_lossy(attr.key.as_ref());
+        if key == "xmlns" || key.starts_with("xmlns:") {
+            continue;
+        }
+        let local_key = key.rsplit(':').next().unwrap_or(&key).to_string();
+        buf.push(' ');
+        buf.push_str(&local_key);
+        buf.push_str("=\"");
+        buf.push_str(&String::from_utf8_lossy(&attr.value));
+        buf.push('"');
+    }
+    if self_closing {
+        buf.push('/');
+    }
+    buf.push('>');
+}
+
+/// Remove one pair of TeX math delimiters (`$$..$$`, `\[..\]`, or `$..$`)
+/// from `tex-math` content. `Formula` elements hold bare LaTeX; the
+/// renderers add delimiters.
+fn strip_tex_delimiters(text: &str) -> &str {
+    let t = text.trim();
+    for (open, close) in [("$$", "$$"), ("\\[", "\\]"), ("$", "$")] {
+        if t.len() > open.len() + close.len()
+            && let Some(inner) = t.strip_prefix(open).and_then(|s| s.strip_suffix(close))
+        {
+            return inner.trim();
+        }
+    }
+    t
+}
+
+/// Extract the LaTeX for a `disp-formula` / `inline-formula` subtree.
+///
+/// The caller has consumed the formula start tag. The preference order is:
+/// a `tex-math` child's text verbatim, then the `mml:math` subtree converted
+/// with the shared MathML converter, then the flattened text content.
+pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut SecurityBudget) -> Result<String> {
+    let mut fallback_text = String::new();
+    let mut tex_math = String::new();
+    let mut mathml_xml: Option<String> = None;
+
+    let mut capture: Option<String> = None;
+    let mut capture_depth = 0usize;
+    let mut in_tex_math = false;
+    let mut depth = 0usize;
+
+    loop {
+        budget.step()?;
+        match reader.read_event() {
+            Ok(Event::Start(s)) => {
+                budget.enter()?;
+                depth += 1;
+                let local = local_name_of(s.name().as_ref());
+                if let Some(buf) = capture.as_mut() {
+                    capture_depth += 1;
+                    write_start_tag(buf, &s, false);
+                } else if local == "math" && mathml_xml.is_none() {
+                    let mut buf = String::new();
+                    write_start_tag(&mut buf, &s, false);
+                    capture = Some(buf);
+                    capture_depth = 1;
+                } else if local == "tex-math" {
+                    in_tex_math = true;
+                }
+            }
+            Ok(Event::Empty(s)) => {
+                if let Some(buf) = capture.as_mut() {
+                    write_start_tag(buf, &s, true);
+                }
+            }
+            Ok(Event::End(e)) => {
+                budget.leave();
+                if let Some(buf) = capture.as_mut() {
+                    buf.push_str("</");
+                    buf.push_str(&local_name_of(e.name().as_ref()));
+                    buf.push('>');
+                    capture_depth -= 1;
+                    if capture_depth == 0 {
+                        mathml_xml = capture.take();
+                    }
+                } else if local_name_of(e.name().as_ref()) == "tex-math" {
+                    in_tex_math = false;
+                }
+                if depth == 0 {
+                    break;
+                }
+                depth -= 1;
+            }
+            Ok(Event::Text(t)) => {
+                let decoded = String::from_utf8_lossy(t.as_ref()).to_string();
+                if decoded.trim().is_empty() {
+                    continue;
+                }
+                budget.check_entity(&decoded)?;
+                budget.account_text(decoded.len())?;
+                if let Some(buf) = capture.as_mut() {
+                    buf.push_str(&quick_xml::escape::escape(&decoded));
+                } else if in_tex_math {
+                    tex_math.push_str(&decoded);
+                } else {
+                    fallback_text.push_str(&decoded);
+                    fallback_text.push(' ');
+                }
+            }
+            Ok(Event::CData(t)) => {
+                let decoded = utf8_validation::from_utf8(t.as_ref()).unwrap_or("").to_string();
+                if decoded.trim().is_empty() {
+                    continue;
+                }
+                budget.check_entity(&decoded)?;
+                budget.account_text(decoded.len())?;
+                if in_tex_math {
+                    tex_math.push_str(&decoded);
+                } else if capture.is_none() {
+                    fallback_text.push_str(&decoded);
+                    fallback_text.push(' ');
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => {
+                return Err(crate::error::XbergError::parsing(format!("XML parsing error: {}", e)));
+            }
+            _ => {}
+        }
+    }
+
+    let tex = strip_tex_delimiters(tex_math.trim());
+    if !tex.is_empty() {
+        return Ok(tex.to_string());
+    }
+    if let Some(xml) = mathml_xml {
+        let latex = crate::extraction::mathml::convert_mathml_str_to_latex(&xml, budget)?;
+        if !latex.trim().is_empty() {
+            return Ok(latex.trim().to_string());
+        }
+    }
+    Ok(fallback_text.trim().to_string())
+}
 
 /// Extract text content from a JATS element and its children.
 pub(super) fn extract_text_content(reader: &mut EntityReader<'_>, budget: &mut SecurityBudget) -> Result<String> {
