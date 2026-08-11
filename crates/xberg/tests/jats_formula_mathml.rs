@@ -82,6 +82,27 @@ mod jats_formula_mathml {
         assert_eq!(extraction.formulas[0].latex, "E = mc^2");
     }
 
+    /// An equation label survives the MathML conversion as a LaTeX `\tag`.
+    #[tokio::test]
+    async fn equation_label_becomes_a_tag() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <label>1.1</label>
+      <mml:math><mml:mfrac><mml:mi>a</mml:mi><mml:mi>b</mml:mi></mml:mfrac></mml:math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "\\frac{a}{b} \\tag{1.1}");
+    }
+
     /// A formula with plain text content still extracts through the fallback.
     #[tokio::test]
     async fn plain_text_formula_falls_back_to_text() {

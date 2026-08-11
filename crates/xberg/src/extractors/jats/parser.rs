@@ -63,11 +63,13 @@ fn strip_tex_delimiters(text: &str) -> &str {
 pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut SecurityBudget) -> Result<String> {
     let mut fallback_text = String::new();
     let mut tex_math = String::new();
+    let mut label = String::new();
     let mut mathml_xml: Option<String> = None;
 
     let mut capture: Option<String> = None;
     let mut capture_depth = 0usize;
     let mut in_tex_math = false;
+    let mut in_label = false;
     let mut depth = 0usize;
 
     loop {
@@ -87,6 +89,8 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     capture_depth = 1;
                 } else if local == "tex-math" {
                     in_tex_math = true;
+                } else if local == "label" {
+                    in_label = true;
                 }
             }
             Ok(Event::Empty(s)) => {
@@ -104,8 +108,12 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     if capture_depth == 0 {
                         mathml_xml = capture.take();
                     }
-                } else if local_name_of(e.name().as_ref()) == "tex-math" {
-                    in_tex_math = false;
+                } else {
+                    match local_name_of(e.name().as_ref()).as_str() {
+                        "tex-math" => in_tex_math = false,
+                        "label" => in_label = false,
+                        _ => {}
+                    }
                 }
                 if depth == 0 {
                     break;
@@ -123,6 +131,8 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     buf.push_str(&quick_xml::escape::escape(&decoded));
                 } else if in_tex_math {
                     tex_math.push_str(&decoded);
+                } else if in_label {
+                    label.push_str(&decoded);
                 } else {
                     fallback_text.push_str(&decoded);
                     fallback_text.push(' ');
@@ -150,15 +160,29 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
         }
     }
 
+    // An equation label (`<label>1.1</label>`) becomes a LaTeX `\tag` so the
+    // equation number survives the conversion.
+    let with_tag = |latex: &str| -> String {
+        let label = label.trim();
+        if label.is_empty() {
+            latex.to_string()
+        } else {
+            format!("{latex} \\tag{{{label}}}")
+        }
+    };
+
     let tex = strip_tex_delimiters(tex_math.trim());
     if !tex.is_empty() {
-        return Ok(tex.to_string());
+        return Ok(with_tag(tex));
     }
     if let Some(xml) = mathml_xml {
         let latex = crate::extraction::mathml::convert_mathml_str_to_latex(&xml, budget)?;
         if !latex.trim().is_empty() {
-            return Ok(latex.trim().to_string());
+            return Ok(with_tag(latex.trim()));
         }
+    }
+    if !label.trim().is_empty() {
+        fallback_text = format!("{} {}", label.trim(), fallback_text);
     }
     Ok(fallback_text.trim().to_string())
 }
