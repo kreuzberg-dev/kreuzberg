@@ -73,6 +73,7 @@ pub fn convert_internal_elements_to_elements(doc: &InternalDocument, filename: &
             ElementKind::Image { .. } => crate::types::ElementType::Image,
             ElementKind::PageBreak => crate::types::ElementType::PageBreak,
             ElementKind::Code => crate::types::ElementType::CodeBlock,
+            ElementKind::Formula => crate::types::ElementType::Formula,
             _ => crate::types::ElementType::NarrativeText,
         };
 
@@ -250,6 +251,22 @@ mod tests {
     use super::*;
     use crate::extraction::transform::elements::{detect_list_items, generate_element_id};
     use bytes::Bytes;
+
+    #[test]
+    fn test_formula_element_maps_to_formula_type() {
+        use crate::types::internal::InternalElement;
+
+        let mut doc = InternalDocument::new("text/markdown");
+        let mut elem = InternalElement::text(ElementKind::Formula, "\\frac{a}{b}", 0);
+        elem.page = Some(2);
+        doc.elements.push(elem);
+
+        let elements = convert_internal_elements_to_elements(&doc, &None);
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].element_type, crate::types::ElementType::Formula);
+        assert_eq!(elements[0].text, "\\frac{a}{b}");
+        assert_eq!(elements[0].metadata.page_number, Some(2));
+    }
 
     #[test]
     fn test_detect_bullet_items() {

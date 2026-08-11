@@ -953,6 +953,8 @@ pub enum ElementType {
     PageBreak,
     /// Code block
     CodeBlock,
+    /// Mathematical formula (LaTeX source in `text`)
+    Formula,
     /// Block quote
     BlockQuote,
     /// Footer text
@@ -1229,13 +1231,13 @@ mod tests {
 
         let formula = Formula {
             latex: r"E = mc^2".to_string(),
-            bbox: BoundingBox {
+            bbox: Some(BoundingBox {
                 x0: 10.0,
                 y0: 20.0,
                 x1: 100.0,
                 y1: 50.0,
-            },
-            page: 1,
+            }),
+            page: Some(1),
         };
 
         let result = ExtractedDocument {
@@ -1251,8 +1253,8 @@ mod tests {
         let deserialized: ExtractedDocument = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.formulas.len(), 1);
         assert_eq!(deserialized.formulas[0].latex, r"E = mc^2");
-        assert_eq!(deserialized.formulas[0].page, 1);
-        assert_eq!(deserialized.formulas[0].bbox.x0, 10.0);
+        assert_eq!(deserialized.formulas[0].page, Some(1));
+        assert_eq!(deserialized.formulas[0].bbox.unwrap().x0, 10.0);
     }
 
     #[test]
