@@ -28,7 +28,7 @@ pub(crate) fn map_output_format(format: XbergOutputFormat) -> LibOutputFormat {
 /// If no options are provided, creates defaults with:
 /// - `extract_metadata = true` (parse YAML frontmatter)
 /// - `include_document_structure = true` (populate document tree)
-/// - `preprocessing.enabled = false` (disable HTML preprocessing)
+/// - `preprocessing.enabled = true` (clean navigation and boilerplate before conversion)
 ///
 /// Sets output format based on the provided format parameter.
 pub(crate) fn resolve_conversion_options(
@@ -53,7 +53,7 @@ pub(crate) fn resolve_conversion_options(
 /// Uses sensible defaults if no configuration is provided:
 /// - `extract_metadata = true` (parse YAML frontmatter)
 /// - `include_document_structure = true` (populate document tree)
-/// - `preprocessing.enabled = false` (disable HTML preprocessing)
+/// - `preprocessing.enabled = true` (clean navigation and boilerplate before conversion)
 ///
 /// Supports both markdown and djot output based on the output_format parameter.
 /// Defaults to Markdown for backward compatibility.
