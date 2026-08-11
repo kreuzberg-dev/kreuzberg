@@ -194,6 +194,10 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
         };
 
         let slide_content = slide.to_markdown(&config);
+        // Preserve the archive-derived slide number for the internal document
+        // builder. The marker is consumed before final rendering and is kept out
+        // of `slide_content`, so it does not leak into per-slide output.
+        content_builder.add_slide_header(slide.slide_number);
         content_builder.add_text(&slide_content);
 
         let slide_notes = notes.get(&slide.slide_number).cloned();
@@ -876,6 +880,14 @@ pub(crate) mod tests {
         assert!(result.content.contains("Slide 1"));
         assert!(result.content.contains("Slide 2"));
         assert!(result.content.contains("Slide 3"));
+        for slide_number in 1..=3 {
+            assert!(
+                result
+                    .content
+                    .contains(&format!("<!-- Slide number: {slide_number} -->")),
+                "combined content should preserve the boundary for slide {slide_number}"
+            );
+        }
     }
 
     #[test]

@@ -33,8 +33,8 @@ impl PptxExtractor {
 impl PptxExtractor {
     /// Build an `InternalDocument` from PPTX extracted text.
     ///
-    /// Splits content by double-newlines into slide-like blocks. Each block
-    /// becomes a slide element with its content as paragraphs.
+    /// Splits content by double-newlines and uses internal slide markers to
+    /// retain the archive-derived slide number while rebuilding elements.
     ///
     /// Note: For richer structure, the builder should be integrated into
     /// `crate::extraction::pptx` alongside the existing `DocumentStructure` building.
@@ -65,6 +65,7 @@ impl PptxExtractor {
         let mut builder = InternalDocumentBuilder::new("pptx");
         let mut slide_num: u32 = 0;
         let mut in_notes = false;
+        let has_slide_markers = content.contains("<!-- Slide number: ");
 
         let blocks: Vec<&str> = content.split("\n\n").collect();
 
@@ -75,6 +76,17 @@ impl PptxExtractor {
                 continue;
             }
 
+            if let Some(marker) = trimmed
+                .strip_prefix("<!-- Slide number: ")
+                .and_then(|value| value.strip_suffix(" -->"))
+                && let Ok(number) = marker.parse::<u32>()
+                && (1..=slide_count).contains(&number)
+            {
+                slide_num = number;
+                in_notes = false;
+                continue;
+            }
+
             if trimmed.starts_with("### Notes:") || trimmed == "Notes:" {
                 in_notes = true;
                 continue;
@@ -82,7 +94,9 @@ impl PptxExtractor {
 
             if let Some(title_text) = trimmed.strip_prefix("# ") {
                 in_notes = false;
-                slide_num += 1;
+                if !has_slide_markers {
+                    slide_num += 1;
+                }
                 let title = title_text.trim();
                 if !title.is_empty() {
                     budget.account_text(title.len())?;
@@ -458,6 +472,39 @@ mod tests {
         assert!(mime_types.contains(&"application/vnd.openxmlformats-officedocument.presentationml.presentation"));
     }
 
+    #[test]
+    fn test_internal_slide_markers_set_table_and_list_page_numbers() {
+        use crate::types::internal::ElementKind;
+
+        let content = concat!(
+            "<!-- Slide number: 1 -->\n\n",
+            "# Titled slide\n\n",
+            "Introduction\n\n",
+            "<!-- Slide number: 2 -->\n\n",
+            "This untitled slide has a paragraph long enough not to be inferred as a title. ",
+            "It deliberately contains more than one hundred characters in total.\n\n",
+            "<!-- Slide number: 3 -->\n\n",
+            "| Name | Value |\n",
+            "| --- | --- |\n",
+            "| answer | 42 |\n\n",
+            "- final item",
+        );
+        let mut budget = SecurityBudget::with_defaults();
+
+        let document = PptxExtractor::build_internal_document(content, 3, &mut budget)
+            .expect("internal PPTX document should build");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 3);
+
+        let list_item = document
+            .elements
+            .iter()
+            .find(|element| matches!(element.kind, ElementKind::ListItem { .. }))
+            .expect("list item should be present");
+        assert_eq!(list_item.page, Some(3));
+    }
+
     /// Full round-trip through PptxExtractor::extract_bytes → derive_extraction_result →
     /// ExtractedDocument.pages, asserting that speaker_notes and section_name are present.
     #[tokio::test]
@@ -487,6 +534,10 @@ mod tests {
             .expect("extraction failed");
         let result = derive_extraction_result(internal_doc, true, crate::core::config::OutputFormat::Plain);
 
+        assert!(
+            !result.content.contains("<!-- Slide number:"),
+            "internal slide markers must not leak into rendered output"
+        );
         let pages = result.pages.as_ref().expect("pages should be populated");
         assert_eq!(pages.len(), 3);
 
