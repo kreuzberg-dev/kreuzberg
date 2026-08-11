@@ -901,7 +901,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     accumulated_llm_usage.extend(usage);
                     let page_number = (page_idx + 1) as u32;
                     for mut formula in formulas {
-                        formula.page = page_number;
+                        formula.page = Some(page_number);
                         accumulated_formulas.push(formula);
                     }
                     // `run_ocr_pipeline`/`extract_with_ocr` assemble `text` as if this
@@ -946,7 +946,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     accumulated_llm_usage.extend(usage);
                     let page_number = (*page_idx + 1) as u32;
                     for mut formula in formulas {
-                        formula.page = page_number;
+                        formula.page = Some(page_number);
                         accumulated_formulas.push(formula);
                     }
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
@@ -1058,7 +1058,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     accumulated_llm_usage.extend(usage);
                 }
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
-                    formula.page = (page_idx + 1) as u32;
+                    formula.page = Some((page_idx + 1) as u32);
                     accumulated_formulas.push(formula);
                 }
                 // The backend's own warnings used to be dropped on this route (#60).
@@ -1090,7 +1090,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     accumulated_llm_usage.extend(usage);
                 }
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
-                    formula.page = (*page_idx + 1) as u32;
+                    formula.page = Some((*page_idx + 1) as u32);
                     accumulated_formulas.push(formula);
                 }
                 crate::core::diagnostics::dedup_extend_warnings(
@@ -2317,7 +2317,7 @@ pub(crate) async fn extract_with_ocr(
             }
 
             for mut formula in ocr_result.formulas {
-                formula.page = (page_idx + 1) as u32;
+                formula.page = Some((page_idx + 1) as u32);
                 accumulated_formulas.push(formula);
             }
 
@@ -5552,7 +5552,10 @@ Buffers:           50000 kB
 
         assert_eq!(formulas.len(), 2, "one formula per page, got {}", formulas.len());
 
-        let mut pages: Vec<u32> = formulas.iter().map(|f| f.page).collect();
+        let mut pages: Vec<u32> = formulas
+            .iter()
+            .map(|f| f.page.expect("OCR formulas must have a renumbered page"))
+            .collect();
         pages.sort_unstable();
         assert_eq!(
             pages,

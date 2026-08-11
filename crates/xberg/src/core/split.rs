@@ -331,7 +331,7 @@ fn sub_document_for_range(
             .page_classifications
             .as_ref()
             .map(|items| filter_by_page(items, start, end, |item| item.page_number)),
-        formulas: filter_by_page(&source.formulas, start, end, |formula| formula.page),
+        formulas: filter_by_optional_page(&source.formulas, start, end, |formula| formula.page),
         form_fields: filter_by_optional_page(&source.form_fields, start, end, |field| field.page),
         chunks: source
             .chunks
@@ -693,8 +693,8 @@ mod enrichment_preservation_tests {
     fn formula(latex: &str, page: u32) -> Formula {
         Formula {
             latex: latex.to_string(),
-            bbox: BoundingBox::default(),
-            page,
+            bbox: None,
+            page: Some(page),
         }
     }
 

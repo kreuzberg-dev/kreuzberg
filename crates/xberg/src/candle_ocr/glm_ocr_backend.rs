@@ -705,8 +705,9 @@ async fn process_paired(
             if detection.class_name == crate::layout::LayoutClass::Formula && !latex_clean.is_empty() {
                 formulas.push(crate::types::Formula {
                     latex: latex_clean,
-                    bbox: region_bbox,
-                    page: 1,
+                    bbox: Some(region_bbox),
+                    // The caller renumbers to the real document page.
+                    page: Some(1),
                 });
             } else if is_table_region(detection.class_name) && !output.content.trim().is_empty() {
                 table_bboxes.push(region_bbox);

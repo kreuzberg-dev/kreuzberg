@@ -430,13 +430,13 @@ fn push_mapped_layout_text(
         LayoutClass::Formula => {
             formulas.push(crate::types::Formula {
                 latex: text.to_string(),
-                bbox: crate::types::BoundingBox {
+                bbox: Some(crate::types::BoundingBox {
                     x0: detection.bbox.x1 as f64,
                     y0: detection.bbox.y1 as f64,
                     x1: detection.bbox.x2 as f64,
                     y1: detection.bbox.y2 as f64,
-                },
-                page: 1,
+                }),
+                page: Some(1),
             });
             builder.push_element(InternalElement::text(ElementKind::Formula, text, 0));
         }
