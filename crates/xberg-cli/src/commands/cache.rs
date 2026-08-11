@@ -10,7 +10,7 @@ use xberg::cache;
 
 use crate::{WireFormat, style};
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx"))]
+#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
 #[derive(Debug, Clone, serde::Serialize)]
 struct CacheManifestEntry {
     relative_path: String,
@@ -19,7 +19,7 @@ struct CacheManifestEntry {
     source_url: String,
 }
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx"))]
+#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
 impl CacheManifestEntry {
     fn new(relative_path: String, sha256: String, size_bytes: u64, source_url: String) -> Self {
         Self {
@@ -167,7 +167,7 @@ pub fn clear_command(cache_dir: Option<PathBuf>, format: WireFormat) -> Result<(
 /// Execute cache manifest command - outputs expected model files with checksums.
 pub fn manifest_command(format: WireFormat) -> Result<()> {
     // below is `#[cfg]`-stripped and `entries: Vec<_>` has no anchor for
-    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx")))]
+    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition")))]
     {
         let _ = format;
         anyhow::bail!(
@@ -176,13 +176,13 @@ pub fn manifest_command(format: WireFormat) -> Result<()> {
         );
     }
 
-    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx"))]
+    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
     {
         manifest_command_inner(format)
     }
 }
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx"))]
+#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
 #[expect(
     clippy::print_stdout,
     reason = "model manifest is the command's stdout result output"
@@ -200,6 +200,13 @@ fn manifest_command_inner(format: WireFormat) -> Result<()> {
     #[cfg(feature = "layout-detection")]
     {
         entries.extend(xberg::layout::LayoutModelManager::manifest().into_iter().map(|entry| {
+            CacheManifestEntry::new(entry.relative_path, entry.sha256, entry.size_bytes, entry.source_url)
+        }));
+    }
+
+    #[cfg(feature = "formula-recognition")]
+    {
+        entries.extend(xberg::formula_recognition::manifest().into_iter().map(|entry| {
             CacheManifestEntry::new(entry.relative_path, entry.sha256, entry.size_bytes, entry.source_url)
         }));
     }
@@ -355,9 +362,9 @@ pub fn warm_command(
     let cache_base = resolve_cache_base(cache_dir);
 
     let mut downloaded: Vec<String> = Vec::new();
-    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter"))]
+    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter", feature = "formula-recognition"))]
     let mut already_cached: Vec<String> = Vec::new();
-    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter")))]
+    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter", feature = "formula-recognition")))]
     let already_cached: Vec<String> = Vec::new();
 
     #[cfg(feature = "paddle-ocr")]
@@ -371,6 +378,18 @@ pub fn warm_command(
             .ensure_all_models()
             .context("Failed to download PaddleOCR v2 models")?;
         downloaded.push("paddle-ocr v2 (server+mobile det, cls, doc_ori, unified+per-script rec)".to_string());
+    }
+
+    #[cfg(feature = "formula-recognition")]
+    {
+        if xberg::formula_recognition::models_cached() {
+            already_cached.push("formula-recognition (latex-ocr)".to_string());
+        } else {
+            xberg::formula_recognition::ensure_models()
+                .map_err(|e| anyhow::anyhow!(e))
+                .context("Failed to download formula recognition models")?;
+            downloaded.push("formula-recognition (latex-ocr)".to_string());
+        }
     }
 
     #[cfg(feature = "layout-detection")]

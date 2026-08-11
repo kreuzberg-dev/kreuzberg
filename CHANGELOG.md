@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Opt-in `formula-recognition` feature: layout-detected formula regions on rasterized pages are
+  recognized as LaTeX by the RapidLaTeXOCR model set (MIT, pix2tex-derived; resizer + encoder +
+  autoregressive decoder ONNX, ~180 MB, downloaded on demand and SHA256-verified). Enable with
+  `LayoutDetectionConfig.formula_model = latex_ocr` or `--layout-formula-model latex_ocr`; the
+  region's plain OCR text stays as the fallback whenever recognition yields nothing (#1385).
+
 - `ExtractedDocument.formulas` is now populated for every format, not only layout-guided OCR.
   Formula elements produced by markup extractors are projected into the public list in reading
   order, with `$$` delimiters stripped, after any OCR-detected formulas. A new public element type

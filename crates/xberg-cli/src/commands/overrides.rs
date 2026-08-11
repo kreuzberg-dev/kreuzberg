@@ -305,6 +305,14 @@ pub struct ExtractionOverrides {
     )]
     pub layout_table_model: Option<String>,
 
+    /// Formula recognition model for layout-detected formula regions: latex_ocr.
+    #[cfg(feature = "formula-recognition")]
+    #[arg(
+        long,
+        help = "Formula recognition model for layout-detected formula regions: latex_ocr"
+    )]
+    pub layout_formula_model: Option<String>,
+
     /// Feed layout detection regions into the non-OCR markdown pipeline to improve
     /// heading/table/list/figure structure. Requires `--layout` to be enabled.
     /// Default: false.
@@ -855,11 +863,16 @@ impl ExtractionOverrides {
                 return;
             }
 
+            #[cfg(feature = "formula-recognition")]
+            let has_formula_flag = self.layout_formula_model.is_some();
+            #[cfg(not(feature = "formula-recognition"))]
+            let has_formula_flag = false;
             let has_layout_flag = self.layout == Some(true)
                 || self.layout_confidence.is_some()
                 || self.layout_table_model.is_some()
                 || self.layout_strategy.is_some()
-                || self.use_layout_for_markdown;
+                || self.use_layout_for_markdown
+                || has_formula_flag;
             if has_layout_flag {
                 let mut layout = config.layout.clone().unwrap_or_default();
                 if let Some(confidence) = self.layout_confidence {
@@ -870,6 +883,13 @@ impl ExtractionOverrides {
                 }
                 if let Some(ref strategy) = self.layout_strategy {
                     layout.strategy = strategy.parse().unwrap_or_default();
+                }
+                #[cfg(feature = "formula-recognition")]
+                if let Some(ref formula_model) = self.layout_formula_model {
+                    match formula_model.parse() {
+                        Ok(model) => layout.formula_model = Some(model),
+                        Err(error) => eprintln!("warning: {error}; formula recognition stays off"),
+                    }
                 }
                 config.layout = Some(layout);
             }

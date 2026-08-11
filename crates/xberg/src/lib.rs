@@ -192,6 +192,10 @@ pub mod doc_orientation;
 #[cfg(feature = "layout-types")]
 pub mod layout;
 
+/// LaTeX recognition for rasterized formula regions (RapidLaTeXOCR ONNX).
+#[cfg(feature = "formula-recognition")]
+pub mod formula_recognition;
+
 #[cfg(feature = "pdf")]
 pub mod pdf;
 

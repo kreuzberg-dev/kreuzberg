@@ -919,6 +919,22 @@ fn sort_layout_detections(detections: &mut [crate::layout::LayoutDetection], ima
 }
 
 #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
+/// Crop the detection's region out of the page raster. `None` when the
+/// clamped region is empty.
+#[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
+fn crop_layout_region(rgb: &image::RgbImage, detection: &crate::layout::LayoutDetection) -> Option<image::RgbImage> {
+    let x1 = (detection.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
+    let y1 = (detection.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
+    let x2 = (detection.bbox.x2.max(0.0).ceil() as u32).min(rgb.width());
+    let y2 = (detection.bbox.y2.max(0.0).ceil() as u32).min(rgb.height());
+    let w = x2.saturating_sub(x1);
+    let h = y2.saturating_sub(y1);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    Some(image::imageops::crop_imm(rgb, x1, y1, w, h).to_image())
+}
+
 fn encode_layout_region(rgb: &image::RgbImage, detection: &crate::layout::LayoutDetection) -> Result<Option<Vec<u8>>> {
     use image::ImageEncoder;
 
@@ -973,11 +989,33 @@ async fn extract_layout_regions(
     rgb: &image::RgbImage,
     detections: &[crate::layout::LayoutDetection],
     ocr_config: &crate::core::config::OcrConfig,
+    layout_config: Option<&crate::core::config::LayoutDetectionConfig>,
 ) -> Result<InternalDocument> {
     let mut builder = InternalDocumentBuilder::new("image");
     let mut formulas = Vec::new();
     let mut processing_warnings = Vec::new();
+    #[cfg(not(feature = "formula-recognition"))]
+    let _ = layout_config;
     for detection in detections {
+        // A configured formula model takes the region crop directly; the
+        // plain OCR text is the fallback when recognition yields nothing.
+        #[cfg(feature = "formula-recognition")]
+        if matches!(detection.class_name, crate::layout::LayoutClass::Formula)
+            && let Some(layout) = layout_config
+            && layout.formula_model.is_some()
+            && let Some(crop) = crop_layout_region(rgb, detection)
+        {
+            match crate::formula_recognition::recognize_crop(&crop, layout.acceleration.as_ref()) {
+                Ok(Some(latex)) => {
+                    push_mapped_layout_text(&mut builder, &mut formulas, detection, &latex);
+                    continue;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, "formula recognition failed; using OCR text for the region");
+                }
+            }
+        }
         let Some(crop_bytes) = encode_layout_region(rgb, detection)? else {
             continue;
         };
@@ -1689,7 +1727,7 @@ impl ImageExtractor {
             Ok(configured) => configured,
             Err(error) => return cached_whole_image_after_layout_error(&whole_image_result, error),
         };
-        let region_doc = match extract_layout_regions(backend, &rgb, &detections, &region_ocr_config).await {
+        let region_doc = match extract_layout_regions(backend, &rgb, &detections, &region_ocr_config, config.layout.as_ref()).await {
             Ok(doc) => doc,
             Err(error) => return cached_whole_image_after_layout_error(&whole_image_result, error),
         };

@@ -4,6 +4,27 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// Formula recognition model selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum FormulaModel {
+    /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+    /// ~180 MB total, downloaded on demand.
+    LatexOcr,
+}
+
+impl std::str::FromStr for FormulaModel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().replace('-', "_").as_str() {
+            "latex_ocr" | "latexocr" => Ok(Self::LatexOcr),
+            other => Err(format!("unknown formula model '{other}'; expected: latex_ocr")),
+        }
+    }
+}
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -182,6 +203,14 @@ pub struct LayoutDetectionConfig {
     #[serde(default)]
     pub table_model: TableModel,
 
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula_model: Option<FormulaModel>,
+
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -216,6 +245,7 @@ impl Default for LayoutDetectionConfig {
             confidence_threshold: None,
             apply_heuristics: true,
             table_model: TableModel::default(),
+            formula_model: None,
             table_overlap_preference: TableOverlapPreference::default(),
             acceleration: None,
             enable_chart_understanding: false,

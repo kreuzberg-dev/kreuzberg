@@ -419,6 +419,14 @@ impl XbergMcp {
             }
         }
 
+        #[cfg(feature = "formula-recognition")]
+        {
+            let manifest = crate::formula_recognition::manifest();
+            for entry in manifest {
+                entries.push(serde_json::to_value(&entry).unwrap_or_default());
+            }
+        }
+
         #[cfg(feature = "ner-onnx")]
         {
             let manifest = crate::text::ner::manifest();
@@ -501,6 +509,13 @@ impl XbergMcp {
                 "paddle-ocr v2 (server+mobile det, cls, doc_ori, unified+per-script rec)".to_string(),
                 CacheWarmDisposition::AvailabilityConfirmed,
             );
+        }
+
+        #[cfg(feature = "formula-recognition")]
+        {
+            crate::formula_recognition::ensure_models()
+                .map_err(crate::XbergError::validation)?;
+            downloaded.push("formula-recognition (latex-ocr)".to_string());
         }
 
         #[cfg(feature = "layout-detection")]

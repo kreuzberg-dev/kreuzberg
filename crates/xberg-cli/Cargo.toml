@@ -57,6 +57,7 @@ default = [
 pdf-surface = ["xberg/pdf"]
 pdf-heuristic = ["pdf-surface"]
 pdf-ocr = ["pdf-heuristic", "ocr-surface", "xberg/ocr"]
+formula-recognition = ["layout-detection", "xberg/formula-recognition"]
 formats = ["pdf-surface", "xberg/formats"]
 # `formats` minus `heic`: the same pure-Rust extractor set (pdf, office, excel,
 # email, html, xml, archives, notebook, hwp/hwpx, iwork, wordperfect, svg, mdx)

@@ -15,6 +15,7 @@ Only ORT-dependent paths are incompatible. The same paths block both WASM (no na
 - `layout-detection` — depends on ONNX Runtime layout models: not WASM-safe; no Android x86_64 prebuilt (RT-DETR + table classifier are available off-ORT via the `layout-tract` sibling, below)
 - `embeddings` — depends on ONNX Runtime sentence-transformer models: not WASM-safe; no Android x86_64 prebuilt
 - `auto-rotate` — depends on ONNX Runtime orientation classifier: not WASM-safe; no Android x86_64 prebuilt (available off-ORT via the `auto-rotate-tract` sibling, below)
+- `formula-recognition` — LaTeX recognition for layout formula regions (RapidLaTeXOCR ONNX): ORT-dependent, opt-in, excluded from `full`/`formats`
 
 Pure-Rust **type-only** companion features expose the public config/result types for the above without pulling in ORT:
 
