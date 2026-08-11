@@ -66,6 +66,7 @@ const NORM_STD: f32 = 0.1738;
 
 /// Local filenames of the downloaded model set.
 #[derive(Debug, Clone)]
+#[cfg_attr(alef, alef(skip))]
 pub struct FormulaModelPaths {
     pub resizer: std::path::PathBuf,
     pub encoder: std::path::PathBuf,
@@ -79,6 +80,7 @@ fn cache_dir() -> std::path::PathBuf {
 }
 
 /// The manifest for `cache manifest` / MCP model listings.
+#[cfg_attr(alef, alef(skip))]
 pub fn manifest() -> Vec<ModelManifestEntry> {
     MODEL_FILES
         .iter()
@@ -92,6 +94,7 @@ pub fn manifest() -> Vec<ModelManifestEntry> {
 }
 
 /// True when every model file is already cached.
+#[cfg_attr(alef, alef(skip))]
 pub fn models_cached() -> bool {
     let dir = cache_dir();
     MODEL_FILES.iter().all(|(name, ..)| dir.join(name).is_file())
@@ -119,6 +122,7 @@ fn download_file(url: &str, target: &std::path::Path) -> Result<(), String> {
 }
 
 /// Download (if needed) and verify the model set, returning the local paths.
+#[cfg_attr(alef, alef(skip))]
 pub fn ensure_models() -> Result<FormulaModelPaths, String> {
     let dir = cache_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create model cache dir {}: {e}", dir.display()))?;
@@ -163,6 +167,7 @@ pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>
 
 /// Test-only public entry: the integration test exercises the full
 /// download-load-recognize pipeline through this.
+#[cfg_attr(alef, alef(skip))]
 pub fn recognize_for_test(crop: &RgbImage) -> Result<Option<String>, String> {
     recognize_crop(crop, None)
 }
@@ -197,6 +202,9 @@ impl FormulaRecognizer {
     /// Returns `Ok(None)` when the model produces no tokens.
     pub(crate) fn recognize(&mut self, crop: &RgbImage) -> Result<Option<String>, LayoutError> {
         let gray = preprocess_gray(crop);
+        if !gray.has_ink() {
+            return Ok(None);
+        }
         let sized = self.resize_to_model_width(&gray)?;
         let context = self.encode(&sized)?;
         let ids = self.greedy_decode(&context)?;
@@ -316,6 +324,15 @@ struct GrayCanvas {
 }
 
 impl GrayCanvas {
+    /// True when the (background-normalized) crop contains any dark pixels.
+    /// A blank region has nothing to recognize; running the model on it only
+    /// produces hallucinated tokens.
+    fn has_ink(&self) -> bool {
+        let threshold = 128u8;
+        let dark = self.pixels.pixels().filter(|p| p.0[0] < threshold).count();
+        dark * 1000 >= self.pixels.len()
+    }
+
     /// Render at `(width, height)` content size, clamp into the model limits,
     /// pad up to the divisor with white, normalize, and shape as `[1,1,H,W]`.
     fn to_tensor(&self, width: u32, height: u32) -> Array4<f32> {
@@ -451,6 +468,24 @@ mod tests {
         // White background normalizes to (1 - mean) / std everywhere.
         let expected = (1.0 - NORM_MEAN) / NORM_STD;
         assert!((t[[0, 0, 0, 0]] - expected).abs() < 1e-4);
+    }
+
+    #[test]
+    fn blank_crops_have_no_ink() {
+        let blank = RgbImage::from_pixel(96, 48, image::Rgb([255, 255, 255]));
+        assert!(!preprocess_gray(&blank).has_ink());
+        let inked = render_stroke();
+        assert!(preprocess_gray(&inked).has_ink());
+    }
+
+    fn render_stroke() -> RgbImage {
+        let mut img = RgbImage::from_pixel(96, 48, image::Rgb([255, 255, 255]));
+        for x in 10..80 {
+            for y in 20..24 {
+                img.put_pixel(x, y, image::Rgb([0, 0, 0]));
+            }
+        }
+        img
     }
 
     #[test]
