@@ -742,6 +742,22 @@ fn build_mixed_ocr_page_document(
 /// Page numbers must be >= 1 (invalid values are filtered out with a warning).
 /// An `ocr` config is recommended but not required; defaults are used if absent.
 #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn formula_bbox_to_page_points(
+    formula: &mut crate::types::Formula,
+    doc: &pdf_oxide::PdfDocument,
+    page_idx: usize,
+    rendered_w: u32,
+    rendered_h: u32,
+) {
+    if let Some(bbox) = formula.bbox {
+        let (w_pt, h_pt) = crate::pdf::render::get_page_dimensions_pt(doc, page_idx);
+        formula.bbox = Some(crate::pdf::render::pixel_bbox_to_pdf_points(
+            bbox, rendered_w, rendered_h, w_pt, h_pt,
+        ));
+    }
+}
+
 pub(crate) async fn extract_mixed_ocr_native(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -900,8 +916,15 @@ pub(crate) async fn extract_mixed_ocr_native(
                     let (text, tables, elements, doc, usage, page_texts, _rasters, formulas) = result?;
                     accumulated_llm_usage.extend(usage);
                     let page_number = (page_idx + 1) as u32;
+                    let page_dims = page_images
+                        .iter()
+                        .find(|(i, _)| *i == page_idx)
+                        .map(|(_, img)| (img.width(), img.height()));
                     for mut formula in formulas {
                         formula.page = Some(page_number);
+                        if let Some((w, h)) = page_dims {
+                            formula_bbox_to_page_points(&mut formula, &render_doc, page_idx, w, h);
+                        }
                         accumulated_formulas.push(formula);
                     }
                     // `run_ocr_pipeline`/`extract_with_ocr` assemble `text` as if this
@@ -947,6 +970,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     let page_number = (*page_idx + 1) as u32;
                     for mut formula in formulas {
                         formula.page = Some(page_number);
+                        formula_bbox_to_page_points(&mut formula, &render_doc, *page_idx, image.width(), image.height());
                         accumulated_formulas.push(formula);
                     }
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
@@ -1057,8 +1081,15 @@ pub(crate) async fn extract_mixed_ocr_native(
                 if let Some(usage) = extraction_result.llm_usage.take() {
                     accumulated_llm_usage.extend(usage);
                 }
+                let page_dims = encoded
+                    .iter()
+                    .find(|(encoded_page, ..)| *encoded_page == page_idx)
+                    .map(|(_, _, w, h)| (*w, *h));
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
                     formula.page = Some((page_idx + 1) as u32);
+                    if let Some((w, h)) = page_dims {
+                        formula_bbox_to_page_points(&mut formula, &render_doc, page_idx, w, h);
+                    }
                     accumulated_formulas.push(formula);
                 }
                 // The backend's own warnings used to be dropped on this route (#60).
@@ -1084,13 +1115,14 @@ pub(crate) async fn extract_mixed_ocr_native(
         }
         #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
         {
-            for (page_idx, data, _width, height) in &encoded {
+            for (page_idx, data, width, height) in &encoded {
                 let mut extraction_result = backend.process_image(data.as_slice(), &ocr_config_owned).await?;
                 if let Some(usage) = extraction_result.llm_usage.take() {
                     accumulated_llm_usage.extend(usage);
                 }
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
                     formula.page = Some((*page_idx + 1) as u32);
+                    formula_bbox_to_page_points(&mut formula, &render_doc, *page_idx, *width, *height);
                     accumulated_formulas.push(formula);
                 }
                 crate::core::diagnostics::dedup_extend_warnings(
@@ -2318,6 +2350,11 @@ pub(crate) async fn extract_with_ocr(
 
             for mut formula in ocr_result.formulas {
                 formula.page = Some((page_idx + 1) as u32);
+                #[cfg(feature = "pdf")]
+                if let Some((doc, _, _)) = lazy_pdf_render_state.as_ref() {
+                    let (w, h) = (encoded_batch[offset].2, encoded_batch[offset].3);
+                    formula_bbox_to_page_points(&mut formula, doc, page_idx, w, h);
+                }
                 accumulated_formulas.push(formula);
             }
 

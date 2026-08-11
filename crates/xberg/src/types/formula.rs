@@ -25,11 +25,11 @@ pub struct Formula {
 
     /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// OCR sources report coordinates in the pixel space of the rendered page
-    /// image at the OCR render DPI (base 150; reduced automatically for very
-    /// large pages). Image sources report source-image pixels. These values are
-    /// not comparable to PDF point coordinates. The C FFI reports an absent
-    /// bbox as a null pointer.
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bbox: Option<BoundingBox>,
 

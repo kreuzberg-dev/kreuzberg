@@ -250,10 +250,93 @@ fn choose_safe_dpi(w_pt: f32, h_pt: f32, base_dpi: u32) -> u32 {
 }
 
 /// Fetch page MediaBox (in points) with a sane Letter fallback.
-fn get_page_dimensions_pt(doc: &pdf_oxide::PdfDocument, page_index: usize) -> (f32, f32) {
+pub(crate) fn get_page_dimensions_pt(doc: &pdf_oxide::PdfDocument, page_index: usize) -> (f32, f32) {
     doc.get_page_media_box(page_index)
         .map(|(llx, lly, urx, ury)| ((urx - llx).abs(), (ury - lly).abs()))
         .unwrap_or((612.0, 792.0))
+}
+
+/// Map a bounding box from OCR-image pixel space (origin top-left, y down)
+/// to PDF point space (origin bottom-left, y up).
+///
+/// `rendered_w`/`rendered_h` are the dimensions of the image the OCR backend
+/// saw. `pdf_oxide` renders in display orientation (`/Rotate` applied) and
+/// [`normalize_rendered_page_for_ocr`] rotates that back to user-space
+/// orientation, so the OCR image axes already align with the MediaBox: the
+/// mapping is a pure scale plus a y flip. Scaling from the actual rendered
+/// size keeps it correct when [`choose_safe_dpi`] reduced the render DPI.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+pub(crate) fn pixel_bbox_to_pdf_points(
+    bbox: crate::types::BoundingBox,
+    rendered_w: u32,
+    rendered_h: u32,
+    page_w_pt: f32,
+    page_h_pt: f32,
+) -> crate::types::BoundingBox {
+    if rendered_w == 0 || rendered_h == 0 {
+        return bbox;
+    }
+    let sx = page_w_pt as f64 / rendered_w as f64;
+    let sy = page_h_pt as f64 / rendered_h as f64;
+
+    let x_pts = [bbox.x0 * sx, bbox.x1 * sx];
+    let y_pts = [page_h_pt as f64 - bbox.y0 * sy, page_h_pt as f64 - bbox.y1 * sy];
+
+    crate::types::BoundingBox {
+        x0: x_pts[0].min(x_pts[1]),
+        y0: y_pts[0].min(y_pts[1]),
+        x1: x_pts[0].max(x_pts[1]),
+        y1: y_pts[0].max(y_pts[1]),
+    }
+}
+
+#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+mod pixel_bbox_tests {
+    use super::pixel_bbox_to_pdf_points;
+    use crate::types::BoundingBox;
+
+    #[test]
+    fn scales_and_flips_y_to_bottom_left_origin() {
+        // 1275x1650 px render of a 612x792 pt Letter page (150 DPI).
+        let px = BoundingBox {
+            x0: 127.5,
+            y0: 165.0,
+            x1: 255.0,
+            y1: 330.0,
+        };
+        let pt = pixel_bbox_to_pdf_points(px, 1275, 1650, 612.0, 792.0);
+        assert!((pt.x0 - 61.2).abs() < 1e-6);
+        assert!((pt.x1 - 122.4).abs() < 1e-6);
+        // Top of the box in image space is the HIGH y in point space.
+        assert!((pt.y1 - (792.0 - 79.2)).abs() < 1e-6);
+        assert!((pt.y0 - (792.0 - 158.4)).abs() < 1e-6);
+        assert!(pt.y0 < pt.y1);
+    }
+
+    #[test]
+    fn adapts_to_reduced_render_dpi() {
+        // The same page rendered at half resolution maps to the same points.
+        let px = BoundingBox {
+            x0: 63.75,
+            y0: 82.5,
+            x1: 127.5,
+            y1: 165.0,
+        };
+        let pt = pixel_bbox_to_pdf_points(px, 637, 825, 612.0, 792.0);
+        assert!((pt.x0 - 61.25).abs() < 0.2);
+        assert!((pt.y1 - 712.8).abs() < 0.5);
+    }
+
+    #[test]
+    fn zero_dimension_render_returns_input() {
+        let px = BoundingBox {
+            x0: 1.0,
+            y0: 2.0,
+            x1: 3.0,
+            y1: 4.0,
+        };
+        assert_eq!(pixel_bbox_to_pdf_points(px, 0, 100, 612.0, 792.0), px);
+    }
 }
 
 /// Maximum /Parent hops when resolving an inherited /Rotate attribute.
