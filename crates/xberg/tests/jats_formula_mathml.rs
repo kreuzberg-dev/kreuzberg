@@ -103,6 +103,112 @@ mod jats_formula_mathml {
         assert_eq!(extraction.formulas[0].latex, "\\frac{a}{b} \\tag{1.1}");
     }
 
+    /// A label also survives when the TeX alternative wins.
+    #[tokio::test]
+    async fn equation_label_tags_the_tex_math_path() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <label>2</label>
+      <tex-math>$$a^2$$</tex-math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "a^2 \\tag{2}");
+    }
+
+    /// A label prefixes the fallback text when no math notation is present.
+    #[tokio::test]
+    async fn equation_label_prefixes_the_text_fallback() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1"><label>3</label>a + b = c</disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "3 a + b = c");
+    }
+
+    /// Every `mml:math` sibling in one formula element is converted; none is
+    /// silently dropped.
+    #[tokio::test]
+    async fn multiple_math_siblings_are_all_converted() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <mml:math><mml:mi>a</mml:mi></mml:math>
+      <mml:math><mml:mi>b</mml:mi></mml:math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "a \\\\ b");
+    }
+
+    /// CDATA text inside a captured MathML subtree reaches the converter.
+    #[tokio::test]
+    async fn cdata_inside_mathml_is_preserved() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <mml:math><mml:mtext><![CDATA[x < y]]></mml:mtext></mml:math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert!(
+            extraction.formulas[0].latex.contains("x < y") || extraction.formulas[0].latex.contains("x &lt; y"),
+            "CDATA content must survive; got: {}",
+            extraction.formulas[0].latex
+        );
+    }
+
+    /// A single-quoted attribute holding a double quote must not break the
+    /// captured subtree.
+    #[tokio::test]
+    async fn single_quoted_attribute_with_double_quote_is_survivable() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <mml:math alttext='say "hi"'><mml:mfrac><mml:mi>a</mml:mi><mml:mi>b</mml:mi></mml:mfrac></mml:math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "\\frac{a}{b}");
+    }
+
     /// A formula with plain text content still extracts through the fallback.
     #[tokio::test]
     async fn plain_text_formula_falls_back_to_text() {

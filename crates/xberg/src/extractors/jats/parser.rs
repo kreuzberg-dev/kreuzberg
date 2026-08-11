@@ -19,20 +19,33 @@ fn local_name_of(qname: &[u8]) -> String {
 /// Append a start tag to `buf` with the prefix stripped and namespace
 /// declarations dropped, so the captured subtree parses without the
 /// document's namespace context.
+///
+/// Attribute values are decoded and re-escaped, so single-quoted source
+/// attributes with embedded double quotes stay well-formed. When two
+/// attribute names collide after prefix stripping, the first one wins:
+/// a duplicate attribute would make the captured XML unparseable.
 fn write_start_tag(buf: &mut String, event: &BytesStart<'_>, self_closing: bool) {
     buf.push('<');
     buf.push_str(&local_name_of(event.name().as_ref()));
+    let mut written: Vec<String> = Vec::new();
     for attr in event.attributes().flatten() {
         let key = String::from_utf8_lossy(attr.key.as_ref());
         if key == "xmlns" || key.starts_with("xmlns:") {
             continue;
         }
         let local_key = key.rsplit(':').next().unwrap_or(&key).to_string();
+        if written.contains(&local_key) {
+            continue;
+        }
+        let value = attr
+            .unescape_value()
+            .unwrap_or_else(|_| std::borrow::Cow::Owned(String::from_utf8_lossy(&attr.value).into_owned()));
         buf.push(' ');
         buf.push_str(&local_key);
         buf.push_str("=\"");
-        buf.push_str(&String::from_utf8_lossy(&attr.value));
+        buf.push_str(&quick_xml::escape::escape(value.as_ref()));
         buf.push('"');
+        written.push(local_key);
     }
     if self_closing {
         buf.push('/');
@@ -51,7 +64,7 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
     let mut fallback_text = String::new();
     let mut tex_math = String::new();
     let mut label = String::new();
-    let mut mathml_xml: Option<String> = None;
+    let mut mathml_xmls: Vec<String> = Vec::new();
 
     let mut capture: Option<String> = None;
     let mut capture_depth = 0usize;
@@ -69,7 +82,7 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                 if let Some(buf) = capture.as_mut() {
                     capture_depth += 1;
                     write_start_tag(buf, &s, false);
-                } else if local == "math" && mathml_xml.is_none() {
+                } else if local == "math" {
                     let mut buf = String::new();
                     write_start_tag(&mut buf, &s, false);
                     capture = Some(buf);
@@ -92,8 +105,10 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     buf.push_str(&local_name_of(e.name().as_ref()));
                     buf.push('>');
                     capture_depth -= 1;
-                    if capture_depth == 0 {
-                        mathml_xml = capture.take();
+                    if capture_depth == 0
+                        && let Some(xml) = capture.take()
+                    {
+                        mathml_xmls.push(xml);
                     }
                 } else {
                     match local_name_of(e.name().as_ref()).as_str() {
@@ -134,7 +149,9 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                 budget.account_text(decoded.len())?;
                 if in_tex_math {
                     tex_math.push_str(&decoded);
-                } else if capture.is_none() {
+                } else if let Some(buf) = capture.as_mut() {
+                    buf.push_str(&quick_xml::escape::escape(&decoded));
+                } else {
                     fallback_text.push_str(&decoded);
                     fallback_text.push(' ');
                 }
@@ -162,10 +179,16 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
     if !tex.is_empty() {
         return Ok(with_tag(tex));
     }
-    if let Some(xml) = mathml_xml {
-        let latex = crate::extraction::mathml::convert_mathml_str_to_latex(&xml, budget)?;
-        if !latex.trim().is_empty() {
-            return Ok(with_tag(latex.trim()));
+    if !mathml_xmls.is_empty() {
+        let mut parts: Vec<String> = Vec::new();
+        for xml in &mathml_xmls {
+            let latex = crate::extraction::mathml::convert_mathml_str_to_latex(xml, budget)?;
+            if !latex.trim().is_empty() {
+                parts.push(latex.trim().to_string());
+            }
+        }
+        if !parts.is_empty() {
+            return Ok(with_tag(&parts.join(" \\\\ ")));
         }
     }
     if !label.trim().is_empty() {

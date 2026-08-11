@@ -6,16 +6,20 @@ use super::extraction::BoundingBox;
 
 /// A mathematical formula extracted from a document.
 ///
-/// Two kinds of sources populate this type. Layout-guided OCR detects formula
-/// regions and recognizes them; those formulas carry a `bbox` and a `page`.
-/// Markup extraction (DOCX, PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and
-/// related formats) converts embedded math to LaTeX; those formulas carry no
-/// geometry, so `bbox` and `page` are `None`.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 pub struct Formula {
     /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
     /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     pub latex: String,
 

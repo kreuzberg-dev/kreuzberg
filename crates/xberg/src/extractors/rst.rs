@@ -236,11 +236,14 @@ impl RstExtractor {
                     }
                     i += 1;
                     while i < lines.len() && (lines[i].starts_with("   ") || lines[i].is_empty()) {
-                        if !lines[i].is_empty() {
+                        let body = lines[i].trim();
+                        // Directive options (`:label: eq1`, `:nowrap:`) are not math.
+                        let is_option = body.starts_with(':') && body[1..].contains(':');
+                        if !body.is_empty() && !is_option {
                             if !math_content.is_empty() {
                                 math_content.push('\n');
                             }
-                            math_content.push_str(lines[i].trim());
+                            math_content.push_str(body);
                         }
                         i += 1;
                     }
@@ -1583,6 +1586,23 @@ Closing paragraph.
             "math directive must emit display-math delimiters; got: {output}"
         );
         assert!(!output.contains("math: "), "the old prose marker must be gone");
+    }
+
+    #[test]
+    fn test_extract_text_from_rst_math_inline_argument_and_options() {
+        let content = "\nBefore.\n\n.. math:: E = mc^2\n\nAfter.\n\n.. math::\n   :label: eq2\n\n   a + b\n";
+
+        let mut metadata = AHashMap::new();
+        let output = RstExtractor::extract_text_from_rst(content, &mut metadata);
+        assert!(
+            output.contains("$$\nE = mc^2\n$$"),
+            "inline-argument form must emit math; got: {output}"
+        );
+        assert!(
+            output.contains("$$\na + b\n$$"),
+            "block form must emit math without option lines; got: {output}"
+        );
+        assert!(!output.contains(":label:"), "directive options are not math; got: {output}");
     }
 
     #[test]

@@ -420,10 +420,9 @@ fn extract_gfm_tables(text: &str) -> Vec<Table> {
 
 /// Extract LaTeX formulas from VLM OCR output text.
 ///
-/// The VLM path has no layout detection, so recognized formulas have no known
-/// region on the page; `bbox` is left at [`BoundingBox::default`] (all-zero)
-/// rather than a fabricated position, and `page` is fixed at `1` since a single
-/// call always OCRs one page image.
+/// The VLM path has no layout detection, so recognized formulas carry no
+/// geometry: `bbox` and `page` are `None`. The PDF pipeline renumbers `page`
+/// per document page; single-image extraction keeps `None`.
 fn extract_formulas(text: &str) -> Vec<Formula> {
     FORMULA_PATTERN
         .captures_iter(text)

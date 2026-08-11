@@ -391,9 +391,10 @@ pub struct ExtractedDocument {
 
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub formulas: Vec<super::formula::Formula>,
 
@@ -1255,6 +1256,25 @@ mod tests {
         assert_eq!(deserialized.formulas[0].latex, r"E = mc^2");
         assert_eq!(deserialized.formulas[0].page, Some(1));
         assert_eq!(deserialized.formulas[0].bbox.unwrap().x0, 10.0);
+    }
+
+    #[test]
+    fn formula_without_geometry_round_trips_and_omits_keys() {
+        use super::super::formula::Formula;
+
+        let formula = Formula {
+            latex: "x + 1".to_string(),
+            bbox: None,
+            page: None,
+        };
+        let json = serde_json::to_string(&formula).unwrap();
+        assert!(!json.contains("bbox"), "absent bbox must be omitted: {json}");
+        assert!(!json.contains("page"), "absent page must be omitted: {json}");
+
+        let back: Formula = serde_json::from_str(r#"{"latex":"x + 1"}"#).unwrap();
+        assert_eq!(back.bbox, None);
+        assert_eq!(back.page, None);
+        assert_eq!(back, formula);
     }
 
     #[test]
