@@ -235,15 +235,23 @@ impl RstExtractor {
                         math_content.push_str(arg);
                     }
                     i += 1;
+                    // Directive options (`:label: eq1`, `:nowrap:`) sit
+                    // directly under the directive line, before the first
+                    // blank line or math line. Everything after is math.
+                    let mut in_option_region = true;
                     while i < lines.len() && (lines[i].starts_with("   ") || lines[i].is_empty()) {
                         let body = lines[i].trim();
-                        // Directive options (`:label: eq1`, `:nowrap:`) are not math.
-                        let is_option = body.starts_with(':') && body[1..].contains(':');
-                        if !body.is_empty() && !is_option {
-                            if !math_content.is_empty() {
-                                math_content.push('\n');
+                        if body.is_empty() {
+                            in_option_region = false;
+                        } else {
+                            let is_option = in_option_region && body.starts_with(':') && body[1..].contains(':');
+                            if !is_option {
+                                in_option_region = false;
+                                if !math_content.is_empty() {
+                                    math_content.push('\n');
+                                }
+                                math_content.push_str(body);
                             }
-                            math_content.push_str(body);
                         }
                         i += 1;
                     }
@@ -1603,6 +1611,19 @@ Closing paragraph.
             "block form must emit math without option lines; got: {output}"
         );
         assert!(!output.contains(":label:"), "directive options are not math; got: {output}");
+    }
+
+    #[test]
+    fn test_extract_text_from_rst_math_colon_line_after_options() {
+        let content = "\n.. math::\n   :label: eq3\n\n   :\\mathbb{R}: \\to \\mathbb{R}\n";
+
+        let mut metadata = AHashMap::new();
+        let output = RstExtractor::extract_text_from_rst(content, &mut metadata);
+        assert!(
+            output.contains(":\\mathbb{R}: \\to \\mathbb{R}"),
+            "math after the option region must survive; got: {output}"
+        );
+        assert!(!output.contains(":label:"), "options stay out; got: {output}");
     }
 
     #[test]

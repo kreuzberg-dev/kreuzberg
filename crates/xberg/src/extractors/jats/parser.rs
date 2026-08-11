@@ -38,11 +38,16 @@ fn write_start_tag(buf: &mut String, event: &BytesStart<'_>, self_closing: bool)
             continue;
         }
         let raw = String::from_utf8_lossy(&attr.value);
-        let value = quick_xml::escape::unescape(&raw).unwrap_or_else(|_| raw.clone());
         buf.push(' ');
         buf.push_str(&local_key);
         buf.push_str("=\"");
-        buf.push_str(&quick_xml::escape::escape(value.as_ref()));
+        match quick_xml::escape::unescape(&raw) {
+            // Decoded value: re-escape for the double-quoted attribute.
+            Ok(value) => buf.push_str(&quick_xml::escape::escape(value.as_ref())),
+            // Undecodable reference: the raw bytes are already escaped, but a
+            // literal quote from a single-quoted source attribute is not.
+            Err(_) => buf.push_str(&raw.replace('"', "&quot;")),
+        }
         buf.push('"');
         written.push(local_key);
     }
@@ -67,8 +72,11 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
 
     let mut capture: Option<String> = None;
     let mut capture_depth = 0usize;
+    let mut capture_in_alternatives = false;
+    let mut alternatives_math_seen = false;
     let mut in_tex_math = false;
     let mut in_label = false;
+    let mut alternatives_depth = 0usize;
     let mut depth = 0usize;
 
     loop {
@@ -86,6 +94,9 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     write_start_tag(&mut buf, &s, false);
                     capture = Some(buf);
                     capture_depth = 1;
+                    capture_in_alternatives = alternatives_depth > 0;
+                } else if local == "alternatives" {
+                    alternatives_depth += 1;
                 } else if local == "tex-math" {
                     in_tex_math = true;
                 } else if local == "label" {
@@ -107,12 +118,23 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                     if capture_depth == 0
                         && let Some(xml) = capture.take()
                     {
-                        mathml_xmls.push(xml);
+                        // Inside `<alternatives>` every `math` sibling is one
+                        // more representation of the SAME formula: keep the
+                        // first. Outside, each sibling is its own equation.
+                        if capture_in_alternatives {
+                            if !alternatives_math_seen {
+                                alternatives_math_seen = true;
+                                mathml_xmls.push(xml);
+                            }
+                        } else {
+                            mathml_xmls.push(xml);
+                        }
                     }
                 } else {
                     match local_name_of(e.name().as_ref()).as_str() {
                         "tex-math" => in_tex_math = false,
                         "label" => in_label = false,
+                        "alternatives" => alternatives_depth = alternatives_depth.saturating_sub(1),
                         _ => {}
                     }
                 }
@@ -133,6 +155,9 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                 } else if in_tex_math {
                     tex_math.push_str(&decoded);
                 } else if in_label {
+                    if !label.is_empty() {
+                        label.push(' ');
+                    }
                     label.push_str(&decoded);
                 } else {
                     fallback_text.push_str(&decoded);
@@ -166,7 +191,7 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
     // An equation label (`<label>1.1</label>`) becomes a LaTeX `\tag` so the
     // equation number survives the conversion.
     let with_tag = |latex: &str| -> String {
-        let label = label.trim();
+        let label: String = label.trim().chars().filter(|c| *c != '{' && *c != '}').collect();
         if label.is_empty() {
             latex.to_string()
         } else {

@@ -164,6 +164,52 @@ mod jats_formula_mathml {
         assert_eq!(extraction.formulas[0].latex, "a \\\\ b");
     }
 
+    /// `alternatives` siblings are representations of one formula: only the
+    /// first converts; they are never joined as separate equations.
+    #[tokio::test]
+    async fn alternatives_math_siblings_convert_once() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <alternatives>
+        <mml:math><mml:mi>a</mml:mi></mml:math>
+        <mml:math><mml:mi>a</mml:mi></mml:math>
+      </alternatives>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "a");
+    }
+
+    /// Multiple labels join with a space and braces never reach the tag.
+    #[tokio::test]
+    async fn labels_join_and_braces_are_sanitized() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <label>1.1</label>
+      <label>{a}</label>
+      <tex-math>$$q$$</tex-math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "q \\tag{1.1 a}");
+    }
+
     /// CDATA text inside a captured MathML subtree reaches the converter.
     #[tokio::test]
     async fn cdata_inside_mathml_is_preserved() {
@@ -182,8 +228,13 @@ mod jats_formula_mathml {
         let extraction = extract(jats).await;
         assert_eq!(extraction.formulas.len(), 1);
         assert!(
-            extraction.formulas[0].latex.contains("x < y") || extraction.formulas[0].latex.contains("x &lt; y"),
-            "CDATA content must survive; got: {}",
+            extraction.formulas[0].latex.contains("x < y"),
+            "CDATA content must survive without double-escaping; got: {}",
+            extraction.formulas[0].latex
+        );
+        assert!(
+            !extraction.formulas[0].latex.contains("&lt;"),
+            "escaped entities must not leak into LaTeX; got: {}",
             extraction.formulas[0].latex
         );
     }
