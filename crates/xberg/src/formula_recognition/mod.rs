@@ -160,6 +160,12 @@ pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>
         .map_err(|e| format!("formula recognition failed: {e}"))
 }
 
+/// Test-only public entry: the integration test exercises the full
+/// download-load-recognize pipeline through this.
+pub fn recognize_for_test(crop: &RgbImage) -> Result<Option<String>, String> {
+    recognize_crop(crop, None)
+}
+
 /// A loaded recognizer: three ONNX sessions plus the BPE tokenizer.
 pub(crate) struct FormulaRecognizer {
     resizer: Session,
