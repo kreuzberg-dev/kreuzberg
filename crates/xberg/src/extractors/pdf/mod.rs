@@ -728,6 +728,68 @@ async fn run_ocr_with_layout(
     ))
 }
 
+/// The formula detections of one page, sorted top-to-bottom then
+/// left-to-right, matching the reading order the OCR pipeline uses when it
+/// emits the page's formulas.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+fn formula_regions_in_reading_order(
+    detection: &crate::layout::DetectionResult,
+) -> Vec<&crate::layout::LayoutDetection> {
+    let mut regions: Vec<&crate::layout::LayoutDetection> = detection
+        .detections
+        .iter()
+        .filter(|d| matches!(d.class_name, crate::layout::LayoutClass::Formula))
+        .collect();
+    regions.sort_by(|a, b| a.bbox.y1.total_cmp(&b.bbox.y1).then(a.bbox.x1.total_cmp(&b.bbox.x1)));
+    regions
+}
+
+#[cfg(all(test, feature = "formula-recognition", feature = "layout-detection"))]
+mod formula_region_tests {
+    use super::formula_regions_in_reading_order;
+    use crate::layout::{BBox, DetectionResult, LayoutClass, LayoutDetection};
+
+    fn det(class: LayoutClass, x1: f32, y1: f32) -> LayoutDetection {
+        LayoutDetection {
+            class_name: class,
+            confidence: 0.9,
+            bbox: BBox {
+                x1,
+                y1,
+                x2: x1 + 10.0,
+                y2: y1 + 10.0,
+            },
+        }
+    }
+
+    #[test]
+    fn orders_formulas_top_to_bottom_then_left_to_right() {
+        let page = DetectionResult {
+            page_width: 100,
+            page_height: 100,
+            detections: vec![
+                det(LayoutClass::Formula, 50.0, 40.0),
+                det(LayoutClass::Text, 0.0, 0.0),
+                det(LayoutClass::Formula, 10.0, 40.0),
+                det(LayoutClass::Formula, 10.0, 5.0),
+            ],
+        };
+        let ordered = formula_regions_in_reading_order(&page);
+        let coords: Vec<(f32, f32)> = ordered.iter().map(|d| (d.bbox.y1, d.bbox.x1)).collect();
+        assert_eq!(coords, vec![(5.0, 10.0), (40.0, 10.0), (40.0, 50.0)]);
+    }
+
+    #[test]
+    fn pages_without_formulas_yield_no_regions() {
+        let page = DetectionResult {
+            page_width: 100,
+            page_height: 100,
+            detections: vec![det(LayoutClass::Text, 0.0, 0.0), det(LayoutClass::Table, 5.0, 5.0)],
+        };
+        assert!(formula_regions_in_reading_order(&page).is_empty());
+    }
+}
+
 /// A page raster the formula recognizer can crop, however the flow stores it.
 #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
 trait AsPageRgb {
@@ -775,15 +837,10 @@ async fn recognize_pdf_formula_regions(
         }
     }
     for (page_idx, (image, detection)) in images.iter().zip(detections).enumerate() {
-        let mut regions: Vec<&crate::layout::LayoutDetection> = detection
-            .detections
-            .iter()
-            .filter(|d| matches!(d.class_name, crate::layout::LayoutClass::Formula))
-            .collect();
+        let regions = formula_regions_in_reading_order(detection);
         if regions.is_empty() {
             continue;
         }
-        regions.sort_by(|a, b| a.bbox.y1.total_cmp(&b.bbox.y1).then(a.bbox.x1.total_cmp(&b.bbox.x1)));
 
         let page_number = (page_idx + 1) as u32;
         let mut formula_slots: Vec<&mut crate::types::Formula> =
