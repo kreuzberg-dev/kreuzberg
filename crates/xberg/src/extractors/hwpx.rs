@@ -267,10 +267,21 @@ fn build_paragraph_content(
 ) -> (String, Vec<TextAnnotation>) {
     let mut text = String::new();
     let mut annotations = Vec::new();
+    // An equation leaves the text, so the spaces that surrounded it would
+    // otherwise meet and read as a gap.
+    let mut after_equation = false;
 
     for item in &p.content {
         match item {
-            unhwp::model::InlineContent::Text(run) => text.push_str(&run.text),
+            unhwp::model::InlineContent::Text(run) => {
+                let value = if after_equation && text.ends_with(char::is_whitespace) {
+                    run.text.trim_start()
+                } else {
+                    run.text.as_str()
+                };
+                text.push_str(value);
+                after_equation = false;
+            }
             unhwp::model::InlineContent::LineBreak => text.push('\n'),
             unhwp::model::InlineContent::Link { text: link_text, url } => {
                 let start = text.len() as u32;
@@ -302,6 +313,7 @@ fn build_paragraph_content(
                 // DOCX and PPTX use for a math run.
                 if !latex.trim().is_empty() {
                     builder.push_formula(latex.trim(), None, None);
+                    after_equation = true;
                 }
             }
             unhwp::model::InlineContent::Footnote(note_text) => {
@@ -574,6 +586,29 @@ mod tests {
             .find(|e| e.kind == ElementKind::Paragraph)
             .expect("paragraph must be present");
         assert_eq!(elem.text, "Result:");
+    }
+
+    /// The spaces that surrounded an equation would meet once it leaves the
+    /// text, so the sentence keeps exactly one.
+    #[test]
+    fn test_removing_an_equation_leaves_one_space() {
+        let mut doc = Document::new();
+        let mut section = Section::new(0);
+        let mut p = Paragraph::new();
+        p.push_text(TextRun::new("The ratio is "));
+        p.content.push(InlineContent::Equation(Equation::new("x OVER y")));
+        p.push_text(TextRun::new(" per unit."));
+        section.content.push(Block::Paragraph(p));
+        doc.sections.push(section);
+
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+
+        let para = internal
+            .elements
+            .iter()
+            .find(|e| e.kind == ElementKind::Paragraph)
+            .expect("paragraph must be present");
+        assert_eq!(para.text, "The ratio is per unit.");
     }
 
     /// A paragraph holding nothing but an equation still carries its math: the
