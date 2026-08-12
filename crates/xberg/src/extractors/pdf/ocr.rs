@@ -1764,7 +1764,7 @@ fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", all(feature = "ocr-pipeline", feature = "pdf")))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 fn resolved_ocr_layout_dimensions(
     metadata: &crate::types::Metadata,
     render_width: u32,
