@@ -219,6 +219,269 @@ fn strip_style_wrapper(latex: &str) -> &str {
     latex
 }
 
+/// The LaTeX of a content-MathML `annotation-xml` child, if the element has one.
+fn content_annotation(node: Node, budget: &mut SecurityBudget) -> Result<Option<String>, SecurityError> {
+    for child in node.children().filter(|c| c.is_element()) {
+        if !child.tag_name().name().eq_ignore_ascii_case("annotation-xml") {
+            continue;
+        }
+        let is_content = child
+            .attribute("encoding")
+            .is_some_and(|e| e.trim().eq_ignore_ascii_case("MathML-Content"));
+        if !is_content {
+            continue;
+        }
+        for inner in child.children().filter(|c| c.is_element()) {
+            let latex = convert_content_node(inner, budget)?;
+            if !latex.trim().is_empty() {
+                return Ok(Some(latex.trim().to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Content MathML operators that render as an infix chain.
+const INFIX_OPERATORS: &[(&str, &str)] = &[
+    ("plus", "+"),
+    ("minus", "-"),
+    ("times", " \\times "),
+    ("divide", " \\div "),
+    ("eq", "="),
+    ("neq", " \\ne "),
+    ("lt", " < "),
+    ("gt", " > "),
+    ("leq", " \\le "),
+    ("geq", " \\ge "),
+    ("equivalent", " \\equiv "),
+    ("approx", " \\approx "),
+    ("and", " \\land "),
+    ("or", " \\lor "),
+    ("implies", " \\implies "),
+    ("in", " \\in "),
+    ("notin", " \\notin "),
+    ("subset", " \\subset "),
+    ("prsubset", " \\subsetneq "),
+    ("union", " \\cup "),
+    ("intersect", " \\cap "),
+    ("setdiff", " \\setminus "),
+    ("cartesianproduct", " \\times "),
+    ("compose", " \\circ "),
+];
+
+/// Content MathML operators that render as a named LaTeX function.
+const FUNCTION_OPERATORS: &[(&str, &str)] = &[
+    ("sin", "\\sin"),
+    ("cos", "\\cos"),
+    ("tan", "\\tan"),
+    ("sec", "\\sec"),
+    ("csc", "\\csc"),
+    ("cot", "\\cot"),
+    ("arcsin", "\\arcsin"),
+    ("arccos", "\\arccos"),
+    ("arctan", "\\arctan"),
+    ("sinh", "\\sinh"),
+    ("cosh", "\\cosh"),
+    ("tanh", "\\tanh"),
+    ("exp", "\\exp"),
+    ("ln", "\\ln"),
+    ("log", "\\log"),
+    ("det", "\\det"),
+    ("gcd", "\\gcd"),
+    ("max", "\\max"),
+    ("min", "\\min"),
+];
+
+/// Convert a content-MathML `apply` subtree to LaTeX.
+///
+/// Content MathML states what a formula *means* (`<apply><plus/><ci>a</ci>…`)
+/// rather than how it looks, so it converts by operator rather than by layout.
+/// An operator with no LaTeX spelling becomes `\operatorname{name}(args)`, which
+/// parses and still names what the source said.
+fn convert_apply(node: Node, budget: &mut SecurityBudget) -> Result<String, SecurityError> {
+    budget.step()?;
+    let mut children = node.children().filter(|c| c.is_element());
+    let Some(operator) = children.next() else {
+        return Ok(String::new());
+    };
+    let name = operator.tag_name().name().to_ascii_lowercase();
+
+    // `bvar`, `lowlimit`, `uplimit`, `degree`, and `condition` qualify the
+    // operator; everything else is an operand.
+    let mut operands: Vec<Node> = Vec::new();
+    let (mut bvar, mut lower, mut upper, mut degree) = (None, None, None, None);
+    for child in children {
+        match child.tag_name().name().to_ascii_lowercase().as_str() {
+            "bvar" => bvar = Some(child),
+            "lowlimit" | "condition" => lower = Some(child),
+            "uplimit" => upper = Some(child),
+            "degree" => degree = Some(child),
+            _ => operands.push(child),
+        }
+    }
+
+    let rendered: Vec<String> = operands
+        .iter()
+        .map(|c| convert_content_node(*c, budget))
+        .collect::<Result<_, _>>()?;
+    let qualifier = |q: Option<Node>, budget: &mut SecurityBudget| -> Result<String, SecurityError> {
+        match q {
+            Some(n) => {
+                let parts: Vec<String> = n
+                    .children()
+                    .filter(|c| c.is_element())
+                    .map(|c| convert_content_node(c, budget))
+                    .collect::<Result<_, _>>()?;
+                Ok(parts.join(""))
+            }
+            None => Ok(String::new()),
+        }
+    };
+
+    if let Some((_, latex)) = INFIX_OPERATORS.iter().find(|(op, _)| *op == name) {
+        // Unary minus reads as negation rather than subtraction.
+        if name == "minus" && rendered.len() == 1 {
+            return Ok(format!("-{}", rendered[0]));
+        }
+        return Ok(rendered.join(latex));
+    }
+    if let Some((_, latex)) = FUNCTION_OPERATORS.iter().find(|(op, _)| *op == name) {
+        return Ok(format!("{latex}\\left({}\\right)", rendered.join(", ")));
+    }
+
+    match name.as_str() {
+        "power" if rendered.len() == 2 => Ok(format!("{}^{{{}}}", rendered[0], rendered[1])),
+        "root" => {
+            let index = qualifier(degree, budget)?;
+            let radicand = rendered.first().cloned().unwrap_or_default();
+            if index.is_empty() || index == "2" {
+                Ok(format!("\\sqrt{{{radicand}}}"))
+            } else {
+                Ok(format!("\\sqrt[{index}]{{{radicand}}}"))
+            }
+        }
+        "abs" => Ok(format!("\\left|{}\\right|", rendered.join(", "))),
+        "floor" => Ok(format!("\\lfloor {}\\rfloor", rendered.join(", "))),
+        "ceiling" => Ok(format!("\\lceil {}\\rceil", rendered.join(", "))),
+        "factorial" => Ok(format!("{}!", rendered.join(""))),
+        "sum" | "product" | "int" => {
+            let command = match name.as_str() {
+                "sum" => "\\sum",
+                "product" => "\\prod",
+                _ => "\\int",
+            };
+            let var = qualifier(bvar, budget)?;
+            let from = qualifier(lower, budget)?;
+            let to = qualifier(upper, budget)?;
+            let mut out = String::from(command);
+            if !from.is_empty() {
+                let start = if var.is_empty() { from } else { format!("{var}={from}") };
+                out.push_str(&format!("_{{{start}}}"));
+            } else if !var.is_empty() {
+                out.push_str(&format!("_{{{var}}}"));
+            }
+            if !to.is_empty() {
+                out.push_str(&format!("^{{{to}}}"));
+            }
+            out.push(' ');
+            out.push_str(&rendered.join(""));
+            if name == "int" && !var.is_empty() {
+                out.push_str(&format!("\\,d{var}"));
+            }
+            Ok(out)
+        }
+        "diff" => {
+            let var = qualifier(bvar, budget)?;
+            let body = rendered.join("");
+            if var.is_empty() {
+                Ok(format!("\\frac{{d}}{{dx}}{body}"))
+            } else {
+                Ok(format!("\\frac{{d}}{{d{var}}}{body}"))
+            }
+        }
+        // An operator the mapping does not name still parses and still says what
+        // the source said.
+        _ => Ok(format!("\\operatorname{{{}}}\\left({}\\right)", name, rendered.join(", "))),
+    }
+}
+
+/// Convert one content-MathML node to LaTeX.
+fn convert_content_node(node: Node, budget: &mut SecurityBudget) -> Result<String, SecurityError> {
+    budget.step()?;
+    match node.tag_name().name().to_ascii_lowercase().as_str() {
+        "apply" => convert_apply(node, budget),
+        "ci" | "cn" | "csymbol" => {
+            let text = collect_text(node, budget)?;
+            let mut out = String::new();
+            crate::extraction::math_symbols::render_run_text(text.trim(), &mut out);
+            Ok(out)
+        }
+        "matrix" | "vector" => {
+            let rows: Vec<String> = node
+                .children()
+                .filter(|c| c.is_element())
+                .map(|row| {
+                    let cells: Vec<String> = row
+                        .children()
+                        .filter(|c| c.is_element())
+                        .map(|c| convert_content_node(c, budget))
+                        .collect::<Result<_, _>>()?;
+                    Ok(if cells.is_empty() {
+                        convert_content_node(row, budget)?
+                    } else {
+                        cells.join(" & ")
+                    })
+                })
+                .collect::<Result<_, SecurityError>>()?;
+            Ok(format!("\\begin{{pmatrix}}{}\\end{{pmatrix}}", rows.join(" \\\\ ")))
+        }
+        "piecewise" => {
+            let mut rows: Vec<String> = Vec::new();
+            for piece in node.children().filter(|c| c.is_element()) {
+                let parts: Vec<String> = piece
+                    .children()
+                    .filter(|c| c.is_element())
+                    .map(|c| convert_content_node(c, budget))
+                    .collect::<Result<_, _>>()?;
+                rows.push(match piece.tag_name().name().to_ascii_lowercase().as_str() {
+                    "otherwise" => format!("{} & \\text{{otherwise}}", parts.join("")),
+                    _ => parts.join(" & \\text{if }"),
+                });
+            }
+            Ok(format!("\\begin{{cases}}{}\\end{{cases}}", rows.join(" \\\\ ")))
+        }
+        "list" | "set" => {
+            let items: Vec<String> = node
+                .children()
+                .filter(|c| c.is_element())
+                .map(|c| convert_content_node(c, budget))
+                .collect::<Result<_, _>>()?;
+            let inner = items.join(", ");
+            Ok(if node.tag_name().name().eq_ignore_ascii_case("set") {
+                format!("\\{{{inner}\\}}")
+            } else {
+                format!("\\left({inner}\\right)")
+            })
+        }
+        // A constant such as `<pi/>` or `<exponentiale/>` carries its meaning in
+        // its name.
+        "" => Ok(String::new()),
+        other => match other {
+            "pi" => Ok("\\pi".to_string()),
+            "exponentiale" => Ok("e".to_string()),
+            "imaginaryi" => Ok("i".to_string()),
+            "infinity" => Ok("\\infty".to_string()),
+            "true" => Ok("\\text{true}".to_string()),
+            "false" => Ok("\\text{false}".to_string()),
+            "emptyset" => Ok("\\emptyset".to_string()),
+            _ => {
+                let text = collect_text(node, budget)?;
+                Ok(text.trim().to_string())
+            }
+        },
+    }
+}
+
 fn collect_node_inner(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode, SecurityError> {
     let tag = node.tag_name().name();
 
@@ -230,6 +493,13 @@ fn collect_node_inner(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode
         "mi" | "mn" | "ms" | "mo" => Ok(MmlNode::Run(collect_text(node, budget)?)),
         "mtext" => Ok(MmlNode::Text(collect_text(node, budget)?)),
         "mspace" => Ok(MmlNode::Space),
+        // Content MathML states meaning rather than layout, so it converts by
+        // operator. It appears as a `math` child in content documents and inside
+        // `annotation-xml` in mixed ones.
+        "apply" | "piecewise" | "matrix" | "vector" | "set" | "list" => {
+            Ok(MmlNode::Verbatim(convert_content_node(node, budget)?))
+        }
+        "ci" | "cn" | "csymbol" => Ok(MmlNode::Verbatim(convert_content_node(node, budget)?)),
         "semantics" => {
             if let Some(tex) = tex_annotation(node, budget)? {
                 return Ok(MmlNode::Verbatim(tex));
@@ -244,6 +514,14 @@ fn collect_node_inner(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode
                 })
                 .map(|c| collect_node(c, budget))
                 .collect::<Result<Vec<_>, _>>()?;
+            // A document may carry only the content branch, in which case the
+            // presentation side renders to nothing and the meaning is all there
+            // is to work from.
+            if render_nodes(&children).trim().is_empty()
+                && let Some(latex) = content_annotation(node, budget)?
+            {
+                return Ok(MmlNode::Verbatim(latex));
+            }
             Ok(MmlNode::Group { children })
         }
         t if TRANSPARENT_ELEMENTS.contains(&t) => Ok(MmlNode::Group {
@@ -1051,6 +1329,89 @@ mod tests {
             </semantics>"#,
         );
         assert_eq!(latex, "a+b");
+    }
+
+    /// Content MathML states meaning rather than layout, so an `apply` tree
+    /// converts by operator.
+    #[test]
+    fn test_content_mathml_apply_converts_by_operator() {
+        assert_eq!(
+            mathml_to_latex("<apply><plus/><ci>a</ci><ci>b</ci></apply>"),
+            "a+b"
+        );
+        assert_eq!(
+            mathml_to_latex("<apply><power/><ci>x</ci><cn>2</cn></apply>"),
+            "x^{2}"
+        );
+        assert_eq!(
+            mathml_to_latex("<apply><root/><degree><cn>3</cn></degree><ci>x</ci></apply>"),
+            "\\sqrt[3]{x}"
+        );
+    }
+
+    #[test]
+    fn test_content_mathml_functions_and_relations() {
+        assert_eq!(
+            mathml_to_latex("<apply><eq/><ci>y</ci><apply><sin/><ci>x</ci></apply></apply>"),
+            "y=\\sin\\left(x\\right)"
+        );
+    }
+
+    /// A sum carries its bound variable and limits.
+    #[test]
+    fn test_content_mathml_sum_carries_limits() {
+        let latex = mathml_to_latex(
+            "<apply><sum/><bvar><ci>i</ci></bvar><lowlimit><cn>1</cn></lowlimit>             <uplimit><ci>n</ci></uplimit><ci>i</ci></apply>",
+        );
+        assert_eq!(latex, "\\sum_{i=1}^{n} i");
+    }
+
+    #[test]
+    fn test_content_mathml_matrix_and_piecewise() {
+        let matrix = mathml_to_latex(
+            "<matrix><matrixrow><cn>1</cn><cn>0</cn></matrixrow><matrixrow><cn>0</cn><cn>1</cn></matrixrow></matrix>",
+        );
+        assert_eq!(matrix, "\\begin{pmatrix}1 & 0 \\\\ 0 & 1\\end{pmatrix}");
+
+        let cases = mathml_to_latex(
+            "<piecewise><piece><cn>0</cn><apply><lt/><ci>x</ci><cn>0</cn></apply></piece>             <otherwise><ci>x</ci></otherwise></piecewise>",
+        );
+        assert!(cases.starts_with("\\begin{cases}"), "got: {cases}");
+        assert!(cases.contains("\\text{otherwise}"), "got: {cases}");
+    }
+
+    /// An operator the mapping does not name still parses and still says what
+    /// the source said.
+    #[test]
+    fn test_unknown_content_operator_degrades() {
+        assert_eq!(
+            mathml_to_latex("<apply><wibble/><ci>a</ci></apply>"),
+            "\\operatorname{wibble}\\left(a\\right)"
+        );
+    }
+
+    /// A document that carries only the content branch has its meaning read from
+    /// `annotation-xml`, since the presentation side renders to nothing.
+    #[test]
+    fn test_content_annotation_is_used_when_presentation_is_empty() {
+        let latex = mathml_to_latex(
+            r#"<semantics><mrow/><annotation-xml encoding="MathML-Content">
+                <apply><plus/><ci>a</ci><ci>b</ci></apply>
+            </annotation-xml></semantics>"#,
+        );
+        assert_eq!(latex, "a+b");
+    }
+
+    /// A document with a working presentation branch keeps using it, so nothing
+    /// that already converted changes.
+    #[test]
+    fn test_presentation_branch_still_wins_over_content_annotation() {
+        let latex = mathml_to_latex(
+            r#"<semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi></mrow>
+                <annotation-xml encoding="MathML-Content"><apply><plus/><ci>q</ci><ci>r</ci></apply></annotation-xml>
+            </semantics>"#,
+        );
+        assert_eq!(latex, "E=m");
     }
 
     #[test]
