@@ -816,7 +816,7 @@ async fn recognize_pdf_formula_regions(
             if x2 <= x1 || y2 <= y1 {
                 continue;
             }
-            let crop = image::imageops::crop_imm(&rgb, x1, y1, x2 - x1, y2 - y1).to_image();
+            let crop = image::imageops::crop_imm(rgb, x1, y1, x2 - x1, y2 - y1).to_image();
             match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
                 Ok(Some(latex)) => {
                     if matched_formulas && let Some(slot) = formula_slots.get_mut(region_idx) {
