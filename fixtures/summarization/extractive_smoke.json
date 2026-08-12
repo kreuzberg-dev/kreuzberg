@@ -1,54 +1,66 @@
 {
-	"id": "summarization_extractive_smoke",
-	"category": "summarization",
-	"description": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
-	"docs": {
-		"topic": "summarization",
-		"title": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
-		"description": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
-		"side_effects": "server"
-	},
-	"tags": ["summarization", "extractive", "textrank"],
-	"call": "extract",
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/text/book_war_and_peace_1p.txt",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/text/book_war_and_peace_1p.txt"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/text/book_war_and_peace_1p.txt"
-		}
-	},
-	"assertions": [
-		{
-			"type": "not_error"
-		},
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "text/plain"
-		},
-		{
-			"type": "not_empty",
-			"field": "results[0].summary.text"
-		},
-		{
-			"type": "equals",
-			"field": "results[0].summary.strategy",
-			"value": "extractive"
-		}
-	],
-	"config": {
-		"summarization": {
-			"strategy": "extractive",
-			"max_tokens": 80
-		}
-	}
+  "id": "summarization_extractive_smoke",
+  "category": "summarization",
+  "description": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
+  "docs": {
+    "topic": "summarization",
+    "title": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
+    "description": "TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.",
+    "presentation": {
+      "operations": [
+        {
+          "op": "show",
+          "path": "results[0].summary"
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "summarization",
+    "extractive",
+    "textrank"
+  ],
+  "call": "extract",
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/text/book_war_and_peace_1p.txt",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/text/book_war_and_peace_1p.txt"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/text/book_war_and_peace_1p.txt"
+    }
+  },
+  "assertions": [
+    {
+      "type": "not_error"
+    },
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "text/plain"
+    },
+    {
+      "type": "not_empty",
+      "field": "results[0].summary.text"
+    },
+    {
+      "type": "equals",
+      "field": "results[0].summary.strategy",
+      "value": "extractive"
+    }
+  ],
+  "config": {
+    "summarization": {
+      "strategy": "extractive",
+      "max_tokens": 80
+    }
+  }
 }

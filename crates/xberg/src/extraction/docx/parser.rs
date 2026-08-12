@@ -1408,11 +1408,22 @@ fn apply_fld_char(
 /// A `page`-type break outside a table records a `DocumentElement::PageBreak`; any
 /// other break type (`column`, `textWrapping`, or no `w:type` at all) inserts a
 /// newline into the current run instead (#224).
+///
+/// A page break seen while inside a table is deferred rather than dropped: it is
+/// counted in `pending_table_page_breaks` and flushed once the outermost `</w:tbl>`
+/// closes and the table element has been pushed (#1419), since a form feed cannot be
+/// written into the middle of a table that is rendered as a single markdown block.
+///
+/// This is the author's own explicit break, so it is always recorded — unlike
+/// `w:lastRenderedPageBreak` (see [`apply_last_rendered_page_break`]), it is never
+/// suppressed as a duplicate.
 fn apply_break(
     e: &BytesStart,
     table_stack: &[TableContext],
     current_run: &mut Option<Run>,
     elements: &mut Vec<DocumentElement>,
+    pending_table_page_breaks: &mut u32,
+    text_since_page_break: &mut bool,
 ) {
     let mut is_page_break = false;
     for attr in e.attributes().flatten() {
@@ -1422,11 +1433,45 @@ fn apply_break(
         }
     }
 
-    if is_page_break && table_stack.is_empty() {
-        elements.push(DocumentElement::PageBreak);
-    } else if !is_page_break && let Some(run) = current_run {
+    if is_page_break {
+        if table_stack.is_empty() {
+            elements.push(DocumentElement::PageBreak);
+        } else {
+            *pending_table_page_breaks += 1;
+        }
+        *text_since_page_break = false;
+    } else if let Some(run) = current_run {
         run.text.push('\n');
     }
+}
+
+/// Handle a `<w:lastRenderedPageBreak/>` event (`Event::Start` or `Event::Empty`).
+///
+/// Word writes this hint at the start of the first run on a page *it* rendered —
+/// including, redundantly, right after an authored `<w:br w:type="page"/>` that
+/// already recorded the same transition (#1416). It is the only page-break signal
+/// in documents Word paginated itself with no manual breaks at all, so it cannot be
+/// dropped outright; instead, it is only recorded when real text has been emitted
+/// since the previous break, which is exactly the case where it is *not* a redundant
+/// echo of a break already counted.
+///
+/// Like `w:br`, a break seen while inside a table is deferred rather than dropped
+/// (#1419); see `pending_table_page_breaks` at the `</w:tbl>` close handler.
+fn apply_last_rendered_page_break(
+    table_stack: &[TableContext],
+    elements: &mut Vec<DocumentElement>,
+    pending_table_page_breaks: &mut u32,
+    text_since_page_break: &mut bool,
+) {
+    if !*text_since_page_break {
+        return;
+    }
+    if table_stack.is_empty() {
+        elements.push(DocumentElement::PageBreak);
+    } else {
+        *pending_table_page_breaks += 1;
+    }
+    *text_since_page_break = false;
 }
 
 /// Handle a `<w:sym w:font="…" w:char="…"/>` element (#224).
@@ -1775,6 +1820,11 @@ impl<R: Read + Seek> DocxParser<R> {
         let mut table_stack: Vec<TableContext> = Vec::new();
         let mut mc_fallback_depth: u32 = 0;
         let mut stop_depth: u32 = if stop_tag.is_some() { 1 } else { 0 };
+        // Page-break bookkeeping shared by `w:br` and `w:lastRenderedPageBreak` (#1416, #1419).
+        // `text_since_page_break` starts `true` so a break with nothing before it (including the
+        // very first one in the document) is never treated as a spurious duplicate.
+        let mut text_since_page_break = true;
+        let mut pending_table_page_breaks: u32 = 0;
 
         let mut revision_kind: Option<RevisionKind> = None;
         let mut revision_attrs: (Option<String>, Option<String>, Option<String>) = (None, None, None);
@@ -1860,6 +1910,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                 let idx = out.drawings.len();
                                 out.drawings.push(drawing);
                                 out.elements.push(DocumentElement::Drawing(idx));
+                                text_since_page_break = true;
                             }
                         }
                         b"m:oMathPara" => {
@@ -1870,6 +1921,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                     ..Default::default()
                                 };
                                 push_run_to_current(&mut table_stack, &mut current_paragraph, run);
+                                text_since_page_break = true;
                             }
                         }
                         b"m:oMath" => {
@@ -1880,6 +1932,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                     ..Default::default()
                                 };
                                 push_run_to_current(&mut table_stack, &mut current_paragraph, run);
+                                text_since_page_break = true;
                             }
                         }
                         b"w:tbl" => {
@@ -1950,12 +2003,25 @@ impl<R: Read + Seek> DocxParser<R> {
                             let idx = out.drawings.len();
                             out.drawings.push(drawing);
                             out.elements.push(DocumentElement::Drawing(idx));
+                            text_since_page_break = true;
                         }
                         b"w:br" => {
-                            apply_break(e, &table_stack, &mut current_run, &mut out.elements);
+                            apply_break(
+                                e,
+                                &table_stack,
+                                &mut current_run,
+                                &mut out.elements,
+                                &mut pending_table_page_breaks,
+                                &mut text_since_page_break,
+                            );
                         }
-                        b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
-                            out.elements.push(DocumentElement::PageBreak);
+                        b"w:lastRenderedPageBreak" => {
+                            apply_last_rendered_page_break(
+                                &table_stack,
+                                &mut out.elements,
+                                &mut pending_table_page_breaks,
+                                &mut text_since_page_break,
+                            );
                         }
                         b"w:sectPr" => {
                             // `parse_section_properties_streaming` now threads `budget`
@@ -2010,23 +2076,38 @@ impl<R: Read + Seek> DocxParser<R> {
                             apply_paragraph_property(e, &mut table_stack, &mut current_paragraph);
                         }
                         b"w:br" => {
-                            apply_break(e, &table_stack, &mut current_run, &mut out.elements);
+                            apply_break(
+                                e,
+                                &table_stack,
+                                &mut current_run,
+                                &mut out.elements,
+                                &mut pending_table_page_breaks,
+                                &mut text_since_page_break,
+                            );
                         }
                         b"w:tab" => {
                             if let Some(ref mut run) = current_run {
                                 run.text.push('\t');
+                                text_since_page_break = true;
                             }
                         }
                         b"w:noBreakHyphen" => {
                             if let Some(ref mut run) = current_run {
                                 run.text.push('\u{2011}');
+                                text_since_page_break = true;
                             }
                         }
                         b"w:sym" => {
                             apply_symbol(e, &mut current_run, warnings);
+                            text_since_page_break = true;
                         }
-                        b"w:lastRenderedPageBreak" if table_stack.is_empty() => {
-                            out.elements.push(DocumentElement::PageBreak);
+                        b"w:lastRenderedPageBreak" => {
+                            apply_last_rendered_page_break(
+                                &table_stack,
+                                &mut out.elements,
+                                &mut pending_table_page_breaks,
+                                &mut text_since_page_break,
+                            );
                         }
                         b"w:footnoteReference" | b"w:endnoteReference" => {
                             if let Some(ref mut run) = current_run {
@@ -2037,6 +2118,7 @@ impl<R: Read + Seek> DocxParser<R> {
                                         && id != "1"
                                     {
                                         run.text.push_str(&format!("[^{}]", id));
+                                        text_since_page_break = true;
                                     }
                                 }
                             }
@@ -2094,6 +2176,9 @@ impl<R: Read + Seek> DocxParser<R> {
                         budget.check_entity(&text)?;
                         budget.account_text(text.len())?;
                         run.text.push_str(&text);
+                        if !text.is_empty() {
+                            text_since_page_break = true;
+                        }
                         if revision_kind == Some(RevisionKind::Insertion) {
                             revision_text.push_str(&text);
                         }
@@ -2109,6 +2194,9 @@ impl<R: Read + Seek> DocxParser<R> {
                         let text = crate::utils::xml_utils::resolve_general_ref(&e);
                         budget.account_text(text.len())?;
                         run.text.push_str(&text);
+                        if !text.is_empty() {
+                            text_since_page_break = true;
+                        }
                         if revision_kind == Some(RevisionKind::Insertion) {
                             revision_text.push_str(&text);
                         }
@@ -2215,6 +2303,19 @@ impl<R: Read + Seek> DocxParser<R> {
                                     let idx = out.tables.len();
                                     out.tables.push(completed_table);
                                     out.elements.push(DocumentElement::Table(idx));
+                                    // The outermost table close is the only point that flushes
+                                    // page breaks deferred while inside a table (#1419); a nested
+                                    // `</w:tbl>` takes the `if let Some(parent_ctx)` branch above
+                                    // instead, so breaks in an inner table stay pending until the
+                                    // outer one closes and only ever flush once.
+                                    text_since_page_break = true;
+                                    let deferred_breaks = std::mem::take(&mut pending_table_page_breaks);
+                                    for _ in 0..deferred_breaks {
+                                        out.elements.push(DocumentElement::PageBreak);
+                                    }
+                                    if deferred_breaks > 0 {
+                                        text_since_page_break = false;
+                                    }
                                 }
                             }
                         }
@@ -4355,6 +4456,211 @@ mod tests {
         assert!(text.contains("Before"));
         assert!(text.contains("After"));
         assert!(text.contains('\n'));
+    }
+
+    /// Word writes both `<w:br w:type="page"/>` (the author's break) and, at the
+    /// start of the first run on the new page, `<w:lastRenderedPageBreak/>` (its own
+    /// record of the same transition). Counting both inflates the page total and
+    /// produces a spurious zero-length page between them (GH#1416).
+    #[test]
+    fn should_yield_one_page_boundary_when_manual_break_is_followed_by_last_rendered_hint() {
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Page one text</w:t><w:br w:type="page"/></w:r></w:p>
+               <w:p><w:r><w:lastRenderedPageBreak/><w:t>Page two text</w:t></w:r></w:p>"#,
+        );
+        let doc = parse_xml(&xml);
+
+        let page_break_count = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e, DocumentElement::PageBreak))
+            .count();
+        assert_eq!(
+            page_break_count, 1,
+            "the render hint duplicates the manual break and must not be counted again"
+        );
+
+        let (text, boundaries) = doc.extract_text_with_boundaries(true, true);
+        assert_eq!(boundaries.len(), 2, "one break must produce exactly two pages");
+        assert_eq!(boundaries[0].page_number, 1);
+        assert_eq!(boundaries[1].page_number, 2);
+        assert_ne!(
+            boundaries[0].byte_start, boundaries[0].byte_end,
+            "page 1 must not be reported as a zero-length blank page"
+        );
+        assert!(text[boundaries[0].byte_start..boundaries[0].byte_end].contains("Page one text"));
+        assert!(text[boundaries[1].byte_start..boundaries[1].byte_end].contains("Page two text"));
+    }
+
+    /// A document Word paginated itself (no manual `w:br` at all) carries only
+    /// `w:lastRenderedPageBreak` hints. The fix for GH#1416 must not drop those
+    /// outright — that's the only page-break signal such a document has.
+    #[test]
+    fn should_paginate_when_document_has_only_last_rendered_page_break_hints() {
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Page one text</w:t></w:r></w:p>
+               <w:p><w:r><w:lastRenderedPageBreak/><w:t>Page two text</w:t></w:r></w:p>"#,
+        );
+        let doc = parse_xml(&xml);
+
+        let page_break_count = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e, DocumentElement::PageBreak))
+            .count();
+        assert_eq!(
+            page_break_count, 1,
+            "the sole render hint must still register a page break"
+        );
+
+        let (text, boundaries) = doc.extract_text_with_boundaries(true, true);
+        assert_eq!(boundaries.len(), 2);
+        assert_eq!(boundaries[0].page_number, 1);
+        assert_eq!(boundaries[1].page_number, 2);
+        assert!(text[boundaries[0].byte_start..boundaries[0].byte_end].contains("Page one text"));
+        assert!(text[boundaries[1].byte_start..boundaries[1].byte_end].contains("Page two text"));
+    }
+
+    /// A page break inside a table cannot be written into the rendered markdown
+    /// without splitting the table in half, so it must be deferred to right after
+    /// the completed `DocumentElement::Table` — not dropped (GH#1419).
+    #[test]
+    fn should_place_deferred_break_after_table_when_break_occurs_inside_table() {
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Before table</w:t></w:r></w:p>
+               <w:tbl>
+                 <w:tblPr></w:tblPr>
+                 <w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid>
+                 <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
+                     <w:p><w:r><w:t>Cell one</w:t><w:br w:type="page"/></w:r></w:p>
+                 </w:tc></w:tr>
+                 <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
+                     <w:p><w:r><w:t>Cell two</w:t></w:r></w:p>
+                 </w:tc></w:tr>
+               </w:tbl>
+               <w:p><w:r><w:t>After table</w:t></w:r></w:p>"#,
+        );
+        let doc = parse_xml(&xml);
+
+        assert_eq!(doc.tables.len(), 1);
+        let table_markdown = doc.tables[0].to_markdown();
+        assert!(
+            !table_markdown.contains('\x0c'),
+            "the table markdown must not contain a form feed: {table_markdown}"
+        );
+        assert!(table_markdown.contains("Cell one"));
+        assert!(table_markdown.contains("Cell two"));
+
+        // Elements must read: Paragraph, Table, PageBreak, Paragraph — the break comes
+        // *after* the table, not inside it and not dropped.
+        let kinds: Vec<&str> = doc
+            .elements
+            .iter()
+            .map(|e| match e {
+                DocumentElement::Paragraph(_) => "paragraph",
+                DocumentElement::Table(_) => "table",
+                DocumentElement::PageBreak => "page_break",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(kinds, vec!["paragraph", "table", "page_break", "paragraph"]);
+
+        let (text, boundaries) = doc.extract_text_with_boundaries(true, true);
+        assert_eq!(
+            boundaries.len(),
+            2,
+            "the table-internal break must still produce two pages"
+        );
+        let page_one = &text[boundaries[0].byte_start..boundaries[0].byte_end];
+        let page_two = &text[boundaries[1].byte_start..boundaries[1].byte_end];
+        assert!(page_one.contains("Before table"));
+        assert!(page_one.contains("Cell one"));
+        assert!(
+            page_one.contains("Cell two"),
+            "the table must not be split across the boundary"
+        );
+        assert!(page_two.contains("After table"));
+    }
+
+    /// A break inside a *nested* table must be deferred just like a top-level one,
+    /// but flushed exactly once when the outermost `</w:tbl>` closes — not once per
+    /// nesting level (GH#1419).
+    #[test]
+    fn should_not_double_count_page_break_inside_nested_table() {
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Before table</w:t></w:r></w:p>
+               <w:tbl>
+                 <w:tblPr></w:tblPr>
+                 <w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid>
+                 <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
+                     <w:tbl>
+                       <w:tblPr></w:tblPr>
+                       <w:tblGrid><w:gridCol w:w="1000"/></w:tblGrid>
+                       <w:tr><w:tc><w:tcPr><w:tcW w:w="1000" w:type="dxa"/></w:tcPr>
+                           <w:p><w:r><w:t>Inner cell</w:t><w:br w:type="page"/></w:r></w:p>
+                       </w:tc></w:tr>
+                     </w:tbl>
+                 </w:tc></w:tr>
+               </w:tbl>
+               <w:p><w:r><w:t>After table</w:t></w:r></w:p>"#,
+        );
+        let doc = parse_xml(&xml);
+
+        assert_eq!(
+            doc.tables.len(),
+            1,
+            "the inner table is flattened into the outer cell, not a separate element"
+        );
+        let page_break_count = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e, DocumentElement::PageBreak))
+            .count();
+        assert_eq!(
+            page_break_count, 1,
+            "the break must be flushed once at the outermost table close, not once per nesting level"
+        );
+
+        let (_, boundaries) = doc.extract_text_with_boundaries(true, true);
+        assert_eq!(boundaries.len(), 2);
+    }
+
+    /// Word writes the render hint for a break it already saw even when that break
+    /// was inside a table: the hint appears right after the table in the next
+    /// paragraph, with no real content between the deferred break and the hint.
+    /// That must still collapse to a single boundary (GH#1416 + GH#1419 combined).
+    #[test]
+    fn should_dedupe_last_rendered_hint_immediately_following_deferred_table_break() {
+        let xml = wrap_body(
+            r#"<w:p><w:r><w:t>Before table</w:t></w:r></w:p>
+               <w:tbl>
+                 <w:tblPr></w:tblPr>
+                 <w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid>
+                 <w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/></w:tcPr>
+                     <w:p><w:r><w:t>Cell one</w:t><w:br w:type="page"/></w:r></w:p>
+                 </w:tc></w:tr>
+               </w:tbl>
+               <w:p><w:r><w:lastRenderedPageBreak/><w:t>After table</w:t></w:r></w:p>"#,
+        );
+        let doc = parse_xml(&xml);
+
+        let page_break_count = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e, DocumentElement::PageBreak))
+            .count();
+        assert_eq!(
+            page_break_count, 1,
+            "the hint right after the table duplicates the deferred table break"
+        );
+
+        let (text, boundaries) = doc.extract_text_with_boundaries(true, true);
+        assert_eq!(boundaries.len(), 2);
+        assert_ne!(
+            boundaries[0].byte_start, boundaries[0].byte_end,
+            "page 1 must not be reported as a zero-length blank page"
+        );
+        assert!(text[boundaries[1].byte_start..boundaries[1].byte_end].contains("After table"));
     }
 
     #[test]

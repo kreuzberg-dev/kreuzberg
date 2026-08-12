@@ -1,72 +1,83 @@
 {
-	"id": "error_invalid_mime_format",
-	"category": "error",
-	"description": "Error when extracting with invalid MIME type format",
-	"docs": {
-		"topic": "error",
-		"title": "Error when extracting with invalid MIME type format",
-		"description": "Error when extracting with invalid MIME type format",
-		"presentation": {
-			"files": [{ "field": "/bytes", "path": "test_documents/text/plain.txt" }]
-		},
-		"side_effects": "safe"
-	},
-	"tags": [
-		"error",
-		"input",
-		"mime"
-	],
-	"call": "extract",
-	"input": {
-		"kind": "bytes",
-		"bytes": [
-			84,
-			104,
-			105,
-			115,
-			32,
-			105,
-			115,
-			32,
-			97,
-			32,
-			112,
-			108,
-			97,
-			105,
-			110,
-			32,
-			116,
-			101,
-			120,
-			116,
-			32,
-			102,
-			105,
-			108,
-			101,
-			32,
-			102,
-			111,
-			114,
-			32,
-			116,
-			101,
-			115,
-			116,
-			105,
-			110,
-			103,
-			46,
-			10
-		],
-		"mime_type": "not-a-mime",
-		"filename": "plain.txt"
-	},
-	"assertions": [
-		{
-			"type": "error"
-		}
-	],
-	"config": {}
+  "id": "error_invalid_mime_format",
+  "category": "error",
+  "description": "Error when extracting with invalid MIME type format",
+  "docs": {
+    "topic": "error",
+    "title": "Error when extracting with invalid MIME type format",
+    "description": "Error when extracting with invalid MIME type format",
+    "presentation": {
+      "files": [
+        {
+          "field": "/bytes",
+          "path": "test_documents/text/plain.txt"
+        }
+      ],
+      "operations": [
+        {
+          "op": "show",
+          "path": "error"
+        }
+      ]
+    },
+    "side_effects": "safe"
+  },
+  "tags": [
+    "error",
+    "input",
+    "mime"
+  ],
+  "call": "extract",
+  "input": {
+    "kind": "bytes",
+    "bytes": [
+      84,
+      104,
+      105,
+      115,
+      32,
+      105,
+      115,
+      32,
+      97,
+      32,
+      112,
+      108,
+      97,
+      105,
+      110,
+      32,
+      116,
+      101,
+      120,
+      116,
+      32,
+      102,
+      105,
+      108,
+      101,
+      32,
+      102,
+      111,
+      114,
+      32,
+      116,
+      101,
+      115,
+      116,
+      105,
+      110,
+      103,
+      46,
+      10
+    ],
+    "mime_type": "not-a-mime",
+    "filename": "plain.txt"
+  },
+  "assertions": [
+    {
+      "type": "error"
+    }
+  ],
+  "config": {}
 }

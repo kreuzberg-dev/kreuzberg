@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/text/book_war_and_peace_1p.txt" };
   const config: ExtractionConfig = { summarization: { llm: { maxTokens: 200, model: WhisperModel.OpenaiGpt4oMini, temperature: 0.0 }, maxTokens: 150, strategy: SummaryStrategy.Abstractive } };
   const result = await extract(input, config);
+  console.log(result.results[0].summary);
 }
 
 void main();

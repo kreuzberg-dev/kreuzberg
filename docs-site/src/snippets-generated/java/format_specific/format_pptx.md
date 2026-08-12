@@ -17,6 +17,7 @@ public final class Example {
         var inputJson = "{\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.presentationml.presentation\",\"uri\":\"https://example.com/pptx/simple.pptx\"}";
 var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var result = Xberg.extract(input, ExtractionConfig.builder().build());
+        System.out.println(result);
     }
 }
 

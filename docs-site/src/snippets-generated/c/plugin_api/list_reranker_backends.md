@@ -18,7 +18,7 @@ List all registered reranker backends
 #include "xberg.h"
 
 int main(void) {
-    XBERGListRerankerBackends* result = list_reranker_backends(NULL);
+    XBERGListRerankerBackends* result = xberg_list_reranker_backends(NULL);
     xberg_list_reranker_backends_free(result);
     return EXIT_SUCCESS;
 }

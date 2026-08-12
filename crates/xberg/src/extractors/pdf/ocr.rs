@@ -519,6 +519,21 @@ fn open_pdf_for_page_ocr(content: &[u8]) -> crate::Result<(pdf_oxide::PdfDocumen
     Ok((doc, page_count, page_rotations))
 }
 
+/// Page MediaBox size in points, falling back to US Letter (612x792pt) when the
+/// PDF omits a MediaBox or it cannot be read.
+///
+/// Mirrors `crate::pdf::render`'s private page-dimension lookup; duplicated here
+/// (rather than made `pub(crate)` there) because that module builds DPI-safeguard
+/// logic on top of it that has no bearing on this file, and this needs only the
+/// two-line MediaBox read to convert OCR pixel bboxes back into the PDF page's own
+/// coordinate space (#1423).
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn page_dimensions_pt(doc: &pdf_oxide::PdfDocument, page_index: usize) -> (f32, f32) {
+    doc.get_page_media_box(page_index)
+        .map(|(llx, lly, urx, ury)| ((urx - llx).abs(), (ury - lly).abs()))
+        .unwrap_or((612.0, 792.0))
+}
+
 #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
 fn open_pdf_for_full_ocr(content: &[u8]) -> crate::Result<(pdf_oxide::PdfDocument, usize, Vec<u32>)> {
     let doc = pdf_oxide::PdfDocument::from_bytes(content.to_vec()).map_err(|e| crate::XbergError::Parsing {
@@ -710,26 +725,111 @@ fn attach_page_ocr_payload(
     }
 }
 
+/// Rescale an OCR backend's pixel-space bounding boxes into the PDF page's own
+/// coordinate space before its structured document is assembled (#1423).
+///
+/// On non-OCR pages, `document.nodes[].bbox`, `pages[].hierarchy.blocks[].bbox`, and
+/// `chunks[].metadata.page_spans[].bbox` are all in PDF points with a bottom-left
+/// origin. On OCR'd pages they previously stayed in raw Tesseract raster pixels
+/// (top-left origin), with no field anywhere reporting the raster size needed to
+/// convert them back.
+///
+/// `element` bboxes (word/line/block boxes from the OCR document) are only scaled
+/// from pixels to points here, still top-left; `ocr_doc_to_paragraphs`
+/// (`crate::pdf::structure::adapters::pdf_block_bbox`) performs the top-left ->
+/// bottom-left flip further down the pipeline using the page height passed to
+/// [`assemble_mixed_ocr_page_document`] — which must therefore be in points, not
+/// raster pixels, from this point on.
+///
+/// `table` bounding boxes are copied through unchanged by every later step (no flip
+/// is applied to them anywhere else in the pipeline), so this function performs the
+/// full pixel-to-point conversion *and* the y-flip for those directly, matching the
+/// bottom-left/points contract documented on [`crate::types::Table::bounding_box`].
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn rescale_ocr_bboxes_to_page_points(
+    doc: Option<&mut crate::types::internal::InternalDocument>,
+    tables: &mut [crate::types::Table],
+    image_width_px: u32,
+    image_height_px: u32,
+    page_width_pt: f32,
+    page_height_pt: f32,
+) {
+    if image_width_px == 0 || image_height_px == 0 {
+        // No raster dimensions to convert from (e.g. a synthetic/test document with
+        // no rendered page behind it) — leave bboxes as-is rather than dividing by
+        // zero or fabricating a scale factor.
+        return;
+    }
+    let scale_x = f64::from(page_width_pt) / f64::from(image_width_px);
+    let scale_y = f64::from(page_height_pt) / f64::from(image_height_px);
+
+    if let Some(doc) = doc {
+        for element in &mut doc.elements {
+            if let Some(bbox) = element.bbox.as_mut() {
+                bbox.x0 *= scale_x;
+                bbox.x1 *= scale_x;
+                bbox.y0 *= scale_y;
+                bbox.y1 *= scale_y;
+            }
+        }
+    }
+
+    let page_height_pt_f64 = f64::from(page_height_pt);
+    for table in tables.iter_mut() {
+        if let Some(bbox) = table.bounding_box.as_mut() {
+            // `convert_ocr_table` (crates/xberg/src/ocr/tesseract_backend.rs) stores the
+            // raw pixel rect verbatim as {x0: left, y0: top, x1: right, y1: bottom} —
+            // top-left origin, unscaled pixels. Convert and flip in one step.
+            let (left_px, top_px, right_px, bottom_px) = (bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+            bbox.x0 = left_px * scale_x;
+            bbox.x1 = right_px * scale_x;
+            bbox.y0 = page_height_pt_f64 - bottom_px * scale_y;
+            bbox.y1 = page_height_pt_f64 - top_px * scale_y;
+        }
+    }
+}
+
 /// Build the per-page structured document for the single-backend mixed OCR route,
 /// carrying the backend's tables and OCR elements instead of dropping them (#60).
 ///
 /// Returns `None` only when the backend produced nothing structured at all, which
 /// keeps the raw-text replacement path unchanged for plain-text pages.
+///
+/// `image_width_px`/`image_height_px` are the rendered page raster's pixel
+/// dimensions and `page_width_pt`/`page_height_pt` are the PDF page's own MediaBox
+/// size in points; together they let every OCR bbox be rescaled into the page's
+/// coordinate space before assembly (#1423).
 #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
 fn build_mixed_ocr_page_document(
     result: &mut crate::types::ExtractedDocument,
     page_number: u32,
-    page_height: u32,
+    image_width_px: u32,
+    image_height_px: u32,
+    page_width_pt: f32,
+    page_height_pt: f32,
 ) -> Option<crate::types::internal::InternalDocument> {
-    let backend_tables = std::mem::take(&mut result.tables);
+    let mut backend_tables = std::mem::take(&mut result.tables);
     let backend_elements = result.ocr_elements.take().unwrap_or_default();
     let mut doc = match result.ocr_internal_document.take() {
         Some(doc) => doc,
         None if backend_tables.is_empty() && backend_elements.is_empty() => return None,
         None => flat_ocr_page_document(&result.content),
     };
+    rescale_ocr_bboxes_to_page_points(
+        Some(&mut doc),
+        &mut backend_tables,
+        image_width_px,
+        image_height_px,
+        page_width_pt,
+        page_height_pt,
+    );
     attach_page_ocr_payload(&mut doc, backend_tables, Vec::new(), page_number);
-    let mut assembled = assemble_mixed_ocr_page_document(doc, page_number, page_height);
+    // `assemble_mixed_ocr_page_document`/`ocr_doc_to_paragraphs` still take the page
+    // height as a `u32` (see `crate::pdf::structure::adapters`); rounding to the
+    // nearest point loses at most ~0.5pt, negligible next to the pixel-vs-point unit
+    // bug this rescale fixes.
+    let page_height_rounded_pt = page_height_pt.max(0.0).round() as u32;
+    let mut assembled = assemble_mixed_ocr_page_document(doc, page_number, page_height_rounded_pt);
     attach_page_ocr_payload(&mut assembled, Vec::new(), backend_elements, page_number);
     Some(assembled)
 }
@@ -1118,13 +1218,19 @@ pub(crate) async fn extract_mixed_ocr_native(
                     &mut accumulated_warnings,
                     std::mem::take(&mut extraction_result.processing_warnings),
                 );
-                let height = encoded
+                let (width, height) = encoded
                     .iter()
                     .find(|(encoded_page, ..)| *encoded_page == page_idx)
-                    .map_or(0, |(_, _, _, height)| *height);
-                if let Some(mut page_doc) =
-                    build_mixed_ocr_page_document(&mut extraction_result, (page_idx + 1) as u32, height)
-                {
+                    .map_or((0, 0), |(_, _, w, h)| (*w, *h));
+                let (page_width_pt, page_height_pt) = page_dimensions_pt(&render_doc, page_idx);
+                if let Some(mut page_doc) = build_mixed_ocr_page_document(
+                    &mut extraction_result,
+                    (page_idx + 1) as u32,
+                    width,
+                    height,
+                    page_width_pt,
+                    page_height_pt,
+                ) {
                     crate::core::diagnostics::dedup_extend_warnings(
                         &mut accumulated_warnings,
                         std::mem::take(&mut page_doc.processing_warnings),
@@ -1150,9 +1256,15 @@ pub(crate) async fn extract_mixed_ocr_native(
                     &mut accumulated_warnings,
                     std::mem::take(&mut extraction_result.processing_warnings),
                 );
-                if let Some(mut page_doc) =
-                    build_mixed_ocr_page_document(&mut extraction_result, (*page_idx + 1) as u32, *height)
-                {
+                let (page_width_pt, page_height_pt) = page_dimensions_pt(&render_doc, *page_idx);
+                if let Some(mut page_doc) = build_mixed_ocr_page_document(
+                    &mut extraction_result,
+                    (*page_idx + 1) as u32,
+                    *width,
+                    *height,
+                    page_width_pt,
+                    page_height_pt,
+                ) {
                     crate::core::diagnostics::dedup_extend_warnings(
                         &mut accumulated_warnings,
                         std::mem::take(&mut page_doc.processing_warnings),
@@ -6378,7 +6490,7 @@ Name: ___
             ..Default::default()
         };
 
-        let page_doc = build_mixed_ocr_page_document(&mut result, 3, 1000)
+        let page_doc = build_mixed_ocr_page_document(&mut result, 3, 1000, 1000, 1000.0, 1000.0)
             .expect("a backend result with tables must produce a page document");
 
         assert_eq!(page_doc.tables.len(), 1, "backend table must be kept");
@@ -6406,6 +6518,176 @@ Name: ___
             ..Default::default()
         };
 
-        assert!(build_mixed_ocr_page_document(&mut result, 3, 1000).is_none());
+        assert!(build_mixed_ocr_page_document(&mut result, 3, 1000, 1000, 1000.0, 1000.0).is_none());
+    }
+
+    /// #1423 — element bboxes are rescaled pixel->point (still top-left) so the later
+    /// `pdf_block_bbox` flip (which now receives the page height in points) lands on
+    /// exact PDF coordinates instead of raw Tesseract raster pixels.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn rescale_ocr_bboxes_scales_element_bbox_without_flipping() {
+        use crate::types::extraction::BoundingBox;
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+        use crate::types::ocr_elements::OcrElementLevel;
+
+        let mut doc = InternalDocument::new("pdf");
+        let mut element = InternalElement::text(
+            ElementKind::OcrText {
+                level: OcrElementLevel::Block,
+            },
+            "hello",
+            0,
+        );
+        // Pixel-space, top-left origin: y0 is the box's top row, y1 its bottom row.
+        element.bbox = Some(BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 400.0,
+        });
+        doc.push_element(element);
+
+        // 1700x2200px raster of a 612x792pt (US Letter) page: scale_x = scale_y = 0.36.
+        rescale_ocr_bboxes_to_page_points(Some(&mut doc), &mut [], 1700, 2200, 612.0, 792.0);
+
+        let bbox = doc.elements[0].bbox.expect("bbox must survive rescale");
+        assert_eq!(bbox.x0, 36.0);
+        assert_eq!(bbox.y0, 72.0);
+        assert_eq!(bbox.x1, 108.0);
+        assert_eq!(bbox.y1, 144.0);
+    }
+
+    /// #1423 — table bboxes get the full pixel->point conversion *and* the top-left ->
+    /// bottom-left flip here, since nothing downstream flips them (`push_table_element`
+    /// copies `Table::bounding_box` through unchanged). The result must match the
+    /// bottom-left/points contract documented on `Table::bounding_box`: a box near the
+    /// top of the page ends up with a y1 (top) close to `page_height_pt`, not close to 0.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn rescale_ocr_bboxes_scales_and_flips_table_bbox() {
+        use crate::types::extraction::BoundingBox;
+
+        let mut tables = [ocr_table("| a | b |", 0)];
+        // `convert_ocr_table` stores the raw pixel rect as {x0: left, y0: top, x1:
+        // right, y1: bottom} — top-left origin, unscaled pixels.
+        tables[0].bounding_box = Some(BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 400.0,
+        });
+
+        rescale_ocr_bboxes_to_page_points(None, &mut tables, 1700, 2200, 612.0, 792.0);
+
+        let bbox = tables[0].bounding_box.expect("bbox must survive rescale");
+        assert_eq!(bbox.x0, 36.0, "left edge scales by scale_x");
+        assert_eq!(bbox.x1, 108.0, "right edge scales by scale_x");
+        assert_eq!(bbox.y0, 648.0, "bottom = page_height_pt - bottom_px * scale_y");
+        assert_eq!(bbox.y1, 720.0, "top = page_height_pt - top_px * scale_y");
+        assert!(bbox.y0 < bbox.y1, "bottom-left origin: y0 (bottom) must be < y1 (top)");
+    }
+
+    /// #1423 — zero raster dimensions (e.g. a synthetic document with no rendered page
+    /// behind it) must leave bboxes untouched rather than dividing by zero or
+    /// fabricating a scale factor.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn rescale_ocr_bboxes_is_a_noop_when_image_dimensions_are_zero() {
+        use crate::types::extraction::BoundingBox;
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+        use crate::types::ocr_elements::OcrElementLevel;
+
+        let mut doc = InternalDocument::new("pdf");
+        let mut element = InternalElement::text(
+            ElementKind::OcrText {
+                level: OcrElementLevel::Block,
+            },
+            "hello",
+            0,
+        );
+        let original = BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 400.0,
+        };
+        element.bbox = Some(original);
+        doc.push_element(element);
+
+        rescale_ocr_bboxes_to_page_points(Some(&mut doc), &mut [], 0, 0, 612.0, 792.0);
+
+        assert_eq!(doc.elements[0].bbox, Some(original));
+    }
+
+    /// #1423 end-to-end: the single-backend mixed OCR route must hand
+    /// `assemble_mixed_ocr_page_document` bboxes already in the page's point space, so
+    /// the resulting element bbox matches what a digital (non-OCR) page would produce
+    /// for the same physical position — PDF points, origin bottom-left — not raw
+    /// Tesseract raster pixels.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn build_mixed_ocr_page_document_rescales_element_bbox_into_page_points() {
+        use crate::types::extraction::BoundingBox;
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+        use crate::types::ocr_elements::OcrElementLevel;
+
+        let mut ocr_doc = InternalDocument::new("pdf");
+        let mut element = InternalElement::text(
+            ElementKind::OcrText {
+                level: OcrElementLevel::Block,
+            },
+            "hello",
+            0,
+        );
+        // A word sitting near the top-left corner of a 1700x2200px raster.
+        element.bbox = Some(BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 260.0,
+        });
+        ocr_doc.push_element(element);
+
+        let mut result = crate::types::ExtractedDocument {
+            content: "hello".to_string(),
+            ocr_internal_document: Some(ocr_doc),
+            ..Default::default()
+        };
+
+        // 1700x2200px raster of a 612x792pt (US Letter) page.
+        let page_doc = build_mixed_ocr_page_document(&mut result, 1, 1700, 2200, 612.0, 792.0)
+            .expect("an OCR document with a text element must produce a page document");
+
+        let hello_element = page_doc
+            .elements
+            .iter()
+            .find(|element| element.text == "hello")
+            .expect("the OCR paragraph must survive assembly");
+        let bbox = hello_element.bbox.expect("assembled element must carry a bbox");
+        // scale_x = scale_y = 0.36; top-left pixel (100, 200)-(300, 260) scales to
+        // points (36, 72)-(108, 93.6), then flips top-left -> bottom-left using the
+        // page height in points (792, not the 2200px raster height):
+        //   bottom = 792 - 93.6 = 698.4, top = 792 - 72 = 720.0
+        // Tolerance of 1e-3 accounts for the f32 arithmetic `pdf_block_bbox`
+        // (`crate::pdf::structure::adapters`) performs on the flip, which this test
+        // deliberately exercises end-to-end rather than re-deriving in f64.
+        assert!((bbox.x0 - 36.0).abs() < 1e-3, "x0 = {}", bbox.x0);
+        assert!((bbox.x1 - 108.0).abs() < 1e-3, "x1 = {}", bbox.x1);
+        assert!((bbox.y0 - 698.4).abs() < 1e-3, "y0 (bottom) = {}", bbox.y0);
+        assert!((bbox.y1 - 720.0).abs() < 1e-3, "y1 (top) = {}", bbox.y1);
+        // GH#1423's defining symptom is a bbox that does not fit on the page at all,
+        // so assert containment rather than a "near the top" heuristic. This is the
+        // guard that actually bites: if the conversion regressed to emitting raster
+        // pixels, y1 would be 2200 - 200 = 2000 and blow the 792pt bound, whereas a
+        // "y1 is in the upper half" check would pass on that same broken output.
+        assert!(
+            bbox.x1 <= 612.0 && bbox.y1 <= 792.0,
+            "every OCR bbox must fit within the 612x792pt page, got ({}, {})-({}, {})",
+            bbox.x0,
+            bbox.y0,
+            bbox.x1,
+            bbox.y1
+        );
     }
 }

@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract_batch("[{\"kind\":\"uri\",\"uri\":\"/nonexistent/a.pdf\"},{\"kind\":\"uri\",\"uri\":\"/nonexistent/b.txt\"}]", "{}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```

@@ -18,6 +18,7 @@ async function main() {
   const [first] = result.results ?? [];
   for (const chunk of first?.chunks ?? []) {
     console.log(chunk.content);
+    console.log(chunk.metadata);
   }
 }
 

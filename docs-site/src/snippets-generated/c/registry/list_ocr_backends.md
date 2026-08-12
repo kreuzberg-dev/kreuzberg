@@ -18,7 +18,7 @@ List OCR backends
 #include "xberg.h"
 
 int main(void) {
-    XBERGListOcrBackends* result = list_ocr_backends("{}");
+    XBERGListOcrBackends* result = xberg_list_ocr_backends("{}");
     xberg_list_ocr_backends_free(result);
     return EXIT_SUCCESS;
 }

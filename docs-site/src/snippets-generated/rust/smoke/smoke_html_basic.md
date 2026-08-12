@@ -19,7 +19,10 @@ async fn main() {
     let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();
     let config_json: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
     let config = serde_json::from_value(config_json).unwrap();
-    let _ = extract(input, &config).await;
+    let result = extract(input, &config).await.expect("call failed");
+    for table in result.results[0].tables {
+        println!("{}", table.rows);
+    }
 }
 
 ```

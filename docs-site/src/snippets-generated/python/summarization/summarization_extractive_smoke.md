@@ -16,7 +16,8 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/text/book_war_and_peace_1p.txt")
     config = ExtractionConfig(summarization={"max_tokens": 80, "strategy": "extractive"})
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    print(result.results[0].summary)
 
 asyncio.run(main())
 

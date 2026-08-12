@@ -12,6 +12,10 @@ Standalone HWPX extraction using extract
 ```php title="PHP"
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["filename" => "simple.hwpx", "kind" => "uri", "mimeType" => "application/haansofthwpx", "uri" => "https://example.com/hwpx/simple.hwpx"]));

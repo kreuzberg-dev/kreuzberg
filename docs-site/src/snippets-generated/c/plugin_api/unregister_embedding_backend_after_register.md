@@ -18,8 +18,7 @@ unregister_embedding_backend
 #include "xberg.h"
 
 int main(void) {
-    XBERG* result = ("test-embedding-backend");
-    xberg__free(result);
+    xberg_("test-embedding-backend");
     return EXIT_SUCCESS;
 }
 

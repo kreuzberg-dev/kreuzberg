@@ -18,8 +18,7 @@ unregister_reranker_backend
 #include "xberg.h"
 
 int main(void) {
-    XBERG* result = ("test-reranker-backend");
-    xberg__free(result);
+    xberg_("test-reranker-backend");
     return EXIT_SUCCESS;
 }
 

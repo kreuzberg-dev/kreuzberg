@@ -41,10 +41,10 @@ func main() {
 		ForceOcr:   true,
 		DisableOcr: true,
 	}
-	result, err := xberg.Extract(input, config)
-	if err != nil {
-		panic(err)
+	_, err := xberg.Extract(input, config)
+	if err == nil {
+		panic("expected call to fail")
 	}
-	fmt.Println(result)
+	fmt.Fprintf(os.Stderr, "Call failed as expected: %v\n", err)
 }
 ```

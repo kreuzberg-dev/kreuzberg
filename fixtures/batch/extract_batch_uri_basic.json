@@ -1,30 +1,47 @@
 {
-	"id": "extract_batch_uri_basic",
-	"category": "batch",
-	"description": "extract_batch over URI inputs",
-	"docs": {
-		"topic": "batch",
-		"title": "extract_batch over URI inputs",
-		"description": "extract_batch over URI inputs",
-		"side_effects": "safe"
-	},
-	"tags": ["batch", "uri", "multiple_inputs"],
-	"call": "extract_batch",
-	"input": {
-		"inputs": [
-			{
-				"kind": "uri",
-				"uri": "pdf/fake_memo.pdf"
-			},
-			{
-				"kind": "uri",
-				"uri": "text/fake_text.txt"
-			}
-		]
-	},
-	"assertions": [
-		{
-			"type": "not_error"
-		}
-	]
+  "id": "extract_batch_uri_basic",
+  "category": "batch",
+  "description": "extract_batch over URI inputs",
+  "docs": {
+    "topic": "batch",
+    "title": "extract_batch over URI inputs",
+    "description": "extract_batch over URI inputs",
+    "presentation": {
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results",
+          "item": "result",
+          "fields": [
+            "content"
+          ],
+          "display": true
+        }
+      ]
+    },
+    "side_effects": "safe"
+  },
+  "tags": [
+    "batch",
+    "uri",
+    "multiple_inputs"
+  ],
+  "call": "extract_batch",
+  "input": {
+    "inputs": [
+      {
+        "kind": "uri",
+        "uri": "pdf/fake_memo.pdf"
+      },
+      {
+        "kind": "uri",
+        "uri": "text/fake_text.txt"
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "not_error"
+    }
+  ]
 }

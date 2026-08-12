@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract("{\"kind\":\"uri\",\"uri\":\"https://example.com/archives/documents.zip\"}", "{\"security_limits\":{\"max_archive_size\":104857600,\"max_compression_ratio\":50,\"max_files_in_archive\":100}}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```

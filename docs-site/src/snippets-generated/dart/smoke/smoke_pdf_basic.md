@@ -11,10 +11,16 @@ Smoke test: PDF with simple text extraction
 
 ```dart title="Dart"
 import 'package:xberg/xberg.dart';
+import 'package:xberg/src/xberg_bridge_generated/frb_generated.dart' show RustLib;
 Future<void> main() async {
-  final _input = await createExtractInputFromJson(json: '{"kind":"uri","mime_type":"application/pdf","uri":"https://example.com/pdf/fake_memo.pdf"}');
-  final _config = await createExtractionConfigFromJson(json: '{}');
-  final result = await XbergBridge.extract(_input, config: _config);
+  await RustLib.init();
+  try {
+    final _input = await createExtractInputFromJson(json: '{"kind":"uri","mime_type":"application/pdf","uri":"https://example.com/pdf/fake_memo.pdf"}');
+    final _config = await createExtractionConfigFromJson(json: '{}');
+    final result = await XbergBridge.extract(_input, config: _config);
+  } finally {
+    RustLib.dispose();
+  }
 }
 
 ```

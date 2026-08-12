@@ -12,7 +12,7 @@ Unregister nonexistent OCR backend gracefully
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     OcrBackendBridge.unregister("nonexistent-backend-xyz")
 }
 

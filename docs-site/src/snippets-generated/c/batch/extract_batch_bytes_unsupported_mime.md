@@ -18,10 +18,10 @@ extract_batch with unsupported bytes MIME type
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("[{\"bytes\":[100,97,116,97],\"kind\":\"bytes\",\"mime_type\":\"application/x-unknown\"}]");
-    XBERGExtractBatch* result = extract_batch(options_handle, NULL);
-    xberg__free(options_handle);
-    xberg_extract_batch_free(result);
+    XBERGExtractInput* inputs_handle = xberg_extract_input_from_json("[{\"bytes\":[100,97,116,97],\"kind\":\"bytes\",\"mime_type\":\"application/x-unknown\"}]");
+    XBERGExtractionResult* result = xberg_extract_batch(inputs_handle, NULL);
+    xberg_extract_input_free(inputs_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

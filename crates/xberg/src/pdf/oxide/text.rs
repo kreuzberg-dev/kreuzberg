@@ -65,7 +65,7 @@ pub(crate) fn extract_text_and_metadata(
 pub(crate) fn extract_spans_from_page(
     doc: &mut pdf_oxide::PdfDocument,
     page_index: usize,
-) -> Result<(Vec<crate::extractors::pdf::reading_order::TextSpan>, bool)> {
+) -> Result<(Vec<crate::extractors::pdf::rotation::TextSpan>, bool)> {
     use pdf_oxide::document::ReadingOrder;
 
     let mut page_text_data = super::guard_oxide_panic(
@@ -77,18 +77,7 @@ pub(crate) fn extract_spans_from_page(
     )?;
     let reordered_sparse_columns = reorder_sparse_two_column_page(&mut page_text_data.spans, page_text_data.page_width);
 
-    let spans = page_text_data
-        .spans
-        .iter()
-        .map(|span| crate::extractors::pdf::reading_order::TextSpan {
-            text: span.text.clone(),
-            x: span.bbox.x,
-            y: span.bbox.y,
-            width: span.bbox.width,
-            height: span.bbox.height,
-            rotation_degrees: span.rotation_degrees,
-        })
-        .collect();
+    let spans = page_text_data.spans.iter().map(rotation_span).collect();
 
     Ok((spans, reordered_sparse_columns))
 }
@@ -1206,6 +1195,12 @@ fn extract_page_text_column_aware(
     reorder_sparse_two_column_page(&mut page_text_data.spans, page_text_data.page_width);
     reorder_dense_two_column_page(&mut page_text_data.spans, page_text_data.page_width);
 
+    let rotation_spans = page_text_data.spans.iter().map(rotation_span).collect::<Vec<_>>();
+    if let Some(mut text) = crate::extractors::pdf::rotation::repair_rotated_page_text(&rotation_spans) {
+        append_missing_widget_values(&mut text, &widgets);
+        return Ok(text);
+    }
+
     if is_fragmented_span_list(&page_text_data.spans) {
         tracing::debug!(
             span_count = page_text_data.spans.len(),
@@ -1221,6 +1216,17 @@ fn extract_page_text_column_aware(
     append_missing_widget_values(&mut text, &widgets);
 
     Ok(text)
+}
+
+fn rotation_span(span: &pdf_oxide::layout::TextSpan) -> crate::extractors::pdf::rotation::TextSpan {
+    crate::extractors::pdf::rotation::TextSpan {
+        text: span.text.clone(),
+        x: span.bbox.x,
+        y: span.bbox.y,
+        width: span.bbox.width,
+        height: span.bbox.height,
+        rotation_degrees: span.rotation_degrees,
+    }
 }
 
 /// Apply common text cleanup: fix control chars and optionally convert HTML.

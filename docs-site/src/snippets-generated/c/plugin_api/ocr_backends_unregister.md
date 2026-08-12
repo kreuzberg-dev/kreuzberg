@@ -18,8 +18,7 @@ Unregister nonexistent OCR backend gracefully
 #include "xberg.h"
 
 int main(void) {
-    XBERG* result = ("nonexistent-backend-xyz");
-    xberg__free(result);
+    xberg_("nonexistent-backend-xyz");
     return EXIT_SUCCESS;
 }
 

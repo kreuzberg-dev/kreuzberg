@@ -19,7 +19,11 @@ async fn main() {
     let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();
     let config_json: serde_json::Value = serde_json::from_str(r#"{"result_format":"element_based"}"#).unwrap();
     let config = serde_json::from_value(config_json).unwrap();
-    let _ = extract(input, &config).await;
+    let result = extract(input, &config).await.expect("call failed");
+    for element in result.results[0].elements {
+        println!("{}", element.element_type);
+        println!("{}", element.content);
+    }
 }
 
 ```

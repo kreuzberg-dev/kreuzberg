@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract("{\"kind\":\"uri\",\"uri\":\"https://example.com/code/hello.py\"}", "{\"tree_sitter\":{\"groups\":[\"web\"],\"languages\":[\"python\",\"rust\"],\"process\":{\"comments\":false,\"diagnostics\":false,\"docstrings\":false,\"exports\":true,\"imports\":true,\"structure\":true,\"symbols\":false}}}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```

@@ -5,7 +5,9 @@
 use crate::Result;
 use crate::core::config::ExtractionConfig;
 use crate::core::mime::LEGACY_POWERPOINT_MIME_TYPE;
+use crate::extraction::ppt::PptSlideText;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
+use crate::types::ExtractedImage;
 use crate::types::internal::InternalDocument;
 use crate::types::internal_builder::InternalDocumentBuilder;
 use crate::types::{Metadata, PageInfo, PageStructure, PageUnitType};
@@ -32,26 +34,32 @@ impl Default for PptExtractor {
 }
 
 impl PptExtractor {
-    /// Build an `InternalDocument` from PPT extracted text and speaker notes.
+    /// Build an `InternalDocument` from PPT extracted slides, speaker notes,
+    /// and embedded images.
     ///
-    /// Splits text by double-newlines; each block corresponds to a slide.
-    fn build_internal_document(text: &str, speaker_notes: &[String]) -> InternalDocument {
+    /// `slides` carries the deck's real per-slide structure (persist order
+    /// and numbering, from `extraction::ppt::extract_texts_from_records`) --
+    /// slide numbers are read from that structure, never re-derived by
+    /// splitting rendered text (#1418).
+    fn build_internal_document(
+        slides: &[PptSlideText],
+        speaker_notes: &[String],
+        images: &[ExtractedImage],
+    ) -> InternalDocument {
         let mut builder = InternalDocumentBuilder::new("ppt");
 
-        let slide_blocks: Vec<&str> = text.split("\n\n").collect();
-        for (i, block) in slide_blocks.iter().enumerate() {
-            let trimmed = block.trim();
-            if !trimmed.is_empty() {
-                let slide_num = (i + 1) as u32;
-                let mut lines = trimmed.lines();
-                let first_line = lines.next().unwrap_or("");
-                let title = if first_line.len() <= 80 && lines.clone().next().is_some() {
-                    Some(first_line)
-                } else {
-                    None
-                };
-                builder.push_slide(slide_num, title, None);
+        for (i, slide) in slides.iter().enumerate() {
+            let trimmed = slide.text.trim();
+            let mut lines = trimmed.lines();
+            let first_line = lines.next().unwrap_or("");
+            let title = if !first_line.is_empty() && first_line.len() <= 80 && lines.clone().next().is_some() {
+                Some(first_line)
+            } else {
+                None
+            };
+            builder.push_slide(slide.number, title, None);
 
+            if !trimmed.is_empty() {
                 if title.is_some() {
                     for line in lines {
                         let lt = line.trim();
@@ -62,14 +70,18 @@ impl PptExtractor {
                 } else {
                     builder.push_paragraph(trimmed, vec![], None, None);
                 }
-
-                if let Some(notes) = speaker_notes.get(i)
-                    && !notes.is_empty()
-                {
-                    let key = format!("slide-{}-notes", slide_num);
-                    builder.push_footnote_definition(notes, &key, None);
-                }
             }
+
+            if let Some(notes) = speaker_notes.get(i)
+                && !notes.is_empty()
+            {
+                let key = format!("slide-{}-notes", slide.number);
+                builder.push_footnote_definition(notes, &key, None);
+            }
+        }
+
+        for image in images {
+            builder.push_image(None, image.clone(), image.page_number, None);
         }
 
         builder.build()
@@ -112,6 +124,7 @@ impl InternalDocumentExtractor for PptExtractor {
         config: &ExtractionConfig,
     ) -> Result<InternalDocument> {
         let include_master_slides = config.content_filter.as_ref().is_some_and(|f| f.include_headers);
+        let extract_images = config.needs_image_data();
 
         let result = {
             #[cfg(feature = "tokio-runtime")]
@@ -123,12 +136,16 @@ impl InternalDocumentExtractor for PptExtractor {
                 let span = tracing::Span::current();
                 tokio::task::spawn_blocking(move || -> crate::error::Result<_> {
                     let _guard = span.entered();
-                    crate::extraction::ppt::extract_ppt_text_with_options(&content_owned, include_master_slides)
+                    crate::extraction::ppt::extract_ppt_text_with_options(
+                        &content_owned,
+                        include_master_slides,
+                        extract_images,
+                    )
                 })
                 .await
                 .map_err(|e| crate::error::XbergError::parsing(format!("PPT extraction task failed: {e}")))?
             } else {
-                crate::extraction::ppt::extract_ppt_text_with_options(content, include_master_slides)
+                crate::extraction::ppt::extract_ppt_text_with_options(content, include_master_slides, extract_images)
             }
 
             #[cfg(not(feature = "tokio-runtime"))]
@@ -136,7 +153,7 @@ impl InternalDocumentExtractor for PptExtractor {
                 if config.cancel_token.as_ref().map(|t| t.is_cancelled()).unwrap_or(false) {
                     return Err(crate::error::XbergError::Cancelled);
                 }
-                crate::extraction::ppt::extract_ppt_text_with_options(content, include_master_slides)
+                crate::extraction::ppt::extract_ppt_text_with_options(content, include_master_slides, extract_images)
             }
         }?;
 
@@ -199,7 +216,7 @@ impl InternalDocumentExtractor for PptExtractor {
             None
         };
 
-        let mut doc = Self::build_internal_document(&result.text, &result.speaker_notes);
+        let mut doc = Self::build_internal_document(&result.slides, &result.speaker_notes, &result.images);
         doc.mime_type = mime_type.to_string();
         doc.processing_warnings.extend(result.processing_warnings);
         doc.metadata = Metadata {
@@ -343,5 +360,142 @@ mod tests {
         if let Some(notes) = result.metadata.additional.get("speaker_notes") {
             assert!(notes.is_array(), "PPT speaker_notes in metadata should be a JSON array");
         }
+    }
+
+    /// #1418 root-cause regression at the consumer side: `build_internal_document`
+    /// must trust the structured `slides` list, never re-split a slide's own
+    /// text on `"\n\n"`. A single slide whose text happens to contain an
+    /// internal blank line must still produce exactly one `Slide` element.
+    #[test]
+    fn should_produce_one_slide_element_when_slide_text_contains_internal_blank_line() {
+        let slides = vec![PptSlideText {
+            number: 1,
+            text: "Title\n\nBody".to_string(),
+        }];
+        let doc = PptExtractor::build_internal_document(&slides, &[], &[]);
+
+        let slide_numbers: Vec<u32> = doc
+            .elements
+            .iter()
+            .filter_map(|e| match &e.kind {
+                crate::types::internal::ElementKind::Slide { number } => Some(*number),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            slide_numbers,
+            vec![1],
+            "one Slide entry must produce exactly one Slide element, however its text is shaped"
+        );
+    }
+
+    /// #1418: a slide with no text atoms must still get a `Slide` element
+    /// carrying its real persist-order number, not be dropped (which would
+    /// shift every later slide's number down).
+    #[test]
+    fn should_number_slide_elements_by_persist_order_including_an_empty_middle_slide() {
+        let slides = vec![
+            PptSlideText {
+                number: 1,
+                text: "Slide One".to_string(),
+            },
+            PptSlideText {
+                number: 2,
+                text: String::new(),
+            },
+            PptSlideText {
+                number: 3,
+                text: "Slide Three".to_string(),
+            },
+        ];
+        let doc = PptExtractor::build_internal_document(&slides, &[], &[]);
+
+        let slide_numbers: Vec<u32> = doc
+            .elements
+            .iter()
+            .filter_map(|e| match &e.kind {
+                crate::types::internal::ElementKind::Slide { number } => Some(*number),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(slide_numbers, vec![1, 2, 3]);
+    }
+
+    /// #1417: images recovered from the `Pictures` stream must be attached
+    /// to the document (`InternalDocument::images`), not silently discarded.
+    #[test]
+    fn should_attach_images_to_internal_document_when_images_are_present() {
+        let slides = vec![PptSlideText {
+            number: 1,
+            text: "Slide One".to_string(),
+        }];
+        let image = ExtractedImage {
+            data: bytes::Bytes::from_static(b"\xFF\xD8\xFFfake-jpeg"),
+            format: Cow::Borrowed("jpeg"),
+            image_index: 0,
+            page_number: None,
+            width: None,
+            height: None,
+            colorspace: None,
+            bits_per_component: None,
+            is_mask: false,
+            description: None,
+            ocr_result: None,
+            bounding_box: None,
+            source_path: None,
+            image_kind: None,
+            kind_confidence: None,
+            cluster_id: None,
+            caption: None,
+            qr_codes: None,
+            data_base64: None,
+        };
+        let doc = PptExtractor::build_internal_document(&slides, &[], std::slice::from_ref(&image));
+
+        assert_eq!(doc.images.len(), 1);
+        assert_eq!(doc.images[0].format, "jpeg");
+        assert_eq!(&doc.images[0].data[..], b"\xFF\xD8\xFFfake-jpeg");
+        let has_image_element = doc
+            .elements
+            .iter()
+            .any(|e| matches!(&e.kind, crate::types::internal::ElementKind::Image { image_index: 0 }));
+        assert!(has_image_element, "an Image element must reference the pushed image");
+    }
+
+    /// #87/#1418 end-to-end: `simple.ppt` has exactly two `Slide` (0x03EE)
+    /// containers (see `extraction::ppt::tests::test_extract_ppt_real_file_reports_two_slides`).
+    /// The document structure produced through the real extraction pipeline
+    /// must report exactly slide numbers `[1, 2]`, not ordinals derived from
+    /// re-splitting joined text.
+    #[tokio::test]
+    async fn should_report_exact_contiguous_slide_numbers_for_real_ppt_file() {
+        let test_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test_documents/ppt/simple.ppt");
+        if !test_file.exists() {
+            return;
+        }
+        let content = std::fs::read(&test_file).expect("Failed to read test PPT");
+        let extractor = PptExtractor::new();
+        let config = ExtractionConfig::default();
+        let doc = extractor
+            .extract_content(&content, "application/vnd.ms-powerpoint", &config)
+            .await
+            .expect("PPT extraction failed");
+
+        let slide_numbers: Vec<u32> = doc
+            .elements
+            .iter()
+            .filter_map(|e| match &e.kind {
+                crate::types::internal::ElementKind::Slide { number } => Some(*number),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            slide_numbers,
+            vec![1, 2],
+            "simple.ppt has exactly two Slide containers, numbered 1 and 2"
+        );
     }
 }

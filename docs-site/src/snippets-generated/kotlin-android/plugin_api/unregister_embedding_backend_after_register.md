@@ -12,7 +12,7 @@ unregister_embedding_backend
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     EmbeddingBackendBridge.unregister("test-embedding-backend")
 }
 

@@ -1,73 +1,85 @@
 {
-	"id": "summarization_abstractive_smoke",
-	"category": "summarization",
-	"description": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
-	"docs": {
-		"topic": "summarization",
-		"title": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
-		"description": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
-		"side_effects": "server"
-	},
-	"tags": ["summarization", "abstractive", "llm"],
-	"call": "extract",
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/text/book_war_and_peace_1p.txt",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/text/book_war_and_peace_1p.txt"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/text/book_war_and_peace_1p.txt"
-		}
-	},
-	"assertions": [
-		{
-			"type": "not_error"
-		},
-		{
-			"type": "not_empty",
-			"field": "results[0].summary.text"
-		},
-		{
-			"type": "equals",
-			"field": "results[0].summary.strategy",
-			"value": "abstractive"
-		}
-	],
-	"skip": {
-		"languages": [
-			"python",
-			"rust",
-			"node",
-			"go",
-			"ruby",
-			"elixir",
-			"wasm",
-			"java",
-			"csharp",
-			"php",
-			"dart",
-			"kotlin_android",
-			"swift",
-			"zig"
-		],
-		"reason": "Requires liter-llm feature and XBERG_LLM_API_KEY env var; runtime-only skip; deterministic extractive variant covers offline CI"
-	},
-	"config": {
-		"summarization": {
-			"strategy": "abstractive",
-			"max_tokens": 150,
-			"llm": {
-				"model": "openai/gpt-4o-mini",
-				"temperature": 0.0,
-				"max_tokens": 200
-			}
-		}
-	}
+  "id": "summarization_abstractive_smoke",
+  "category": "summarization",
+  "description": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
+  "docs": {
+    "topic": "summarization",
+    "title": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
+    "description": "LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or OPENAI_API_KEY) is not set.",
+    "presentation": {
+      "operations": [
+        {
+          "op": "show",
+          "path": "results[0].summary"
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "summarization",
+    "abstractive",
+    "llm"
+  ],
+  "call": "extract",
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/text/book_war_and_peace_1p.txt",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/text/book_war_and_peace_1p.txt"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/text/book_war_and_peace_1p.txt"
+    }
+  },
+  "assertions": [
+    {
+      "type": "not_error"
+    },
+    {
+      "type": "not_empty",
+      "field": "results[0].summary.text"
+    },
+    {
+      "type": "equals",
+      "field": "results[0].summary.strategy",
+      "value": "abstractive"
+    }
+  ],
+  "skip": {
+    "languages": [
+      "python",
+      "rust",
+      "node",
+      "go",
+      "ruby",
+      "elixir",
+      "wasm",
+      "java",
+      "csharp",
+      "php",
+      "dart",
+      "kotlin_android",
+      "swift",
+      "zig"
+    ],
+    "reason": "Requires liter-llm feature and XBERG_LLM_API_KEY env var; runtime-only skip; deterministic extractive variant covers offline CI"
+  },
+  "config": {
+    "summarization": {
+      "strategy": "abstractive",
+      "max_tokens": 150,
+      "llm": {
+        "model": "openai/gpt-4o-mini",
+        "temperature": 0.0,
+        "max_tokens": 200
+      }
+    }
+  }
 }

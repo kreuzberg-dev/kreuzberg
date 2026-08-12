@@ -19,6 +19,7 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"summarization\":{\"llm\":{\"max_tokens\":200,\"model\":\"openai/gpt-4o-mini\",\"temperature\":0.0},\"max_tokens\":150,\"strategy\":\"abstractive\"}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        System.out.println(result.results().get(0).summary());
     }
 }
 

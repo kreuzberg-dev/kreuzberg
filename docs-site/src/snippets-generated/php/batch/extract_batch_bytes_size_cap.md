@@ -12,6 +12,10 @@ extract_batch: archive size cap triggers error
 ```php title="PHP"
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 use Xberg\Xberg;
 use Xberg\ExtractInput;
 use Xberg\ExtractionConfig;

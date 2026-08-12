@@ -14,6 +14,10 @@ import { ExtractInput, ExtractInputKind, extract } from "@xberg-io/xberg";
 async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, mimeType: "text/html", uri: "https://example.com/html/simple_table.html" };
   const result = await extract(input, undefined);
+  const [first] = result.results ?? [];
+  for (const table of first?.tables) {
+    console.log(table.rows);
+  }
 }
 
 void main();

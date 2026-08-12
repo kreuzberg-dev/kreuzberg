@@ -18,10 +18,12 @@ Tests element-based result format with element type assertions on DOCX
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("{\"result_format\":\"element_based\"}");
-    XBERGExtract* result = extract(options_handle);
-    xberg__free(options_handle);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"https://example.com/docx/unit_test_headers.docx\"}");
+    XBERGExtractionConfig* config_handle = xberg_extraction_config_from_json("{\"result_format\":\"element_based\"}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, config_handle);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_config_free(config_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

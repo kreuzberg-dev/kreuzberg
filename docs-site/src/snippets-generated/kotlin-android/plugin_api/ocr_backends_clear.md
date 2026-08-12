@@ -12,7 +12,7 @@ Clear all OCR backends and verify list is empty
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     OcrBackendBridge.clearAll()
 }
 

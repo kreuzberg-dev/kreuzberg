@@ -15,6 +15,11 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/docx/unit_test_headers.docx" };
   const config: ExtractionConfig = { resultFormat: ResultFormat.ElementBased };
   const result = await extract(input, config);
+  const [first] = result.results ?? [];
+  for (const element of first?.elements) {
+    console.log(element.elementType);
+    console.log(element.content);
+  }
 }
 
 void main();

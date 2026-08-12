@@ -19,6 +19,10 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"result_format\":\"element_based\"}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        for (var element : result.results().get(0).elements()) {
+            System.out.println(element.elementType());
+            System.out.println(element.content());
+        }
     }
 }
 

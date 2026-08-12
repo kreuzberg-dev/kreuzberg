@@ -90,7 +90,7 @@ verify_local_closure() {
 }
 
 vendor_one() {
-  local native="$1" dir queue seen bin lib base destination
+  local native="$1" dir queue seen bin lib base destination ldd_output ldd_status
   dir="$(cd "$(dirname "$native")" && pwd)"
   native="$dir/$(basename "$native")"
   queue="$(mktemp)"
@@ -99,8 +99,28 @@ vendor_one() {
   while [ -s "$queue" ]; do
     bin="$(head -n1 "$queue")"
     tail -n +2 "$queue" >"$queue.tmp" && mv "$queue.tmp" "$queue"
-    ldd "$bin" 2>/dev/null |
-      sed -n 's/.*=> *\(\/[^ ]*\).*/\1/p; s/^[[:space:]]*\(\/[^ ]*\) (0x[0-9a-f]*)$/\1/p' |
+
+    # musl's `ldd` (unlike glibc's) exits non-zero -- observed as a bare exit 127
+    # -- when a transitive dependency can't be resolved, instead of exiting 0 and
+    # annotating that entry "=> not found". Piping straight into `sed | while`
+    # under this script's `set -euo pipefail` (line 2) turned that into a silent,
+    # unattributed script death partway through the closure walk: stderr was
+    # discarded (`2>/dev/null`) so nothing said which binary or which library
+    # broke, and pipefail killed the whole multi-wheel loop rather than just this
+    # one branch of the walk. Capture ldd's output and exit status explicitly so
+    # a resolution failure here is logged with the offending binary and ldd's raw
+    # output, then skipped -- exactly like the existing `[ -f "$lib" ] || continue`
+    # policy for individually-missing libraries below. This does not weaken the
+    # closure guarantee: `verify_local_closure` still runs ldd on the top-level
+    # artifact afterward and `die`s loudly if anything is genuinely unresolved.
+    ldd_output="$(mktemp)"
+    ldd_status=0
+    ldd "$bin" >"$ldd_output" 2>&1 || ldd_status=$?
+    if [ "$ldd_status" -ne 0 ]; then
+      log "WARNING: ldd exited $ldd_status resolving dependencies of $(basename "$bin"); output:"
+      cat "$ldd_output" >&2
+    fi
+    sed -n 's/.*=> *\(\/[^ ]*\).*/\1/p; s/^[[:space:]]*\(\/[^ ]*\) (0x[0-9a-f]*)$/\1/p' "$ldd_output" |
       while IFS= read -r lib; do
         [ -f "$lib" ] || continue
         base="$(basename "$lib")"
@@ -116,6 +136,7 @@ vendor_one() {
         printf '%s\n' "$destination" >>"$queue"
         log "vendored $base beside $(basename "$native")"
       done
+    rm -f "$ldd_output"
   done
   rm -f "$queue" "$seen"
   set_origin_rpath "$native"

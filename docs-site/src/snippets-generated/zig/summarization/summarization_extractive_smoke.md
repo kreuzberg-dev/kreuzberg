@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract("{\"kind\":\"uri\",\"uri\":\"https://example.com/text/book_war_and_peace_1p.txt\"}", "{\"summarization\":{\"max_tokens\":80,\"strategy\":\"extractive\"}}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```

@@ -19,6 +19,7 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"pages\":{\"extract_pages\":true,\"insert_page_markers\":true}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        System.out.println(result);
     }
 }
 

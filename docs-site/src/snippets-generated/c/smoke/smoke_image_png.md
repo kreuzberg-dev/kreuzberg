@@ -18,10 +18,12 @@ Smoke test: PNG image (without OCR, metadata only)
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("{\"disable_ocr\":true}");
-    XBERGExtract* result = extract(options_handle);
-    xberg__free(options_handle);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"https://example.com/images/sample.png\"}");
+    XBERGExtractionConfig* config_handle = xberg_extraction_config_from_json("{\"disable_ocr\":true}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, config_handle);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_config_free(config_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

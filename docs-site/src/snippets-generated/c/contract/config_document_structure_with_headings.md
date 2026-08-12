@@ -18,10 +18,12 @@ Tests document structure with DOCX heading-driven nesting
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("{\"include_document_structure\":true}");
-    XBERGExtract* result = extract(options_handle);
-    xberg__free(options_handle);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"https://example.com/docx/fake.docx\"}");
+    XBERGExtractionConfig* config_handle = xberg_extraction_config_from_json("{\"include_document_structure\":true}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, config_handle);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_config_free(config_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

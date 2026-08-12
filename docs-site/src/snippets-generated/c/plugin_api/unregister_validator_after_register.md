@@ -18,8 +18,7 @@ unregister_validator
 #include "xberg.h"
 
 int main(void) {
-    XBERG* result = ("test-validator");
-    xberg__free(result);
+    xberg_("test-validator");
     return EXIT_SUCCESS;
 }
 

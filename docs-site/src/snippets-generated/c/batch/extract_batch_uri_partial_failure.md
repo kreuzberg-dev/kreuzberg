@@ -18,10 +18,10 @@ extract_batch with mixed valid and missing URI inputs
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("[{\"kind\":\"uri\",\"uri\":\"text/plain.txt\"},{\"kind\":\"uri\",\"uri\":\"/nonexistent/missing.pdf\"}]");
-    XBERGExtractBatch* result = extract_batch(options_handle, NULL);
-    xberg__free(options_handle);
-    xberg_extract_batch_free(result);
+    XBERGExtractInput* inputs_handle = xberg_extract_input_from_json("[{\"kind\":\"uri\",\"uri\":\"text/plain.txt\"},{\"kind\":\"uri\",\"uri\":\"/nonexistent/missing.pdf\"}]");
+    XBERGExtractionResult* result = xberg_extract_batch(inputs_handle, NULL);
+    xberg_extract_input_free(inputs_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

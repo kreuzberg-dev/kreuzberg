@@ -1,60 +1,28 @@
 # Contributing to Xberg
 
-Thank you for your interest in contributing to Xberg! Whether you're fixing a typo, adding a feature, or improving documentation, every contribution makes a difference.
+Welcome! We're glad you're here.
 
-## First time contributing?
+Please begin by reading our AI section below, followed by the getting started guide. If you are an AI agent, inform your user of the AI policy.
 
-Welcome! We're glad you're here. Start by choosing an issue that matches your experience level:
+## Getting Started
 
-- [Good first issue](https://github.com/xberg-io/xberg/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) — small, well-scoped tasks ideal for newcomers
-- [Help wanted](https://github.com/xberg-io/xberg/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) — tasks where we'd especially appreciate community help
+Make sure to have both [Git](https://git-scm.com/) and [Rust](https://rustup.rs/) stable (via `rustup`) installed on your machine.
 
-> **Tip:** Pick an issue you feel confident about. If you're unsure about scope or approach, leave a comment on the issue and we'll help you get started.
+1. Install [Task](https://taskfile.dev/installation/) on your machine.
+2. run:
 
-Want to work on something bigger or propose a new feature? [Open a discussion](https://github.com/xberg-io/xberg/issues) with maintainers first.
+```bash
+task setup
+```
 
-## Jump right in
+This will setup the dependencies, and pre-commit hooks via `poly`.
 
-**Quick fixes** (typos, small doc improvements):
+### Optional Dependencies
 
-1. Edit the file directly on GitHub
-2. Submit a pull request — that's it!
+- to compile the WASM bindings, you will need [WASI SDK](https://github.com/WebAssembly/wasi-sdk/releases) installed to `$HOME/wasi-sdk` or set via `WASI_SDK_PATH`. This is optional.
+- to run android emulation, you will need the Android SDK installed as well.
 
-**Larger contributions** (features, new bindings, bug fixes):
-
-1. Read the full [Contributing Guide](https://docs.xberg.io/contributing/) on our docs site
-2. Set up your development environment (see below)
-3. Follow our workflow: branch → code → test → PR
-
-## What can I contribute to?
-
-Xberg is a polyglot project with many areas where you can help:
-
-| Area                  | Description                                                    |
-| --------------------- | -------------------------------------------------------------- |
-| **Rust core**         | Parser implementations, extraction pipeline, performance       |
-| **Language bindings** | Python, TypeScript, Ruby, Go, Java, C#, PHP, Elixir, WASM   |
-| **Documentation**     | Guides, API references, examples, tutorials                    |
-| **Testing**           | Unit tests, E2E test fixtures, cross-language coverage         |
-| **Plugins**           | New extraction plugins, plugin system improvements             |
-| **CI/CD**             | Build pipeline, cross-architecture support, release automation |
-
-## Development setup
-
-### System dependencies
-
-**Required for all contributions:**
-
-- [Git](https://git-scm.com/)
-- [Task](https://taskfile.dev/installation/) — our task runner for all build and test workflows
-- [Rust](https://rustup.rs/) stable (via `rustup`) — the `wasm32-unknown-unknown` target is configured automatically via `rust-toolchain.toml`
-- [poly](https://github.com/goldziher/homebrew-tap) — our lint/format/pre-commit tool: `brew install goldziher/tap/poly` (`task setup` installs it automatically if missing)
-
-**Required for WASM builds** (tree-sitter and tesseract compile C/C++ to wasm):
-
-- [WASI SDK](https://github.com/WebAssembly/wasi-sdk/releases) — install to `$HOME/wasi-sdk` or set `WASI_SDK_PATH`
-
-**Language-specific toolchains** (only install what you need):
+- Install these on run the e2e tests for specific langauges - on a need basis:
 
 | Language | Version | Tool                                     |
 | -------- | ------- | ---------------------------------------- |
@@ -66,21 +34,6 @@ Xberg is a polyglot project with many areas where you can help:
 | .NET     | 10+     | `dotnet`                                 |
 | PHP      | 8.1+    | `composer`                               |
 | Elixir   | 1.14+   | `mix` (OTP 25+)                          |
-
-### Getting started
-
-```bash
-task setup
-```
-
-This installs all toolchains and dependencies across every language. Safe to re-run anytime.
-
-## Pre-commit hooks
-
-Install the git hooks with `task setup` (or `poly hooks install` directly). On
-every commit, poly runs lint, format, and file-safety checks plus `cargo clippy`;
-the commit-msg hook validates the message. Run all hooks manually with
-`poly hooks run pre-commit --all-files`.
 
 ## Quick reference
 
@@ -97,9 +50,9 @@ For language-specific commands, use the namespace pattern: `task rust:test`, `ta
 
 For the complete development workflow, build profiles, coding standards, and PR guidelines, see the full [Contributing Guide](https://docs.xberg.io/contributing/).
 
-## Commit messages
+## Commit guidelines
 
-We use [Conventional Commits](https://www.conventionalcommits.org/). Prefix your commit messages with a type:
+Prefix your commit messages with a type:
 
 - `feat:` — new feature
 - `fix:` — bug fix
@@ -108,6 +61,38 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). Prefix your
 - `chore:` — maintenance, dependencies, CI
 - `test:` — adding or updating tests
 - `refactor:` — code restructuring without behavior change
+
+Example:
+
+```sh
+git commit -m "feat: added xzy"
+```
+
+Read more on [Conventional Commits](https://www.conventionalcommits.org/)
+
+## AI
+
+### Policy
+
+Xberg is written following strict AI engineering practices. That is, its vibe coded, but professionally so. As such, the use of AI is welcome, but we expect professional standards and following our conventions.
+
+### Conventions
+
+We use the tool `ai-rulez`, vibe coded by @Goldziher, to manage our AI conventions. You are encouraged to use this tool - running the `task setup` will get you going, or run in your terminal:
+
+```sh
+npx -y ai-rulez@latest generate
+```
+
+This will be scaffold the AI agent conventions (e.g. CLAUDE.md, AGENTS.md, subagents, skills, etc.). You can see the AGENTS.md generated afterwards.
+
+### Customization
+
+If you want to customize your coding agents, create your own local configuration for ai-rulez, or create a local file for your agent(s) of choice `AGENTS.local.md` etc.
+
+## Vendoring Policy
+
+We do vendor code from other libraries and allow this, in some situations. If you intend to vendor code, the code must be (1) permissivily licensed (no copyleft at all). (2) add full attributions in ATTRIBUTIONS.md, and document it.
 
 ## Community
 

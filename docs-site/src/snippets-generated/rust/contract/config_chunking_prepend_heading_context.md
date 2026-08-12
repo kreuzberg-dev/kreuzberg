@@ -22,6 +22,7 @@ async fn main() {
     let result = extract(input, &config).await.expect("call failed");
     for chunk in result.results[0].chunks.iter().flatten() {
         println!("{}", chunk.content);
+        println!("{}", chunk.metadata);
     }
 }
 

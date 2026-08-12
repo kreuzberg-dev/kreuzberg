@@ -31,6 +31,11 @@ impl PptxExtractor {
 }
 
 impl PptxExtractor {
+    /// Build an `InternalDocument` from PPTX extracted text.
+    ///
+    /// Parses each archive-derived slide independently so page metadata never
+    /// depends on headings or marker-like user text.
+    ///
     /// Try to strip an ordered-list prefix like `1. `, `2. `, `10. ` from a line.
     /// Returns the remaining text after the prefix, or `None` if the line does not
     /// start with a `<digits>. ` pattern.
@@ -125,135 +130,126 @@ impl PptxExtractor {
     fn push_line_formulas(
         builder: &mut InternalDocumentBuilder,
         formulas: &[String],
+        slide_num: u32,
         budget: &mut SecurityBudget,
     ) -> Result<()> {
         for latex in formulas {
             budget.account_text(latex.len())?;
-            builder.push_formula(latex, None, None);
+            builder.push_formula(latex, Some(slide_num), None);
         }
         Ok(())
     }
 
-    /// Build an `InternalDocument` from PPTX extracted text.
-    ///
-    /// Splits content by double-newlines into slide-like blocks. Each block
-    /// becomes a slide element with its content as paragraphs.
-    ///
-    /// `formulas` holds the LaTeX of the deck's math runs. The text flattens a
-    /// math run into its LaTeX, so each line gives up its math to a formula
-    /// element before the rest of the line becomes a paragraph or a list item.
-    /// DOCX emits math the same way. `plain_output` states which form the math
-    /// takes in `content`.
-    ///
-    /// Note: For richer structure, the builder should be integrated into
-    /// `crate::extraction::pptx` alongside the existing `DocumentStructure` building.
     fn build_internal_document(
-        content: &str,
+        slide_contents: &[(u32, String)],
         slide_count: u32,
         formulas: &[(String, bool)],
         plain_output: bool,
         budget: &mut SecurityBudget,
     ) -> Result<InternalDocument> {
         let mut builder = InternalDocumentBuilder::new("pptx");
-        let mut slide_num: u32 = 0;
-        let mut in_notes = false;
+        let mut saw_title = false;
         let forms = Self::math_forms(formulas);
 
-        let blocks: Vec<&str> = content.split("\n\n").collect();
+        for (slide_num, content) in slide_contents {
+            let mut in_notes = false;
 
-        for block in &blocks {
-            budget.step()?;
-            let trimmed = block.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            if trimmed.starts_with("### Notes:") || trimmed == "Notes:" {
-                in_notes = true;
-                continue;
-            }
-
-            if let Some(title_text) = trimmed.strip_prefix("# ") {
-                in_notes = false;
-                slide_num += 1;
-                let (title_text, title_formulas) = Self::split_line_math(title_text, &forms, formulas, plain_output);
-                Self::push_line_formulas(&mut builder, &title_formulas, budget)?;
-                let title = title_text.trim();
-                if !title.is_empty() {
-                    budget.account_text(title.len())?;
-                    builder.push_heading(2, title, None, None);
+            for block in content.split("\n\n") {
+                budget.step()?;
+                let trimmed = block.trim();
+                if trimmed.is_empty() {
+                    continue;
                 }
-                continue;
-            }
 
-            if in_notes {
-                in_notes = false;
-            }
-
-            if trimmed.starts_with('|') {
-                let cells = Self::parse_markdown_table(trimmed);
-                if !cells.is_empty() {
-                    builder.push_table_from_cells(&cells, Some(slide_num), None);
+                if trimmed.starts_with("### Notes:") || trimmed == "Notes:" {
+                    in_notes = true;
+                    continue;
                 }
-                continue;
-            }
 
-            let mut in_list: Option<bool> = None;
-
-            for line in trimmed.lines() {
-                let (line_text, line_formulas) = Self::split_line_math(line, &forms, formulas, plain_output);
-                let lt = line_text.trim();
-                if lt.is_empty() && line_formulas.is_empty() {
-                    if in_list.is_some() {
-                        builder.end_list();
-                        in_list = None;
+                if let Some(title_text) = trimmed.strip_prefix("# ") {
+                    in_notes = false;
+                    saw_title = true;
+                    let (title_text, title_formulas) = Self::split_line_math(title_text, &forms, formulas, plain_output);
+                    Self::push_line_formulas(&mut builder, &title_formulas, *slide_num, budget)?;
+                    let title = title_text.trim();
+                    if !title.is_empty() {
+                        budget.account_text(title.len())?;
+                        builder.push_heading(2, title, Some(*slide_num), None);
                     }
                     continue;
                 }
 
-                let list_match = if let Some(item_text) = lt.strip_prefix("- ") {
-                    Some((false, item_text))
-                } else {
-                    Self::strip_ordered_prefix(lt).map(|item_text| (true, item_text))
-                };
+                if in_notes {
+                    in_notes = false;
+                }
 
-                if let Some((ordered, item_text)) = list_match {
-                    match in_list {
-                        Some(prev_ordered) if prev_ordered != ordered => {
+                if trimmed.starts_with('|') {
+                    let cells = Self::parse_markdown_table(trimmed);
+                    if !cells.is_empty() {
+                        builder.push_table_from_cells(&cells, Some(*slide_num), None);
+                    }
+                    continue;
+                }
+
+                let mut in_list: Option<bool> = None;
+
+                for line in trimmed.lines() {
+                    let (line_text, line_formulas) = Self::split_line_math(line, &forms, formulas, plain_output);
+                    let lt = line_text.trim();
+                    if lt.is_empty() && line_formulas.is_empty() {
+                        if in_list.is_some() {
                             builder.end_list();
-                            builder.push_list(ordered);
-                            in_list = Some(ordered);
+                            in_list = None;
                         }
-                        None => {
-                            builder.push_list(ordered);
-                            in_list = Some(ordered);
+                        continue;
+                    }
+
+                    let list_match = if let Some(item_text) = lt.strip_prefix("- ") {
+                        Some((false, item_text))
+                    } else {
+                        Self::strip_ordered_prefix(lt).map(|item_text| (true, item_text))
+                    };
+
+                    if let Some((ordered, item_text)) = list_match {
+                        match in_list {
+                            Some(prev_ordered) if prev_ordered != ordered => {
+                                builder.end_list();
+                                builder.push_list(ordered);
+                                in_list = Some(ordered);
+                            }
+                            None => {
+                                builder.push_list(ordered);
+                                in_list = Some(ordered);
+                            }
+                            _ => {}
                         }
-                        _ => {}
-                    }
-                    // A list item's math becomes its own element ahead of the item,
-                    // the order DOCX uses for math runs inside a paragraph.
-                    Self::push_line_formulas(&mut builder, &line_formulas, budget)?;
-                    budget.account_text(item_text.len())?;
-                    builder.push_list_item(item_text, ordered, vec![], Some(slide_num), None);
-                } else {
-                    if in_list.is_some() {
-                        builder.end_list();
-                        in_list = None;
-                    }
-                    Self::push_line_formulas(&mut builder, &line_formulas, budget)?;
-                    if !lt.is_empty() {
-                        budget.account_text(lt.len())?;
-                        builder.push_paragraph(lt, vec![], None, None);
+                        // A list item's math becomes its own element ahead of the
+                        // item, the order DOCX uses for math runs in a paragraph.
+                        Self::push_line_formulas(&mut builder, &line_formulas, *slide_num, budget)?;
+                        budget.account_text(item_text.len())?;
+                        builder.push_list_item(item_text, ordered, vec![], Some(*slide_num), None);
+                    } else {
+                        if in_list.is_some() {
+                            builder.end_list();
+                            in_list = None;
+                        }
+                        Self::push_line_formulas(&mut builder, &line_formulas, *slide_num, budget)?;
+                        if !lt.is_empty() {
+                            budget.account_text(lt.len())?;
+                            builder.push_paragraph(lt, vec![], Some(*slide_num), None);
+                        }
                     }
                 }
-            }
 
-            if in_list.is_some() {
-                builder.end_list();
+                if in_list.is_some() {
+                    builder.end_list();
+                }
             }
         }
 
-        if slide_num == 0 && slide_count > 0 {
+        // Preserve the legacy all-untitled output shape: it contains one Slide
+        // sentinel, while titled decks do not gain new thematic-break/JSON nodes.
+        if !saw_title && slide_count > 0 {
             builder.push_slide(1, None, Some(1));
         }
 
@@ -291,16 +287,14 @@ impl PptxExtractor {
     /// `budget` is threaded into the internal document builder to enforce
     /// hostile-input limits on the extracted content.
     fn build_document_from_result(
-        pptx_extraction: crate::extraction::pptx::PptxExtraction,
+        pptx_result: crate::types::PptxExtractionResult,
+        slide_contents: &[(u32, String)],
+        formulas: &[(String, bool)],
+        plain_output: bool,
         mime_type: &str,
         extract_images: bool,
         budget: &mut SecurityBudget,
     ) -> Result<InternalDocument> {
-        let crate::extraction::pptx::PptxExtraction {
-            result: pptx_result,
-            formulas,
-            plain_output,
-        } = pptx_extraction;
         let mut additional: AHashMap<Cow<'static, str>, serde_json::Value> = AHashMap::new();
 
         let mut pptx_metadata = pptx_result.metadata;
@@ -341,9 +335,9 @@ impl PptxExtractor {
         }
 
         let mut doc = Self::build_internal_document(
-            &pptx_result.content,
+            slide_contents,
             pptx_result.slide_count as u32,
-            &formulas,
+            formulas,
             plain_output,
             budget,
         )?;
@@ -423,7 +417,7 @@ impl InternalDocumentExtractor for PptxExtractor {
 
         let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
 
-        let pptx_result = {
+        let pptx_internal = {
             #[cfg(feature = "tokio-runtime")]
             {
                 if crate::core::batch_mode::is_batch_mode() {
@@ -442,8 +436,11 @@ impl InternalDocumentExtractor for PptxExtractor {
                     let (result, warnings) = tokio::task::spawn_blocking(move || {
                         let _guard = span.entered();
                         let mut warnings = Vec::new();
-                        let result =
-                            crate::extraction::pptx::extract_pptx_from_bytes(&content_owned, &options, &mut warnings);
+                        let result = crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                            &content_owned,
+                            &options,
+                            &mut warnings,
+                        );
                         (result, warnings)
                     })
                     .await
@@ -458,7 +455,11 @@ impl InternalDocumentExtractor for PptxExtractor {
                         include_structure: false,
                         inject_placeholders,
                     };
-                    crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
+                    crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                        content,
+                        &options,
+                        &mut pptx_warnings,
+                    )?
                 }
             }
 
@@ -471,12 +472,24 @@ impl InternalDocumentExtractor for PptxExtractor {
                     include_structure: false,
                     inject_placeholders,
                 };
-                crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
+                crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                    content,
+                    &options,
+                    &mut pptx_warnings,
+                )?
             }
         };
 
         let mut budget = SecurityBudget::from_config(config);
-        let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        let mut doc = Self::build_document_from_result(
+            pptx_internal.result,
+            &pptx_internal.slide_contents,
+            &pptx_internal.formulas,
+            pptx_internal.plain_output,
+            mime_type,
+            extract_images,
+            &mut budget,
+        )?;
         doc.processing_warnings.extend(pptx_warnings);
 
         if config.max_archive_depth > 0 {
@@ -528,10 +541,22 @@ impl InternalDocumentExtractor for PptxExtractor {
             inject_placeholders,
         };
         let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
-        let pptx_result = crate::extraction::pptx::extract_pptx_from_path(path_str, &options, &mut pptx_warnings)?;
+        let pptx_internal = crate::extraction::pptx::extract_pptx_from_path_with_slide_contents(
+            path_str,
+            &options,
+            &mut pptx_warnings,
+        )?;
 
         let mut budget = SecurityBudget::from_config(config);
-        let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        let mut doc = Self::build_document_from_result(
+            pptx_internal.result,
+            &pptx_internal.slide_contents,
+            &pptx_internal.formulas,
+            pptx_internal.plain_output,
+            mime_type,
+            extract_images,
+            &mut budget,
+        )?;
         doc.processing_warnings.extend(pptx_warnings);
         Ok(doc)
     }
@@ -730,7 +755,8 @@ mod tests {
         let content = "# Growth is $$g^{2}$$\n\n- Rate $r$ per year\n- Plain bullet\n";
         let formulas = vec![("g^{2}".to_string(), true), ("r".to_string(), false)];
         let mut budget = SecurityBudget::with_defaults();
-        let doc = PptxExtractor::build_internal_document(content, 1, &formulas, false, &mut budget).unwrap();
+        let doc = PptxExtractor::build_internal_document(&[(1, content.to_string())], 1, &formulas, false, &mut budget)
+            .unwrap();
 
         let math: Vec<&str> = doc
             .elements
@@ -773,6 +799,140 @@ mod tests {
         assert!(mime_types.contains(&"application/vnd.openxmlformats-officedocument.presentationml.presentation"));
     }
 
+    #[test]
+    fn test_archive_slide_contents_set_table_list_heading_and_paragraph_pages() {
+        use crate::types::internal::ElementKind;
+
+        let slide_contents = vec![
+            (1, "# Titled slide\n\nIntroduction".to_string()),
+            (
+                2,
+                concat!(
+                    "This untitled slide has a paragraph long enough not to be inferred as a title. ",
+                    "It deliberately contains more than one hundred characters in total."
+                )
+                .to_string(),
+            ),
+            (
+                3,
+                concat!(
+                    "| Name | Value |\n",
+                    "| --- | --- |\n",
+                    "| answer | 42 |\n\n",
+                    "- final item"
+                )
+                .to_string(),
+            ),
+        ];
+        let mut budget = SecurityBudget::with_defaults();
+
+        let document = PptxExtractor::build_internal_document(&slide_contents, 3, &[], false, &mut budget)
+            .expect("internal PPTX document should build");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 3);
+
+        let list_item = document
+            .elements
+            .iter()
+            .find(|element| matches!(element.kind, ElementKind::ListItem { .. }))
+            .expect("list item should be present");
+        assert_eq!(list_item.page, Some(3));
+
+        let heading = document
+            .elements
+            .iter()
+            .find(|element| matches!(element.kind, ElementKind::Heading { .. }))
+            .expect("heading should be present");
+        assert_eq!(heading.page, Some(1));
+
+        let second_slide_paragraph = document
+            .elements
+            .iter()
+            .find(|element| element.text.starts_with("This untitled slide"))
+            .expect("second-slide paragraph should be present");
+        assert_eq!(second_slide_paragraph.page, Some(2));
+    }
+
+    #[test]
+    fn test_marker_like_slide_text_cannot_change_later_page_numbers() {
+        let slide_contents = vec![
+            (1, "First slide".to_string()),
+            (
+                2,
+                "<!-- Slide number: 99 -->\n\n| Name | Value |\n| --- | --- |\n| answer | 42 |".to_string(),
+            ),
+        ];
+        let mut budget = SecurityBudget::with_defaults();
+
+        let document = PptxExtractor::build_internal_document(&slide_contents, 2, &[], false, &mut budget)
+            .expect("marker-like user text should remain ordinary slide content");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 2);
+        assert!(document.elements.iter().any(|element| {
+            matches!(element.kind, crate::types::internal::ElementKind::Paragraph)
+                && element.text == "<!-- Slide number: 99 -->"
+                && element.page == Some(2)
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_untitled_slide_with_table_gets_archive_derived_page_numbers() {
+        use crate::plugins::InternalDocumentExtractor;
+        use crate::types::internal::ElementKind;
+
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody><a:p><a:r><a:t>This untitled slide contains a deliberately long paragraph so the extractor cannot mistake it for a title while assigning page metadata.</a:t></a:r></a:p></p:txBody></p:sp>
+        <p:graphicFrame>
+            <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+                    <a:tbl>
+                        <a:tr>
+                            <a:tc><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody></a:tc>
+                            <a:tc><a:txBody><a:p><a:r><a:t>Value</a:t></a:r></a:p></a:txBody></a:tc>
+                        </a:tr>
+                        <a:tr>
+                            <a:tc><a:txBody><a:p><a:r><a:t>answer</a:t></a:r></a:p></a:txBody></a:tc>
+                            <a:tc><a:txBody><a:p><a:r><a:t>42</a:t></a:r></a:p></a:txBody></a:tc>
+                        </a:tr>
+                    </a:tbl>
+                </a:graphicData>
+            </a:graphic>
+        </p:graphicFrame>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+        let pptx = crate::extraction::pptx::tests::build_single_slide_pptx(slide_xml, None, &[]);
+        let extractor = PptxExtractor::new();
+        let config = ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Markdown,
+            ..Default::default()
+        };
+        let mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+        let document = extractor
+            .extract_content(&pptx, mime, &config)
+            .await
+            .expect("real PPTX extraction should succeed");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 1);
+        assert!(document.elements.iter().any(|element| {
+            matches!(element.kind, ElementKind::Paragraph)
+                && element.text.starts_with("This untitled slide")
+                && element.page == Some(1)
+        }));
+        assert!(
+            document
+                .elements
+                .iter()
+                .any(|element| { matches!(element.kind, ElementKind::Slide { number: 1 }) && element.page == Some(1) })
+        );
+    }
+
     /// Full round-trip through PptxExtractor::extract_bytes → derive_extraction_result →
     /// ExtractedDocument.pages, asserting that speaker_notes and section_name are present.
     #[tokio::test]
@@ -802,6 +962,10 @@ mod tests {
             .expect("extraction failed");
         let result = derive_extraction_result(internal_doc, true, crate::core::config::OutputFormat::Plain);
 
+        assert!(
+            !result.content.contains("<!-- Slide number:"),
+            "internal slide markers must not leak into rendered output"
+        );
         let pages = result.pages.as_ref().expect("pages should be populated");
         assert_eq!(pages.len(), 3);
 

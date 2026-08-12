@@ -14,9 +14,16 @@ import io.xberg.*;
 
 public final class Example {
     public static void main(String[] args) throws Exception {
+        try {
         var configJson = "{\"security_limits\":{\"max_content_size\":1}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extractBatch(java.util.Arrays.asList(JsonUtil.fromJson("{\"bytes\":\"test_documents/text/fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}", ExtractInput.class)), config);
+        System.out.println(result);
+        } catch (Exception error) {
+            System.err.println("Call failed as expected: " + error.getMessage());
+            return;
+        }
+        throw new AssertionError("expected call to fail");
     }
 }
 

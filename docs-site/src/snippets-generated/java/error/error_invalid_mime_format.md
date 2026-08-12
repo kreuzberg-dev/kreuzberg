@@ -14,6 +14,7 @@ import io.xberg.*;
 
 public final class Example {
     public static void main(String[] args) throws Exception {
+        try {
         var inputFile0 = java.util.Base64.getEncoder().encodeToString(
     java.nio.file.Files.readAllBytes(java.nio.file.Path.of("test_documents/text/plain.txt"))
 );
@@ -23,6 +24,12 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        System.out.println(result.error());
+        } catch (Exception error) {
+            System.err.println("Call failed as expected: " + error.getMessage());
+            return;
+        }
+        throw new AssertionError("expected call to fail");
     }
 }
 

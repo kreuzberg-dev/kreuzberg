@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract_batch("[]", "{}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```

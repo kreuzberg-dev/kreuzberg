@@ -31,8 +31,10 @@ impl ExtractionConfig {
     /// - `XBERG_CHUNKING_TOKENIZER`: HuggingFace tokenizer model ID for token-based chunk sizing (requires `chunking-tokenizers` feature)
     /// - `XBERG_DISABLE_OCR`: Disable OCR entirely ("true" or "false")
     /// - `XBERG_LLM_MODEL`: LLM model for structured extraction (e.g., "openai/gpt-4o")
-    /// - `XBERG_LLM_API_KEY`: API key for the structured extraction LLM provider
-    /// - `XBERG_LLM_BASE_URL`: Custom base URL for the structured extraction LLM provider
+    /// - `XBERG_LLM_API_KEY`: API key for the structured extraction LLM provider. Applied only
+    ///   when structured extraction is already configured — a credential never enables it.
+    /// - `XBERG_LLM_BASE_URL`: Custom base URL for the structured extraction LLM provider. Applied
+    ///   only when structured extraction is already configured — an endpoint never enables it.
     /// - `XBERG_VLM_OCR_MODEL`: VLM model for vision-based OCR (e.g., "openai/gpt-4o")
     /// - `XBERG_VLM_EMBEDDING_MODEL`: LLM model for embedding generation (e.g., "openai/text-embedding-3-small")
     /// - `XBERG_EMBEDDING_PLUGIN_NAME`: Name of an in-process embedding backend registered via `plugins::register_embedding_backend`
@@ -45,7 +47,10 @@ impl ExtractionConfig {
     /// # Behavior
     ///
     /// - If an environment variable is set and valid, it overrides the current configuration value
-    /// - If a required parent config is `None` (e.g., `self.ocr` is None), it's created with defaults before applying the override
+    /// - If a required parent config is `None` (e.g., `self.ocr` is None), it's created with
+    ///   defaults before applying the override. The exception is credentials and endpoints —
+    ///   `XBERG_LLM_API_KEY` and `XBERG_LLM_BASE_URL` — which are applied to an existing config
+    ///   or ignored, and never enable a feature that was not asked for (issue #1421)
     /// - Invalid values return a `XbergError::Validation` with helpful error messages
     /// - Missing or unset environment variables are silently ignored
     ///
@@ -297,6 +302,18 @@ impl ExtractionConfig {
             }
         }
 
+        // A credential is not a request to run a feature. `XBERG_LLM_API_KEY` and
+        // `XBERG_LLM_BASE_URL` therefore only ever *configure* a structured extraction
+        // that is already enabled; neither may bring one into existence. Before this,
+        // both fabricated a `StructuredExtractionConfig` with an empty `model` and an
+        // empty schema whenever they were set, and because
+        // `config.structured_extraction.is_some()` is the sole gate in the pipeline
+        // (`core/pipeline/mod.rs:449`), any deployment that merely had a key in its
+        // environment ran the post-processor on *every* document and failed on every
+        // one of them with "model must not be empty" (issue #1421). This mirrors the
+        // rule the VLM forwarding block below already follows for the same two vars.
+        // `XBERG_LLM_MODEL`, handled above, is a different case: naming a model for
+        // structured extraction is an explicit request for it. ~keep
         if let Ok(value) = std::env::var("XBERG_LLM_API_KEY") {
             if value.is_empty() {
                 return Err(XbergError::Validation {
@@ -304,21 +321,7 @@ impl ExtractionConfig {
                     source: None,
                 });
             }
-            if self.structured_extraction.is_none() {
-                self.structured_extraction = Some(super::super::llm::StructuredExtractionConfig {
-                    schema: serde_json::Value::Object(Default::default()),
-                    schema_name: "extraction".to_string(),
-                    schema_description: None,
-                    strict: false,
-                    prompt: None,
-                    llm: super::super::llm::LlmConfig {
-                        model: String::new(),
-                        api_key: Some(value),
-                        base_url: None,
-                        ..Default::default()
-                    },
-                });
-            } else if let Some(ref mut config) = self.structured_extraction {
+            if let Some(ref mut config) = self.structured_extraction {
                 config.llm.api_key = Some(value);
             }
         }
@@ -330,21 +333,7 @@ impl ExtractionConfig {
                     source: None,
                 });
             }
-            if self.structured_extraction.is_none() {
-                self.structured_extraction = Some(super::super::llm::StructuredExtractionConfig {
-                    schema: serde_json::Value::Object(Default::default()),
-                    schema_name: "extraction".to_string(),
-                    schema_description: None,
-                    strict: false,
-                    prompt: None,
-                    llm: super::super::llm::LlmConfig {
-                        model: String::new(),
-                        api_key: None,
-                        base_url: Some(value),
-                        ..Default::default()
-                    },
-                });
-            } else if let Some(ref mut config) = self.structured_extraction {
+            if let Some(ref mut config) = self.structured_extraction {
                 config.llm.base_url = Some(value);
             }
         }
@@ -593,8 +582,10 @@ mod tests {
         clear_llm_cred_env();
     }
 
-    /// The forwarding must never fabricate a VLM config: without one, the LLM cred
-    /// env vars only reach structured extraction, not OCR (issue #1339).
+    /// The forwarding must never fabricate a VLM config: a credential in the
+    /// environment configures an OCR path that is already enabled, and never turns
+    /// one on (issue #1339). The same rule now holds for structured extraction —
+    /// see `llm_cred_env_does_not_enable_structured_extraction` (issue #1421).
     #[test]
     fn llm_cred_env_does_not_create_vlm_config() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -608,6 +599,71 @@ mod tests {
             config.ocr.as_ref().and_then(|o| o.vlm_config.as_ref()).is_none(),
             "VLM config must not be auto-created from LLM cred env vars"
         );
+        clear_llm_cred_env();
+    }
+
+    /// Regression test for issue #1421. `config.structured_extraction.is_some()` is
+    /// the *only* gate the pipeline consults (`core/pipeline/mod.rs`), so fabricating
+    /// the config from a credential registered a post-processor that had neither a
+    /// model nor a schema and failed on every single document with
+    /// "model must not be empty". A key in the environment must leave the feature off.
+    #[test]
+    fn llm_cred_env_does_not_enable_structured_extraction() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_llm_cred_env();
+        unsafe {
+            std::env::set_var("XBERG_LLM_API_KEY", "sk-test-key");
+            std::env::set_var("XBERG_LLM_BASE_URL", "https://eu.api.openai.com/v1/");
+        }
+        let mut config = ExtractionConfig::default();
+        config.apply_env_overrides().expect("env overrides should apply");
+        assert!(
+            config.structured_extraction.is_none(),
+            "a credential and an endpoint must not enable structured extraction; \
+             got {:?}",
+            config.structured_extraction
+        );
+        clear_llm_cred_env();
+    }
+
+    /// The other half of #1421: suppressing the fabrication must not stop the
+    /// credential reaching a structured extraction the user actually asked for.
+    #[test]
+    fn llm_cred_env_applies_to_existing_structured_extraction() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        clear_llm_cred_env();
+        unsafe {
+            std::env::set_var("XBERG_LLM_API_KEY", "sk-test-key");
+            std::env::set_var("XBERG_LLM_BASE_URL", "https://eu.api.openai.com/v1/");
+        }
+        let mut config = ExtractionConfig {
+            structured_extraction: Some(crate::core::config::StructuredExtractionConfig {
+                schema: serde_json::json!({"type": "object"}),
+                schema_name: "invoice".to_string(),
+                schema_description: None,
+                strict: false,
+                prompt: None,
+                llm: crate::core::config::LlmConfig {
+                    model: "openai/gpt-4o".to_string(),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        };
+        config.apply_env_overrides().expect("env overrides should apply");
+        let structured = config
+            .structured_extraction
+            .expect("structured extraction stays enabled");
+        assert_eq!(structured.llm.api_key.as_deref(), Some("sk-test-key"));
+        assert_eq!(
+            structured.llm.base_url.as_deref(),
+            Some("https://eu.api.openai.com/v1/")
+        );
+        assert_eq!(
+            structured.llm.model, "openai/gpt-4o",
+            "the configured model must survive"
+        );
+        assert_eq!(structured.schema_name, "invoice", "the configured schema must survive");
         clear_llm_cred_env();
     }
 

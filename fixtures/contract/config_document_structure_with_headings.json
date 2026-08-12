@@ -1,47 +1,58 @@
 {
-	"id": "config_document_structure_with_headings",
-	"description": "Tests document structure with DOCX heading-driven nesting",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests document structure with DOCX heading-driven nesting",
-		"description": "Tests document structure with DOCX heading-driven nesting",
-		"side_effects": "server"
-	},
-	"tags": ["contract", "document_structure"],
-	"call": "extract",
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/docx/fake.docx",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/docx/fake.docx"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/docx/fake.docx"
-		}
-	},
-	"assertions": [
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-		},
-		{
-			"type": "not_empty",
-			"field": "results[0].document"
-		},
-		{
-			"type": "count_min",
-			"field": "results[0].document.nodes",
-			"value": 1
-		}
-	],
-	"config": {
-		"include_document_structure": true
-	}
+  "id": "config_document_structure_with_headings",
+  "description": "Tests document structure with DOCX heading-driven nesting",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests document structure with DOCX heading-driven nesting",
+    "description": "Tests document structure with DOCX heading-driven nesting",
+    "presentation": {
+      "operations": [
+        {
+          "op": "show",
+          "path": "results[0].document_structure"
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "document_structure"
+  ],
+  "call": "extract",
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/docx/fake.docx",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/docx/fake.docx"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/docx/fake.docx"
+    }
+  },
+  "assertions": [
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    },
+    {
+      "type": "not_empty",
+      "field": "results[0].document"
+    },
+    {
+      "type": "count_min",
+      "field": "results[0].document.nodes",
+      "value": 1
+    }
+  ],
+  "config": {
+    "include_document_structure": true
+  }
 }

@@ -12,7 +12,7 @@ unregister_tokenizer_backend
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     TokenizerBackendBridge.unregister("test-tokenizer-backend")
 }
 

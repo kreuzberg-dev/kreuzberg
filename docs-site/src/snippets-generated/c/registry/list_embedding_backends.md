@@ -18,7 +18,7 @@ List embedding backends
 #include "xberg.h"
 
 int main(void) {
-    XBERGListEmbeddingBackends* result = list_embedding_backends("{}");
+    XBERGListEmbeddingBackends* result = xberg_list_embedding_backends("{}");
     xberg_list_embedding_backends_free(result);
     return EXIT_SUCCESS;
 }

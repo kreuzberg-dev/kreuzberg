@@ -12,7 +12,7 @@ Clear all post-processors and verify list is empty
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     PostProcessorBridge.clearAll()
 }
 

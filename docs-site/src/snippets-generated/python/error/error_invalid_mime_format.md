@@ -15,9 +15,14 @@ from pathlib import Path
 from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 
 async def main() -> None:
-    input = ExtractInput(bytes=Path("test_documents/text/plain.txt").read_bytes(), config={}, filename="plain.txt", kind=ExtractInputKind("bytes"), mime_type="not-a-mime")
-    config = ExtractionConfig()
-    _ = await extract(input, config)
+    try:
+        input = ExtractInput(bytes=Path("test_documents/text/plain.txt").read_bytes(), config={}, filename="plain.txt", kind=ExtractInputKind("bytes"), mime_type="not-a-mime")
+        config = ExtractionConfig()
+        result = await extract(input, config)
+    except Exception as error:
+        print(f"Call failed as expected: {error}")
+    else:
+        raise AssertionError("expected call to fail")
 
 asyncio.run(main())
 

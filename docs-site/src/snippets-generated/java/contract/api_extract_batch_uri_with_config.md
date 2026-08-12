@@ -15,6 +15,9 @@ import io.xberg.*;
 public final class Example {
     public static void main(String[] args) throws Exception {
         var result = Xberg.extractBatch(java.util.Arrays.asList(JsonUtil.fromJson("{\"config\":{\"output_format\":\"markdown\"},\"kind\":\"uri\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}", ExtractInput.class)), ExtractionConfig.builder().build());
+        for (var result : result.results()) {
+            System.out.println(result.content());
+        }
     }
 }
 

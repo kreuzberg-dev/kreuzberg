@@ -15,7 +15,8 @@ import asyncio
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/pdf/fake_memo.pdf")
     config = ExtractionConfig(structured_extraction={"llm": {"model": "openai/gpt-4o"}, "schema": {"properties": {"date": {"type": "string"}, "summary": {"type": "string"}, "title": {"type": "string"}}, "required": ["title"], "type": "object"}, "schema_name": "memo_data"})
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    print(result.results[0].structured_data)
 
 asyncio.run(main())
 

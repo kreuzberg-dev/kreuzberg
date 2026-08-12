@@ -272,7 +272,7 @@ extension UInt8: Vectorizable {
         __swift_bridge__$Vec_u8$len(vecPtr)
     }
 }
-
+    
 extension UInt16: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_u16$new()
@@ -321,7 +321,7 @@ extension UInt16: Vectorizable {
         __swift_bridge__$Vec_u16$len(vecPtr)
     }
 }
-
+    
 extension UInt32: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_u32$new()
@@ -370,7 +370,7 @@ extension UInt32: Vectorizable {
         __swift_bridge__$Vec_u32$len(vecPtr)
     }
 }
-
+    
 extension UInt64: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_u64$new()
@@ -419,7 +419,7 @@ extension UInt64: Vectorizable {
         __swift_bridge__$Vec_u64$len(vecPtr)
     }
 }
-
+    
 extension UInt: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_usize$new()
@@ -468,7 +468,7 @@ extension UInt: Vectorizable {
         __swift_bridge__$Vec_usize$len(vecPtr)
     }
 }
-
+    
 extension Int8: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_i8$new()
@@ -517,7 +517,7 @@ extension Int8: Vectorizable {
         __swift_bridge__$Vec_i8$len(vecPtr)
     }
 }
-
+    
 extension Int16: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_i16$new()
@@ -566,7 +566,7 @@ extension Int16: Vectorizable {
         __swift_bridge__$Vec_i16$len(vecPtr)
     }
 }
-
+    
 extension Int32: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_i32$new()
@@ -615,7 +615,7 @@ extension Int32: Vectorizable {
         __swift_bridge__$Vec_i32$len(vecPtr)
     }
 }
-
+    
 extension Int64: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_i64$new()
@@ -664,7 +664,7 @@ extension Int64: Vectorizable {
         __swift_bridge__$Vec_i64$len(vecPtr)
     }
 }
-
+    
 extension Int: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_isize$new()
@@ -713,7 +713,7 @@ extension Int: Vectorizable {
         __swift_bridge__$Vec_isize$len(vecPtr)
     }
 }
-
+    
 extension Bool: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_bool$new()
@@ -762,7 +762,7 @@ extension Bool: Vectorizable {
         __swift_bridge__$Vec_bool$len(vecPtr)
     }
 }
-
+    
 extension Float: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_f32$new()
@@ -811,7 +811,7 @@ extension Float: Vectorizable {
         __swift_bridge__$Vec_f32$len(vecPtr)
     }
 }
-
+    
 extension Double: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
         __swift_bridge__$Vec_f64$new()
@@ -860,11 +860,11 @@ extension Double: Vectorizable {
         __swift_bridge__$Vec_f64$len(vecPtr)
     }
 }
-
+    
 protocol SwiftBridgeGenericFreer {
     func rust_free();
 }
-
+    
 protocol SwiftBridgeGenericCopyTypeFfiRepr {}
 
 public struct __private__UncheckedSendable<T>: @unchecked Sendable {
@@ -1037,7 +1037,7 @@ extension RustResult {
             return err
         }
     }
-
+    
     func toResult() -> Result<T, E>
     where E: Error {
         switch self {
@@ -1053,7 +1053,7 @@ extension RustResult {
 extension __private__OptionU8 {
     func intoSwiftRepr() -> Optional<UInt8> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1061,22 +1061,22 @@ extension __private__OptionU8 {
 
     init(_ val: Optional<UInt8>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == UInt8 {
     func intoFfiRepr() -> __private__OptionU8 {
-        __private__OptionU8(self)
+        __private__OptionU8(self) 
     }
 }
 
 extension __private__OptionI8 {
     func intoSwiftRepr() -> Optional<Int8> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1084,22 +1084,22 @@ extension __private__OptionI8 {
 
     init(_ val: Optional<Int8>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Int8 {
     func intoFfiRepr() -> __private__OptionI8 {
-        __private__OptionI8(self)
+        __private__OptionI8(self) 
     }
 }
 
 extension __private__OptionU16 {
     func intoSwiftRepr() -> Optional<UInt16> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1107,22 +1107,22 @@ extension __private__OptionU16 {
 
     init(_ val: Optional<UInt16>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == UInt16 {
     func intoFfiRepr() -> __private__OptionU16 {
-        __private__OptionU16(self)
+        __private__OptionU16(self) 
     }
 }
 
 extension __private__OptionI16 {
     func intoSwiftRepr() -> Optional<Int16> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1130,22 +1130,22 @@ extension __private__OptionI16 {
 
     init(_ val: Optional<Int16>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Int16 {
     func intoFfiRepr() -> __private__OptionI16 {
-        __private__OptionI16(self)
+        __private__OptionI16(self) 
     }
 }
 
 extension __private__OptionU32 {
     func intoSwiftRepr() -> Optional<UInt32> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1153,22 +1153,22 @@ extension __private__OptionU32 {
 
     init(_ val: Optional<UInt32>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == UInt32 {
     func intoFfiRepr() -> __private__OptionU32 {
-        __private__OptionU32(self)
+        __private__OptionU32(self) 
     }
 }
 
 extension __private__OptionI32 {
     func intoSwiftRepr() -> Optional<Int32> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1176,22 +1176,22 @@ extension __private__OptionI32 {
 
     init(_ val: Optional<Int32>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Int32 {
     func intoFfiRepr() -> __private__OptionI32 {
-        __private__OptionI32(self)
+        __private__OptionI32(self) 
     }
 }
 
 extension __private__OptionU64 {
     func intoSwiftRepr() -> Optional<UInt64> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1199,22 +1199,22 @@ extension __private__OptionU64 {
 
     init(_ val: Optional<UInt64>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == UInt64 {
     func intoFfiRepr() -> __private__OptionU64 {
-        __private__OptionU64(self)
+        __private__OptionU64(self) 
     }
 }
 
 extension __private__OptionI64 {
     func intoSwiftRepr() -> Optional<Int64> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1222,22 +1222,22 @@ extension __private__OptionI64 {
 
     init(_ val: Optional<Int64>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Int64 {
     func intoFfiRepr() -> __private__OptionI64 {
-        __private__OptionI64(self)
+        __private__OptionI64(self) 
     }
 }
 
 extension __private__OptionUsize {
     func intoSwiftRepr() -> Optional<UInt> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1245,22 +1245,22 @@ extension __private__OptionUsize {
 
     init(_ val: Optional<UInt>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == UInt {
     func intoFfiRepr() -> __private__OptionUsize {
-        __private__OptionUsize(self)
+        __private__OptionUsize(self) 
     }
 }
 
 extension __private__OptionIsize {
     func intoSwiftRepr() -> Optional<Int> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1268,22 +1268,22 @@ extension __private__OptionIsize {
 
     init(_ val: Optional<Int>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123, is_some: false)
+            self = Self(val: 123, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Int {
     func intoFfiRepr() -> __private__OptionIsize {
-        __private__OptionIsize(self)
+        __private__OptionIsize(self) 
     }
 }
 
 extension __private__OptionF32 {
     func intoSwiftRepr() -> Optional<Float> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1291,22 +1291,22 @@ extension __private__OptionF32 {
 
     init(_ val: Optional<Float>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123.4, is_some: false)
+            self = Self(val: 123.4, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Float {
     func intoFfiRepr() -> __private__OptionF32 {
-        __private__OptionF32(self)
+        __private__OptionF32(self) 
     }
 }
 
 extension __private__OptionF64 {
     func intoSwiftRepr() -> Optional<Double> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1314,22 +1314,22 @@ extension __private__OptionF64 {
 
     init(_ val: Optional<Double>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: 123.4, is_some: false)
+            self = Self(val: 123.4, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Double {
     func intoFfiRepr() -> __private__OptionF64 {
-        __private__OptionF64(self)
+        __private__OptionF64(self) 
     }
 }
 
 extension __private__OptionBool {
     func intoSwiftRepr() -> Optional<Bool> {
         if self.is_some {
-            return self.val
+            return self.val 
         } else {
             return nil
         }
@@ -1337,14 +1337,14 @@ extension __private__OptionBool {
 
     init(_ val: Optional<Bool>) {
         if let val = val {
-            self = Self(val: val, is_some: true)
+            self = Self(val: val, is_some: true) 
         } else {
-            self = Self(val: false, is_some: false)
+            self = Self(val: false, is_some: false) 
         }
     }
 }
 extension Optional where Wrapped == Bool {
     func intoFfiRepr() -> __private__OptionBool {
-        __private__OptionBool(self)
+        __private__OptionBool(self) 
     }
 }

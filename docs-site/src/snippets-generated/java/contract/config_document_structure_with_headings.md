@@ -19,6 +19,7 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"include_document_structure\":true}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        System.out.println(result.results().get(0).documentStructure());
     }
 }
 

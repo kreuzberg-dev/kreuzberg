@@ -12,7 +12,7 @@ List all registered post-processors
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     val result = Xberg.listPostProcessors()
 }
 

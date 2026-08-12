@@ -21,6 +21,7 @@ var inputJson = "{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"filename\":\"fake_memo.pdf
 inputJson = inputJson.replace("__ALEF_DOC_FILE_0__", inputFile0);
 var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var result = Xberg.extract(input, ExtractionConfig.builder().build());
+        System.out.println(result);
     }
 }
 

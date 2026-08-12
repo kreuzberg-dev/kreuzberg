@@ -16,7 +16,8 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/pdf/fake_memo.pdf")
     config = ExtractionConfig(enable_quality_processing=True)
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    print(result.results[0].quality_score)
 
 asyncio.run(main())
 

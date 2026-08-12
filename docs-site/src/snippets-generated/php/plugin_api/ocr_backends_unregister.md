@@ -12,6 +12,10 @@ Unregister nonexistent OCR backend gracefully
 ```php title="PHP"
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 use Xberg\Xberg;
 Xberg::unregisterOcrBackend("nonexistent-backend-xyz");
 

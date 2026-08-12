@@ -14,6 +14,11 @@ import { ExtractInput, ExtractInputKind, extract } from "@xberg-io/xberg-wasm";
 async function main() {
   const input: WasmExtractInput = (() => { const _u0 = WasmExtractInput.default(); _u0.kind = ExtractInputKind.Uri; _u0.uri = "https://example.com/docx/unit_test_headers.docx"; return _u0; })();
   const result = await extract(input, { resultFormat: "element_based" });
+  const [first] = result.results ?? [];
+  for (const element of first?.elements) {
+    console.log(element.elementType);
+    console.log(element.content);
+  }
 }
 
 void main();

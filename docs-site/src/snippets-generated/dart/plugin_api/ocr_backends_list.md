@@ -11,8 +11,14 @@ List all registered OCR backends
 
 ```dart title="Dart"
 import 'package:xberg/xberg.dart';
+import 'package:xberg/src/xberg_bridge_generated/frb_generated.dart' show RustLib;
 Future<void> main() async {
-  final result = await XbergBridge.listOcrBackends();
+  await RustLib.init();
+  try {
+    final result = await XbergBridge.listOcrBackends();
+  } finally {
+    RustLib.dispose();
+  }
 }
 
 ```

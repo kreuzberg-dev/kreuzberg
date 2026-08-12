@@ -19,6 +19,7 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"chunking\":{\"embedding\":{\"max_embed_duration_secs\":30,\"model\":{\"name\":\"test-plugin-backend\",\"type\":\"plugin\"},\"normalize\":true},\"max_chars\":500,\"max_overlap\":50}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        System.out.println(result);
     }
 }
 

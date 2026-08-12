@@ -16,7 +16,8 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/docx/fake.docx")
     config = ExtractionConfig(include_document_structure=True)
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    print(result.results[0].document_structure)
 
 asyncio.run(main())
 

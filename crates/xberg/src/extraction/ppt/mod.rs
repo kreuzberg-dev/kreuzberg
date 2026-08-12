@@ -6,7 +6,9 @@
 //! Supports PowerPoint 97, 2000, XP, and 2003 (.ppt) files.
 
 use crate::error::{Result, XbergError};
-use crate::types::ProcessingWarning;
+use crate::types::{ExtractedImage, ProcessingWarning};
+use bytes::Bytes;
+use std::borrow::Cow;
 use std::io::Cursor;
 
 /// Warning source tag for `.ppt` extraction diagnostics (#171 convention).
@@ -15,17 +17,42 @@ const PPT_WARNING_SOURCE: &str = "ppt";
 /// Result of PPT text extraction.
 #[cfg_attr(alef, alef(skip))]
 pub struct PptExtractionResult {
-    /// Extracted text content, with slides separated by double newlines.
+    /// Full document text: every slide's text joined by double newlines,
+    /// kept for diagnostics/plain-text consumers. Slide *structure* (numbers,
+    /// per-slide boundaries) must come from `slides`, not from re-splitting
+    /// this string (see #1418 -- a slide's own text can itself contain an
+    /// internal "\n\n", which makes re-splitting on it ambiguous).
     pub text: String,
+    /// Per-slide text, in persist order. `number` is the slide's 1-based
+    /// position among `RT_SLIDE` containers as they occur in the
+    /// "PowerPoint Document" stream -- the same order `slide_count` counts.
+    /// A slide with no text atoms still gets an entry (with an empty
+    /// `text`), so slide numbers stay contiguous with the real deck.
+    pub slides: Vec<PptSlideText>,
     /// Number of slides found.
     pub slide_count: usize,
     /// Document metadata.
     pub metadata: PptMetadata,
     /// Speaker notes text per slide (if available).
     pub speaker_notes: Vec<String>,
+    /// Pictures recovered from the OLE `Pictures` stream (raw
+    /// `OfficeArtBlip` payloads). Empty when the deck has no `Pictures`
+    /// stream, the stream is empty, or image extraction was not requested.
+    pub images: Vec<ExtractedImage>,
     /// Non-fatal degradations encountered while extracting (see
     /// `core::diagnostics`). Empty when extraction was complete.
     pub processing_warnings: Vec<ProcessingWarning>,
+}
+
+/// One slide's text, numbered by its position in the deck's own persist
+/// order rather than by the position of a text block in a joined string.
+#[cfg_attr(alef, alef(skip))]
+pub struct PptSlideText {
+    /// 1-based slide number, as encountered in persist order.
+    pub number: u32,
+    /// The slide's text (its atoms joined by `\n`). Empty for a slide with
+    /// no text.
+    pub text: String,
 }
 
 /// Metadata extracted from PPT files.
@@ -53,6 +80,21 @@ const RT_SLIDE: u16 = 0x03EE;
 const RT_MAIN_MASTER: u16 = 0x03F8;
 const RT_NOTES: u16 = 0x03F0;
 
+/// `OfficeArtBlip` record types for the raster formats a `Pictures` stream
+/// can hold (MS-ODRAW 2.2.23). `RT_BLIP_JPEG_ALT` (0xF02A) is an alternate
+/// `recType` documented for JPEG blips written by older Office versions; it
+/// uses the same `OfficeArtBlipJPEG` layout as 0xF01D.
+const RT_BLIP_JPEG: u16 = 0xF01D;
+const RT_BLIP_JPEG_ALT: u16 = 0xF02A;
+const RT_BLIP_PNG: u16 = 0xF01E;
+const RT_BLIP_DIB: u16 = 0xF01F;
+
+/// Maximum accepted size for a single embedded picture (100 MB), mirroring
+/// the DOCX/PPTX image cap (`crate::extraction::docx::MAX_IMAGE_FILE_SIZE`).
+/// Bounds allocation from a hostile `recLen` in the untrusted `Pictures`
+/// stream.
+const MAX_PICTURE_SIZE: usize = 100 * 1024 * 1024;
+
 /// Extract text from PPT bytes.
 ///
 /// Parses the OLE/CFB compound document, reads the "PowerPoint Document" stream,
@@ -62,16 +104,21 @@ const RT_NOTES: u16 = 0x03F0;
 /// like "Click to edit Master title style") is included instead of being skipped.
 #[cfg(test)]
 pub(crate) fn extract_ppt_text(content: &[u8]) -> Result<PptExtractionResult> {
-    extract_ppt_text_with_options(content, false)
+    extract_ppt_text_with_options(content, false, true)
 }
 
-/// Extract text from PPT bytes with configurable master slide inclusion.
+/// Extract text from PPT bytes with configurable master slide inclusion and
+/// image extraction.
 ///
 /// When `include_master_slides` is `true`, `RT_MAIN_MASTER` containers are not
 /// skipped, so master slide placeholder text is included in the output.
+///
+/// When `extract_images` is `true`, the OLE `Pictures` stream (if present)
+/// is walked for embedded raster images (#1417).
 pub(crate) fn extract_ppt_text_with_options(
     content: &[u8],
     include_master_slides: bool,
+    extract_images: bool,
 ) -> Result<PptExtractionResult> {
     let cursor = Cursor::new(content);
     let mut comp = cfb::CompoundFile::open(cursor)
@@ -85,27 +132,59 @@ pub(crate) fn extract_ppt_text_with_options(
     }
 
     let mut processing_warnings = Vec::new();
-    let (texts, slide_count, speaker_notes) =
+    let (mut slides, loose_texts, speaker_notes) =
         extract_texts_from_records(&ppt_stream, include_master_slides, &mut processing_warnings)?;
 
-    let text = texts
-        .into_iter()
+    // Computed from the pre-fallback data so `loose_texts` is never counted
+    // twice below (once here, once folded into the synthetic slide).
+    let text = slides
+        .iter()
+        .map(|s| s.text.as_str())
+        .chain(loose_texts.iter().map(String::as_str))
         .filter(|t| !t.trim().is_empty())
         .collect::<Vec<_>>()
         .join("\n\n");
 
+    // Defensive fallback for a stream with no `RT_SLIDE` containers at all
+    // but with top-level text outside any slide/notes container: surface it
+    // as a single synthetic slide rather than dropping it (matches the
+    // pre-existing `slide_count == 0` fallback).
+    if slides.is_empty() && !loose_texts.is_empty() {
+        slides.push(PptSlideText {
+            number: 1,
+            text: loose_texts.join("\n"),
+        });
+    }
+    let slide_count = slides.len();
+
+    let images = if extract_images {
+        match read_stream(&mut comp, "/Pictures") {
+            Ok(pictures_stream) if !pictures_stream.is_empty() => {
+                extract_pictures_from_stream(&pictures_stream, &mut processing_warnings)
+            }
+            _ => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+
     Ok(PptExtractionResult {
         text: text.trim().to_string(),
+        slides,
         slide_count,
         metadata,
         speaker_notes,
+        images,
         processing_warnings,
     })
 }
 
 /// Parse PowerPoint record headers and extract text atoms.
 ///
-/// Returns `(slide_texts, slide_count, speaker_notes)`.
+/// Returns `(slides, loose_texts, speaker_notes)`, where `slides` carries
+/// one entry per `RT_SLIDE` container in persist order (including empty
+/// slides), and `loose_texts` carries text found outside any slide/notes
+/// container (rare, but preserved for the `slide_count == 0` fallback).
 ///
 /// When `include_master_slides` is `true`, master slide containers are not
 /// skipped, allowing their placeholder text to appear in the output.
@@ -113,9 +192,10 @@ fn extract_texts_from_records(
     data: &[u8],
     include_master_slides: bool,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<(Vec<String>, usize, Vec<String>)> {
-    let mut texts = Vec::new();
-    let mut slide_count = 0;
+) -> Result<(Vec<PptSlideText>, Vec<String>, Vec<String>)> {
+    let mut slides: Vec<PptSlideText> = Vec::new();
+    let mut loose_texts = Vec::new();
+    let mut current_slide_number: u32 = 0;
     let mut pos = 0;
     let mut in_slide_text = false;
     let mut slide_end: Option<usize> = None;
@@ -134,10 +214,14 @@ fn extract_texts_from_records(
         if let Some(end) = slide_end
             && pos >= end
         {
-            if !current_slide_texts.is_empty() {
-                texts.push(current_slide_texts.join("\n"));
-                current_slide_texts.clear();
-            }
+            // Push even when empty: a slide with no text atoms still exists
+            // and must keep its persist-order number (#1418), rather than
+            // vanishing and shifting every later slide's number down.
+            slides.push(PptSlideText {
+                number: current_slide_number,
+                text: current_slide_texts.join("\n"),
+            });
+            current_slide_texts.clear();
             in_slide_text = false;
             slide_end = None;
         }
@@ -176,13 +260,16 @@ fn extract_texts_from_records(
 
         match rec_type {
             RT_SLIDE => {
-                if in_slide_text && !current_slide_texts.is_empty() {
-                    texts.push(current_slide_texts.join("\n"));
+                if in_slide_text {
+                    slides.push(PptSlideText {
+                        number: current_slide_number,
+                        text: current_slide_texts.join("\n"),
+                    });
                     current_slide_texts.clear();
                 }
+                current_slide_number += 1;
                 in_slide_text = true;
                 slide_end = Some(content_end);
-                slide_count += 1;
                 pos += 8;
                 continue;
             }
@@ -220,7 +307,7 @@ fn extract_texts_from_records(
                         if in_slide_text {
                             current_slide_texts.push(cleaned);
                         } else if !in_notes {
-                            texts.push(cleaned);
+                            loose_texts.push(cleaned);
                         }
                     }
                 }
@@ -239,7 +326,7 @@ fn extract_texts_from_records(
                         if in_slide_text {
                             current_slide_texts.push(cleaned);
                         } else if !in_notes {
-                            texts.push(cleaned);
+                            loose_texts.push(cleaned);
                         }
                     }
                 }
@@ -256,8 +343,14 @@ fn extract_texts_from_records(
         }
     }
 
-    if !current_slide_texts.is_empty() {
-        texts.push(current_slide_texts.join("\n"));
+    // The stream ended while still inside a slide's declared byte range
+    // (e.g. a truncated record broke the walk early): still record it,
+    // rather than silently dropping the last slide's text and number.
+    if in_slide_text {
+        slides.push(PptSlideText {
+            number: current_slide_number,
+            text: current_slide_texts.join("\n"),
+        });
     }
 
     if !current_notes_texts.is_empty() {
@@ -268,11 +361,126 @@ fn extract_texts_from_records(
         }
     }
 
-    if slide_count == 0 && !texts.is_empty() {
-        slide_count = 1;
+    Ok((slides, loose_texts, speaker_notes))
+}
+
+/// Walk a `Pictures` stream (a flat run of `OfficeArtBlip` records, MS-ODRAW
+/// 2.2.23) and emit one `ExtractedImage` per raster blip.
+///
+/// Only the raster formats stored as `rgbUid` + optional second `rgbUid` +
+/// `tag` + `BLIPFileData` are handled: JPEG (0xF01D / the alternate 0xF02A),
+/// PNG (0xF01E), and DIB (0xF01F). Metafile blips (EMF/WMF/PICT) use a
+/// different, larger header and are not raster images; they are skipped.
+///
+/// Every length is validated against the remaining buffer before slicing,
+/// so a hostile `recLen` can only shrink the walk (skip a record or stop
+/// early), never over-read or allocate unboundedly.
+fn extract_pictures_from_stream(data: &[u8], warnings: &mut Vec<ProcessingWarning>) -> Vec<ExtractedImage> {
+    let mut images = Vec::new();
+    let mut pos = 0usize;
+    let mut image_index: u32 = 0;
+
+    while pos + 8 <= data.len() {
+        let rec_ver_instance = u16::from_le_bytes([data[pos], data[pos + 1]]);
+        // recInstance occupies the upper 12 bits of the packed 16-bit field
+        // (recVer, the low 4 bits, is checked nowhere here -- MS-ODRAW
+        // requires it to be 0 for blips, but a non-zero value doesn't change
+        // where the UID/tag/data fields are).
+        let rec_instance = rec_ver_instance >> 4;
+        let rec_type = u16::from_le_bytes([data[pos + 2], data[pos + 3]]);
+        let rec_len = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]) as usize;
+
+        let remaining = data.len() - (pos + 8);
+        if rec_len > remaining {
+            crate::core::diagnostics::push_warning(
+                warnings,
+                PPT_WARNING_SOURCE,
+                "Pictures stream ended with a truncated record; the remaining embedded images were not extracted",
+            );
+            break;
+        }
+
+        let content_start = pos + 8;
+        let content_end = content_start + rec_len;
+
+        let format: Option<Cow<'static, str>> = match rec_type {
+            RT_BLIP_JPEG | RT_BLIP_JPEG_ALT => Some(Cow::Borrowed("jpeg")),
+            RT_BLIP_PNG => Some(Cow::Borrowed("png")),
+            RT_BLIP_DIB => Some(Cow::Borrowed("dib")),
+            _ => None,
+        };
+
+        if let Some(format) = format {
+            // One `rgbUid` (16 bytes) + `tag` (1 byte) = 17-byte header, or
+            // two `rgbUid`s + `tag` = 33 bytes; per MS-ODRAW 2.2.27-2.2.29
+            // the low bit of `recInstance` is what distinguishes the two
+            // UID counts for every raster blip type (e.g. JPEG 0x46A vs
+            // 0x46B, PNG 0x6E0 vs 0x6E1, DIB 0x7A8 vs 0x7A9).
+            let header_len = if rec_instance & 0x1 == 1 { 33 } else { 17 };
+
+            if rec_len < header_len {
+                crate::core::diagnostics::push_warning(
+                    warnings,
+                    PPT_WARNING_SOURCE,
+                    format!(
+                        "Blip record at offset {pos} (recLen={rec_len}) is shorter than its UID header \
+                         ({header_len} bytes); skipped"
+                    ),
+                );
+                pos = content_end;
+                continue;
+            }
+
+            let picture_len = rec_len - header_len;
+            if picture_len == 0 {
+                pos = content_end;
+                continue;
+            }
+
+            if picture_len > MAX_PICTURE_SIZE {
+                crate::core::diagnostics::push_warning(
+                    warnings,
+                    PPT_WARNING_SOURCE,
+                    format!(
+                        "Embedded picture at offset {pos} ({picture_len} bytes) exceeds the \
+                         {MAX_PICTURE_SIZE}-byte size cap and was skipped"
+                    ),
+                );
+                pos = content_end;
+                continue;
+            }
+
+            let picture_start = content_start + header_len;
+            let picture_bytes = &data[picture_start..content_end];
+
+            images.push(ExtractedImage {
+                data: Bytes::copy_from_slice(picture_bytes),
+                format,
+                image_index,
+                page_number: None,
+                width: None,
+                height: None,
+                colorspace: None,
+                bits_per_component: None,
+                is_mask: false,
+                description: None,
+                ocr_result: None,
+                bounding_box: None,
+                source_path: None,
+                image_kind: None,
+                kind_confidence: None,
+                cluster_id: None,
+                caption: None,
+                qr_codes: None,
+                data_base64: None,
+            });
+            image_index += 1;
+        }
+
+        pos = content_end;
     }
 
-    Ok((texts, slide_count, speaker_notes))
+    images
 }
 
 /// Clean PPT text: replace control characters and normalize whitespace.
@@ -554,14 +762,19 @@ mod tests {
         data.extend_from_slice(&slide2);
 
         let mut warnings = Vec::new();
-        let (texts, slide_count, notes) =
+        let (slides, loose_texts, notes) =
             extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
 
         assert_eq!(
-            slide_count, 2,
+            slides.len(),
+            2,
             "each Slide container is one slide, not each SlideListWithText"
         );
-        assert_eq!(texts, vec!["Slide One".to_string(), "Slide Two".to_string()]);
+        assert_eq!(slides[0].number, 1);
+        assert_eq!(slides[0].text, "Slide One");
+        assert_eq!(slides[1].number, 2);
+        assert_eq!(slides[1].text, "Slide Two");
+        assert!(loose_texts.is_empty());
         assert!(notes.is_empty());
         assert!(warnings.is_empty(), "well-formed records should not warn: {warnings:?}");
     }
@@ -578,11 +791,313 @@ mod tests {
         data.extend_from_slice(&slide1);
 
         let mut warnings = Vec::new();
-        let (texts, slide_count, speaker_notes) =
+        let (slides, loose_texts, speaker_notes) =
             extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
 
-        assert_eq!(slide_count, 1);
-        assert_eq!(texts, vec!["Slide One".to_string()]);
+        assert_eq!(slides.len(), 1);
+        assert_eq!(slides[0].number, 1);
+        assert_eq!(slides[0].text, "Slide One");
+        assert!(loose_texts.is_empty());
         assert_eq!(speaker_notes, vec!["Speaker notes".to_string()]);
+    }
+
+    /// #1418: a slide's number must come from its position among `RT_SLIDE`
+    /// containers, not from the position of a text block after joining and
+    /// re-splitting on `"\n\n"`. A slide with no text atoms must still get a
+    /// number instead of vanishing and shifting every later slide down.
+    #[test]
+    fn should_number_slides_by_persist_order_when_a_middle_slide_has_no_text() {
+        let slide1 = container(RT_SLIDE, &text_chars_atom("Slide One"));
+        let slide2 = container(RT_SLIDE, &[]); // no text atoms at all
+        let slide3 = container(RT_SLIDE, &text_chars_atom("Slide Three"));
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&slide1);
+        data.extend_from_slice(&slide2);
+        data.extend_from_slice(&slide3);
+
+        let mut warnings = Vec::new();
+        let (slides, _loose_texts, _notes) =
+            extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
+
+        assert_eq!(
+            slides.len(),
+            3,
+            "the empty middle slide must still produce a slide entry"
+        );
+        assert_eq!(slides[0].number, 1);
+        assert_eq!(slides[0].text, "Slide One");
+        assert_eq!(slides[1].number, 2);
+        assert_eq!(
+            slides[1].text, "",
+            "a slide with no text atoms has empty text, not a missing entry"
+        );
+        assert_eq!(slides[2].number, 3);
+        assert_eq!(slides[2].text, "Slide Three");
+    }
+
+    /// #1418 root-cause regression: a single slide whose own atoms, once
+    /// joined by `clean_ppt_text`'s newline mapping, contain an internal
+    /// `"\n\n"` (a text atom ending in a blank trailing paragraph, i.e. two
+    /// consecutive `\r` paragraph marks) must still be reported as exactly
+    /// one slide. The old algorithm re-split the whole document's text on
+    /// `"\n\n"`, so this single slide's own text was itself indistinguishable
+    /// from a slide boundary.
+    #[test]
+    fn should_keep_one_slide_entry_when_slide_text_contains_internal_blank_line() {
+        // "Title\r\r" -> clean_ppt_text maps \r -> \n, giving "Title\n\n" ->
+        // .lines() folds the trailing terminator, leaving cleaned == "Title\n".
+        let atom_with_trailing_blank_paragraph = text_chars_atom("Title\r\r");
+        let atom_body = text_chars_atom("Body");
+        let mut slide_children = Vec::new();
+        slide_children.extend_from_slice(&atom_with_trailing_blank_paragraph);
+        slide_children.extend_from_slice(&atom_body);
+        let slide1 = container(RT_SLIDE, &slide_children);
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&slide1);
+
+        let mut warnings = Vec::new();
+        let (slides, _loose_texts, _notes) =
+            extract_texts_from_records(&data, false, &mut warnings).expect("record parsing should succeed");
+
+        assert_eq!(
+            slides.len(),
+            1,
+            "one Slide container is one slide, however its joined text looks"
+        );
+        assert_eq!(slides[0].number, 1);
+        assert_eq!(
+            slides[0].text, "Title\n\nBody",
+            "the slide's own text legitimately contains an internal blank line"
+        );
+    }
+
+    /// Build a raster `OfficeArtBlip` record with a single 16-byte UID
+    /// (MS-ODRAW 2.2.27-2.2.29 "one UID" layout: `rgbUid1(16) + tag(1) +
+    /// BLIPFileData`). `rec_instance` must be even per spec (e.g. JPEG
+    /// 0x46A, PNG 0x6E0, DIB 0x7A8).
+    fn blip_record_one_uid(rec_instance: u16, rec_type: u16, picture_bytes: &[u8]) -> Vec<u8> {
+        assert_eq!(rec_instance & 0x1, 0, "one-UID recInstance must be even");
+        let rec_ver_instance = rec_instance << 4;
+        let rec_len = (17 + picture_bytes.len()) as u32;
+        let mut buf = record_header(rec_ver_instance, rec_type, rec_len);
+        buf.extend_from_slice(&[0u8; 16]);
+        buf.push(0xFF);
+        buf.extend_from_slice(picture_bytes);
+        buf
+    }
+
+    /// Build a raster `OfficeArtBlip` record with two 16-byte UIDs
+    /// ("two UID" layout: `rgbUid1(16) + rgbUid2(16) + tag(1) +
+    /// BLIPFileData`). `rec_instance` must be odd per spec (e.g. JPEG
+    /// 0x46B, PNG 0x6E1, DIB 0x7A9).
+    fn blip_record_two_uid(rec_instance: u16, rec_type: u16, picture_bytes: &[u8]) -> Vec<u8> {
+        assert_eq!(rec_instance & 0x1, 1, "two-UID recInstance must be odd");
+        let rec_ver_instance = rec_instance << 4;
+        let rec_len = (33 + picture_bytes.len()) as u32;
+        let mut buf = record_header(rec_ver_instance, rec_type, rec_len);
+        buf.extend_from_slice(&[0u8; 32]);
+        buf.push(0xFF);
+        buf.extend_from_slice(picture_bytes);
+        buf
+    }
+
+    #[test]
+    fn should_extract_jpeg_bytes_when_pictures_stream_has_one_uid_jpeg_blip() {
+        let picture = b"\xFF\xD8\xFFfake-jpeg-payload";
+        let data = blip_record_one_uid(0x46A, RT_BLIP_JPEG, picture);
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].format, "jpeg");
+        assert_eq!(images[0].image_index, 0);
+        assert_eq!(&images[0].data[..], &picture[..]);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_extract_png_bytes_when_pictures_stream_has_two_uid_png_blip() {
+        let picture = b"\x89PNG\r\n\x1a\nfake-png-payload";
+        let data = blip_record_two_uid(0x6E1, RT_BLIP_PNG, picture);
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].format, "png");
+        assert_eq!(&images[0].data[..], &picture[..]);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_extract_dib_bytes_and_tag_format_dib_when_pictures_stream_has_dib_blip() {
+        let picture = b"fake-dib-bitmap-payload";
+        let data = blip_record_one_uid(0x7A8, RT_BLIP_DIB, picture);
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].format, "dib");
+        assert_eq!(&images[0].data[..], &picture[..]);
+    }
+
+    #[test]
+    fn should_assign_sequential_image_index_when_pictures_stream_has_multiple_blips() {
+        let jpeg = blip_record_one_uid(0x46A, RT_BLIP_JPEG, b"jpeg-one");
+        let png = blip_record_one_uid(0x6E0, RT_BLIP_PNG, b"png-two");
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&jpeg);
+        data.extend_from_slice(&png);
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].image_index, 0);
+        assert_eq!(images[0].format, "jpeg");
+        assert_eq!(images[1].image_index, 1);
+        assert_eq!(images[1].format, "png");
+    }
+
+    #[test]
+    fn should_skip_non_blip_records_when_walking_pictures_stream() {
+        // An arbitrary non-blip OfficeArt record (a group shape record,
+        // 0xF003) sitting between two real blips must not be mistaken for a
+        // picture and must not stop the walk.
+        const RT_UNRELATED: u16 = 0xF003;
+        let unrelated = record_header(0x0000, RT_UNRELATED, 4)
+            .into_iter()
+            .chain([1, 2, 3, 4])
+            .collect::<Vec<u8>>();
+        let jpeg = blip_record_one_uid(0x46A, RT_BLIP_JPEG, b"real-jpeg");
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&unrelated);
+        data.extend_from_slice(&jpeg);
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].format, "jpeg");
+    }
+
+    /// Safety: a record whose declared `recLen` overruns the remaining
+    /// buffer must never panic or over-read -- the walk stops and a
+    /// diagnostic warning is recorded instead.
+    #[test]
+    fn should_stop_without_panicking_when_blip_declares_length_past_buffer_end() {
+        let mut data = record_header(0x46A << 4, RT_BLIP_JPEG, u32::MAX);
+        data.extend_from_slice(&[0u8; 4]); // far short of the declared recLen
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert!(images.is_empty());
+        assert!(
+            warnings.iter().any(|w| w.message.contains("truncated")),
+            "expected a truncation warning, got: {warnings:?}"
+        );
+    }
+
+    /// Safety: a blip record declaring fewer bytes than its own UID header
+    /// requires must be skipped, not underflow-subtracted into a bogus
+    /// picture length.
+    #[test]
+    fn should_skip_and_warn_when_blip_declared_length_is_shorter_than_uid_header() {
+        // recLen = 5, far short of the 17-byte one-UID header.
+        let data = record_header(0x46A << 4, RT_BLIP_JPEG, 5)
+            .into_iter()
+            .chain([0u8; 5])
+            .collect::<Vec<u8>>();
+
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&data, &mut warnings);
+
+        assert!(images.is_empty());
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.message.contains("shorter than its UID header")),
+            "expected a UID-header-too-short warning, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn should_return_no_images_when_pictures_stream_is_empty() {
+        let mut warnings = Vec::new();
+        let images = extract_pictures_from_stream(&[], &mut warnings);
+        assert!(images.is_empty());
+        assert!(warnings.is_empty());
+    }
+
+    /// Build a minimal OLE/CFB container with a "PowerPoint Document" stream
+    /// and, optionally, a "Pictures" stream, mirroring what a real `.ppt`
+    /// looks like closely enough to drive `extract_ppt_text_with_options`
+    /// end-to-end. `test_documents/ppt/simple.ppt` has a `Pictures` stream
+    /// but it is empty (verified: 0 bytes), so this synthetic container is
+    /// the only way to exercise the `/Pictures` read path with real blips.
+    fn build_test_ppt_ole(ppt_document_stream: &[u8], pictures_stream: Option<&[u8]>) -> Vec<u8> {
+        use std::io::Write;
+        let cursor = Cursor::new(Vec::new());
+        let mut comp = cfb::CompoundFile::create(cursor).expect("create in-memory OLE container");
+        comp.create_stream("/PowerPoint Document")
+            .expect("create PowerPoint Document stream")
+            .write_all(ppt_document_stream)
+            .expect("write PowerPoint Document stream");
+        if let Some(pictures) = pictures_stream {
+            comp.create_stream("/Pictures")
+                .expect("create Pictures stream")
+                .write_all(pictures)
+                .expect("write Pictures stream");
+        }
+        comp.into_inner().into_inner()
+    }
+
+    #[test]
+    fn should_populate_images_when_pictures_stream_has_a_blip_and_extract_images_is_true() {
+        let ppt_stream = container(RT_SLIDE, &text_chars_atom("Slide One"));
+        let picture = b"\xFF\xD8\xFFsynthetic-jpeg-bytes";
+        let pictures_stream = blip_record_one_uid(0x46A, RT_BLIP_JPEG, picture);
+        let content = build_test_ppt_ole(&ppt_stream, Some(&pictures_stream));
+
+        let result =
+            extract_ppt_text_with_options(&content, false, true).expect("synthetic OLE container should parse");
+
+        assert_eq!(result.images.len(), 1);
+        assert_eq!(result.images[0].format, "jpeg");
+        assert_eq!(result.images[0].data.len(), picture.len());
+        assert_eq!(&result.images[0].data[..], &picture[..]);
+    }
+
+    #[test]
+    fn should_return_no_images_when_extract_images_is_false() {
+        let ppt_stream = container(RT_SLIDE, &text_chars_atom("Slide One"));
+        let pictures_stream = blip_record_one_uid(0x46A, RT_BLIP_JPEG, b"jpeg-bytes");
+        let content = build_test_ppt_ole(&ppt_stream, Some(&pictures_stream));
+
+        let result =
+            extract_ppt_text_with_options(&content, false, false).expect("synthetic OLE container should parse");
+
+        assert!(
+            result.images.is_empty(),
+            "extract_images=false must skip the Pictures stream entirely"
+        );
+    }
+
+    #[test]
+    fn should_return_no_images_when_pictures_stream_is_absent() {
+        let ppt_stream = container(RT_SLIDE, &text_chars_atom("Slide One"));
+        let content = build_test_ppt_ole(&ppt_stream, None);
+
+        let result =
+            extract_ppt_text_with_options(&content, false, true).expect("synthetic OLE container should parse");
+
+        assert!(result.images.is_empty());
     }
 }

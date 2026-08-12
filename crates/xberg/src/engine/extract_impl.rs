@@ -1205,7 +1205,23 @@ async fn output_from_crawl(
 ) -> Result<ExtractionResult> {
     let final_url = crawl.final_url.clone();
     let redirect_count = crawl.redirect_count;
-    let unique_normalized_urls = crawl.normalized_urls.clone();
+    // Derived from `pages`, not from the deprecated `CrawlResult::normalized_urls`.
+    // That field is no longer populated upstream — crawlberg 1.2.x keeps it only to
+    // avoid a breaking field removal and `CrawlResult::new` drops the value on the
+    // floor — so reading it yielded an always-empty `Vec` and silently lost every
+    // crawled URL from the summary. `CrawlResult::unique_normalized_urls()` is the
+    // documented replacement but returns a *count*; `merge_crawl_summary` needs the
+    // strings themselves, so mirror that method's own derivation instead. Dedup here
+    // matches its `AHashSet` semantics while preserving first-seen order. ~keep
+    let unique_normalized_urls = {
+        let mut seen = std::collections::HashSet::new();
+        crawl
+            .pages
+            .iter()
+            .filter(|page| seen.insert(page.normalized_url.as_str()))
+            .map(|page| page.normalized_url.clone())
+            .collect::<Vec<String>>()
+    };
     let crawl_error = crawl.error.clone();
     let mut output = ExtractionResult {
         summary: ExtractionSummary {

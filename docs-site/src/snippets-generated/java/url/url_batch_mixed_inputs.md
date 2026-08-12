@@ -17,6 +17,7 @@ public final class Example {
         var configJson = "{\"url\":{\"mode\":\"document\"}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extractBatch(java.util.Arrays.asList(JsonUtil.fromJson("{\"kind\":\"uri\",\"uri\":\"https://example.com\"}", ExtractInput.class), JsonUtil.fromJson("{\"bytes\":[66,97,116,99,104,32,98,121,116,101,115,32,99,111,110,116,101,110,116],\"filename\":\"inline.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}", ExtractInput.class)), config);
+        System.out.println(result);
     }
 }
 

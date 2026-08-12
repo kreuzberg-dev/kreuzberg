@@ -18,7 +18,7 @@ List post-processors
 #include "xberg.h"
 
 int main(void) {
-    XBERGListPostProcessors* result = list_post_processors("{}");
+    XBERGListPostProcessors* result = xberg_list_post_processors("{}");
     xberg_list_post_processors_free(result);
     return EXIT_SUCCESS;
 }

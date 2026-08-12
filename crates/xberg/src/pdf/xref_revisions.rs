@@ -46,6 +46,16 @@ use crate::types::revisions::{DocumentRevision, RevisionDelta, RevisionKind};
 /// but we cap to keep output size bounded.
 const MAX_REVISIONS: usize = 128;
 
+/// Number of leading bytes of a PDF date string's digit portion that
+/// [`parse_pdf_date_string`] requires to be pure ASCII before it will slice
+/// out a date-only (`YYYYMMDD`) timestamp.
+const DATE_ONLY_ASCII_BYTES: usize = 8;
+
+/// Number of leading bytes of a PDF date string's digit portion that
+/// [`parse_pdf_date_string`] requires to be pure ASCII before it will slice
+/// out a full (`YYYYMMDDHHmmSS`) timestamp.
+const FULL_TIMESTAMP_ASCII_BYTES: usize = 14;
+
 /// Maximum search window (bytes from end of file) when scanning for `startxref`.
 /// Covers even large PDF trailers.
 #[cfg(test)]
@@ -177,12 +187,16 @@ fn extract_lopdf_info_metadata(document: &lopdf::Document) -> (Option<String>, O
 
     let author = info_dict.get(b"Author").ok().and_then(extract_lopdf_string);
 
+    // `parse_pdf_date_string` refuses to reformat a date string that isn't pure
+    // ASCII where it needs to slice (GH#1422). On that error we fall back to the
+    // original (untouched) string rather than surfacing a hard failure — a
+    // malformed date is still useful revision metadata.
     let timestamp = info_dict
         .get(b"ModDate")
         .ok()
         .and_then(extract_lopdf_string)
         .or_else(|| info_dict.get(b"CreationDate").ok().and_then(extract_lopdf_string))
-        .map(|raw| parse_pdf_date_string(&raw));
+        .map(|raw| parse_pdf_date_string(&raw).unwrap_or(raw));
 
     (author, timestamp)
 }
@@ -215,10 +229,41 @@ fn extract_lopdf_string(obj: &lopdf::Object) -> Option<String> {
     }
 }
 
+/// A PDF `/ModDate`/`/CreationDate` string was not pure ASCII in the byte range
+/// [`parse_pdf_date_string`] needs to slice to extract date components.
+///
+/// PDF date strings are ASCII by spec (ISO 32000-1 §7.9.4: `D:YYYYMMDDHHmmSS…`).
+/// [`extract_lopdf_string`] decodes the raw `/Info` bytes with
+/// `String::from_utf8_lossy`, which silently substitutes any invalid byte
+/// sequence with the 3-byte replacement character `U+FFFD`. If that
+/// substitution lands inside the fixed byte offsets this function slices at
+/// (e.g. `&digits[..4]` for the year), the offset no longer falls on a `char`
+/// boundary and slicing would panic — this was GH#1422, which aborted the
+/// whole process (SIGABRT) when the panic crossed the Go FFI/cgo boundary,
+/// since a panic cannot unwind through a non-Rust-created OS thread. We
+/// detect the non-ASCII byte up front and return an error instead of ever
+/// taking the slice.
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "parsing PDF date string failed: the first {required_ascii_bytes} byte(s) of {raw:?} are \
+     not pure ASCII, so slicing them into date components would not land on a char boundary; \
+     this usually means the /Info string was decoded from non-UTF-8 bytes via a lossy \
+     conversion — treat the date as unparseable and fall back to the raw string"
+)]
+struct NonAsciiPdfDateError {
+    /// The original (untruncated) `/ModDate` or `/CreationDate` string.
+    raw: String,
+    /// How many leading bytes of the digit portion were required to be ASCII.
+    required_ascii_bytes: usize,
+}
+
 /// Parse a PDF date string of the form `D:YYYYMMDDHHmmSS…` into ISO-8601.
 ///
-/// On malformed input the raw string is returned unchanged.
-fn parse_pdf_date_string(raw: &str) -> String {
+/// On malformed (too-short) input the raw string is returned unchanged. Returns
+/// [`NonAsciiPdfDateError`] rather than panicking when the region that must be
+/// sliced contains non-ASCII bytes — see that type's documentation for why this
+/// can happen even though PDF dates are nominally ASCII-only.
+fn parse_pdf_date_string(raw: &str) -> Result<String, NonAsciiPdfDateError> {
     let cleaned = raw.trim();
     let digits = if let Some(stripped) = cleaned.strip_prefix("D:") {
         stripped
@@ -226,20 +271,43 @@ fn parse_pdf_date_string(raw: &str) -> String {
         cleaned
     };
 
-    if digits.len() >= 8 {
-        let year = &digits[..4];
-        let month = &digits[4..6];
-        let day = &digits[6..8];
-        if digits.len() >= 14 {
-            let hour = &digits[8..10];
-            let min = &digits[10..12];
-            let sec = &digits[12..14];
-            format!("{year}-{month}-{day}T{hour}:{min}:{sec}Z")
-        } else {
-            format!("{year}-{month}-{day}T00:00:00Z")
-        }
+    if digits.len() < DATE_ONLY_ASCII_BYTES {
+        return Ok(raw.to_string());
+    }
+
+    let required_ascii_bytes = if digits.len() >= FULL_TIMESTAMP_ASCII_BYTES {
+        FULL_TIMESTAMP_ASCII_BYTES
     } else {
-        raw.to_string()
+        DATE_ONLY_ASCII_BYTES
+    };
+
+    // Slicing `digits` at the fixed byte offsets below is only safe once we know
+    // the region being sliced is pure ASCII: ASCII bytes are always exactly one
+    // byte per `char`, so any offset inside an all-ASCII prefix is guaranteed to
+    // land on a char boundary. `bytes::is_ascii` scans the whole sub-slice, so
+    // this never itself risks a non-boundary panic (byte slicing has no char
+    // boundary concept). ~keep
+    let prefix_is_ascii = digits
+        .as_bytes()
+        .get(..required_ascii_bytes)
+        .is_some_and(<[u8]>::is_ascii);
+    if !prefix_is_ascii {
+        return Err(NonAsciiPdfDateError {
+            raw: raw.to_string(),
+            required_ascii_bytes,
+        });
+    }
+
+    let year = &digits[..4];
+    let month = &digits[4..6];
+    let day = &digits[6..8];
+    if required_ascii_bytes >= FULL_TIMESTAMP_ASCII_BYTES {
+        let hour = &digits[8..10];
+        let min = &digits[10..12];
+        let sec = &digits[12..14];
+        Ok(format!("{year}-{month}-{day}T{hour}:{min}:{sec}Z"))
+    } else {
+        Ok(format!("{year}-{month}-{day}T00:00:00Z"))
     }
 }
 
@@ -458,22 +526,93 @@ mod tests {
 
     #[test]
     fn should_parse_pdf_date_with_d_prefix_and_full_timestamp() {
-        assert_eq!(parse_pdf_date_string("D:20240315103045"), "2024-03-15T10:30:45Z");
+        assert_eq!(
+            parse_pdf_date_string("D:20240315103045").expect("pure-ASCII date must parse"),
+            "2024-03-15T10:30:45Z"
+        );
     }
 
     #[test]
     fn should_parse_pdf_date_with_d_prefix_date_only() {
-        assert_eq!(parse_pdf_date_string("D:20240315"), "2024-03-15T00:00:00Z");
+        assert_eq!(
+            parse_pdf_date_string("D:20240315").expect("pure-ASCII date must parse"),
+            "2024-03-15T00:00:00Z"
+        );
     }
 
     #[test]
     fn should_parse_pdf_date_without_d_prefix() {
-        assert_eq!(parse_pdf_date_string("20240315"), "2024-03-15T00:00:00Z");
+        assert_eq!(
+            parse_pdf_date_string("20240315").expect("pure-ASCII date must parse"),
+            "2024-03-15T00:00:00Z"
+        );
     }
 
     #[test]
     fn should_return_raw_string_for_malformed_date() {
-        assert_eq!(parse_pdf_date_string("bad"), "bad");
+        assert_eq!(
+            parse_pdf_date_string("bad").expect("short input is not an error"),
+            "bad"
+        );
+    }
+
+    /// Regression test for GH#1422: a `/ModDate`/`/CreationDate` string whose
+    /// digit portion contains a non-ASCII byte inside the range
+    /// `parse_pdf_date_string` needs to slice must return an `Err` carrying
+    /// the offending string and the required-ASCII length, never panic.
+    ///
+    /// The literal below reproduces the exact byte layout from the issue's
+    /// panic message ("end byte index 4 is not a char boundary; it is inside
+    /// ... (bytes 3..6)"): three ASCII digits, then the Unicode replacement
+    /// character `U+FFFD` (a 3-byte UTF-8 sequence, exactly what
+    /// `extract_lopdf_string`'s `String::from_utf8_lossy` substitutes for an
+    /// invalid byte in the raw `/Info` string) starting at byte offset 3, so
+    /// the unfixed code's `&digits[..4]` slice would land inside it.
+    #[test]
+    fn should_return_error_when_pdf_date_contains_non_ascii_byte_in_required_range() {
+        let raw = "D:202\u{FFFD}0315103045";
+        let digits = raw.strip_prefix("D:").expect("literal has D: prefix");
+        assert_eq!(
+            &digits[3..6],
+            "\u{FFFD}",
+            "test fixture must place the non-ASCII char at bytes [3..6) of `digits`, matching \
+             the issue's reported byte range"
+        );
+
+        let err = parse_pdf_date_string(raw).expect_err("non-ASCII byte in required range must error");
+
+        assert_eq!(
+            err.raw, raw,
+            "error must carry the original date string for diagnostics"
+        );
+        assert_eq!(
+            err.required_ascii_bytes, FULL_TIMESTAMP_ASCII_BYTES,
+            "digits is long enough for a full timestamp, so the full 14-byte ASCII \
+             requirement applies"
+        );
+        assert!(
+            err.to_string().contains("not pure ASCII"),
+            "error message must explain the root cause, got: {}",
+            err
+        );
+        assert!(
+            err.to_string().contains(raw),
+            "error message must include the offending input for diagnostics, got: {}",
+            err
+        );
+    }
+
+    /// A date string too short to be a recognizable date at all (below
+    /// [`DATE_ONLY_ASCII_BYTES`]) is not an ASCII-boundary problem — it must
+    /// keep returning `Ok` with the original text unchanged, exactly like the
+    /// pre-existing malformed-input fallback.
+    #[test]
+    fn should_return_raw_string_ok_when_non_ascii_date_is_too_short_to_parse() {
+        let raw = "ø1";
+        assert_eq!(
+            parse_pdf_date_string(raw).expect("too-short input is not an ASCII error"),
+            raw
+        );
     }
 
     #[test]
@@ -665,6 +804,62 @@ mod tests {
             rev.timestamp.as_deref(),
             Some("2024-01-01T12:00:00Z"),
             "timestamp must be extracted and formatted from /Info/ModDate"
+        );
+    }
+
+    /// End-to-end regression test for GH#1422, reproducing the reported crash
+    /// through the actual production code path rather than calling
+    /// `parse_pdf_date_string` directly.
+    ///
+    /// The `/Info/ModDate` bytes below contain a single invalid UTF-8 byte
+    /// (`0xFF`, which is never a valid leading byte) at the position that
+    /// puts the resulting `U+FFFD` replacement character produced by
+    /// `extract_lopdf_string`'s `String::from_utf8_lossy` exactly where the
+    /// original issue's panic occurred: spanning bytes `[3..6)` of the
+    /// "D:"-stripped digit string, so the unfixed `&digits[..4]` slice lands
+    /// inside it and panics with "end byte index 4 is not a char boundary".
+    ///
+    /// Before the fix this test would panic (and abort the test binary,
+    /// exactly mirroring the SIGABRT reported over the Go/cgo FFI boundary,
+    /// since a panic here cannot be caught after the fact — it must never
+    /// happen). After the fix, `extract_pdf_xref_revisions` must return
+    /// normally with the revision's timestamp falling back to the raw,
+    /// unparsed (lossily-decoded) string instead of a formatted ISO-8601 date.
+    #[test]
+    #[cfg(feature = "pdf")]
+    fn should_not_panic_when_info_moddate_contains_non_utf8_bytes() {
+        use lopdf::{Dictionary, Document, Object, ObjectId};
+
+        let base = build_minimal_pdf();
+        let base_xref = parse_last_startxref(&base);
+        let pdf_bytes = build_incremental_pdf(&base, base_xref);
+
+        let mut doc = Document::load_mem(&pdf_bytes).expect("lopdf must parse incremental PDF");
+
+        let mut info = Dictionary::new();
+        // "D:202" (5 ASCII bytes) + invalid byte 0xFF + "0315103045" (10 ASCII
+        // bytes). `String::from_utf8_lossy` replaces the lone 0xFF with one
+        // U+FFFD (3 bytes), so in the decoded string the digit portion
+        // ("202\u{FFFD}0315103045") has that replacement character spanning
+        // bytes [3..6) — squarely inside the year slice `&digits[..4]`. ~keep
+        let corrupt_mod_date: &[u8] = b"D:202\xFF0315103045";
+        info.set(
+            "ModDate",
+            Object::String(corrupt_mod_date.to_vec(), lopdf::StringFormat::Literal),
+        );
+        let info_id: ObjectId = (99, 0);
+        doc.objects.insert(info_id, Object::Dictionary(info));
+        doc.trailer.set("Info", Object::Reference(info_id));
+
+        let revisions = extract_pdf_xref_revisions(&pdf_bytes, &doc)
+            .expect("incremental PDF must still yield Some(revisions) despite the corrupt date");
+
+        let rev = &revisions[0];
+        assert_eq!(
+            rev.timestamp.as_deref(),
+            Some("D:202\u{FFFD}0315103045"),
+            "an unparseable (non-ASCII) date must fall back to the raw lossily-decoded string, \
+             not panic and not silently disappear"
         );
     }
 }

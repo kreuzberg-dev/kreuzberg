@@ -14,9 +14,10 @@ import io.xberg.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 fun main() = kotlinx.coroutines.runBlocking {
-    val MAPPER = jacksonObjectMapper()
+    val mapper = jacksonObjectMapper()
     val inputFile0 = java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(java.nio.file.Path.of("test_documents/pdf/fake_memo.pdf")))
-    val input = MAPPER.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{\"output_format\":\"markdown\"},\"filename\":\"fake_memo.pdf\",\"kind\":\"bytes\",\"mime_type\":\"application/pdf\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractionConfig::class.java)
+    val input = mapper.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{\"output_format\":\"markdown\"},\"filename\":\"fake_memo.pdf\",\"kind\":\"bytes\",\"mime_type\":\"application/pdf\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractionConfig::class.java)
+    val config = mapper.readValue("{\"output_format\":\"markdown\"}", ExtractionConfig::class.java)
     val result = Xberg.extract(input, config)
 }
 

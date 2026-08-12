@@ -12,7 +12,7 @@ Clear all reranker backends and verify list is empty
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     RerankerBackendBridge.clearAll()
 }
 

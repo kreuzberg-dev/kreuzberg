@@ -17,6 +17,7 @@ public final class Example {
         var inputJson = "{\"filename\":\"fake.docx\",\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"uri\":\"https://example.com/docx/fake.docx\"}";
 var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var result = Xberg.extract(input, ExtractionConfig.builder().build());
+        System.out.println(result);
     }
 }
 

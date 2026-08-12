@@ -16,7 +16,10 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/pdf/fake_memo.pdf")
     config = ExtractionConfig(keywords={"algorithm": "yake", "max_keywords": 10})
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    for keyword in result.results[0].keywords:
+        print(keyword.text)
+        print(keyword.score)
 
 asyncio.run(main())
 

@@ -12,7 +12,7 @@ unregister_post_processor
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     PostProcessorBridge.unregister("test-processor")
 }
 

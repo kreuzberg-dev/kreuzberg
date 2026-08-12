@@ -19,7 +19,8 @@ async fn main() {
     let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();
     let config_json: serde_json::Value = serde_json::from_str(r#"{"structured_extraction":{"llm":{"model":"openai/gpt-4o"},"schema":{"properties":{"date":{"type":"string"},"summary":{"type":"string"},"title":{"type":"string"}},"required":["title"],"type":"object"},"schema_name":"memo_data"}}"#).unwrap();
     let config = serde_json::from_value(config_json).unwrap();
-    let _ = extract(input, &config).await;
+    let result = extract(input, &config).await.expect("call failed");
+    println!("{:?}", result.results[0].structured_data);
 }
 
 ```

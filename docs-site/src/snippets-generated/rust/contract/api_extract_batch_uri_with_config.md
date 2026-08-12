@@ -18,7 +18,10 @@ async fn main() {
     let inputs_json: serde_json::Value = serde_json::from_str(r#"[{"config":{"output_format":"markdown"},"kind":"uri","uri":"https://example.com/pdf/fake_memo.pdf"}]"#).unwrap();
     let inputs = serde_json::from_value::<Vec<ExtractInput>>(inputs_json).unwrap();
     let config = Default::default();
-    let _ = extract_batch(inputs, &config).await;
+    let result = extract_batch(inputs, &config).await.expect("call failed");
+    for result in result.results {
+        println!("{}", result.content);
+    }
 }
 
 ```

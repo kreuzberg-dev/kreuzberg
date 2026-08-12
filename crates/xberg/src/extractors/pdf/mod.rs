@@ -14,6 +14,8 @@ mod pages;
 pub(crate) mod reading_order;
 #[cfg(all(feature = "liter-llm", feature = "layout-detection"))]
 mod region_vlm;
+#[cfg(feature = "pdf")]
+pub(crate) mod rotation;
 
 use crate::Result;
 use crate::core::config::ExtractionConfig;

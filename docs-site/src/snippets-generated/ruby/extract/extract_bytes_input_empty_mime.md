@@ -11,6 +11,12 @@ extract bytes input with empty MIME type
 
 ```ruby title="Ruby"
 require "xberg"
-result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: ''), {  })
+begin
+  result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: ''), {  })
+rescue StandardError => error
+  warn "Call failed as expected: #{error.message}"
+else
+  raise "expected call to fail"
+end
 
 ```

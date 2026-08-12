@@ -18,10 +18,12 @@ Tests structured extraction via liter-llm with JSON schema
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("{\"structured_extraction\":{\"llm\":{\"model\":\"openai/gpt-4o\"},\"schema\":{\"properties\":{\"date\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"title\":{\"type\":\"string\"}},\"required\":[\"title\"],\"type\":\"object\"},\"schema_name\":\"memo_data\"}}");
-    XBERGExtract* result = extract(options_handle);
-    xberg__free(options_handle);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}");
+    XBERGExtractionConfig* config_handle = xberg_extraction_config_from_json("{\"structured_extraction\":{\"llm\":{\"model\":\"openai/gpt-4o\"},\"schema\":{\"properties\":{\"date\":{\"type\":\"string\"},\"summary\":{\"type\":\"string\"},\"title\":{\"type\":\"string\"}},\"required\":[\"title\"],\"type\":\"object\"},\"schema_name\":\"memo_data\"}}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, config_handle);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_config_free(config_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

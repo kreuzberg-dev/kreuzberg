@@ -16,7 +16,10 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind, Res
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/docx/unit_test_headers.docx")
     config = ExtractionConfig(result_format=ResultFormat("element_based"))
-    _ = await extract(input, config)
+    result = await extract(input, config)
+    for element in result.results[0].elements:
+        print(element.element_type)
+        print(element.content)
 
 asyncio.run(main())
 

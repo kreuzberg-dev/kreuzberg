@@ -404,6 +404,105 @@ mod tests {
         assert!(recover(&data).is_none());
     }
 
+    /// GH#1420's fixture verbatim: a bar chart whose gridlines are drawn
+    /// across the whole plot, so their ends land exactly on the first and
+    /// last bar. Before the fix this recovered `n1 -> n2 [color="#cccccc"]`
+    /// — a gridline read as an edge.
+    const CROSSING_GRIDLINES_BAR_CHART: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="700" height="450" viewBox="0 0 700 450">
+      <title>Requests per quarter</title>
+      <rect x="0" y="0" width="700" height="450" fill="white"/>
+      <text x="60" y="48" font-family="Helvetica, sans-serif" font-size="16" font-weight="bold">Requests per quarter</text>
+      <g stroke="#cccccc" stroke-width="1">
+        <line x1="120" y1="300" x2="620" y2="300"/>
+        <line x1="120" y1="220" x2="620" y2="220"/>
+        <line x1="120" y1="140" x2="620" y2="140"/>
+      </g>
+      <g fill="#4c78a8">
+        <rect x="120" y="180" width="100" height="200"/>
+        <rect x="250" y="240" width="100" height="140"/>
+        <rect x="380" y="130" width="100" height="250"/>
+        <rect x="510" y="210" width="100" height="170"/>
+      </g>
+      <g stroke="#333333" stroke-width="1.5">
+        <line x1="120" y1="380" x2="620" y2="380"/>
+        <line x1="120" y1="380" x2="120" y2="120"/>
+      </g>
+      <g font-family="Helvetica, sans-serif" font-size="12" fill="#222222" text-anchor="middle">
+        <text x="170" y="404">Q1</text>
+        <text x="300" y="404">Q2</text>
+        <text x="430" y="404">Q3</text>
+        <text x="560" y="404">Q4</text>
+      </g>
+      <g font-family="Helvetica, sans-serif" font-size="11" fill="#555555" text-anchor="end">
+        <text x="112" y="304">100</text>
+        <text x="112" y="224">200</text>
+        <text x="112" y="144">300</text>
+      </g>
+    </svg>"##;
+
+    #[test]
+    fn a_bar_chart_whose_gridlines_cross_the_bars_is_not_a_diagram() {
+        assert!(recover(CROSSING_GRIDLINES_BAR_CHART.as_bytes()).is_none());
+    }
+
+    /// GH#1420's own scope note: this is not caption adoption (#1410). Strip
+    /// every `<text>` from the fixture above and the drawing is still not a
+    /// diagram, merely an unnamed one — the axis, the bars and the gridlines
+    /// are unchanged.
+    #[test]
+    fn the_same_chart_without_any_captions_is_still_not_a_diagram() {
+        const NO_CAPTIONS: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="700" height="450" viewBox="0 0 700 450">
+          <rect x="0" y="0" width="700" height="450" fill="white"/>
+          <g stroke="#cccccc" stroke-width="1">
+            <line x1="120" y1="300" x2="620" y2="300"/>
+            <line x1="120" y1="220" x2="620" y2="220"/>
+            <line x1="120" y1="140" x2="620" y2="140"/>
+          </g>
+          <g fill="#4c78a8">
+            <rect x="120" y="180" width="100" height="200"/>
+            <rect x="250" y="240" width="100" height="140"/>
+            <rect x="380" y="130" width="100" height="250"/>
+            <rect x="510" y="210" width="100" height="170"/>
+          </g>
+          <g stroke="#333333" stroke-width="1.5">
+            <line x1="120" y1="380" x2="620" y2="380"/>
+            <line x1="120" y1="380" x2="120" y2="120"/>
+          </g>
+        </svg>"##;
+
+        assert!(recover(NO_CAPTIONS.as_bytes()).is_none());
+    }
+
+    /// The harder control GH#1420 calls out: `data_dashboard.svg`'s own
+    /// gridlines only miss the bars by luck, stopping 50 units short of
+    /// them. This is the same dashboard with the gridlines extended to the
+    /// bars' own edges, which is what most chart libraries actually draw. A
+    /// fix that merely tightened the endpoint-distance threshold would still
+    /// fail this one.
+    #[test]
+    fn a_dashboard_whose_gridlines_reach_the_bars_is_still_not_a_diagram() {
+        const DASHBOARD_WITH_CROSSING_GRIDLINES: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="700" height="450" viewBox="0 0 700 450">
+          <title>Quarterly Revenue Dashboard</title>
+          <rect width="700" height="450" fill="#f8f9fa"/>
+          <text x="350" y="35" text-anchor="middle" font-family="Arial" font-size="18" font-weight="bold" fill="#2c3e50">Quarterly Revenue Report FY2023</text>
+          <line x1="120" y1="100" x2="640" y2="100" stroke="#e0e0e0" stroke-width="1"/>
+          <line x1="120" y1="170" x2="640" y2="170" stroke="#e0e0e0" stroke-width="1"/>
+          <line x1="120" y1="240" x2="640" y2="240" stroke="#e0e0e0" stroke-width="1"/>
+          <line x1="120" y1="310" x2="640" y2="310" stroke="#e0e0e0" stroke-width="1"/>
+          <line x1="120" y1="380" x2="640" y2="380" stroke="#e0e0e0" stroke-width="1"/>
+          <rect x="120" y="170" width="100" height="210" fill="#3498db" rx="4"/>
+          <text x="170" y="410" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">Q1</text>
+          <rect x="260" y="130" width="100" height="250" fill="#2ecc71" rx="4"/>
+          <text x="310" y="410" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">Q2</text>
+          <rect x="400" y="200" width="100" height="180" fill="#e74c3c" rx="4"/>
+          <text x="450" y="410" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">Q3</text>
+          <rect x="540" y="100" width="100" height="280" fill="#f39c12" rx="4"/>
+          <text x="590" y="410" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">Q4</text>
+        </svg>"##;
+
+        assert!(recover(DASHBOARD_WITH_CROSSING_GRIDLINES.as_bytes()).is_none());
+    }
+
     /// `<g>` opened `depth` times around `leaf`, closed the same number of
     /// times.
     fn nested(depth: usize, leaf: &str) -> String {
@@ -440,8 +539,10 @@ mod tests {
 
     #[test]
     fn should_reject_nesting_exactly_one_past_the_bound() {
-        assert!(!exceeds_max_nesting(nested(MAX_NESTING_DEPTH, "").as_bytes()));
-        assert!(exceeds_max_nesting(nested(MAX_NESTING_DEPTH + 1, "").as_bytes()));
+        // `nested` wraps its groups in an `<svg>`, and the root element is a
+        // level of nesting like any other, so `nested(n)` is `n + 1` deep. ~keep
+        assert!(!exceeds_max_nesting(nested(MAX_NESTING_DEPTH - 1, "").as_bytes()));
+        assert!(exceeds_max_nesting(nested(MAX_NESTING_DEPTH, "").as_bytes()));
     }
 
     #[test]

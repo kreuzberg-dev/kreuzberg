@@ -19,6 +19,9 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        for (var table : result.results().get(0).tables()) {
+            System.out.println(table.rows());
+        }
     }
 }
 

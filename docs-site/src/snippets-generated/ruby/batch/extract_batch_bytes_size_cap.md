@@ -11,6 +11,12 @@ extract_batch: archive size cap triggers error
 
 ```ruby title="Ruby"
 require "xberg"
-result = Xberg.extract_batch([{ 'bytes' => 'test_documents/text/fake_text.txt', 'kind' => 'bytes', 'mime_type' => 'text/plain' }], { 'security_limits' => { 'max_content_size' => 1 } })
+begin
+  result = Xberg.extract_batch([{ 'bytes' => 'test_documents/text/fake_text.txt', 'kind' => 'bytes', 'mime_type' => 'text/plain' }], { 'security_limits' => { 'max_content_size' => 1 } })
+rescue StandardError => error
+  warn "Call failed as expected: #{error.message}"
+else
+  raise "expected call to fail"
+end
 
 ```

@@ -617,6 +617,33 @@ Full guides, API references for every binding, format reference, and configurati
 
 ---
 
+## Built with Xberg
+
+Projects that declare Xberg as a dependency. Xberg was previously published as `kreuzberg`, and most of these projects declare the package under that name.
+
+| Project | What it is | Stars |
+|---|---|---|
+| **[basemind](https://github.com/Goldziher/basemind)** | AI context and content layer for coding agents over one MCP server: code map, document RAG, shared memory and web crawl | ![Stars](https://img.shields.io/github/stars/Goldziher/basemind?color=007ec6) |
+| **[delulu](https://github.com/mratsim/delulu)** | A suite of MCP servers and CLI tools that give your LLM better search and fewer hallucinations | ![Stars](https://img.shields.io/github/stars/mratsim/delulu?color=007ec6) |
+| **[docs-mcp-server](https://github.com/arabold/docs-mcp-server)** | Grounded documentation MCP server, an open-source alternative to Context7, Nia and Ref.Tools | ![Stars](https://img.shields.io/github/stars/arabold/docs-mcp-server?color=007ec6) |
+| **[erato](https://github.com/EratoLab/erato)** | The open-source AI platform | ![Stars](https://img.shields.io/github/stars/EratoLab/erato?color=007ec6) |
+| **[fastmail-cli](https://github.com/radiosilence/fastmail-cli)** | CLI and MCP server for Fastmail: email, contacts, masked email, attachments and text extraction | ![Stars](https://img.shields.io/github/stars/radiosilence/fastmail-cli?color=007ec6) |
+| **[ghfdb-portal](https://github.com/ihfc-iugg/ghfdb-portal)** | Web portal for the Global Heat Flow Database | ![Stars](https://img.shields.io/github/stars/ihfc-iugg/ghfdb-portal?color=007ec6) |
+| **[hawki-toolkit-file-converter](https://github.com/hawk-digital-environments/hawki-toolkit-file-converter)** | Prepares and converts PDF files for the HAWKI toolkit | ![Stars](https://img.shields.io/github/stars/hawk-digital-environments/hawki-toolkit-file-converter?color=007ec6) |
+| **[haystack-core-integrations](https://github.com/deepset-ai/haystack-core-integrations)** | Integrations that extend Haystack with extra components and document stores | ![Stars](https://img.shields.io/github/stars/deepset-ai/haystack-core-integrations?color=007ec6) |
+| **[kreuzakt](https://github.com/anaisbetts/kreuzakt)** | A search engine for humans and computers, aimed at your most boring documents | ![Stars](https://img.shields.io/github/stars/anaisbetts/kreuzakt?color=007ec6) |
+| **[lilbee](https://github.com/tobocop2/lilbee)** | The whole local AI stack in one executable, with conversational search and cited answers over your files, code and the web | ![Stars](https://img.shields.io/github/stars/tobocop2/lilbee?color=007ec6) |
+| **[llm-workflow-engine](https://github.com/llm-workflow-engine/llm-workflow-engine)** | Power CLI and workflow manager for LLMs | ![Stars](https://img.shields.io/github/stars/llm-workflow-engine/llm-workflow-engine?color=007ec6) |
+| **[MANSPIDER](https://github.com/blacklanternsecurity/MANSPIDER)** | Spiders entire networks for files sitting on SMB shares, searching filenames or contents with regex | ![Stars](https://img.shields.io/github/stars/blacklanternsecurity/MANSPIDER?color=007ec6) |
+| **[otoroshi-llm-extension](https://github.com/cloud-apim/otoroshi-llm-extension)** | Connect, secure and manage LLM models behind one OpenAI-compatible API | ![Stars](https://img.shields.io/github/stars/cloud-apim/otoroshi-llm-extension?color=007ec6) |
+| **[sift-kg](https://github.com/juanceresa/sift-kg)** | Turns a collection of documents into a knowledge graph, extracting entities and relationships with an LLM | ![Stars](https://img.shields.io/github/stars/juanceresa/sift-kg?color=007ec6) |
+| **[sirchmunk](https://github.com/modelscope/sirchmunk)** | Turns raw data into a self-evolving, real-time search and intelligence layer | ![Stars](https://img.shields.io/github/stars/modelscope/sirchmunk?color=007ec6) |
+| **[support-chatbot](https://github.com/rodekruis/support-chatbot)** | Level-1 support chatbot for the Netherlands Red Cross 510 team | ![Stars](https://img.shields.io/github/stars/rodekruis/support-chatbot?color=007ec6) |
+
+Using Xberg in your project? Open a PR adding it to this list.
+
+---
+
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

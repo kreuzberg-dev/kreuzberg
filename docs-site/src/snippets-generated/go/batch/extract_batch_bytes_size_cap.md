@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	xberg "github.com/xberg-io/xberg/packages/go"
+	"os"
 )
 
 func main() {
@@ -28,10 +29,10 @@ func main() {
 		MaxContentSize: 1,
 	},
 	}
-	result, err := xberg.ExtractBatch(inputs, config)
-	if err != nil {
-		panic(err)
+	_, err := xberg.ExtractBatch(inputs, config)
+	if err == nil {
+		panic("expected call to fail")
 	}
-	fmt.Println(result)
+	fmt.Fprintf(os.Stderr, "Call failed as expected: %v\n", err)
 }
 ```

@@ -13,6 +13,9 @@ Tests batch URI extraction with per-input config (extract_batch)
 import { extractBatch } from "@xberg-io/xberg-wasm";
 async function main() {
   const result = await extractBatch([{ config: { outputFormat: "markdown" }, kind: "uri", uri: "https://example.com/pdf/fake_memo.pdf" }], undefined);
+  for (const result of result.results) {
+    console.log(result.content);
+  }
 }
 
 void main();

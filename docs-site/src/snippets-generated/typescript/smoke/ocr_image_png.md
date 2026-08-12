@@ -14,6 +14,7 @@ import { ExtractInput, ExtractInputKind, extract } from "@xberg-io/xberg";
 async function main() {
   const input: ExtractInput = { bytes: await (await import("node:fs/promises")).readFile("test_documents/images/test_hello_world.png"), config: {  }, filename: "test_hello_world.png", kind: ExtractInputKind.Bytes, mimeType: "image/png" };
   const result = await extract(input, undefined);
+  console.log(result.results[0].content);
 }
 
 void main();

@@ -12,7 +12,7 @@ List all registered embedding backends
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     val result = Xberg.listEmbeddingBackends()
 }
 

@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/pdf/fake_memo.pdf" };
   const config: ExtractionConfig = { enableQualityProcessing: true };
   const result = await extract(input, config);
+  console.log(result.results[0].qualityScore);
 }
 
 void main();

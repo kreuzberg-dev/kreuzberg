@@ -19,7 +19,8 @@ async fn main() {
     let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();
     let config_json: serde_json::Value = serde_json::from_str(r#"{"summarization":{"llm":{"max_tokens":200,"model":"openai/gpt-4o-mini","temperature":0.0},"max_tokens":150,"strategy":"abstractive"}}"#).unwrap();
     let config = serde_json::from_value(config_json).unwrap();
-    let _ = extract(input, &config).await;
+    let result = extract(input, &config).await.expect("call failed");
+    println!("{:?}", result.results[0].summary);
 }
 
 ```

@@ -29,8 +29,7 @@
 //! use xberg::extraction::pptx::{extract_pptx_from_path, PptxExtractionOptions};
 //!
 //! # fn example() -> xberg::Result<()> {
-//! let extraction = extract_pptx_from_path("presentation.pptx", &PptxExtractionOptions::default())?;
-//! let result = extraction.result;
+//! let result = extract_pptx_from_path("presentation.pptx", &PptxExtractionOptions::default())?;
 //!
 //! println!("Slide count: {}", result.slide_count);
 //! println!("Image count: {}", result.image_count);
@@ -79,6 +78,24 @@ pub struct PptxExtractionOptions {
     pub inject_placeholders: bool,
 }
 
+/// Crate-internal PPTX extraction output.
+///
+/// `slide_contents` keeps the archive-derived slide number alongside each
+/// rendered slide. The public result remains unchanged, while the internal
+/// extractor can rebuild page-aware elements without embedding forgeable
+/// boundary markers in user-controlled text.
+pub(crate) struct PptxInternalExtraction {
+    pub(crate) result: PptxExtractionResult,
+    pub(crate) slide_contents: Vec<(u32, String)>,
+    /// `(latex, is_display)` for every math run, in slide order. The text
+    /// flattens a math run into its LaTeX, which cannot be told apart from
+    /// author text that holds the same characters.
+    pub(crate) formulas: Vec<(String, bool)>,
+    /// Whether the text is plain. Plain text holds the bare LaTeX of a math
+    /// run; markdown text holds `$$latex$$` or `$latex$`.
+    pub(crate) plain_output: bool,
+}
+
 impl Default for PptxExtractionOptions {
     fn default() -> Self {
         Self {
@@ -110,22 +127,6 @@ fn join_runs_with_spacing(runs: &[Run], extract: impl Fn(&Run) -> String) -> Str
     result
 }
 
-/// A PPTX extraction result with the LaTeX of every OMML math run beside it.
-///
-/// The extracted text carries math as `$$latex$$` or `$latex$`, which cannot be
-/// told apart from author text that holds the same characters. `formulas` keeps
-/// the LaTeX the OMML converter produced, so the extractor emits typed formula
-/// elements from parser output instead of from a text scan.
-pub(crate) struct PptxExtraction {
-    /// The extracted content, metadata, images, and structure.
-    pub(crate) result: PptxExtractionResult,
-    /// `(latex, is_display)` for every math run, in slide order.
-    pub(crate) formulas: Vec<(String, bool)>,
-    /// Whether the text is plain. Plain text holds the bare LaTeX of a math run;
-    /// markdown text holds `$$latex$$` or `$latex$`.
-    pub(crate) plain_output: bool,
-}
-
 /// Extract PPTX content from a file path.
 ///
 /// # Arguments
@@ -135,12 +136,13 @@ pub(crate) struct PptxExtraction {
 ///
 /// # Returns
 ///
-/// A `PptxExtraction` with the extracted content, metadata, images, and math.
-pub(crate) fn extract_pptx_from_path(
+/// The public extraction result plus archive-derived per-slide content used
+/// internally to assign trustworthy page metadata.
+pub(crate) fn extract_pptx_from_path_with_slide_contents(
     path: &str,
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<PptxExtraction> {
+) -> Result<PptxInternalExtraction> {
     let container = PptxContainer::open(path)?;
     extract_pptx_from_container(container, options, warnings)
 }
@@ -154,12 +156,21 @@ pub(crate) fn extract_pptx_from_path(
 ///
 /// # Returns
 ///
-/// A `PptxExtraction` with the extracted content, metadata, images, and math.
+/// A `PptxExtractionResult` containing extracted content, metadata, and images.
+#[cfg(test)]
 pub(crate) fn extract_pptx_from_bytes(
     data: &[u8],
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<PptxExtraction> {
+) -> Result<PptxExtractionResult> {
+    Ok(extract_pptx_from_bytes_with_slide_contents(data, options, warnings)?.result)
+}
+
+pub(crate) fn extract_pptx_from_bytes_with_slide_contents(
+    data: &[u8],
+    options: &PptxExtractionOptions,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<PptxInternalExtraction> {
     let container = PptxContainer::from_bytes(data)?;
     extract_pptx_from_container(container, options, warnings)
 }
@@ -168,7 +179,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
     mut container: PptxContainer<R>,
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<PptxExtraction> {
+) -> Result<PptxInternalExtraction> {
     let config = ParserConfig {
         extract_images: options.extract_images,
         plain: options.plain,
@@ -194,6 +205,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
 
     let mut total_image_count = 0;
     let mut total_table_count = 0;
+    let mut slide_contents = Vec::with_capacity(slide_count);
     let mut extracted_images = Vec::new();
     let mut collected_hyperlinks: Vec<(String, Option<String>)> = Vec::new();
     let mut collected_formulas: Vec<(String, bool)> = Vec::new();
@@ -218,6 +230,19 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
         if let Some(ref note_text) = slide_notes {
             content_builder.add_notes(note_text);
         }
+
+        let mut internal_slide_content = slide_content.clone();
+        if let Some(ref note_text) = slide_notes
+            && !note_text.trim().is_empty()
+        {
+            if options.plain {
+                internal_slide_content.push_str("\n\nNotes:\n");
+            } else {
+                internal_slide_content.push_str("\n\n### Notes:\n");
+            }
+            internal_slide_content.push_str(note_text);
+        }
+        slide_contents.push((slide.slide_number, internal_slide_content));
 
         let slide_section = section_names.get(&slide.slide_number).cloned();
 
@@ -340,7 +365,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
 
     let document = doc_builder.map(|b| b.build()).filter(|d| !d.is_empty());
 
-    Ok(PptxExtraction {
+    Ok(PptxInternalExtraction {
         result: PptxExtractionResult {
             content,
             metadata,
@@ -355,6 +380,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
             office_metadata,
             revisions,
         },
+        slide_contents,
         formulas: collected_formulas,
         plain_output: options.plain,
     })
@@ -416,19 +442,6 @@ fn runs_to_text_and_annotations(runs: &[Run]) -> (String, Vec<TextAnnotation>, V
     }
 
     (text, annotations, formulas)
-}
-
-/// Split a run sequence into its text and the LaTeX of its math runs.
-fn runs_to_text_and_math(runs: &[Run]) -> (String, Vec<String>) {
-    let text = join_runs_with_spacing(runs, |run| {
-        if run.math_latex.is_some() {
-            String::new()
-        } else {
-            run.extract()
-        }
-    });
-    let formulas = runs_math(runs).map(|(latex, _)| latex.clone()).collect();
-    (text, formulas)
 }
 
 /// Convert an `ElementPosition` with dimensions to a `BoundingBox`.
@@ -632,9 +645,9 @@ fn runs_math(runs: &[Run]) -> impl Iterator<Item = &(String, bool)> {
 /// Collect the LaTeX of every math run in a slide's text and list shapes.
 ///
 /// Table cells are left out on purpose. Their math is inline content of a grid
-/// cell: lifting it into a formula element would either empty the cell or repeat
-/// the equation next to the table. The markdown extractor keeps inline math
-/// inside a table cell for the same reason.
+/// cell: lifting it into a formula element would either empty the cell or
+/// repeat the equation next to the table. The markdown extractor keeps inline
+/// math inside a table cell for the same reason.
 fn collect_slide_formulas(slide: &elements::Slide, out: &mut Vec<(String, bool)>) {
     let mut visit_runs = |runs: &[Run]| out.extend(runs_math(runs).cloned());
 
@@ -649,6 +662,19 @@ fn collect_slide_formulas(slide: &elements::Slide, out: &mut Vec<(String, bool)>
             _ => {}
         }
     }
+}
+
+/// Split a run sequence into its text and the LaTeX of its math runs.
+fn runs_to_text_and_math(runs: &[Run]) -> (String, Vec<String>) {
+    let text = join_runs_with_spacing(runs, |run| {
+        if run.math_latex.is_some() {
+            String::new()
+        } else {
+            run.extract()
+        }
+    });
+    let formulas = runs_math(runs).map(|(latex, _)| latex.clone()).collect();
+    (text, formulas)
 }
 
 impl elements::Slide {
@@ -809,17 +835,6 @@ impl elements::Slide {
 pub(crate) mod tests {
     use super::*;
 
-    /// Text-side extraction for the tests below, which assert on content and
-    /// metadata. It shadows `super::extract_pptx_from_bytes`, which also returns
-    /// the math the tests do not look at.
-    fn extract_pptx_from_bytes(
-        data: &[u8],
-        options: &PptxExtractionOptions,
-        warnings: &mut Vec<ProcessingWarning>,
-    ) -> Result<PptxExtractionResult> {
-        super::extract_pptx_from_bytes(data, options, warnings).map(|extraction| extraction.result)
-    }
-
     fn create_test_pptx_bytes(slides: Vec<&str>) -> Vec<u8> {
         use std::io::Write;
         use zip::write::{SimpleFileOptions, ZipWriter};
@@ -948,7 +963,7 @@ pub(crate) mod tests {
     #[test]
     fn test_extract_pptx_from_bytes_multiple_slides() {
         let pptx_bytes = create_test_pptx_bytes(vec!["Slide 1", "Slide 2", "Slide 3"]);
-        let result = extract_pptx_from_bytes(
+        let internal = extract_pptx_from_bytes_with_slide_contents(
             &pptx_bytes,
             &PptxExtractionOptions {
                 extract_images: false,
@@ -957,11 +972,21 @@ pub(crate) mod tests {
             &mut Vec::new(),
         )
         .unwrap();
+        let result = internal.result;
 
         assert_eq!(result.slide_count, 3);
         assert!(result.content.contains("Slide 1"));
         assert!(result.content.contains("Slide 2"));
         assert!(result.content.contains("Slide 3"));
+        assert!(!result.content.contains("<!-- Slide number:"));
+        assert_eq!(
+            internal
+                .slide_contents
+                .iter()
+                .map(|(number, _)| *number)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
@@ -1846,6 +1871,117 @@ pub(crate) mod tests {
         buffer
     }
 
+    /// Math runs must leave the parser as LaTeX beside the text, with the display
+    /// flag intact: the flattened text cannot tell a converted equation apart from
+    /// author text that holds the same characters.
+    #[test]
+    fn test_math_runs_are_collected_beside_the_text() {
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+    <p:cSld><p:spTree><p:sp><p:txBody>
+        <a:p>
+            <m:oMathPara>
+                <m:oMath>
+                    <m:sSup>
+                        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+                        <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+                    </m:sSup>
+                </m:oMath>
+            </m:oMathPara>
+        </a:p>
+        <a:p>
+            <a:r><a:t>Rate </a:t></a:r>
+            <m:oMath><m:r><m:t>a</m:t></m:r></m:oMath>
+        </a:p>
+    </p:txBody></p:sp></p:spTree></p:cSld>
+</p:sld>"#;
+
+        let pptx = build_single_slide_pptx(slide_xml, None, &[]);
+        let extraction = super::extract_pptx_from_bytes_with_slide_contents(
+            &pptx,
+            &PptxExtractionOptions {
+                extract_images: false,
+                ..Default::default()
+            },
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            extraction.formulas,
+            vec![("x^{2}".to_string(), true), ("a".to_string(), false)],
+            "display and inline math both reach the caller"
+        );
+    }
+
+    /// The slide structure carries math as formula nodes, not as LaTeX buried in
+    /// the text of a paragraph or a list item.
+    #[test]
+    fn test_slide_structure_emits_formula_nodes() {
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody>
+            <a:p><a:r><a:t>Energy of a body at rest</a:t></a:r></a:p>
+            <a:p>
+                <a:r><a:t>Rate </a:t></a:r>
+                <m:oMath><m:r><m:t>Q</m:t></m:r></m:oMath>
+            </a:p>
+        </p:txBody></p:sp>
+        <p:sp><p:txBody>
+            <a:p><a:pPr lvl="0"><a:buChar char="-"/></a:pPr>
+                <a:r><a:t>Growth </a:t></a:r>
+                <m:oMath><m:r><m:t>Z</m:t></m:r></m:oMath>
+            </a:p>
+        </p:txBody></p:sp>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+
+        let pptx = build_single_slide_pptx(slide_xml, None, &[]);
+        let extraction = super::extract_pptx_from_bytes_with_slide_contents(
+            &pptx,
+            &PptxExtractionOptions {
+                extract_images: false,
+                include_structure: true,
+                ..Default::default()
+            },
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        let structure = extraction.result.document.expect("structure requested");
+        let math: Vec<&str> = structure
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.content {
+                crate::types::document_structure::NodeContent::Formula { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(math, vec!["Q", "Z"], "text shape and list item both emit a formula node");
+
+        let texts: Vec<String> = structure
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.content {
+                crate::types::document_structure::NodeContent::Paragraph { text }
+                | crate::types::document_structure::NodeContent::Heading { text, .. }
+                | crate::types::document_structure::NodeContent::ListItem { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        let joined = texts.join(" | ");
+        assert!(
+            !joined.contains('Q') && !joined.contains('Z'),
+            "no text node keeps the bare LaTeX: {joined}"
+        );
+        assert!(joined.contains("Rate") && joined.contains("Growth"), "words survive: {joined}");
+    }
+
     /// #47: OMML math wrapped in `mc:AlternateContent`/`mc:Choice`/`a14:m` must be
     /// converted to LaTeX via the shared `docx::math` OMML converter, not dropped,
     /// and the `mc:Fallback` text must not also appear (Choice content wins).
@@ -1901,117 +2037,6 @@ pub(crate) mod tests {
             "mc:Choice content succeeded, so mc:Fallback text must not also appear, got: {:?}",
             result.content
         );
-    }
-
-    /// Math runs must leave the parser as LaTeX beside the text, with the display
-    /// flag intact: the flattened text cannot tell a converted equation apart from
-    /// author text that holds the same characters.
-    #[test]
-    fn test_math_runs_are_collected_beside_the_text() {
-        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
-       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
-    <p:cSld><p:spTree><p:sp><p:txBody>
-        <a:p>
-            <m:oMathPara>
-                <m:oMath>
-                    <m:sSup>
-                        <m:e><m:r><m:t>x</m:t></m:r></m:e>
-                        <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
-                    </m:sSup>
-                </m:oMath>
-            </m:oMathPara>
-        </a:p>
-        <a:p>
-            <a:r><a:t>Rate </a:t></a:r>
-            <m:oMath><m:r><m:t>a</m:t></m:r></m:oMath>
-        </a:p>
-    </p:txBody></p:sp></p:spTree></p:cSld>
-</p:sld>"#;
-
-        let pptx = build_single_slide_pptx(slide_xml, None, &[]);
-        let extraction = super::extract_pptx_from_bytes(
-            &pptx,
-            &PptxExtractionOptions {
-                extract_images: false,
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            extraction.formulas,
-            vec![("x^{2}".to_string(), true), ("a".to_string(), false)],
-            "display and inline math both reach the caller"
-        );
-    }
-
-    /// The slide structure carries math as formula nodes, not as LaTeX buried in
-    /// the text of a paragraph or a list item.
-    #[test]
-    fn test_slide_structure_emits_formula_nodes() {
-        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
-       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
-    <p:cSld><p:spTree>
-        <p:sp><p:txBody>
-            <a:p><a:r><a:t>Energy of a body at rest</a:t></a:r></a:p>
-            <a:p>
-                <a:r><a:t>Rate </a:t></a:r>
-                <m:oMath><m:r><m:t>Q</m:t></m:r></m:oMath>
-            </a:p>
-        </p:txBody></p:sp>
-        <p:sp><p:txBody>
-            <a:p><a:pPr lvl="0"><a:buChar char="-"/></a:pPr>
-                <a:r><a:t>Growth </a:t></a:r>
-                <m:oMath><m:r><m:t>Z</m:t></m:r></m:oMath>
-            </a:p>
-        </p:txBody></p:sp>
-    </p:spTree></p:cSld>
-</p:sld>"#;
-
-        let pptx = build_single_slide_pptx(slide_xml, None, &[]);
-        let extraction = super::extract_pptx_from_bytes(
-            &pptx,
-            &PptxExtractionOptions {
-                extract_images: false,
-                include_structure: true,
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        )
-        .unwrap();
-
-        let structure = extraction.result.document.expect("structure requested");
-        let math: Vec<&str> = structure
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.content {
-                crate::types::document_structure::NodeContent::Formula { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(math, vec!["Q", "Z"], "text shape and list item both emit a formula node");
-
-        let texts: Vec<String> = structure
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.content {
-                crate::types::document_structure::NodeContent::Paragraph { text }
-                | crate::types::document_structure::NodeContent::Heading { text, .. }
-                | crate::types::document_structure::NodeContent::ListItem { text } => Some(text.clone()),
-                _ => None,
-            })
-            .collect();
-        let joined = texts.join(" | ");
-        assert!(
-            !joined.contains('Q') && !joined.contains('Z'),
-            "no text node keeps the bare LaTeX: {joined}"
-        );
-        assert!(joined.contains("Rate") && joined.contains("Growth"), "words survive: {joined}");
     }
 
     /// #79: `mc:AlternateContent` wrapping a whole shape must fall back to

@@ -15,6 +15,7 @@ import io.xberg.*;
 public final class Example {
     public static void main(String[] args) throws Exception {
         var result = Xberg.extractBatch(java.util.List.of(), ExtractionConfig.builder().build());
+        System.out.println(result);
     }
 }
 

@@ -1,50 +1,68 @@
 {
-	"id": "api_extract_batch_uri_with_config",
-	"description": "Tests batch URI extraction with per-input config (extract_batch)",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests batch URI extraction with per-input config (extract_batch)",
-		"description": "Tests batch URI extraction with per-input config (extract_batch)",
-		"side_effects": "server"
-	},
-	"tags": ["contract", "api", "batch", "input_config"],
-	"call": "extract_batch",
-	"input": {
-		"inputs": [
-			{
-				"kind": "uri",
-				"uri": "$mock_url/pdf/fake_memo.pdf",
-				"config": {
-					"output_format": "markdown"
-				}
-			}
-		],
-		"mock_responses": [
-			{
-				"path": "/pdf/fake_memo.pdf",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/pdf/fake_memo.pdf"
-			}
-		]
-	},
-	"assertions": [
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "application/pdf"
-		},
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 10
-		},
-		{
-			"type": "equals",
-			"field": "results[0].metadata.output_format",
-			"value": "markdown"
-		}
-	]
+  "id": "api_extract_batch_uri_with_config",
+  "description": "Tests batch URI extraction with per-input config (extract_batch)",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests batch URI extraction with per-input config (extract_batch)",
+    "description": "Tests batch URI extraction with per-input config (extract_batch)",
+    "presentation": {
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results",
+          "item": "result",
+          "fields": [
+            "content"
+          ],
+          "display": true
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "api",
+    "batch",
+    "input_config"
+  ],
+  "call": "extract_batch",
+  "input": {
+    "inputs": [
+      {
+        "kind": "uri",
+        "uri": "$mock_url/pdf/fake_memo.pdf",
+        "config": {
+          "output_format": "markdown"
+        }
+      }
+    ],
+    "mock_responses": [
+      {
+        "path": "/pdf/fake_memo.pdf",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/pdf/fake_memo.pdf"
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "application/pdf"
+    },
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 10
+    },
+    {
+      "type": "equals",
+      "field": "results[0].metadata.output_format",
+      "value": "markdown"
+    }
+  ]
 }

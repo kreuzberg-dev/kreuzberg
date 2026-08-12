@@ -1730,9 +1730,25 @@ fn is_numeric_word(text: &str) -> bool {
 ///
 /// PDF coordinates place y=0 at the bottom of the page, so larger Y values are
 /// higher on the page (visually earlier in reading order). Within a row, X
-/// increases left-to-right. We sort by Y descending (top-to-bottom) then X
-/// ascending (left-to-right) to recover natural reading order regardless of
-/// the order in which pdf_oxide yields spans.
+/// increases left-to-right. We sort by the span's own upright-frame cross
+/// axis descending (top-to-bottom) then advance axis ascending (left-to-right)
+/// to recover natural reading order regardless of the order in which
+/// pdf_oxide yields spans.
+///
+/// [`super::span_geometry::upright_origin`] rotates a span's page-space origin
+/// back into its own reading frame before comparison, so this is correct both
+/// for the common unrotated case (where it is the identity `(bbox.x,
+/// bbox.y)`, matching the plain X/Y sort this replaced) and for a
+/// text-matrix-rotated cell (GH#1358: sideways spec-table columns whose
+/// `TableCell::spans` carry non-zero `rotation_degrees`), where sorting by
+/// raw page-space X/Y instead of the run's own advance axis reads the cell's
+/// words out of order. `TableCell::spans` only ever carries real rotation
+/// data when pdf_oxide's geometric table detector (`grid_to_table`) clones
+/// the original page spans into the cell; pdf_oxide's tagged-PDF/MCID path
+/// (`extract_cell`) synthesizes its own per-MCID spans with
+/// `rotation_degrees` hardcoded to `0.0`, so this sort is a no-op there
+/// regardless of the source PDF's actual rotation — that is a pdf_oxide
+/// limitation, not something fixable on this side of the crate boundary.
 ///
 /// Embedded newlines inside span text are collapsed to spaces to produce
 /// clean single-line cell strings.
@@ -1741,16 +1757,18 @@ fn cell_text_in_reading_order(cell: &pdf_oxide::structure::table_extractor::Tabl
         return cell.text.trim().replace('\n', " ").to_string();
     }
 
-    let mut sorted: Vec<(f32, f32, &str)> = cell
-        .spans
-        .iter()
-        .map(|span| (span.bbox.y, span.bbox.x, span.text.as_str()))
-        .collect();
-    sorted.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.total_cmp(&b.1)));
+    let mut sorted: Vec<&pdf_oxide::layout::TextSpan> = cell.spans.iter().collect();
+    sorted.sort_by(|a, b| {
+        let (advance_a, cross_a) = super::span_geometry::upright_origin(a);
+        let (advance_b, cross_b) = super::span_geometry::upright_origin(b);
+        cross_b
+            .total_cmp(&cross_a)
+            .then_with(|| advance_a.total_cmp(&advance_b))
+    });
 
     let joined: String = sorted
         .iter()
-        .map(|(_, _, text)| text.trim().replace('\n', " "))
+        .map(|span| span.text.trim().replace('\n', " "))
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
@@ -1763,8 +1781,8 @@ fn cell_text_in_reading_order(cell: &pdf_oxide::structure::table_extractor::Tabl
 /// Maps rows/cells from the native table structure to a 2D `Vec<Vec<String>>`
 /// grid and builds a markdown representation with proper header separators.
 ///
-/// Cell text is reconstructed from span positions in reading order
-/// (Y descending, X ascending) when span data is available.
+/// Cell text is reconstructed from span positions in reading order (see
+/// [`cell_text_in_reading_order`]) when span data is available.
 fn convert_extracted_table(table: &pdf_oxide::structure::table_extractor::Table) -> (Vec<Vec<String>>, String) {
     let mut cells: Vec<Vec<String>> = Vec::with_capacity(table.rows.len());
     let mut markdown = String::new();
@@ -2000,6 +2018,78 @@ mod tests {
         assert_eq!(
             text, "left right",
             "same-row spans must be ordered left-to-right (X ascending); got: {text:?}"
+        );
+    }
+
+    /// Build a synthetic rotated TextSpan for the GH#1358 sideways-table
+    /// tests. `x`/`y` are the span's page-space origin (as pdf_oxide reports
+    /// for a rotated run: origin in page coordinates, width/height flattened
+    /// onto the run's own rotated axis).
+    fn make_rotated_span(text: &str, x: f32, y: f32, rotation_degrees: f32) -> pdf_oxide::layout::TextSpan {
+        pdf_oxide::layout::TextSpan {
+            text: text.to_string(),
+            bbox: pdf_oxide::geometry::Rect {
+                x,
+                y,
+                width: 50.0,
+                height: 10.0,
+            },
+            font_name: "Helvetica".to_string(),
+            font_size: 10.0,
+            font_weight: pdf_oxide::layout::FontWeight::Normal,
+            is_italic: false,
+            is_monospace: false,
+            color: pdf_oxide::layout::Color::default(),
+            mcid: None,
+            sequence: 0,
+            split_boundary_before: false,
+            offset_semantic: false,
+            char_spacing: 0.0,
+            word_spacing: 0.0,
+            horizontal_scaling: 1.0,
+            primary_detected: false,
+            artifact_type: None,
+            char_widths: vec![],
+            heading_level: None,
+            rotation_degrees,
+            ..pdf_oxide::layout::TextSpan::default()
+        }
+    }
+
+    /// GH#1358: a table cell from pdf_oxide's geometric detector
+    /// (`grid_to_table`, which clones the original page spans and so
+    /// preserves their real `rotation_degrees`) whose spans carry a
+    /// 90-degree text-matrix rotation, delivered in the scrambled order
+    /// pdf_oxide reports fragments in (reversed from reading order — the
+    /// exact shape of the reported defect, `"the meet only need oil
+    /// Engine"`). A plain page-space X/Y sort reads this out of order because
+    /// a rotated run's reading direction is the run's own advance axis
+    /// (page-y for 90 degrees), not raw page-y. All spans share one page-x
+    /// (the column the rotated run is printed along), so page-space Y (not
+    /// X) must resolve the tie once the axes are corrected.
+    #[test]
+    fn test_cell_text_in_reading_order_sorts_rotated_spans_by_advance_axis() {
+        use pdf_oxide::structure::table_extractor::TableCell;
+
+        let cell = TableCell {
+            text: "wrong order".to_string(),
+            colspan: 1,
+            rowspan: 1,
+            mcids: vec![],
+            spans: vec![
+                make_rotated_span("need", 100.0, 100.0, 90.0),
+                make_rotated_span("oil", 100.0, 50.0, 90.0),
+                make_rotated_span("Engine", 100.0, 0.0, 90.0),
+            ],
+            bbox: None,
+            is_header: false,
+        };
+
+        let text = cell_text_in_reading_order(&cell);
+        assert_eq!(
+            text, "Engine oil need",
+            "a 90-degree-rotated cell must be read along its own advance axis (page-y), \
+             not raw page-space X/Y; got: {text:?}"
         );
     }
 

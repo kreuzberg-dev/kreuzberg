@@ -19,6 +19,10 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"keywords\":{\"algorithm\":\"yake\",\"max_keywords\":10}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        for (var keyword : result.results().get(0).keywords()) {
+            System.out.println(keyword.text());
+            System.out.println(keyword.score());
+        }
     }
 }
 

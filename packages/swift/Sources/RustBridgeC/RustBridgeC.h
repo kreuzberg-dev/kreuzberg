@@ -4142,6 +4142,21 @@ void *__swift_bridge__$Vec_BrowserBackend$get_mut(void *vec_ptr,
 uintptr_t __swift_bridge__$Vec_BrowserBackend$len(void *vec_ptr);
 void *__swift_bridge__$Vec_BrowserBackend$as_ptr(void *vec_ptr);
 
+typedef struct DocumentContentEncoding DocumentContentEncoding;
+void __swift_bridge__$DocumentContentEncoding$_free(void *self);
+
+void *__swift_bridge__$Vec_DocumentContentEncoding$new(void);
+void __swift_bridge__$Vec_DocumentContentEncoding$drop(void *vec_ptr);
+void __swift_bridge__$Vec_DocumentContentEncoding$push(void *vec_ptr,
+                                                       void *item_ptr);
+void *__swift_bridge__$Vec_DocumentContentEncoding$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_DocumentContentEncoding$get(void *vec_ptr,
+                                                       uintptr_t index);
+void *__swift_bridge__$Vec_DocumentContentEncoding$get_mut(void *vec_ptr,
+                                                           uintptr_t index);
+uintptr_t __swift_bridge__$Vec_DocumentContentEncoding$len(void *vec_ptr);
+void *__swift_bridge__$Vec_DocumentContentEncoding$as_ptr(void *vec_ptr);
+
 typedef struct AuthConfig AuthConfig;
 void __swift_bridge__$AuthConfig$_free(void *self);
 
@@ -4166,6 +4181,18 @@ void *__swift_bridge__$Vec_AssetCategory$get_mut(void *vec_ptr,
                                                  uintptr_t index);
 uintptr_t __swift_bridge__$Vec_AssetCategory$len(void *vec_ptr);
 void *__swift_bridge__$Vec_AssetCategory$as_ptr(void *vec_ptr);
+
+typedef struct HostMatcher HostMatcher;
+void __swift_bridge__$HostMatcher$_free(void *self);
+
+void *__swift_bridge__$Vec_HostMatcher$new(void);
+void __swift_bridge__$Vec_HostMatcher$drop(void *vec_ptr);
+void __swift_bridge__$Vec_HostMatcher$push(void *vec_ptr, void *item_ptr);
+void *__swift_bridge__$Vec_HostMatcher$pop(void *vec_ptr);
+void *__swift_bridge__$Vec_HostMatcher$get(void *vec_ptr, uintptr_t index);
+void *__swift_bridge__$Vec_HostMatcher$get_mut(void *vec_ptr, uintptr_t index);
+uintptr_t __swift_bridge__$Vec_HostMatcher$len(void *vec_ptr);
+void *__swift_bridge__$Vec_HostMatcher$as_ptr(void *vec_ptr);
 
 typedef struct PreprocessingPreset PreprocessingPreset;
 void __swift_bridge__$PreprocessingPreset$_free(void *self);
@@ -6176,6 +6203,8 @@ __swift_bridge__$CrawlConfig$max_depth(void *self);
 struct __private__OptionUsize
 __swift_bridge__$CrawlConfig$max_pages(void *self);
 struct __private__OptionUsize
+__swift_bridge__$CrawlConfig$max_links_per_page(void *self);
+struct __private__OptionUsize
 __swift_bridge__$CrawlConfig$max_concurrent(void *self);
 bool __swift_bridge__$CrawlConfig$respect_robots_txt(void *self);
 bool __swift_bridge__$CrawlConfig$soft_http_errors(void *self);
@@ -6215,10 +6244,14 @@ bool __swift_bridge__$CrawlConfig$download_documents(void *self);
 struct __private__OptionUsize
 __swift_bridge__$CrawlConfig$document_max_size(void *self);
 void *__swift_bridge__$CrawlConfig$document_mime_types(void *self);
+void *__swift_bridge__$CrawlConfig$document_output_dir(void *self);
+void *__swift_bridge__$CrawlConfig$document_content_encoding(void *self);
 void *__swift_bridge__$CrawlConfig$warc_output(void *self);
 void *__swift_bridge__$CrawlConfig$browser_profile(void *self);
 bool __swift_bridge__$CrawlConfig$save_browser_profile(void *self);
 void *__swift_bridge__$CrawlConfig$ssrf(void *self);
+struct __private__OptionBool
+__swift_bridge__$CrawlConfig$ssrf_deny_private_explicit(void *self);
 void *__swift_bridge__$SitemapUrl$new(void *url, void *lastmod,
                                       void *changefreq, void *priority);
 void *__swift_bridge__$SitemapUrl$url(void *self);
@@ -6227,8 +6260,10 @@ void *__swift_bridge__$SitemapUrl$changefreq(void *self);
 void *__swift_bridge__$SitemapUrl$priority(void *self);
 void *__swift_bridge__$MapResult$new(void *urls);
 void *__swift_bridge__$MapResult$urls(void *self);
-void *__swift_bridge__$SsrfPolicy$new(bool deny_private, uint8_t max_redirects);
+void *__swift_bridge__$SsrfPolicy$new(bool deny_private, void *allowlist,
+                                      uint8_t max_redirects);
 bool __swift_bridge__$SsrfPolicy$deny_private(void *self);
+void *__swift_bridge__$SsrfPolicy$allowlist(void *self);
 uint8_t __swift_bridge__$SsrfPolicy$max_redirects(void *self);
 void *__swift_bridge__$ConversionOptions$new(
     void *heading_style, void *list_indent_type, uintptr_t list_indent_width,
@@ -6368,8 +6403,10 @@ void *__swift_bridge__$LayoutClass$to_string(void *self);
 void *__swift_bridge__$BrowserMode$to_string(void *self);
 void *__swift_bridge__$BrowserWait$to_string(void *self);
 void *__swift_bridge__$BrowserBackend$to_string(void *self);
+void *__swift_bridge__$DocumentContentEncoding$to_string(void *self);
 void *__swift_bridge__$AuthConfig$to_string(void *self);
 void *__swift_bridge__$AssetCategory$to_string(void *self);
+void *__swift_bridge__$HostMatcher$to_string(void *self);
 void *__swift_bridge__$PreprocessingPreset$to_string(void *self);
 void *__swift_bridge__$HeadingStyle$to_string(void *self);
 void *__swift_bridge__$ListIndentType$to_string(void *self);
@@ -7050,6 +7087,8 @@ __swift_bridge__$browser_wait_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$browser_backend_from_json(void *json);
 struct __private__ResultPtrAndPtr
+__swift_bridge__$document_content_encoding_from_json(void *json);
+struct __private__ResultPtrAndPtr
 __swift_bridge__$auth_config_from_json(void *json);
 struct __private__ResultPtrAndPtr
 __swift_bridge__$asset_category_from_json(void *json);
@@ -7266,8 +7305,10 @@ void *__swift_bridge__$__alef_phantom_vec_probe_status(void);
 void *__swift_bridge__$__alef_phantom_vec_browser_mode(void);
 void *__swift_bridge__$__alef_phantom_vec_browser_wait(void);
 void *__swift_bridge__$__alef_phantom_vec_browser_backend(void);
+void *__swift_bridge__$__alef_phantom_vec_document_content_encoding(void);
 void *__swift_bridge__$__alef_phantom_vec_auth_config(void);
 void *__swift_bridge__$__alef_phantom_vec_asset_category(void);
+void *__swift_bridge__$__alef_phantom_vec_host_matcher(void);
 void *__swift_bridge__$__alef_phantom_vec_preprocessing_preset(void);
 void *__swift_bridge__$__alef_phantom_vec_heading_style(void);
 void *__swift_bridge__$__alef_phantom_vec_list_indent_type(void);

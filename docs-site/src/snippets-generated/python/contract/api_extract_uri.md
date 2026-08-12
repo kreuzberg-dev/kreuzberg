@@ -15,7 +15,8 @@ from xberg import extract, ExtractInput, ExtractInputKind, ExtractionConfig
 
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/pdf/fake_memo.pdf")
-    _ = await extract(input, None)
+    result = await extract(input, None)
+    print(result.results[0].content)
 
 asyncio.run(main())
 

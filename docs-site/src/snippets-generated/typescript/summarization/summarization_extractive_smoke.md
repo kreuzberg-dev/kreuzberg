@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/text/book_war_and_peace_1p.txt" };
   const config: ExtractionConfig = { summarization: { maxTokens: 80, strategy: SummaryStrategy.Extractive } };
   const result = await extract(input, config);
+  console.log(result.results[0].summary);
 }
 
 void main();

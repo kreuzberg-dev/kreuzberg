@@ -18,10 +18,10 @@ extract_batch: handles unsupported MIME gracefully
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("[{\"bytes\":[80,68,70,32,112,108,97,99,101,104,111,108,100,101,114],\"kind\":\"bytes\",\"mime_type\":\"application/x-unknown\"}]");
-    XBERGExtractBatch* result = extract_batch(options_handle, NULL);
-    xberg__free(options_handle);
-    xberg_extract_batch_free(result);
+    XBERGExtractInput* inputs_handle = xberg_extract_input_from_json("[{\"bytes\":[80,68,70,32,112,108,97,99,101,104,111,108,100,101,114],\"kind\":\"bytes\",\"mime_type\":\"application/x-unknown\"}]");
+    XBERGExtractionResult* result = xberg_extract_batch(inputs_handle, NULL);
+    xberg_extract_input_free(inputs_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

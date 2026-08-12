@@ -8,7 +8,7 @@ int main(void) {
 
     /* Pass an unsupported MIME type to trigger an error. */
     XBERGExtractInput *input =
-        xberg_extract_input_from_bytes(NULL, 0, "application/x-unknown");
+        xberg_extract_input_from_bytes(NULL, 0, "application/x-unknown", NULL);
     if (!input) {
         int32_t code = xberg_last_error_code();
         const char *message = xberg_last_error_context();

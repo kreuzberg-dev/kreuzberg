@@ -11,8 +11,14 @@ Clear all tokenizer backends and verify list is empty
 
 ```dart title="Dart"
 import 'package:xberg/xberg.dart';
+import 'package:xberg/src/xberg_bridge_generated/frb_generated.dart' show RustLib;
 Future<void> main() async {
-  final result = await XbergBridge.clearTokenizerBackends();
+  await RustLib.init();
+  try {
+    final result = await XbergBridge.clearTokenizerBackends();
+  } finally {
+    RustLib.dispose();
+  }
 }
 
 ```

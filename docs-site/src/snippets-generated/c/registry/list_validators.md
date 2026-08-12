@@ -18,7 +18,7 @@ List validators
 #include "xberg.h"
 
 int main(void) {
-    XBERGListValidators* result = list_validators("{}");
+    XBERGListValidators* result = xberg_list_validators("{}");
     xberg_list_validators_free(result);
     return EXIT_SUCCESS;
 }

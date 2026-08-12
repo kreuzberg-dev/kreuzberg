@@ -15,7 +15,9 @@ from xberg import extract_batch, ExtractInput, ExtractionConfig
 
 async def main() -> None:
     inputs = [ExtractInput(config={"output_format": "markdown"}, kind="uri", uri="https://example.com/pdf/fake_memo.pdf")]
-    _ = await extract_batch(inputs, None)
+    result = await extract_batch(inputs, None)
+    for result in result.results:
+        print(result.content)
 
 asyncio.run(main())
 

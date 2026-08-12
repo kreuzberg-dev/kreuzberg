@@ -19,6 +19,7 @@ async def main() -> None:
     result = await extract(input, config)
     for chunk in result.results[0].chunks or []:
         print(chunk.content)
+        print(chunk.metadata)
 
 asyncio.run(main())
 

@@ -1,56 +1,76 @@
 {
-	"id": "config_keywords",
-	"description": "Tests keyword extraction via YAKE algorithm",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests keyword extraction via YAKE algorithm",
-		"description": "Tests keyword extraction via YAKE algorithm",
-		"side_effects": "server"
-	},
-	"tags": ["contract", "config", "keywords"],
-	"call": "extract",
-	"assertion_recipes": ["keywords"],
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/pdf/fake_memo.pdf",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/pdf/fake_memo.pdf"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/pdf/fake_memo.pdf"
-		}
-	},
-	"assertions": [
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "application/pdf"
-		},
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 10
-		},
-		{
-			"type": "not_empty",
-			"field": "results[0].extracted_keywords"
-		},
-		{
-			"type": "count_min",
-			"field": "results[0].extracted_keywords",
-			"value": 1
-		}
-	],
-	"config": {
-		"keywords": {
-			"algorithm": "yake",
-			"max_keywords": 10
-		}
-	}
+  "id": "config_keywords",
+  "description": "Tests keyword extraction via YAKE algorithm",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests keyword extraction via YAKE algorithm",
+    "description": "Tests keyword extraction via YAKE algorithm",
+    "presentation": {
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results[0].keywords",
+          "item": "keyword",
+          "fields": [
+            "text",
+            "score"
+          ],
+          "display": true
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "config",
+    "keywords"
+  ],
+  "call": "extract",
+  "assertion_recipes": [
+    "keywords"
+  ],
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/pdf/fake_memo.pdf",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/pdf/fake_memo.pdf"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/pdf/fake_memo.pdf"
+    }
+  },
+  "assertions": [
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "application/pdf"
+    },
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 10
+    },
+    {
+      "type": "not_empty",
+      "field": "results[0].extracted_keywords"
+    },
+    {
+      "type": "count_min",
+      "field": "results[0].extracted_keywords",
+      "value": 1
+    }
+  ],
+  "config": {
+    "keywords": {
+      "algorithm": "yake",
+      "max_keywords": 10
+    }
+  }
 }

@@ -1,46 +1,61 @@
 {
-	"id": "format_pdf_text",
-	"category": "format_specific",
-	"description": "Standalone PDF text extraction using extract",
-	"docs": {
-		"topic": "format_specific",
-		"title": "Standalone PDF text extraction using extract",
-		"description": "Standalone PDF text extraction using extract",
-		"side_effects": "server"
-	},
-	"tags": ["format_specific", "pdf", "text_extraction"],
-	"call": "extract",
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/pdf/fake_memo.pdf",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/pdf"
-				},
-				"body_file": "../test_documents/pdf/fake_memo.pdf"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/pdf/fake_memo.pdf",
-			"mime_type": "application/pdf",
-			"filename": "fake_memo.pdf"
-		}
-	},
-	"assertions": [
-		{
-			"type": "not_error"
-		},
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 50
-		},
-		{
-			"type": "contains_any",
-			"field": "results[0].content",
-			"values": ["Mallori", "May"]
-		}
-	]
+  "id": "format_pdf_text",
+  "category": "format_specific",
+  "description": "Standalone PDF text extraction using extract",
+  "docs": {
+    "topic": "format_specific",
+    "title": "Standalone PDF text extraction using extract",
+    "description": "Standalone PDF text extraction using extract",
+    "presentation": {
+      "operations": [
+        {
+          "op": "show",
+          "path": "results[0].metadata"
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "format_specific",
+    "pdf",
+    "text_extraction"
+  ],
+  "call": "extract",
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/pdf/fake_memo.pdf",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/pdf"
+        },
+        "body_file": "../test_documents/pdf/fake_memo.pdf"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/pdf/fake_memo.pdf",
+      "mime_type": "application/pdf",
+      "filename": "fake_memo.pdf"
+    }
+  },
+  "assertions": [
+    {
+      "type": "not_error"
+    },
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 50
+    },
+    {
+      "type": "contains_any",
+      "field": "results[0].content",
+      "values": [
+        "Mallori",
+        "May"
+      ]
+    }
+  ]
 }

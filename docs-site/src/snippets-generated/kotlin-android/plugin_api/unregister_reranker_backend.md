@@ -12,7 +12,7 @@ unregister_reranker_backend
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     RerankerBackendBridge.unregister("test-reranker-backend")
 }
 

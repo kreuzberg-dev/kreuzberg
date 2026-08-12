@@ -17,6 +17,7 @@ public final class Example {
         var inputJson = "{\"kind\":\"uri\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}";
 var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var result = Xberg.extract(input, ExtractionConfig.builder().build());
+        System.out.println(result.results().get(0).content());
     }
 }
 

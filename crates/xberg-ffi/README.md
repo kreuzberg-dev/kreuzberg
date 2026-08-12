@@ -232,13 +232,13 @@ int main(void) {
         return 1;
     }
 
-    char *tables_json = xberg_extraction_result_tables(result);
-    if (tables_json) {
-        printf("Tables (JSON): %s\n", tables_json);
+    char *result_json = xberg_extraction_result_to_json(result);
+    if (result_json) {
+        printf("Extraction result (JSON): %s\n", result_json);
     } else {
-        printf("No tables found\n");
+        printf("No extraction result available\n");
     }
-    xberg_free_string(tables_json);
+    xberg_free_string(result_json);
 
     xberg_extract_input_free(input);
     xberg_extraction_result_free(result);

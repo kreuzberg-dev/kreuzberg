@@ -1,48 +1,69 @@
 {
-	"id": "smoke_html_basic",
-	"category": "smoke",
-	"description": "Smoke test: HTML table extraction",
-	"docs": {
-		"topic": "smoke",
-		"title": "Smoke test: HTML table extraction",
-		"description": "Smoke test: HTML table extraction",
-		"side_effects": "server"
-	},
-	"tags": ["smoke", "html"],
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/html/simple_table.html",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/html/simple_table.html"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/html/simple_table.html",
-			"mime_type": "text/html"
-		}
-	},
-	"assertions": [
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "text/html"
-		},
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 10
-		},
-		{
-			"type": "contains_any",
-			"field": "results[0].content",
-			"values": ["Sample Data Table", "Laptop", "Electronics", "Product"]
-		}
-	],
-	"call": "extract",
-	"config": {}
+  "id": "smoke_html_basic",
+  "category": "smoke",
+  "description": "Smoke test: HTML table extraction",
+  "docs": {
+    "topic": "smoke",
+    "title": "Smoke test: HTML table extraction",
+    "description": "Smoke test: HTML table extraction",
+    "presentation": {
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results[0].tables",
+          "item": "table",
+          "fields": [
+            "rows"
+          ],
+          "display": true
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "smoke",
+    "html"
+  ],
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/html/simple_table.html",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/html/simple_table.html"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/html/simple_table.html",
+      "mime_type": "text/html"
+    }
+  },
+  "assertions": [
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "text/html"
+    },
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 10
+    },
+    {
+      "type": "contains_any",
+      "field": "results[0].content",
+      "values": [
+        "Sample Data Table",
+        "Laptop",
+        "Electronics",
+        "Product"
+      ]
+    }
+  ],
+  "call": "extract",
+  "config": {}
 }

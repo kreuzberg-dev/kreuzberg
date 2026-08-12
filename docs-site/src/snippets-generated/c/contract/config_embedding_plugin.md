@@ -18,10 +18,12 @@ Tests EmbeddingModelType::Plugin variant deserialization in ChunkingConfig — c
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("{\"chunking\":{\"embedding\":{\"max_embed_duration_secs\":30,\"model\":{\"name\":\"test-plugin-backend\",\"type\":\"plugin\"},\"normalize\":true},\"max_chars\":500,\"max_overlap\":50}}");
-    XBERGExtract* result = extract(options_handle);
-    xberg__free(options_handle);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}");
+    XBERGExtractionConfig* config_handle = xberg_extraction_config_from_json("{\"chunking\":{\"embedding\":{\"max_embed_duration_secs\":30,\"model\":{\"name\":\"test-plugin-backend\",\"type\":\"plugin\"},\"normalize\":true},\"max_chars\":500,\"max_overlap\":50}}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, config_handle);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_config_free(config_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

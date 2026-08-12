@@ -1,46 +1,60 @@
 {
-	"id": "api_extract_uri",
-	"description": "Tests URI extraction API",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests URI extraction API",
-		"description": "Tests URI extraction API",
-		"side_effects": "server"
-	},
-	"tags": ["contract", "api"],
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/pdf/fake_memo.pdf",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/pdf/fake_memo.pdf"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/pdf/fake_memo.pdf"
-		}
-	},
-	"assertions": [
-		{
-			"type": "equals",
-			"field": "results[0].mime_type",
-			"value": "application/pdf"
-		},
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 10
-		},
-		{
-			"type": "contains_any",
-			"field": "results[0].content",
-			"values": ["May 5, 2023", "Mallori"]
-		}
-	],
-	"category": "contract",
-	"call": "extract"
+  "id": "api_extract_uri",
+  "description": "Tests URI extraction API",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests URI extraction API",
+    "description": "Tests URI extraction API",
+    "presentation": {
+      "operations": [
+        {
+          "op": "show",
+          "path": "results[0].content"
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "api"
+  ],
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/pdf/fake_memo.pdf",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/pdf/fake_memo.pdf"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/pdf/fake_memo.pdf"
+    }
+  },
+  "assertions": [
+    {
+      "type": "equals",
+      "field": "results[0].mime_type",
+      "value": "application/pdf"
+    },
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 10
+    },
+    {
+      "type": "contains_any",
+      "field": "results[0].content",
+      "values": [
+        "May 5, 2023",
+        "Mallori"
+      ]
+    }
+  ],
+  "category": "contract",
+  "call": "extract"
 }

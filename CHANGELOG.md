@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Image inputs, and PDF pages whose geometry is unavailable, keep pixel coordinates and say so.
 - The RST text path now renders `.. math::` directives inside `$$` display-math delimiters instead
   of a literal `math:` prose prefix.
+- Rotated PDF text runs are now reassembled along their own reading axis on the default extraction path, restoring
+  word order and spacing without changing unrotated pages.
 - Alef now extracts Crawlberg binding types from the pinned registry dependency instead of a
   neighboring checkout, keeping generated bindings aligned with the version Cargo compiles.
 

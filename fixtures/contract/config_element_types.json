@@ -1,43 +1,63 @@
 {
-	"id": "config_element_types",
-	"description": "Tests element-based result format with element type assertions on DOCX",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests element-based result format with element type assertions on DOCX",
-		"description": "Tests element-based result format with element type assertions on DOCX",
-		"side_effects": "server"
-	},
-	"tags": ["contract", "config", "result_format"],
-	"call": "extract",
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/docx/unit_test_headers.docx",
-				"status_code": 200,
-				"headers": {
-					"content-type": "application/octet-stream"
-				},
-				"body_file": "../test_documents/docx/unit_test_headers.docx"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/docx/unit_test_headers.docx"
-		}
-	},
-	"assertions": [
-		{
-			"type": "contains_any",
-			"field": "results[0].mime_type",
-			"values": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
-		},
-		{
-			"type": "count_min",
-			"field": "results[0].elements",
-			"value": 1
-		}
-	],
-	"config": {
-		"result_format": "element_based"
-	}
+  "id": "config_element_types",
+  "description": "Tests element-based result format with element type assertions on DOCX",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests element-based result format with element type assertions on DOCX",
+    "description": "Tests element-based result format with element type assertions on DOCX",
+    "presentation": {
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results[0].elements",
+          "item": "element",
+          "fields": [
+            "element_type",
+            "content"
+          ],
+          "display": true
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "config",
+    "result_format"
+  ],
+  "call": "extract",
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/docx/unit_test_headers.docx",
+        "status_code": 200,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "body_file": "../test_documents/docx/unit_test_headers.docx"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/docx/unit_test_headers.docx"
+    }
+  },
+  "assertions": [
+    {
+      "type": "contains_any",
+      "field": "results[0].mime_type",
+      "values": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ]
+    },
+    {
+      "type": "count_min",
+      "field": "results[0].elements",
+      "value": 1
+    }
+  ],
+  "config": {
+    "result_format": "element_based"
+  }
 }

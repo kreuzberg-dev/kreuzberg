@@ -205,19 +205,12 @@ const MIN_NODE_RECALL: f64 = 1.0;
 /// Edges too, on the producers the corpus covers.
 const MIN_EDGE_RECALL: f64 = 1.0;
 
-/// The two fixtures not yet fully recovered, pinned at what they score today so
+/// The one fixture not yet fully recovered, pinned at what it scores today so
 /// the gap is visible and a regression still trips the test.
-///
-/// `icon_nodes` is the AWS/Azure architecture style: a node is an icon glyph
-/// with no enclosing outline and a caption underneath. Recovering it needs two
-/// things this does not do yet, merging the several subpaths of one glyph into
-/// a single node and reading a caption that sits below a shape rather than
-/// inside it. The second is the risky half, because a caption below a shape and
-/// an edge label above the next one are the same geometry.
 ///
 /// `graphviz_large` loses 4 of 141 edges, all long-range shortcuts that pass
 /// close to intervening nodes on the way.
-const KNOWN_GAPS: &[(&str, f64, f64)] = &[("icon_nodes", 0.0, 0.0), ("graphviz_large", 1.0, 0.97)];
+const KNOWN_GAPS: &[(&str, f64, f64)] = &[("graphviz_large", 1.0, 0.97)];
 
 fn floors(fixture: &Fixture) -> (f64, f64) {
     // Class A files state their graph outright, so recovery from them is

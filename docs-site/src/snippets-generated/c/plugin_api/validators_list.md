@@ -18,7 +18,7 @@ List all registered validators
 #include "xberg.h"
 
 int main(void) {
-    XBERGListValidators* result = list_validators(NULL);
+    XBERGListValidators* result = xberg_list_validators(NULL);
     xberg_list_validators_free(result);
     return EXIT_SUCCESS;
 }

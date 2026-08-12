@@ -18,7 +18,7 @@ List all registered renderers
 #include "xberg.h"
 
 int main(void) {
-    XBERGListRenderers* result = list_renderers(NULL);
+    XBERGListRenderers* result = xberg_list_renderers(NULL);
     xberg_list_renderers_free(result);
     return EXIT_SUCCESS;
 }

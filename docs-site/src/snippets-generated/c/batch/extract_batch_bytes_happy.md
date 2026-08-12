@@ -20,12 +20,17 @@ Extract multiple in-memory documents in one batch.
 int main(void) {
     const char *inputs_json_base = "[{\"bytes\":[72,101,108,108,111,44,32,119,111,114,108,100,33],\"kind\":\"bytes\",\"mime_type\":\"text/plain\"},{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"kind\":\"bytes\",\"mime_type\":\"text/html\"}]";
     FILE *inputs_file_0 = fopen("test_documents/html/html.html", "rb");
+    if (inputs_file_0 == NULL) return EXIT_FAILURE;
     fseek(inputs_file_0, 0, SEEK_END);
     long inputs_size_0 = ftell(inputs_file_0);
+    if (inputs_size_0 < 0) { fclose(inputs_file_0); return EXIT_FAILURE; }
     rewind(inputs_file_0);
     uint8_t *inputs_bytes_0 = malloc(inputs_size_0 > 0 ? (size_t)inputs_size_0 : 1);
+    if (inputs_bytes_0 == NULL) { fclose(inputs_file_0); return EXIT_FAILURE; }
+    if (fread(inputs_bytes_0, 1, (size_t)inputs_size_0, inputs_file_0) != (size_t)inputs_size_0) { free(inputs_bytes_0); fclose(inputs_file_0); return EXIT_FAILURE; }
     fclose(inputs_file_0);
     char *inputs_bytes_json_0 = malloc((size_t)inputs_size_0 * 4 + 3);
+    if (inputs_bytes_json_0 == NULL) { free(inputs_bytes_0); return EXIT_FAILURE; }
     size_t inputs_offset_0 = 0;
     inputs_bytes_json_0[inputs_offset_0++] = '[';
     for (long i = 0; i < inputs_size_0; ++i) {
@@ -36,16 +41,18 @@ int main(void) {
     free(inputs_bytes_0);
     const char *inputs_marker_0 = "\"__ALEF_DOC_FILE_0__\"";
     const char *inputs_position_0 = strstr(inputs_json_base, inputs_marker_0);
+    if (inputs_position_0 == NULL) { free(inputs_bytes_json_0); return EXIT_FAILURE; }
     size_t inputs_prefix_0 = (size_t)(inputs_position_0 - inputs_json_base);
     size_t inputs_json_size_0 = strlen(inputs_json_base) - strlen(inputs_marker_0) + strlen(inputs_bytes_json_0) + 1;
     char *inputs_json_0 = malloc(inputs_json_size_0);
+    if (inputs_json_0 == NULL) { free(inputs_bytes_json_0); return EXIT_FAILURE; }
     snprintf(inputs_json_0, inputs_json_size_0, "%.*s%s%s", (int)inputs_prefix_0, inputs_json_base, inputs_bytes_json_0, inputs_position_0 + strlen(inputs_marker_0));
     free(inputs_bytes_json_0);
-    XBERG* options_handle = xberg__from_json(inputs_json_0);
+    XBERGExtractInput* inputs_handle = xberg_extract_input_from_json(inputs_json_0);
     free(inputs_json_0);
-    XBERGExtractBatch* result = extract_batch(options_handle, NULL);
-    xberg__free(options_handle);
-    xberg_extract_batch_free(result);
+    XBERGExtractionResult* result = xberg_extract_batch(inputs_handle, NULL);
+    xberg_extract_input_free(inputs_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

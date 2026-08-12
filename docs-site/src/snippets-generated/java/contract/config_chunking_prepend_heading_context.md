@@ -19,6 +19,10 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
         var configJson = "{\"chunking\":{\"chunker_type\":\"markdown\",\"max_characters\":500,\"overlap\":50,\"prepend_heading_context\":true}}";
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
+        for (var chunk : result.results().get(0).chunks()) {
+            System.out.println(chunk.content());
+            System.out.println(chunk.metadata());
+        }
     }
 }
 

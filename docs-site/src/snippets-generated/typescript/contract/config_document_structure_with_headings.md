@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/docx/fake.docx" };
   const config: ExtractionConfig = { includeDocumentStructure: true };
   const result = await extract(input, config);
+  console.log(result.results[0].documentStructure);
 }
 
 void main();

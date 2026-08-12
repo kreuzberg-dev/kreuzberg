@@ -387,27 +387,49 @@ fn parse_keywords(keywords_str: &str) -> Vec<String> {
         .collect()
 }
 
+/// Parse a PDF `/CreationDate`/`/ModDate` string of the form
+/// `D:YYYYMMDDHHmmSS…` (or without the `D:` prefix) into ISO-8601.
+///
+/// PDF date strings are ASCII by spec, but the caller (`get_info_string` via
+/// `decode_pdf_string`) falls back to a byte-for-byte Latin-1 decode when the
+/// raw `/Info` bytes aren't valid UTF-8 (see `decode_pdf_string`'s `Err(_)`
+/// arm). Latin-1 bytes `0x80..=0xFF` each become a *two-byte* UTF-8 `char`,
+/// so `cleaned.len()` (a byte count) can outrun the number of ASCII
+/// characters actually present. Slicing at a fixed byte offset derived from
+/// that length — e.g. `&cleaned[2..6]` for the year — panics if the offset
+/// lands inside one of those two-byte characters ("byte index N is not a
+/// char boundary"). This is the same defect class as GH#1422
+/// (`xref_revisions::parse_pdf_date_string`, which hit it via a different
+/// lossy-decode path), so instead of gating on `cleaned.len()` we gate on
+/// `ascii_prefix_len`: the count of *leading* ASCII bytes. Every offset used
+/// below is only reached once `ascii_prefix_len` covers it, and an
+/// all-ASCII prefix is by construction one byte per `char`, so every such
+/// offset is guaranteed to land on a char boundary.
+///
+/// On malformed or non-ASCII-in-range input the original string is returned
+/// unchanged, matching the pre-existing fallback for short input.
 fn parse_pdf_date(date_str: &str) -> String {
     let cleaned = date_str.trim();
+    let ascii_prefix_len = cleaned.as_bytes().iter().take_while(|byte| byte.is_ascii()).count();
 
-    if cleaned.starts_with("D:") && cleaned.len() >= 10 {
+    if cleaned.starts_with("D:") && ascii_prefix_len >= 10 {
         let year = &cleaned[2..6];
         let month = &cleaned[6..8];
         let day = &cleaned[8..10];
 
-        if cleaned.len() >= 16 {
+        if ascii_prefix_len >= 16 {
             let hour = &cleaned[10..12];
             let minute = &cleaned[12..14];
             let second = &cleaned[14..16];
             format!("{}-{}-{}T{}:{}:{}Z", year, month, day, hour, minute, second)
-        } else if cleaned.len() >= 14 {
+        } else if ascii_prefix_len >= 14 {
             let hour = &cleaned[10..12];
             let minute = &cleaned[12..14];
             format!("{}-{}-{}T{}:{}:00Z", year, month, day, hour, minute)
         } else {
             format!("{}-{}-{}T00:00:00Z", year, month, day)
         }
-    } else if cleaned.len() >= 8 {
+    } else if ascii_prefix_len >= 8 {
         let year = &cleaned[0..4];
         let month = &cleaned[4..6];
         let day = &cleaned[6..8];
@@ -459,6 +481,33 @@ mod tests {
     #[test]
     fn test_parse_pdf_date_no_prefix() {
         assert_eq!(parse_pdf_date("20230115"), "2023-01-15T00:00:00Z");
+    }
+
+    /// Regression test for the same defect class as GH#1422
+    /// (`xref_revisions::parse_pdf_date_string`): a `/CreationDate`/`/ModDate`
+    /// value whose raw bytes are not valid UTF-8 goes through
+    /// `decode_pdf_string`'s Latin-1 fallback, which can turn a single
+    /// non-ASCII byte into a two-byte UTF-8 `char`. The byte layout below
+    /// puts the resulting two-byte `ÿ` (decoded from raw byte `0xFF`) at byte
+    /// offset 5 of the decoded string, so the unfixed `&cleaned[2..6]` slice
+    /// (end index 6) lands inside it and panics with "byte index 6 is not a
+    /// char boundary". `parse_pdf_date` must instead fall back to the raw,
+    /// unparsed string without panicking.
+    #[test]
+    fn should_not_panic_when_date_bytes_are_not_valid_utf8() {
+        let raw_bytes: &[u8] = b"D:202\xFF0315103045";
+        let decoded = decode_pdf_string(raw_bytes).expect("Latin-1 fallback always decodes non-empty bytes");
+        assert_eq!(
+            decoded, "D:202\u{FF}0315103045",
+            "sanity check: decode_pdf_string's Latin-1 fallback must map byte 0xFF to char U+00FF"
+        );
+
+        assert_eq!(
+            parse_pdf_date(&decoded),
+            decoded,
+            "a date whose required byte range isn't pure ASCII must fall back to the raw string, \
+             not panic"
+        );
     }
 
     #[test]

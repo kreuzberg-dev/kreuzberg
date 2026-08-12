@@ -18,8 +18,10 @@ Test language detection from shebang line via bytes input
 #include "xberg.h"
 
 int main(void) {
-    XBERGExtract* result = extract(NULL);
-    xberg_extract_free(result);
+    XBERGExtractInput* input_handle = xberg_extract_input_from_json("{\"kind\":\"uri\",\"mime_type\":\"text/x-source-code\",\"uri\":\"https://example.com/code/script.sh\"}");
+    XBERGExtractionResult* result = xberg_extract(input_handle, NULL);
+    xberg_extract_input_free(input_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

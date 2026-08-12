@@ -15,6 +15,7 @@ import io.xberg.*;
 public final class Example {
     public static void main(String[] args) throws Exception {
         var result = Xberg.extractBatch(java.util.Arrays.asList(JsonUtil.fromJson("{\"bytes\":[100,97,116,97],\"kind\":\"bytes\",\"mime_type\":\"application/x-unknown\"}", ExtractInput.class)), ExtractionConfig.builder().build());
+        System.out.println(result);
     }
 }
 

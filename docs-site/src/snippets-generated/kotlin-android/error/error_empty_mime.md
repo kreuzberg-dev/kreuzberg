@@ -14,10 +14,16 @@ import io.xberg.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 fun main() = kotlinx.coroutines.runBlocking {
-    val MAPPER = jacksonObjectMapper()
+    val mapper = jacksonObjectMapper()
+    try {
     val inputFile0 = java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(java.nio.file.Path.of("test_documents/text/plain.txt")))
-    val input = MAPPER.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractionConfig::class.java)
+    val input = mapper.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractionConfig::class.java)
+    val config = mapper.readValue("{}", ExtractionConfig::class.java)
     val result = Xberg.extract(input, config)
+    } catch (error: Exception) {
+        System.err.println("Call failed as expected: ${error.message}")
+        return@runBlocking    }
+    throw AssertionError("expected call to fail")
 }
 
 ```

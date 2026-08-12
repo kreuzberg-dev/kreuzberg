@@ -1,96 +1,110 @@
 {
-	"id": "config_chunking_prepend_heading_context",
-	"description": "Tests markdown chunker records heading hierarchy on chunk metadata",
-	"docs": {
-		"topic": "contract",
-		"title": "Tests markdown chunker records heading hierarchy on chunk metadata",
-		"description": "Tests markdown chunker records heading hierarchy on chunk metadata",
-		"presentation": {
-			"input": {
-				"extract_input": { "kind": "uri", "uri": "document.md" },
-				"config": {
-					"chunking": {
-						"chunker_type": "markdown",
-						"max_characters": 500,
-						"overlap": 50,
-						"prepend_heading_context": true
-					}
-				}
-			},
-			"operations": [
-				{
-					"op": "iterate",
-					"path": "results[0].chunks",
-					"item": "chunk",
-					"fields": ["content"],
-					"display": true,
-					"optional": true
-				}
-			]
-		},
-		"side_effects": "server"
-	},
-	"tags": ["contract", "config", "chunking", "heading-context"],
-	"call": "extract",
-	"assertion_recipes": ["chunks", "streaming"],
-	"input": {
-		"mock_responses": [
-			{
-				"path": "/markdown/extraction_test.md",
-				"status_code": 200,
-				"headers": {
-					"content-type": "text/markdown"
-				},
-				"body_file": "../test_documents/markdown/extraction_test.md"
-			}
-		],
-		"extract_input": {
-			"kind": "uri",
-			"uri": "$mock_url/markdown/extraction_test.md"
-		}
-	},
-	"assertions": [
-		{
-			"type": "min_length",
-			"field": "results[0].content",
-			"value": 10
-		},
-		{
-			"type": "count_min",
-			"field": "chunks",
-			"value": 2
-		},
-		{
-			"type": "is_true",
-			"field": "chunks_have_content"
-		},
-		{
-			"type": "is_true",
-			"field": "chunks_have_heading_context"
-		},
-		{
-			"type": "is_true",
-			"field": "first_chunk_starts_with_heading"
-		}
-	],
-	"skip": {
-		"languages": [
-			"ruby",
-			"php",
-			"zig",
-			"dart",
-			"kotlin_android",
-			"swift",
-			"homebrew"
-		],
-		"reason": "ruby and zig explicitly emit a skip comment for both chunks_have_heading_context and first_chunk_starts_with_heading (no binding field / not derivable from JSON alone); php/assertions.rs has no match arm for either field so they would fall through to an invalid generic field lookup. dart, kotlin_android and swift have no synthetic chunk assertions at all. homebrew is a CLI test_app with no result object to assert on."
-	},
-	"config": {
-		"chunking": {
-			"chunker_type": "markdown",
-			"max_chars": 300,
-			"max_overlap": 50,
-			"prepend_heading_context": true
-		}
-	}
+  "id": "config_chunking_prepend_heading_context",
+  "description": "Tests markdown chunker records heading hierarchy on chunk metadata",
+  "docs": {
+    "topic": "contract",
+    "title": "Tests markdown chunker records heading hierarchy on chunk metadata",
+    "description": "Tests markdown chunker records heading hierarchy on chunk metadata",
+    "presentation": {
+      "input": {
+        "extract_input": {
+          "kind": "uri",
+          "uri": "document.md"
+        },
+        "config": {
+          "chunking": {
+            "chunker_type": "markdown",
+            "max_characters": 500,
+            "overlap": 50,
+            "prepend_heading_context": true
+          }
+        }
+      },
+      "operations": [
+        {
+          "op": "iterate",
+          "path": "results[0].chunks",
+          "item": "chunk",
+          "fields": [
+            "content",
+            "metadata"
+          ],
+          "display": true,
+          "optional": true
+        }
+      ]
+    },
+    "side_effects": "server"
+  },
+  "tags": [
+    "contract",
+    "config",
+    "chunking",
+    "heading-context"
+  ],
+  "call": "extract",
+  "assertion_recipes": [
+    "chunks",
+    "streaming"
+  ],
+  "input": {
+    "mock_responses": [
+      {
+        "path": "/markdown/extraction_test.md",
+        "status_code": 200,
+        "headers": {
+          "content-type": "text/markdown"
+        },
+        "body_file": "../test_documents/markdown/extraction_test.md"
+      }
+    ],
+    "extract_input": {
+      "kind": "uri",
+      "uri": "$mock_url/markdown/extraction_test.md"
+    }
+  },
+  "assertions": [
+    {
+      "type": "min_length",
+      "field": "results[0].content",
+      "value": 10
+    },
+    {
+      "type": "count_min",
+      "field": "chunks",
+      "value": 2
+    },
+    {
+      "type": "is_true",
+      "field": "chunks_have_content"
+    },
+    {
+      "type": "is_true",
+      "field": "chunks_have_heading_context"
+    },
+    {
+      "type": "is_true",
+      "field": "first_chunk_starts_with_heading"
+    }
+  ],
+  "skip": {
+    "languages": [
+      "ruby",
+      "php",
+      "zig",
+      "dart",
+      "kotlin_android",
+      "swift",
+      "homebrew"
+    ],
+    "reason": "ruby and zig explicitly emit a skip comment for both chunks_have_heading_context and first_chunk_starts_with_heading (no binding field / not derivable from JSON alone); php/assertions.rs has no match arm for either field so they would fall through to an invalid generic field lookup. dart, kotlin_android and swift have no synthetic chunk assertions at all. homebrew is a CLI test_app with no result object to assert on."
+  },
+  "config": {
+    "chunking": {
+      "chunker_type": "markdown",
+      "max_chars": 300,
+      "max_overlap": 50,
+      "prepend_heading_context": true
+    }
+  }
 }

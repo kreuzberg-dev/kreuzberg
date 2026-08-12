@@ -11,8 +11,12 @@ Tests quality scoring produces a score value in [0.0, 1.0]
 
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 fun main() = kotlinx.coroutines.runBlocking {
+    val mapper = jacksonObjectMapper()
+    val input = mapper.readValue("{\"kind\":\"uri\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}", ExtractionConfig::class.java)
+    val config = mapper.readValue("{\"enable_quality_processing\":true}", ExtractionConfig::class.java)
     val result = Xberg.extract(input, config)
 }
 

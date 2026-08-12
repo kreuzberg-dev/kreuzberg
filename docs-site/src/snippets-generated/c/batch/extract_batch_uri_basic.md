@@ -18,10 +18,10 @@ extract_batch over URI inputs
 #include "xberg.h"
 
 int main(void) {
-    XBERG* options_handle = xberg__from_json("[{\"kind\":\"uri\",\"uri\":\"pdf/fake_memo.pdf\"},{\"kind\":\"uri\",\"uri\":\"text/fake_text.txt\"}]");
-    XBERGExtractBatch* result = extract_batch(options_handle, NULL);
-    xberg__free(options_handle);
-    xberg_extract_batch_free(result);
+    XBERGExtractInput* inputs_handle = xberg_extract_input_from_json("[{\"kind\":\"uri\",\"uri\":\"pdf/fake_memo.pdf\"},{\"kind\":\"uri\",\"uri\":\"text/fake_text.txt\"}]");
+    XBERGExtractionResult* result = xberg_extract_batch(inputs_handle, NULL);
+    xberg_extract_input_free(inputs_handle);
+    xberg_extraction_result_free(result);
     return EXIT_SUCCESS;
 }
 

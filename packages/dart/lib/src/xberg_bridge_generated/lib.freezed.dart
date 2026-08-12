@@ -5743,6 +5743,406 @@ as String,
 }
 
 /// @nodoc
+mixin _$HostMatcher {
+
+/// The hostname to match.
+ String get value;
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HostMatcherCopyWith<HostMatcher> get copyWith => _$HostMatcherCopyWithImpl<HostMatcher>(this as HostMatcher, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostMatcher&&(identical(other.value, value) || other.value == value));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,value);
+
+@override
+String toString() {
+  return 'HostMatcher(value: $value)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HostMatcherCopyWith<$Res>  {
+  factory $HostMatcherCopyWith(HostMatcher value, $Res Function(HostMatcher) _then) = _$HostMatcherCopyWithImpl;
+@useResult
+$Res call({
+ String value
+});
+
+
+
+
+}
+/// @nodoc
+class _$HostMatcherCopyWithImpl<$Res>
+    implements $HostMatcherCopyWith<$Res> {
+  _$HostMatcherCopyWithImpl(this._self, this._then);
+
+  final HostMatcher _self;
+  final $Res Function(HostMatcher) _then;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? value = null,}) {
+  return _then(_self.copyWith(
+value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [HostMatcher].
+extension HostMatcherPatterns on HostMatcher {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( HostMatcher_Exact value)?  exact,TResult Function( HostMatcher_Suffix value)?  suffix,TResult Function( HostMatcher_Cidr value)?  cidr,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case HostMatcher_Exact() when exact != null:
+return exact(_that);case HostMatcher_Suffix() when suffix != null:
+return suffix(_that);case HostMatcher_Cidr() when cidr != null:
+return cidr(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( HostMatcher_Exact value)  exact,required TResult Function( HostMatcher_Suffix value)  suffix,required TResult Function( HostMatcher_Cidr value)  cidr,}){
+final _that = this;
+switch (_that) {
+case HostMatcher_Exact():
+return exact(_that);case HostMatcher_Suffix():
+return suffix(_that);case HostMatcher_Cidr():
+return cidr(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( HostMatcher_Exact value)?  exact,TResult? Function( HostMatcher_Suffix value)?  suffix,TResult? Function( HostMatcher_Cidr value)?  cidr,}){
+final _that = this;
+switch (_that) {
+case HostMatcher_Exact() when exact != null:
+return exact(_that);case HostMatcher_Suffix() when suffix != null:
+return suffix(_that);case HostMatcher_Cidr() when cidr != null:
+return cidr(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String value)?  exact,TResult Function( String value)?  suffix,TResult Function( String value)?  cidr,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case HostMatcher_Exact() when exact != null:
+return exact(_that.value);case HostMatcher_Suffix() when suffix != null:
+return suffix(_that.value);case HostMatcher_Cidr() when cidr != null:
+return cidr(_that.value);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String value)  exact,required TResult Function( String value)  suffix,required TResult Function( String value)  cidr,}) {final _that = this;
+switch (_that) {
+case HostMatcher_Exact():
+return exact(_that.value);case HostMatcher_Suffix():
+return suffix(_that.value);case HostMatcher_Cidr():
+return cidr(_that.value);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String value)?  exact,TResult? Function( String value)?  suffix,TResult? Function( String value)?  cidr,}) {final _that = this;
+switch (_that) {
+case HostMatcher_Exact() when exact != null:
+return exact(_that.value);case HostMatcher_Suffix() when suffix != null:
+return suffix(_that.value);case HostMatcher_Cidr() when cidr != null:
+return cidr(_that.value);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class HostMatcher_Exact extends HostMatcher {
+  const HostMatcher_Exact({required this.value}): super._();
+
+
+/// The hostname to match.
+@override final  String value;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HostMatcher_ExactCopyWith<HostMatcher_Exact> get copyWith => _$HostMatcher_ExactCopyWithImpl<HostMatcher_Exact>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostMatcher_Exact&&(identical(other.value, value) || other.value == value));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,value);
+
+@override
+String toString() {
+  return 'HostMatcher.exact(value: $value)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HostMatcher_ExactCopyWith<$Res> implements $HostMatcherCopyWith<$Res> {
+  factory $HostMatcher_ExactCopyWith(HostMatcher_Exact value, $Res Function(HostMatcher_Exact) _then) = _$HostMatcher_ExactCopyWithImpl;
+@override @useResult
+$Res call({
+ String value
+});
+
+
+
+
+}
+/// @nodoc
+class _$HostMatcher_ExactCopyWithImpl<$Res>
+    implements $HostMatcher_ExactCopyWith<$Res> {
+  _$HostMatcher_ExactCopyWithImpl(this._self, this._then);
+
+  final HostMatcher_Exact _self;
+  final $Res Function(HostMatcher_Exact) _then;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? value = null,}) {
+  return _then(HostMatcher_Exact(
+value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class HostMatcher_Suffix extends HostMatcher {
+  const HostMatcher_Suffix({required this.value}): super._();
+
+
+/// The dot-prefixed suffix to match. A leading dot is optional.
+@override final  String value;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HostMatcher_SuffixCopyWith<HostMatcher_Suffix> get copyWith => _$HostMatcher_SuffixCopyWithImpl<HostMatcher_Suffix>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostMatcher_Suffix&&(identical(other.value, value) || other.value == value));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,value);
+
+@override
+String toString() {
+  return 'HostMatcher.suffix(value: $value)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HostMatcher_SuffixCopyWith<$Res> implements $HostMatcherCopyWith<$Res> {
+  factory $HostMatcher_SuffixCopyWith(HostMatcher_Suffix value, $Res Function(HostMatcher_Suffix) _then) = _$HostMatcher_SuffixCopyWithImpl;
+@override @useResult
+$Res call({
+ String value
+});
+
+
+
+
+}
+/// @nodoc
+class _$HostMatcher_SuffixCopyWithImpl<$Res>
+    implements $HostMatcher_SuffixCopyWith<$Res> {
+  _$HostMatcher_SuffixCopyWithImpl(this._self, this._then);
+
+  final HostMatcher_Suffix _self;
+  final $Res Function(HostMatcher_Suffix) _then;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? value = null,}) {
+  return _then(HostMatcher_Suffix(
+value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class HostMatcher_Cidr extends HostMatcher {
+  const HostMatcher_Cidr({required this.value}): super._();
+
+
+/// The CIDR block. Validated when built through [`HostMatcher::cidr`] or
+/// deserialization.
+@override final  String value;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$HostMatcher_CidrCopyWith<HostMatcher_Cidr> get copyWith => _$HostMatcher_CidrCopyWithImpl<HostMatcher_Cidr>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HostMatcher_Cidr&&(identical(other.value, value) || other.value == value));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,value);
+
+@override
+String toString() {
+  return 'HostMatcher.cidr(value: $value)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $HostMatcher_CidrCopyWith<$Res> implements $HostMatcherCopyWith<$Res> {
+  factory $HostMatcher_CidrCopyWith(HostMatcher_Cidr value, $Res Function(HostMatcher_Cidr) _then) = _$HostMatcher_CidrCopyWithImpl;
+@override @useResult
+$Res call({
+ String value
+});
+
+
+
+
+}
+/// @nodoc
+class _$HostMatcher_CidrCopyWithImpl<$Res>
+    implements $HostMatcher_CidrCopyWith<$Res> {
+  _$HostMatcher_CidrCopyWithImpl(this._self, this._then);
+
+  final HostMatcher_Cidr _self;
+  final $Res Function(HostMatcher_Cidr) _then;
+
+/// Create a copy of HostMatcher
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? value = null,}) {
+  return _then(HostMatcher_Cidr(
+value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$ImageOutputFormat {
 
 

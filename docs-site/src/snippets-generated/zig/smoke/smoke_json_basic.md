@@ -15,6 +15,7 @@ const xberg = @import("xberg");
 
 pub fn main() !void {
     const _result_json = try xberg.extract("{\"kind\":\"uri\",\"mime_type\":\"application/json\",\"uri\":\"https://example.com/json/simple.json\"}", "{}");
+    defer std.heap.c_allocator.free(_result_json);
 }
 
 ```
