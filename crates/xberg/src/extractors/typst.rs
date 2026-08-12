@@ -295,22 +295,35 @@ impl TypstExtractor {
                 continue;
             }
 
-            if trimmed.starts_with('$') && trimmed.ends_with('$') && trimmed.len() > 1 {
+            if let Some(rest) = trimmed.strip_prefix('$')
+                && !rest.is_empty()
+            {
                 Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
-                let math = trimmed.trim_matches('$').trim();
-                if !math.is_empty() {
-                    builder.push_formula(math, None, None);
-                }
-                continue;
-            }
-
-            if trimmed.starts_with('$') && trimmed.len() > 1 {
-                Self::flush_paragraph_internal(&mut paragraph_buf, &mut builder);
-                in_display_math = true;
-                math_buf.clear();
-                let opening_content = trimmed[1..].trim();
-                if !opening_content.is_empty() {
-                    math_buf.push_str(opening_content);
+                match rest.find('$') {
+                    // The line closes its own math. Anything after the closing
+                    // `$` is ordinary text: a trailing comma inside a table
+                    // call, a code span, or prose. Treating the line as the
+                    // start of a block swallowed all of it up to the next `$`
+                    // somewhere further down the document.
+                    Some(close) => {
+                        let math = rest[..close].trim();
+                        if !math.is_empty() {
+                            builder.push_formula(math, None, None);
+                        }
+                        let after = rest[close + 1..].trim();
+                        if !after.is_empty() {
+                            paragraph_buf.push_str(after);
+                            paragraph_buf.push(' ');
+                        }
+                    }
+                    None => {
+                        in_display_math = true;
+                        math_buf.clear();
+                        let opening_content = rest.trim();
+                        if !opening_content.is_empty() {
+                            math_buf.push_str(opening_content);
+                        }
+                    }
                 }
                 continue;
             }
@@ -1296,6 +1309,53 @@ impl TypstParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Collect the text of every formula element, in document order.
+    #[cfg(test)]
+    fn typst_formulas(content: &str) -> Vec<String> {
+        use crate::types::internal::ElementKind;
+        let doc = TypstExtractor::build_internal_document(content);
+        doc.elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    /// A line that opens and closes its own math is one formula. What follows
+    /// the closing `$` is text, not more math: the scanner used to treat such a
+    /// line as the start of a block and swallow everything up to the next `$`
+    /// in the document.
+    #[test]
+    fn test_inline_math_line_with_trailing_text_is_one_formula() {
+        let content = concat!(
+            "  $underbrace(x + y, |A|)$,\n",
+            "  `underbrace(x + y, |A|)`,\n",
+            "))\n",
+            "\n",
+            "= Dots\n",
+            "Use low dots in a list.\n",
+        );
+
+        assert_eq!(typst_formulas(content), vec!["underbrace(x + y, |A|)"]);
+    }
+
+    #[test]
+    fn test_display_math_block_still_spans_lines() {
+        let content = "$\nf(x) = x^2\n+ 1\n$\n";
+
+        assert_eq!(typst_formulas(content), vec!["f(x) = x^2\n+ 1"]);
+    }
+
+    #[test]
+    fn test_math_opening_a_block_on_its_own_line_spans_to_the_close() {
+        let content = "$ nabla dot bold(D) &= rho \\\nnabla dot bold(B) &= 0 $\n";
+
+        assert_eq!(
+            typst_formulas(content),
+            vec!["nabla dot bold(D) &= rho \\\nnabla dot bold(B) &= 0"]
+        );
+    }
 
     #[test]
     fn test_extract_metadata() {
