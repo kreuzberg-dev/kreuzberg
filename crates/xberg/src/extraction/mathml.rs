@@ -193,7 +193,7 @@ fn tex_annotation(node: Node, budget: &mut SecurityBudget) -> Result<Option<Stri
 
 /// Remove a `{\displaystyle ...}` or `{\textstyle ...}` wrapper around the
 /// whole expression.
-fn strip_style_wrapper(latex: &str) -> &str {
+pub(crate) fn strip_style_wrapper(latex: &str) -> &str {
     for prefix in ["{\\displaystyle", "{\\textstyle", "{\\scriptstyle"] {
         let Some(rest) = latex.strip_prefix(prefix) else {
             continue;

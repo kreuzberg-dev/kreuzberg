@@ -339,14 +339,25 @@ fn recover_mathml_formulas(html: &str, doc: &mut InternalDocument) {
             &crate::extractors::security::SecurityLimits::default(),
         );
         let push_formula = |latex: String, doc: &mut InternalDocument| {
-            if !latex.trim().is_empty() {
-                doc.push_element(crate::types::internal::InternalElement::text(
-                    crate::types::internal::ElementKind::Formula,
-                    latex,
-                    0,
-                ));
+            let trimmed = latex.trim();
+            if trimmed.is_empty() {
+                return;
             }
+            doc.push_element(crate::types::internal::InternalElement::text(
+                crate::types::internal::ElementKind::Formula,
+                trimmed.to_string(),
+                0,
+            ));
         };
+
+        // A `math/tex` script and a `mwe-math-fallback-image` are what a page
+        // carries *instead of* MathML: MediaWiki emits the image beside the
+        // `math` element it falls back from, and MathJax v2 emits the script for
+        // pages that ship no MathML at all. Reading them on a page that already
+        // has MathML would report every equation twice. A page repeats a short
+        // formula legitimately, so the test is which carriers the page uses, not
+        // whether two formulas share their text.
+        let has_mathml = MATH_TAG_RE.is_match(html);
 
         for m in MATH_TAG_RE.find_iter(html) {
             if let Ok(latex) = crate::extraction::mathml::convert_mathml_str_to_latex(m.as_str(), &mut budget) {
@@ -356,21 +367,25 @@ fn recover_mathml_formulas(html: &str, doc: &mut InternalDocument) {
 
         // A `math/tex` script holds the LaTeX source itself, so it needs no
         // conversion; only its delimiters and entities come off.
-        for caps in MATH_SCRIPT_RE.captures_iter(html) {
+        for caps in MATH_SCRIPT_RE.captures_iter(html).filter(|_| !has_mathml) {
             let raw = quick_xml::escape::unescape(caps.get(1).map_or("", |m| m.as_str()))
                 .unwrap_or_else(|_| caps.get(1).map_or("", |m| m.as_str()).into());
-            let latex = crate::extraction::derive::strip_math_delimiters(raw.trim());
+            let latex = crate::extraction::mathml::strip_style_wrapper(
+                crate::extraction::derive::strip_math_delimiters(raw.trim()),
+            );
             push_formula(latex.to_string(), doc);
         }
 
         // A rendered-equation image carries its source in `alt`, which is the
         // only copy of the math on pages that ship no MathML.
-        for m in TEX_IMG_RE.find_iter(html) {
+        for m in TEX_IMG_RE.find_iter(html).filter(|_| !has_mathml) {
             let Some(alt) = ALT_ATTR_RE.captures(m.as_str()).and_then(|c| c.get(1)) else {
                 continue;
             };
             let raw = quick_xml::escape::unescape(alt.as_str()).unwrap_or_else(|_| alt.as_str().into());
-            let latex = crate::extraction::derive::strip_math_delimiters(raw.trim());
+            let latex = crate::extraction::mathml::strip_style_wrapper(
+                crate::extraction::derive::strip_math_delimiters(raw.trim()),
+            );
             push_formula(latex.to_string(), doc);
         }
     }
@@ -1498,6 +1513,54 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
         );
+    }
+
+    /// MediaWiki ships one equation twice: the `math` element and a fallback
+    /// image whose `alt` holds the same TeX. The second is a representation of
+    /// the first, not another formula.
+    #[tokio::test]
+    async fn test_mathml_and_its_fallback_image_are_one_formula() {
+        use crate::core::config::ExtractionConfig;
+        let html = r#"<html><body><span class="mwe-math-element">
+            <math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>E</mi></mrow>
+            <annotation encoding="application/x-tex">E=mc^{2}</annotation></semantics></math>
+            <img class="mwe-math-fallback-image-inline" alt="{\displaystyle E=mc^{2}}" src="eq.png"/>
+            </span></body></html>"#;
+        let doc = HtmlExtractor::new()
+            .extract_content(html.as_bytes(), "text/html", &ExtractionConfig::default())
+            .await
+            .expect("extraction failed");
+
+        let latex: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(latex, vec!["E=mc^{2}"], "the fallback image is the same equation");
+    }
+
+    /// A page repeats a short formula legitimately, and each occurrence is its
+    /// own equation.
+    #[tokio::test]
+    async fn test_repeated_formulas_are_kept() {
+        use crate::core::config::ExtractionConfig;
+        let html = r#"<html><body>
+            <p>Let <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>n</mi></math> be even.</p>
+            <p>Then <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>n</mi></math> divides it.</p>
+            </body></html>"#;
+        let doc = HtmlExtractor::new()
+            .extract_content(html.as_bytes(), "text/html", &ExtractionConfig::default())
+            .await
+            .expect("extraction failed");
+
+        let latex: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(latex, vec!["n", "n"], "both occurrences are formulas");
     }
 
 }
