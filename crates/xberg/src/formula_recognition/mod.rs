@@ -247,6 +247,25 @@ pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>
         .map_err(|e| format!("formula recognition failed: {e}"))
 }
 
+/// Recognize a crop off the async executor: the recognizer holds a
+/// process-wide lock for the whole multi-step decode, so it must not park a
+/// runtime worker. On wasm32 (no OS threads) it runs inline.
+pub(crate) async fn recognize_crop_blocking(
+    crop: RgbImage,
+    accel: Option<AccelerationConfig>,
+) -> Result<Option<String>, String> {
+    #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
+    {
+        tokio::task::spawn_blocking(move || recognize_crop(&crop, accel.as_ref()))
+            .await
+            .map_err(|e| format!("formula recognition task failed: {e}"))?
+    }
+    #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
+    {
+        recognize_crop(&crop, accel.as_ref())
+    }
+}
+
 /// Test-only public entry: the integration test exercises the full
 /// download-load-recognize pipeline through this.
 #[cfg_attr(alef, alef(skip))]

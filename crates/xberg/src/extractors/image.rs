@@ -918,25 +918,9 @@ fn sort_layout_detections(detections: &mut [crate::layout::LayoutDetection], ima
     });
 }
 
-/// Run formula recognition off the async executor: the recognizer holds a
-/// process-wide lock for the whole multi-step decode, so it must not park a
-/// runtime worker. On wasm32 (no OS threads) it runs inline.
+/// Shared blocking-wrapper entry in the recognition module.
 #[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
-async fn recognize_formula_crop_blocking(
-    crop: image::RgbImage,
-    accel: Option<crate::core::config::AccelerationConfig>,
-) -> std::result::Result<Option<String>, String> {
-    #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
-    {
-        tokio::task::spawn_blocking(move || crate::formula_recognition::recognize_crop(&crop, accel.as_ref()))
-            .await
-            .map_err(|e| format!("formula recognition task failed: {e}"))?
-    }
-    #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
-    {
-        crate::formula_recognition::recognize_crop(&crop, accel.as_ref())
-    }
-}
+use crate::formula_recognition::recognize_crop_blocking as recognize_formula_crop_blocking;
 
 /// Recognize the formula regions of an assembled cached-layout document,
 /// replacing the plain OCR text in both the side channel and the matching

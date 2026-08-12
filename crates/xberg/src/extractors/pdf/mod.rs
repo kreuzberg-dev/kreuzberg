@@ -666,6 +666,19 @@ async fn run_ocr_with_layout(
                 path,
             ))
             .await?;
+        #[cfg(feature = "formula-recognition")]
+        let (mut pipeline_doc, mut pipeline_formulas) = (pipeline_doc, pipeline_formulas);
+        #[cfg(feature = "formula-recognition")]
+        if let (Some((images, detections)), Some(layout)) = (prepared_layout_inputs.as_ref(), config.layout.as_ref()) {
+            recognize_pdf_formula_regions(
+                pipeline_doc.as_mut(),
+                &mut pipeline_formulas,
+                images,
+                detections,
+                layout,
+            )
+            .await;
+        }
         return Ok((
             text,
             ocr_tables,
@@ -694,6 +707,12 @@ async fn run_ocr_with_layout(
             path,
         ))
         .await?;
+    #[cfg(feature = "formula-recognition")]
+    let (mut ocr_doc, mut formulas) = (ocr_doc, formulas);
+    #[cfg(feature = "formula-recognition")]
+    if let (Some((images, detections)), Some(layout)) = (prepared_layout_inputs.as_ref(), config.layout.as_ref()) {
+        recognize_pdf_formula_regions(ocr_doc.as_mut(), &mut formulas, images, detections, layout).await;
+    }
     Ok((
         text,
         ocr_tables,
@@ -707,6 +726,112 @@ async fn run_ocr_with_layout(
         layout_warning,
         layout_glyph_drop_warnings,
     ))
+}
+
+/// Recognize layout-detected formula regions on rendered PDF pages, replacing
+/// the region text (element and side-channel formula) with model LaTeX.
+///
+/// Detections and formulas are matched per page in reading order; a page
+/// whose formula-detection count differs from its formula count is skipped
+/// with a warning rather than guessed at. Failures keep the existing text.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+trait AsPageRgb {
+    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage>;
+}
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+impl AsPageRgb for image::DynamicImage {
+    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage> {
+        std::borrow::Cow::Owned(self.to_rgb8())
+    }
+}
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+impl AsPageRgb for image::RgbImage {
+    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage> {
+        std::borrow::Cow::Borrowed(self)
+    }
+}
+
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+async fn recognize_pdf_formula_regions(
+    ocr_doc: Option<&mut crate::types::internal::InternalDocument>,
+    formulas: &mut [crate::types::Formula],
+    images: &[impl AsPageRgb],
+    detections: &[crate::layout::DetectionResult],
+    layout: &crate::core::config::LayoutDetectionConfig,
+) {
+    if layout.formula_model.is_none() {
+        return;
+    }
+    let mut element_slots: Vec<Vec<&mut String>> = (0..images.len()).map(|_| Vec::new()).collect();
+    if let Some(doc) = ocr_doc {
+        for element in doc.elements.iter_mut() {
+            if matches!(element.kind, crate::types::internal::ElementKind::Formula)
+                && let Some(page) = element.page
+                && let Some(slot) = element_slots.get_mut((page as usize).saturating_sub(1))
+            {
+                slot.push(&mut element.text);
+            }
+        }
+    }
+    for (page_idx, (image, detection)) in images.iter().zip(detections).enumerate() {
+        let mut regions: Vec<&crate::layout::LayoutDetection> = detection
+            .detections
+            .iter()
+            .filter(|d| matches!(d.class_name, crate::layout::LayoutClass::Formula))
+            .collect();
+        if regions.is_empty() {
+            continue;
+        }
+        regions.sort_by(|a, b| a.bbox.y1.total_cmp(&b.bbox.y1).then(a.bbox.x1.total_cmp(&b.bbox.x1)));
+
+        let page_number = (page_idx + 1) as u32;
+        let mut formula_slots: Vec<&mut crate::types::Formula> = formulas
+            .iter_mut()
+            .filter(|f| f.page == Some(page_number))
+            .collect();
+        let elements = element_slots.get_mut(page_idx).map(Vec::as_mut_slice).unwrap_or(&mut []);
+
+        let matched_formulas = formula_slots.len() == regions.len();
+        let matched_elements = elements.len() == regions.len();
+        if !matched_formulas && !matched_elements {
+            if !formula_slots.is_empty() || !elements.is_empty() {
+                tracing::warn!(
+                    page = page_number,
+                    detections = regions.len(),
+                    formulas = formula_slots.len(),
+                    elements = elements.len(),
+                    "formula region count mismatch; keeping OCR text on this page"
+                );
+            }
+            continue;
+        }
+
+        let rgb = image.page_rgb();
+        for (region_idx, region) in regions.iter().enumerate() {
+            let x1 = (region.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
+            let y1 = (region.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
+            let x2 = (region.bbox.x2.max(0.0).ceil() as u32).min(rgb.width());
+            let y2 = (region.bbox.y2.max(0.0).ceil() as u32).min(rgb.height());
+            if x2 <= x1 || y2 <= y1 {
+                continue;
+            }
+            let crop = image::imageops::crop_imm(&rgb, x1, y1, x2 - x1, y2 - y1).to_image();
+            match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
+                Ok(Some(latex)) => {
+                    if matched_formulas && let Some(slot) = formula_slots.get_mut(region_idx) {
+                        slot.latex = latex.clone();
+                    }
+                    if matched_elements && let Some(text) = elements.get_mut(region_idx) {
+                        **text = latex;
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(error = %error, page = page_number, "pdf formula recognition failed; keeping OCR text");
+                }
+            }
+        }
+    }
 }
 
 /// Whether the caller actually asked for the recovered diagram, i.e. the
@@ -1689,6 +1814,19 @@ impl PdfExtractor {
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         if !ocr_formulas.is_empty() {
             doc.formulas = ocr_formulas;
+        }
+
+        // Native pages with layout hints carry formula elements holding the
+        // region's glyph text; a configured model replaces it with LaTeX.
+        #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+        if let (Some(images), Some(detections), Some(layout)) = (
+            markdown_layout_images.as_ref(),
+            markdown_layout_detections.as_ref(),
+            config.layout.as_ref(),
+        ) {
+            let mut side_channel = std::mem::take(&mut doc.formulas);
+            recognize_pdf_formula_regions(Some(&mut doc), &mut side_channel, images, detections, layout).await;
+            doc.formulas = side_channel;
         }
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
