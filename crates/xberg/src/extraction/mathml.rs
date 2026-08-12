@@ -21,6 +21,13 @@ use roxmltree::Node;
 /// leak into the LaTeX output.
 const ANNOTATION_ELEMENTS: &[&str] = &["annotation", "annotation-xml"];
 
+/// `annotation` encodings whose text is the LaTeX the author wrote.
+///
+/// A document that ships one states the formula exactly, so it beats
+/// reconstructing LaTeX from the presentation tree, which can only approximate
+/// the author's spelling.
+const TEX_ANNOTATION_ENCODINGS: &[&str] = &["application/x-tex", "text/x-tex", "tex", "latex"];
+
 /// Names of MathML elements that are pure grouping/styling wrappers: their
 /// children are rendered in sequence with no LaTeX markup of their own.
 const TRANSPARENT_ELEMENTS: &[&str] = &["math", "mrow", "mstyle", "mpadded", "merror"];
@@ -28,6 +35,8 @@ const TRANSPARENT_ELEMENTS: &[&str] = &["math", "mrow", "mstyle", "mpadded", "me
 #[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone)]
 enum MmlNode {
+    /// LaTeX taken verbatim from a TeX `annotation`.
+    Verbatim(String),
     /// Plain text from `mi`/`mn`/`mo`/`ms`.
     Run(String),
     /// Literal text from `mtext`: rendered as `\text{...}`.
@@ -153,6 +162,63 @@ fn collect_node(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode, Secu
     result
 }
 
+/// The LaTeX of a `semantics` child annotation that carries TeX, if any.
+///
+/// Renderers wrap the whole expression in `{\displaystyle ...}` or
+/// `{\textstyle ...}` to state the style the surrounding document set. That
+/// wrapper is presentation, not the formula, so it comes off; `$` delimiters
+/// come off for the same reason the projection strips them.
+fn tex_annotation(node: Node, budget: &mut SecurityBudget) -> Result<Option<String>, SecurityError> {
+    for child in node.children().filter(|c| c.is_element()) {
+        if !child.tag_name().name().eq_ignore_ascii_case("annotation") {
+            continue;
+        }
+        let Some(encoding) = child.attribute("encoding") else {
+            continue;
+        };
+        if !TEX_ANNOTATION_ENCODINGS
+            .iter()
+            .any(|known| known.eq_ignore_ascii_case(encoding.trim()))
+        {
+            continue;
+        }
+        let text = collect_text(child, budget)?;
+        let latex = strip_style_wrapper(crate::extraction::derive::strip_math_delimiters(text.trim()));
+        if !latex.is_empty() {
+            return Ok(Some(latex.to_string()));
+        }
+    }
+    Ok(None)
+}
+
+/// Remove a `{\displaystyle ...}` or `{\textstyle ...}` wrapper around the
+/// whole expression.
+fn strip_style_wrapper(latex: &str) -> &str {
+    for prefix in ["{\\displaystyle", "{\\textstyle", "{\\scriptstyle"] {
+        let Some(rest) = latex.strip_prefix(prefix) else {
+            continue;
+        };
+        let Some(inner) = rest.strip_suffix('}') else {
+            continue;
+        };
+        // The wrapper must enclose everything: a brace that closes early means
+        // the tail belongs to the formula.
+        let mut depth = 1i32;
+        for ch in inner.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+            if depth == 0 {
+                return latex;
+            }
+        }
+        return inner.trim();
+    }
+    latex
+}
+
 fn collect_node_inner(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode, SecurityError> {
     let tag = node.tag_name().name();
 
@@ -165,6 +231,9 @@ fn collect_node_inner(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode
         "mtext" => Ok(MmlNode::Text(collect_text(node, budget)?)),
         "mspace" => Ok(MmlNode::Space),
         "semantics" => {
+            if let Some(tex) = tex_annotation(node, budget)? {
+                return Ok(MmlNode::Verbatim(tex));
+            }
             let children = node
                 .children()
                 .filter(|c| {
@@ -307,6 +376,7 @@ fn render_nodes(nodes: &[MmlNode]) -> String {
 /// Render a single `MmlNode` to LaTeX, appending to `out`.
 fn render_node(node: &MmlNode, out: &mut String) {
     match node {
+        MmlNode::Verbatim(latex) => out.push_str(latex),
         MmlNode::Run(text) => render_run_text(text, out),
         MmlNode::Text(text) => render_text_content(text, out),
         MmlNode::Space => out.push(' '),
@@ -922,6 +992,65 @@ mod tests {
     #[test]
     fn test_unknown_element_degrades_to_text_content() {
         assert_eq!(mathml_to_latex("<mlongdiv><mn>42</mn></mlongdiv>"), "42");
+    }
+
+    /// A document that ships the author's TeX states the formula exactly, so it
+    /// beats reconstructing LaTeX from the presentation tree.
+    #[test]
+    fn test_tex_annotation_wins_over_the_presentation_tree() {
+        let latex = mathml_to_latex(
+            r#"<semantics>
+                <mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow>
+                <annotation encoding="application/x-tex">E = mc^2</annotation>
+            </semantics>"#,
+        );
+        assert_eq!(latex, "E = mc^2");
+    }
+
+    /// Renderers wrap the expression in the style the surrounding document set.
+    #[test]
+    fn test_display_style_wrapper_comes_off() {
+        let latex = mathml_to_latex(
+            r#"<semantics>
+                <mrow><mi>x</mi></mrow>
+                <annotation encoding="application/x-tex">{\displaystyle x^{2}+1}</annotation>
+            </semantics>"#,
+        );
+        assert_eq!(latex, "x^{2}+1");
+    }
+
+    /// A brace that closes before the end is part of the formula, so the
+    /// wrapper stays.
+    #[test]
+    fn test_partial_brace_group_keeps_the_wrapper() {
+        assert_eq!(
+            strip_style_wrapper("{\\displaystyle a} + b"),
+            "{\\displaystyle a} + b"
+        );
+    }
+
+    /// An annotation in another notation is not TeX and must not leak.
+    #[test]
+    fn test_non_tex_annotation_still_renders_the_presentation_branch() {
+        let latex = mathml_to_latex(
+            r#"<semantics>
+                <mrow><mi>E</mi><mo>=</mo><mi>m</mi></mrow>
+                <annotation encoding="StarMath 5.0">E = m</annotation>
+            </semantics>"#,
+        );
+        assert_eq!(latex, "E=m");
+    }
+
+    /// An empty annotation carries nothing, so the presentation tree stands.
+    #[test]
+    fn test_empty_tex_annotation_falls_back() {
+        let latex = mathml_to_latex(
+            r#"<semantics>
+                <mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow>
+                <annotation encoding="application/x-tex">   </annotation>
+            </semantics>"#,
+        );
+        assert_eq!(latex, "a+b");
     }
 
     #[test]
