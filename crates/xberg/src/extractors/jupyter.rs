@@ -79,6 +79,9 @@ enum OutputRepresentation {
     /// Plain prose, from `text/markdown` or `text/plain`. Rendered as an
     /// ordinary paragraph, subject to the document's usual escaping.
     Text(String),
+    /// LaTeX math, from `text/latex`. Rendered as a formula so the equation
+    /// reaches the document's formula list.
+    Latex(String),
 }
 
 #[cfg(feature = "notebook")]
@@ -523,6 +526,8 @@ impl JupyterExtractor {
     /// Precedence for `execute_result`/`display_data`/`update_display_data`,
     /// most to least rich (unless `plain` restricts output to plain text, in
     /// which case only `text/plain` is considered):
+    /// 0. `text/latex` — the exact equation, emitted as a formula element. A
+    ///    tool that ships it has already decided the output is math.
     /// 1. `text/html` — carries the most structure/semantics; some outputs
     ///    (e.g. a bare `display(HTML(...))` call) have *only* this
     ///    representation, so it must not be skipped in favor of a
@@ -565,6 +570,15 @@ impl JupyterExtractor {
                             builder.push_paragraph(trimmed, vec![], None, None);
                         }
                     }
+                    Some(OutputRepresentation::Latex(latex)) => {
+                        // `text/latex` ships its math delimited. The formula
+                        // element holds bare LaTeX, and the renderers add the
+                        // delimiters back.
+                        let bare = crate::extraction::derive::strip_math_delimiters(&latex);
+                        if !bare.is_empty() {
+                            builder.push_formula(bare, None, None);
+                        }
+                    }
                     None => {}
                 }
             }
@@ -585,6 +599,15 @@ impl JupyterExtractor {
         plain: bool,
     ) -> Option<OutputRepresentation> {
         if !plain {
+            // A tool that ships `text/latex` has already decided the output is
+            // math, and the LaTeX states the equation exactly. Nothing richer
+            // can be recovered from the HTML or the repr of the same result.
+            if let Some(latex) = data.get("text/latex") {
+                let text = Self::extract_source(latex);
+                if !text.trim().is_empty() {
+                    return Some(OutputRepresentation::Latex(text));
+                }
+            }
             if let Some(html) = data.get("text/html") {
                 let text = Self::extract_source(html);
                 if !text.is_empty() {
@@ -1037,6 +1060,94 @@ mod tests {
         );
         assert!(doc.elements.iter().any(|e| e.text.contains("hello world")));
         assert!(!doc.elements.iter().any(|e| e.text.contains("[output_type:")));
+    }
+
+    /// A `text/latex` output is the equation itself. It becomes a formula, and
+    /// the `text/plain` repr beside it does not also appear.
+    #[test]
+    fn test_latex_output_becomes_a_formula() {
+        use crate::types::internal::ElementKind;
+
+        let notebook: Value = serde_json::from_str(
+            r##"{
+            "cells": [
+                {"cell_type": "code", "source": ["sympy.sqrt(2)"], "metadata": {}, "execution_count": 1,
+                 "outputs": [{"output_type": "execute_result", "execution_count": 1, "metadata": {},
+                              "data": {"text/latex": ["$\\displaystyle \\sqrt{2}$"], "text/plain": ["sqrt(2)"]}}]}
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5
+        }"##,
+        )
+        .unwrap();
+        let doc = JupyterExtractor::build_internal_document(&notebook, JupyterCellRendering::Outputs, false).unwrap();
+
+        let formulas: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(formulas, vec!["\\displaystyle \\sqrt{2}"], "delimiters are stripped");
+        assert!(
+            !doc.elements.iter().any(|e| e.text.contains("sqrt(2)")),
+            "the plain repr of the same result does not appear twice"
+        );
+    }
+
+    /// Plain output keeps the `text/plain` repr, as it does for every other
+    /// rich representation.
+    #[test]
+    fn test_latex_output_falls_back_to_plain_text() {
+        use crate::types::internal::ElementKind;
+
+        let notebook: Value = serde_json::from_str(
+            r##"{
+            "cells": [
+                {"cell_type": "code", "source": ["sympy.sqrt(2)"], "metadata": {}, "execution_count": 1,
+                 "outputs": [{"output_type": "execute_result", "execution_count": 1, "metadata": {},
+                              "data": {"text/latex": ["$\\displaystyle \\sqrt{2}$"], "text/plain": ["sqrt(2)"]}}]}
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5
+        }"##,
+        )
+        .unwrap();
+        let doc = JupyterExtractor::build_internal_document(&notebook, JupyterCellRendering::Outputs, true).unwrap();
+
+        assert!(!doc.elements.iter().any(|e| matches!(e.kind, ElementKind::Formula)));
+        assert!(doc.elements.iter().any(|e| e.text.contains("sqrt(2)")));
+    }
+
+    /// Markdown cells go through the shared markdown parser, so display math in
+    /// a cell already becomes a formula. This pins that path.
+    #[test]
+    fn test_markdown_cell_display_math_becomes_a_formula() {
+        use crate::types::internal::ElementKind;
+
+        let notebook: Value = serde_json::from_str(
+            r##"{
+            "cells": [
+                {"cell_type": "markdown", "source": ["Einstein wrote $$E = mc^2$$ in 1905.\n\nInline $x^2$ stays."], "metadata": {}}
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5
+        }"##,
+        )
+        .unwrap();
+        let doc = JupyterExtractor::build_internal_document(&notebook, JupyterCellRendering::Both, false).unwrap();
+
+        let formulas: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(formulas, vec!["E = mc^2"], "display math only; inline math stays in the text");
+        assert!(doc.elements.iter().any(|e| e.text.contains("$x^2$")));
     }
 
     #[test]
