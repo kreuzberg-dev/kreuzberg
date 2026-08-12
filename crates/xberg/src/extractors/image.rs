@@ -1790,7 +1790,15 @@ impl ImageExtractor {
             Ok(configured) => configured,
             Err(error) => return cached_whole_image_after_layout_error(&whole_image_result, error),
         };
-        let region_doc = match extract_layout_regions(backend, &rgb, &detections, &region_ocr_config, config.layout.as_ref()).await {
+        let region_doc = match extract_layout_regions(
+            backend,
+            &rgb,
+            &detections,
+            &region_ocr_config,
+            config.layout.as_ref(),
+        )
+        .await
+        {
             Ok(doc) => doc,
             Err(error) => return cached_whole_image_after_layout_error(&whole_image_result, error),
         };

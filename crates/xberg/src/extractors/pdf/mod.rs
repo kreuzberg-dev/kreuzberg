@@ -785,11 +785,12 @@ async fn recognize_pdf_formula_regions(
         regions.sort_by(|a, b| a.bbox.y1.total_cmp(&b.bbox.y1).then(a.bbox.x1.total_cmp(&b.bbox.x1)));
 
         let page_number = (page_idx + 1) as u32;
-        let mut formula_slots: Vec<&mut crate::types::Formula> = formulas
-            .iter_mut()
-            .filter(|f| f.page == Some(page_number))
-            .collect();
-        let elements = element_slots.get_mut(page_idx).map(Vec::as_mut_slice).unwrap_or(&mut []);
+        let mut formula_slots: Vec<&mut crate::types::Formula> =
+            formulas.iter_mut().filter(|f| f.page == Some(page_number)).collect();
+        let elements = element_slots
+            .get_mut(page_idx)
+            .map(Vec::as_mut_slice)
+            .unwrap_or(&mut []);
 
         let matched_formulas = formula_slots.len() == regions.len();
         let matched_elements = elements.len() == regions.len();

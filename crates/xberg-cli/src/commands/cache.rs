@@ -10,7 +10,12 @@ use xberg::cache;
 
 use crate::{WireFormat, style};
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
+#[cfg(any(
+    feature = "paddle-ocr",
+    feature = "layout-detection",
+    feature = "ner-onnx",
+    feature = "formula-recognition"
+))]
 #[derive(Debug, Clone, serde::Serialize)]
 struct CacheManifestEntry {
     relative_path: String,
@@ -19,7 +24,12 @@ struct CacheManifestEntry {
     source_url: String,
 }
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
+#[cfg(any(
+    feature = "paddle-ocr",
+    feature = "layout-detection",
+    feature = "ner-onnx",
+    feature = "formula-recognition"
+))]
 impl CacheManifestEntry {
     fn new(relative_path: String, sha256: String, size_bytes: u64, source_url: String) -> Self {
         Self {
@@ -167,7 +177,12 @@ pub fn clear_command(cache_dir: Option<PathBuf>, format: WireFormat) -> Result<(
 /// Execute cache manifest command - outputs expected model files with checksums.
 pub fn manifest_command(format: WireFormat) -> Result<()> {
     // below is `#[cfg]`-stripped and `entries: Vec<_>` has no anchor for
-    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition")))]
+    #[cfg(not(any(
+        feature = "paddle-ocr",
+        feature = "layout-detection",
+        feature = "ner-onnx",
+        feature = "formula-recognition"
+    )))]
     {
         let _ = format;
         anyhow::bail!(
@@ -176,13 +191,23 @@ pub fn manifest_command(format: WireFormat) -> Result<()> {
         );
     }
 
-    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
+    #[cfg(any(
+        feature = "paddle-ocr",
+        feature = "layout-detection",
+        feature = "ner-onnx",
+        feature = "formula-recognition"
+    ))]
     {
         manifest_command_inner(format)
     }
 }
 
-#[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "ner-onnx", feature = "formula-recognition"))]
+#[cfg(any(
+    feature = "paddle-ocr",
+    feature = "layout-detection",
+    feature = "ner-onnx",
+    feature = "formula-recognition"
+))]
 #[expect(
     clippy::print_stdout,
     reason = "model manifest is the command's stdout result output"
@@ -362,9 +387,19 @@ pub fn warm_command(
     let cache_base = resolve_cache_base(cache_dir);
 
     let mut downloaded: Vec<String> = Vec::new();
-    #[cfg(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter", feature = "formula-recognition"))]
+    #[cfg(any(
+        feature = "paddle-ocr",
+        feature = "layout-detection",
+        feature = "tree-sitter",
+        feature = "formula-recognition"
+    ))]
     let mut already_cached: Vec<String> = Vec::new();
-    #[cfg(not(any(feature = "paddle-ocr", feature = "layout-detection", feature = "tree-sitter", feature = "formula-recognition")))]
+    #[cfg(not(any(
+        feature = "paddle-ocr",
+        feature = "layout-detection",
+        feature = "tree-sitter",
+        feature = "formula-recognition"
+    )))]
     let already_cached: Vec<String> = Vec::new();
 
     #[cfg(feature = "paddle-ocr")]

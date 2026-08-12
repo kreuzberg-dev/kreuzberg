@@ -17,11 +17,11 @@ use ort::value::{Tensor, TensorRef};
 
 use crate::core::config::AccelerationConfig;
 use crate::layout::error::LayoutError;
-#[cfg(paddle_ocr)]
-use crate::paddle_ocr::ModelManifestEntry;
 #[cfg(not(paddle_ocr))]
 use crate::layout::model_manager::ModelManifestEntry;
 use crate::layout::session::build_session;
+#[cfg(paddle_ocr)]
+use crate::paddle_ocr::ModelManifestEntry;
 
 /// Upstream release that hosts the model files (MIT licensed).
 const RELEASE_BASE_URL: &str = "https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0";
@@ -131,7 +131,9 @@ const MAX_MODEL_BYTES: u64 = 256 * 1024 * 1024;
 fn download_file(url: &str, target: &std::path::Path) -> Result<(), String> {
     let tmp = target.with_extension(format!("partial.{}", std::process::id()));
     let result = (|| {
-        let response = ureq::get(url).call().map_err(|e| format!("download {url} failed: {e}"))?;
+        let response = ureq::get(url)
+            .call()
+            .map_err(|e| format!("download {url} failed: {e}"))?;
         if response.status() != 200 {
             return Err(format!("download {url} failed: HTTP {}", response.status()));
         }
@@ -208,7 +210,9 @@ static LAST_INIT_FAILURE: std::sync::Mutex<Option<std::time::Instant>> = std::sy
 /// runtime must wrap this in `spawn_blocking`.
 pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>) -> Result<Option<String>, String> {
     {
-        let last = LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let last = LAST_INIT_FAILURE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(at) = *last
             && at.elapsed() < INIT_RETRY_COOLDOWN
         {
@@ -231,11 +235,14 @@ pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>
                     recognizer,
                     acceleration: accel.cloned(),
                 });
-                *LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                *LAST_INIT_FAILURE
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
             }
             Err(e) => {
-                *LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
-                    Some(std::time::Instant::now());
+                *LAST_INIT_FAILURE
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(std::time::Instant::now());
                 return Err(e);
             }
         }
@@ -329,10 +336,7 @@ impl FormulaRecognizer {
 
         for _ in 0..10 {
             let input = Tensor::from_array(tensor.clone()).map_err(LayoutError::Ort)?;
-            let outputs = self
-                .resizer
-                .run(inputs!["input" => input])
-                .map_err(LayoutError::Ort)?;
+            let outputs = self.resizer.run(inputs!["input" => input]).map_err(LayoutError::Ort)?;
             let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
             let classes = (*shape.last().unwrap_or(&1) as usize).clamp(1, data.len().max(1));
             let flat = &data[data.len() - classes..];
@@ -358,10 +362,7 @@ impl FormulaRecognizer {
 
     fn encode(&mut self, x: &Array4<f32>) -> Result<ndarray::Array3<f32>, LayoutError> {
         let input = Tensor::from_array(x.clone()).map_err(LayoutError::Ort)?;
-        let outputs = self
-            .encoder
-            .run(inputs!["input" => input])
-            .map_err(LayoutError::Ort)?;
+        let outputs = self.encoder.run(inputs!["input" => input]).map_err(LayoutError::Ort)?;
         let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
         let dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
         if dims.len() != 3 {
@@ -416,11 +417,7 @@ impl FormulaRecognizer {
             }
         }
 
-        Ok(out
-            .into_iter()
-            .skip(1)
-            .filter(|&t| t >= FIRST_CONTENT_TOKEN)
-            .collect())
+        Ok(out.into_iter().skip(1).filter(|&t| t >= FIRST_CONTENT_TOKEN).collect())
     }
 }
 
