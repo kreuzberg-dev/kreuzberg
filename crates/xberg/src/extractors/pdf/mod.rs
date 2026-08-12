@@ -807,6 +807,7 @@ async fn recognize_pdf_formula_regions(
         }
 
         let rgb = image.page_rgb();
+        let rgb: &image::RgbImage = &rgb;
         for (region_idx, region) in regions.iter().enumerate() {
             let x1 = (region.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
             let y1 = (region.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
