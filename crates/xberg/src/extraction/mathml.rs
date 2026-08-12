@@ -449,6 +449,36 @@ fn render_node(node: &MmlNode, out: &mut String) {
     }
 }
 
+/// True when `s` is exactly one balanced brace group (`{...}`): the opening
+/// brace's closer is the final character. `{a}^{b}` starts with `{` and ends
+/// with `}` but is two atoms — treating it as pre-braced produces double
+/// scripts when another script attaches.
+fn is_single_brace_group(s: &str) -> bool {
+    if !s.starts_with('{') || !s.ends_with('}') {
+        return false;
+    }
+    let mut depth = 0usize;
+    let mut escaped = false;
+    for (i, c) in s.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' => escaped = true,
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return i == s.len() - 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// Render `mtext` content. Plain text goes inside `\text{...}` with text-mode
 /// escaping; characters that map to math commands (Greek letters, operators)
 /// are emitted *outside* the `\text` group, because commands like `\Delta` are
@@ -543,18 +573,31 @@ fn under_script_command(under: &MmlNode) -> Option<&'static str> {
     }
 }
 
-/// Render an argument (sup/sub base), wrapping in braces if it renders to more
-/// than one character and is not already a LaTeX command or brace group.
+/// Render an argument (sup/sub base), wrapping in braces unless it is a single
+/// atom (one character, one LaTeX command, or one brace group).
+///
+/// A compound base that already carries a script (`\lambda _{1}^{'}`) MUST be
+/// wrapped, or attaching the outer script produces a double superscript. An
+/// empty base (script-only markup like tensor `{}_{,\nu}`) renders as `{}` so
+/// the script cannot fuse onto the preceding atom.
 fn render_arg(node: &MmlNode, out: &mut String) {
     let mut rendered = String::new();
     render_node(node, &mut rendered);
-    let needs_braces = rendered.chars().count() > 1 && !rendered.starts_with('\\') && !rendered.starts_with('{');
-    if needs_braces {
-        out.push('{');
+    let trimmed = rendered.trim();
+    if trimmed.is_empty() {
+        out.push_str("{}");
+        return;
+    }
+    let single_char = trimmed.chars().count() == 1;
+    let single_command = trimmed.starts_with('\\')
+        && trimmed.len() > 1
+        && trimmed[1..].chars().all(|c| c.is_ascii_alphabetic());
+    if single_char || single_command || is_single_brace_group(trimmed) {
         out.push_str(&rendered);
-        out.push('}');
     } else {
-        out.push_str(&rendered);
+        out.push('{');
+        out.push_str(trimmed);
+        out.push('}');
     }
 }
 
@@ -802,6 +845,49 @@ mod tests {
             mathml_to_latex("<mtext>m_{0} 50%</mtext>"),
             "\\text{m\\_\\{0\\} 50\\%}"
         );
+    }
+
+    #[test]
+    fn test_braced_base_with_script_still_wraps() {
+        // `{S_{\sigma }}_{1}` starts and ends with braces but is two atoms;
+        // scripting it again without a wrap is a double subscript.
+        assert_eq!(
+            mathml_to_latex(
+                "<msub><msub><mrow><mi>S</mi><mi>b</mi></mrow><mn>1</mn></msub><mn>2</mn></msub>"
+            ),
+            "{{Sb}_{1}}_{2}"
+        );
+    }
+
+    #[test]
+    fn test_scripted_base_wraps_before_outer_script() {
+        // `\lambda _{1}^{'}` scripted again must brace-wrap, or the outer
+        // script produces a double superscript.
+        assert_eq!(
+            mathml_to_latex(
+                "<msup><msup><mi>\u{03BB}</mi><mn>1</mn></msup><mn>2</mn></msup>"
+            ),
+            "{\\lambda ^{1}}^{2}"
+        );
+    }
+
+    #[test]
+    fn test_empty_script_base_renders_as_empty_group() {
+        // Tensor prescript markup: an empty base must yield `{}` so the script
+        // cannot fuse onto the preceding atom as a double subscript.
+        assert_eq!(
+            mathml_to_latex("<msup><mi>T</mi><mi>\u{03BD}</mi></msup><msub><mrow/><mi>\u{03BD}</mi></msub>"),
+            "T^{\\nu }{}_{\\nu }"
+        );
+    }
+
+    #[test]
+    fn test_combining_overline_folds_into_bar() {
+        // Identifiers carry combining marks (`U̅`); the raw mark is not a
+        // KaTeX-valid accent.
+        assert_eq!(mathml_to_latex("<mi>U\u{0305}</mi>"), "\\bar{U}");
+        // A mark split into its own element applies to the previous atom.
+        assert_eq!(mathml_to_latex("<mi>\u{03A3}</mi><mo>\u{0305}</mo>"), "\\bar{\\Sigma} ");
     }
 
     #[test]

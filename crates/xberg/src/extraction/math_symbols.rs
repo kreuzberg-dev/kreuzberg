@@ -14,15 +14,87 @@
 /// unpaired brace makes the whole formula unparseable. Escaped they render
 /// as the glyphs the source displayed.
 pub(crate) fn render_run_text(text: &str, out: &mut String) {
-    for ch in text.chars() {
-        if let Some(latex) = unicode_to_latex(ch) {
-            out.push_str(latex);
-        } else if let Some(escaped) = escape_tex_structural(ch) {
-            out.push_str(escaped);
-        } else {
-            out.push(ch);
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        // A combining accent applies to the character before it. Sources write
+        // `U̅` (U + combining overline) inside identifiers; KaTeX rejects the
+        // raw mark, so fold the pair into the accent macro.
+        if let Some(&next) = chars.peek()
+            && let Some(cmd) = combining_accent_to_latex(next)
+        {
+            chars.next();
+            out.push_str(cmd);
+            out.push('{');
+            push_mapped_char(ch, out);
+            out.push('}');
+            continue;
         }
+        if let Some(cmd) = combining_accent_to_latex(ch) {
+            // A mark with no base in this run applies to whatever the output
+            // currently ends with (the source split base and mark across
+            // elements, e.g. `<mi>Σ</mi><mo>̅</mo>`).
+            wrap_trailing_atom(cmd, out);
+            continue;
+        }
+        push_mapped_char(ch, out);
     }
+}
+
+/// Map one char through the symbol table / structural escapes onto `out`.
+fn push_mapped_char(ch: char, out: &mut String) {
+    if let Some(latex) = unicode_to_latex(ch) {
+        out.push_str(latex);
+    } else if let Some(escaped) = escape_tex_structural(ch) {
+        out.push_str(escaped);
+    } else {
+        out.push(ch);
+    }
+}
+
+/// Map a combining accent character to its LaTeX accent macro.
+fn combining_accent_to_latex(ch: char) -> Option<&'static str> {
+    match ch {
+        '\u{0302}' => Some("\\hat"),
+        '\u{0303}' => Some("\\tilde"),
+        '\u{0304}' | '\u{0305}' => Some("\\bar"),
+        '\u{0306}' => Some("\\breve"),
+        '\u{0307}' => Some("\\dot"),
+        '\u{0308}' => Some("\\ddot"),
+        '\u{030A}' => Some("\\mathring"),
+        '\u{030C}' => Some("\\check"),
+        '\u{0332}' => Some("\\underline"),
+        '\u{20D7}' => Some("\\vec"),
+        _ => None,
+    }
+}
+
+/// Wrap the trailing atom of `out` (one trailing LaTeX command, else one
+/// trailing char) in `cmd{...}`. No-op on empty output.
+fn wrap_trailing_atom(cmd: &str, out: &mut String) {
+    let trimmed_len = out.trim_end().len();
+    let trailing_ws = out.split_off(trimmed_len);
+    let atom_start = match out.rfind('\\') {
+        Some(i) if out[i + 1..].chars().all(|c| c.is_ascii_alphabetic()) && i + 1 < out.len() => i,
+        _ => match out.chars().last() {
+            Some(last) => out.len() - last.len_utf8(),
+            None => {
+                out.push_str(&trailing_ws);
+                return;
+            }
+        },
+    };
+    // Never wrap a structural character: losing the accent is better than
+    // producing an unbalanced group.
+    if matches!(&out[atom_start..], "{" | "}" | "\\" | "^" | "_" | "&") {
+        out.push_str(&trailing_ws);
+        return;
+    }
+    let atom = out.split_off(atom_start);
+    out.push_str(cmd);
+    out.push('{');
+    out.push_str(&atom);
+    out.push('}');
+    out.push_str(&trailing_ws);
 }
 
 /// Escape a TeX structural character appearing as literal content.
@@ -133,6 +205,12 @@ pub(crate) fn unicode_to_latex(ch: char) -> Option<&'static str> {
         '\u{2111}' => Some("\\Im "),
         '\u{2118}' => Some("\\wp "),
         '\u{2135}' => Some("\\aleph "),
+        '\u{2016}' | '\u{2225}' => Some("\\Vert "),
+        '\u{2223}' => Some("\\mid "),
+        '\u{2329}' | '\u{27E8}' => Some("\\langle "),
+        '\u{232A}' | '\u{27E9}' => Some("\\rangle "),
+        '\u{204E}' => Some("\\ast "),
+        '\u{03D2}' => Some("\\Upsilon "),
         '\u{2211}' => Some("\\sum "),
         '\u{220F}' => Some("\\prod "),
         '\u{222B}' => Some("\\int "),
