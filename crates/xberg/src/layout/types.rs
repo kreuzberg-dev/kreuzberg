@@ -224,8 +224,6 @@ impl fmt::Display for LayoutClass {
     }
 }
 
-/// A single layout detection result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
 impl BBox {
     /// Clamp this box to an image of `width` x `height` pixels, returning the
     /// integer crop rectangle `(x, y, w, h)`. `None` when the clamped region
@@ -241,6 +239,8 @@ impl BBox {
     }
 }
 
+/// A single layout detection result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutDetection {
     /// Detected layout class (e.g. `Table`, `Text`, `Title`).
     pub class_name: LayoutClass,
