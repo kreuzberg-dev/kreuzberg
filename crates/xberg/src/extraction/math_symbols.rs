@@ -5,14 +5,38 @@
 //! arrows, set notation, etc.) so a given symbol always maps to the same LaTeX
 //! command regardless of which source format it came from.
 
-/// Render run text, mapping Unicode math symbols to LaTeX commands.
+/// Render run text, mapping Unicode math symbols to LaTeX commands and
+/// escaping TeX structural characters.
+///
+/// Source text can carry literal `{`, `}`, `&`, `\` and friends (e.g. a
+/// stretchy `<mo>{</mo>` cases brace, or a set-difference backslash in
+/// `<mi>`). Passed through raw they change the LaTeX *structure* — an
+/// unpaired brace makes the whole formula unparseable. Escaped they render
+/// as the glyphs the source displayed.
 pub(crate) fn render_run_text(text: &str, out: &mut String) {
     for ch in text.chars() {
         if let Some(latex) = unicode_to_latex(ch) {
             out.push_str(latex);
+        } else if let Some(escaped) = escape_tex_structural(ch) {
+            out.push_str(escaped);
         } else {
             out.push(ch);
         }
+    }
+}
+
+/// Escape a TeX structural character appearing as literal content.
+pub(crate) fn escape_tex_structural(ch: char) -> Option<&'static str> {
+    match ch {
+        '{' => Some("\\{"),
+        '}' => Some("\\}"),
+        '&' => Some("\\&"),
+        '%' => Some("\\%"),
+        '#' => Some("\\#"),
+        '$' => Some("\\$"),
+        '_' => Some("\\_"),
+        '\\' => Some("\\backslash "),
+        _ => None,
     }
 }
 

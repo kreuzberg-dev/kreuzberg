@@ -61,6 +61,26 @@ use crate::extraction::derive::strip_math_delimiters;
 
 /// Extract the LaTeX for a `disp-formula` / `inline-formula` subtree.
 ///
+/// Strip a full LaTeX document wrapper from `tex-math` content.
+///
+/// PMC articles commonly ship `<tex-math>` as a complete compilable document
+/// (`\documentclass...\begin{document}$$...$$\end{document}`); only the body
+/// is the formula.
+fn strip_latex_document_wrapper(tex: &str) -> &str {
+    if !tex.contains("\\documentclass") {
+        return tex;
+    }
+    let Some(start) = tex.find("\\begin{document}") else {
+        return tex;
+    };
+    let body = &tex[start + "\\begin{document}".len()..];
+    let body = match body.find("\\end{document}") {
+        Some(end) => &body[..end],
+        None => body,
+    };
+    body.trim()
+}
+
 /// The caller has consumed the formula start tag. The preference order is:
 /// a `tex-math` child's text verbatim, then the `mml:math` subtree converted
 /// with the shared MathML converter, then the flattened text content.
@@ -194,9 +214,15 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
     }
 
     // An equation label (`<label>1.1</label>`) becomes a LaTeX `\tag` so the
-    // equation number survives the conversion.
+    // equation number survives the conversion. `\tag` renders inside parens,
+    // so a source label that already carries them (`(1)`) sheds one pair —
+    // otherwise the equation number displays as `((1))`.
     let with_tag = |latex: &str| -> String {
-        let label: String = label.trim().chars().filter(|c| *c != '{' && *c != '}').collect();
+        let mut label = label.trim();
+        if label.len() >= 2 && label.starts_with('(') && label.ends_with(')') {
+            label = label[1..label.len() - 1].trim();
+        }
+        let label: String = label.chars().filter(|c| *c != '{' && *c != '}').collect();
         if label.is_empty() {
             latex.to_string()
         } else {
@@ -204,7 +230,7 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
         }
     };
 
-    let tex = strip_math_delimiters(tex_math.trim());
+    let tex = strip_math_delimiters(strip_latex_document_wrapper(tex_math.trim()));
     if !tex.is_empty() {
         return Ok(with_tag(tex));
     }

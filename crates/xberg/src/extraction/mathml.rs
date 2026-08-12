@@ -308,11 +308,7 @@ fn render_nodes(nodes: &[MmlNode]) -> String {
 fn render_node(node: &MmlNode, out: &mut String) {
     match node {
         MmlNode::Run(text) => render_run_text(text, out),
-        MmlNode::Text(text) => {
-            out.push_str("\\text{");
-            render_run_text(text, out);
-            out.push('}');
-        }
+        MmlNode::Text(text) => render_text_content(text, out),
         MmlNode::Space => out.push(' '),
         MmlNode::Frac { num, den } => {
             out.push_str("\\frac{");
@@ -359,30 +355,66 @@ fn render_node(node: &MmlNode, out: &mut String) {
             sep,
             elements,
         } => {
-            out.push_str("\\left");
-            out.push_str(&fence_chr_to_latex(open));
-            for (i, elem) in elements.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(sep);
+            // Authors use `mfenced` as plain grouping with operators as direct
+            // children; inserting the spec-default comma separators there turns
+            // `(1 - x)` into `(1,-,x)`. Suppress separators when any child is
+            // itself an infix operator.
+            let sep = if elements.iter().any(is_operator_child) { "" } else { sep.as_str() };
+            let (left, right) = (fence_chr_to_latex(open), fence_chr_to_latex(close));
+            match (left, right) {
+                (Some(left), Some(right)) => {
+                    out.push_str("\\left");
+                    out.push_str(left);
+                    for (i, elem) in elements.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(sep);
+                        }
+                        render_node(elem, out);
+                    }
+                    out.push_str("\\right");
+                    out.push_str(right);
                 }
-                render_node(elem, out);
+                // A fence char LaTeX cannot use after `\left`: emit the fences
+                // as plain glyphs instead of producing an unparseable string.
+                _ => {
+                    render_run_text(open, out);
+                    for (i, elem) in elements.iter().enumerate() {
+                        if i > 0 {
+                            out.push_str(sep);
+                        }
+                        render_node(elem, out);
+                    }
+                    render_run_text(close, out);
+                }
             }
-            out.push_str("\\right");
-            out.push_str(&fence_chr_to_latex(close));
         }
         MmlNode::Under { base, under } => {
-            out.push_str("\\underset{");
-            render_node(under, out);
-            out.push_str("}{");
-            render_node(base, out);
-            out.push('}');
+            if let Some(cmd) = under_script_command(under) {
+                out.push_str(cmd);
+                out.push('{');
+                render_node(base, out);
+                out.push('}');
+            } else {
+                out.push_str("\\underset{");
+                render_node(under, out);
+                out.push_str("}{");
+                render_node(base, out);
+                out.push('}');
+            }
         }
         MmlNode::Over { base, over } => {
-            out.push_str("\\overset{");
-            render_node(over, out);
-            out.push_str("}{");
-            render_node(base, out);
-            out.push('}');
+            if let Some(cmd) = over_script_command(over, base) {
+                out.push_str(cmd);
+                out.push('{');
+                render_node(base, out);
+                out.push('}');
+            } else {
+                out.push_str("\\overset{");
+                render_node(over, out);
+                out.push_str("}{");
+                render_node(base, out);
+                out.push('}');
+            }
         }
         MmlNode::UnderOver { base, under, over } => {
             out.push_str("\\overset{");
@@ -417,6 +449,100 @@ fn render_node(node: &MmlNode, out: &mut String) {
     }
 }
 
+/// Render `mtext` content. Plain text goes inside `\text{...}` with text-mode
+/// escaping; characters that map to math commands (Greek letters, operators)
+/// are emitted *outside* the `\text` group, because commands like `\Delta` are
+/// math-mode-only and fail inside `\text{}`.
+fn render_text_content(text: &str, out: &mut String) {
+    let mut in_text = false;
+    for ch in text.chars() {
+        if let Some(latex) = crate::extraction::math_symbols::unicode_to_latex(ch) {
+            if in_text {
+                out.push('}');
+                in_text = false;
+            }
+            out.push_str(latex);
+            continue;
+        }
+        if !in_text {
+            out.push_str("\\text{");
+            in_text = true;
+        }
+        match ch {
+            '{' => out.push_str("\\{"),
+            '}' => out.push_str("\\}"),
+            '&' => out.push_str("\\&"),
+            '%' => out.push_str("\\%"),
+            '#' => out.push_str("\\#"),
+            '$' => out.push_str("\\$"),
+            '_' => out.push_str("\\_"),
+            '\\' => out.push_str("\\textbackslash "),
+            '^' => out.push_str("\\textasciicircum "),
+            '~' => out.push_str("\\textasciitilde "),
+            _ => out.push(ch),
+        }
+    }
+    if in_text {
+        out.push('}');
+    }
+}
+
+/// The raw script text of an accent-like script node (`mo`/`mi` leaf, possibly
+/// inside grouping), or `None` when the script is real content.
+fn script_leaf_text(node: &MmlNode) -> Option<&str> {
+    match node {
+        MmlNode::Run(text) => Some(text.trim()),
+        MmlNode::Group { children } if children.len() == 1 => script_leaf_text(&children[0]),
+        _ => None,
+    }
+}
+
+/// True when the base renders to a single glyph (possibly one LaTeX command),
+/// used to pick `\bar`/`\vec` over `\overline`/`\overrightarrow`.
+fn base_is_single_glyph(base: &MmlNode) -> bool {
+    let mut rendered = String::new();
+    render_node(base, &mut rendered);
+    let t = rendered.trim();
+    t.chars().count() == 1 || (t.starts_with('\\') && t[1..].chars().all(|c| c.is_ascii_alphabetic()))
+}
+
+/// Map an `mover` script char to a LaTeX accent command. MathML sources write
+/// accents as literal combining/spacing characters (`<mover><mi>x</mi>
+/// <mo>^</mo></mover>`); `\overset{^}{x}` is not valid LaTeX (bare `^` needs a
+/// group), so these must become accent macros.
+fn over_script_command(over: &MmlNode, base: &MmlNode) -> Option<&'static str> {
+    match script_leaf_text(over)? {
+        "^" | "\u{02C6}" | "\u{0302}" => Some("\\hat"),
+        "~" | "\u{02DC}" | "\u{0303}" | "\u{223C}" => Some("\\tilde"),
+        "\u{02D9}" | "\u{0307}" => Some("\\dot"),
+        "\u{00A8}" | "\u{0308}" => Some("\\ddot"),
+        "\u{00AF}" | "\u{203E}" | "\u{0304}" | "\u{0305}" => {
+            Some(if base_is_single_glyph(base) { "\\bar" } else { "\\overline" })
+        }
+        "\u{2192}" | "\u{20D7}" => Some(if base_is_single_glyph(base) {
+            "\\vec"
+        } else {
+            "\\overrightarrow"
+        }),
+        "\u{02C7}" | "\u{030C}" => Some("\\check"),
+        "\u{02D8}" | "\u{0306}" => Some("\\breve"),
+        "\u{00B4}" | "\u{0301}" => Some("\\acute"),
+        "`" | "\u{0300}" => Some("\\grave"),
+        "\u{02DA}" | "\u{030A}" => Some("\\mathring"),
+        "\u{23DE}" => Some("\\overbrace"),
+        _ => None,
+    }
+}
+
+/// Map an `munder` script char to a LaTeX command, like [`over_script_command`].
+fn under_script_command(under: &MmlNode) -> Option<&'static str> {
+    match script_leaf_text(under)? {
+        "_" | "\u{0332}" | "\u{02CD}" | "\u{00AF}" | "\u{203E}" => Some("\\underline"),
+        "\u{23DF}" => Some("\\underbrace"),
+        _ => None,
+    }
+}
+
 /// Render an argument (sup/sub base), wrapping in braces if it renders to more
 /// than one character and is not already a LaTeX command or brace group.
 fn render_arg(node: &MmlNode, out: &mut String) {
@@ -432,22 +558,50 @@ fn render_arg(node: &MmlNode, out: &mut String) {
     }
 }
 
-/// Map an `mfenced` open/close character to LaTeX.
-fn fence_chr_to_latex(chr: &str) -> String {
+/// True when a fenced child renders to a bare infix operator, meaning the
+/// `mfenced` is grouping an expression, not listing arguments.
+fn is_operator_child(node: &MmlNode) -> bool {
+    let MmlNode::Run(text) = node else { return false };
+    matches!(
+        text.trim(),
+        "+" | "-"
+            | "\u{2212}"
+            | "="
+            | "\u{00B1}"
+            | "\u{00D7}"
+            | "\u{22C5}"
+            | "/"
+            | "<"
+            | ">"
+            | "\u{2264}"
+            | "\u{2265}"
+    )
+}
+
+/// Map an `mfenced` open/close character to a LaTeX delimiter valid after
+/// `\left`/`\right`, or `None` for characters LaTeX cannot use there.
+/// Word-form commands carry a trailing space so following content never glues
+/// onto the control word (`\langle A`, not `\langleA`).
+fn fence_chr_to_latex(chr: &str) -> Option<&'static str> {
     match chr {
-        "(" | ")" | "[" | "]" => chr.to_string(),
-        "{" => "\\{".to_string(),
-        "}" => "\\}".to_string(),
-        "|" => "|".to_string(),
-        "\u{2016}" => "\\|".to_string(),
-        "\u{2329}" | "\u{27E8}" => "\\langle".to_string(),
-        "\u{232A}" | "\u{27E9}" => "\\rangle".to_string(),
-        "\u{230A}" => "\\lfloor".to_string(),
-        "\u{230B}" => "\\rfloor".to_string(),
-        "\u{2308}" => "\\lceil".to_string(),
-        "\u{2309}" => "\\rceil".to_string(),
-        "" => ".".to_string(),
-        _ => chr.to_string(),
+        "(" => Some("("),
+        ")" => Some(")"),
+        "[" => Some("["),
+        "]" => Some("]"),
+        "{" => Some("\\{"),
+        "}" => Some("\\}"),
+        "|" | "\u{2223}" => Some("|"),
+        "\u{2016}" | "\u{2225}" => Some("\\|"),
+        "\u{2329}" | "\u{27E8}" => Some("\\langle "),
+        "\u{232A}" | "\u{27E9}" => Some("\\rangle "),
+        "\u{230A}" => Some("\\lfloor "),
+        "\u{230B}" => Some("\\rfloor "),
+        "\u{2308}" => Some("\\lceil "),
+        "\u{2309}" => Some("\\rceil "),
+        "/" => Some("/"),
+        "\\" => Some("\\backslash "),
+        "" => Some("."),
+        _ => None,
     }
 }
 
@@ -560,10 +714,93 @@ mod tests {
     }
 
     #[test]
-    fn test_mover() {
+    fn test_mover_hat_accent() {
+        // A bare `^` inside `\overset` is unparseable LaTeX ("expected group
+        // after ^"); accent characters must map to accent macros.
+        assert_eq!(mathml_to_latex("<mover><mi>x</mi><mo>^</mo></mover>"), "\\hat{x}");
+    }
+
+    #[test]
+    fn test_mover_accent_family() {
+        assert_eq!(mathml_to_latex("<mover><mi>x</mi><mo>\u{02DC}</mo></mover>"), "\\tilde{x}");
+        assert_eq!(mathml_to_latex("<mover><mi>q</mi><mo>\u{02D9}</mo></mover>"), "\\dot{q}");
+        assert_eq!(mathml_to_latex("<mover><mi>y</mi><mo>\u{00AF}</mo></mover>"), "\\bar{y}");
+        assert_eq!(mathml_to_latex("<mover><mi>v</mi><mo>\u{2192}</mo></mover>"), "\\vec{v}");
+        // Multi-glyph base widens to the stretched forms.
         assert_eq!(
-            mathml_to_latex("<mover><mi>x</mi><mo>^</mo></mover>"),
-            "\\overset{^}{x}"
+            mathml_to_latex("<mover><mrow><mi>a</mi><mi>b</mi></mrow><mo>\u{00AF}</mo></mover>"),
+            "\\overline{ab}"
+        );
+    }
+
+    #[test]
+    fn test_munder_low_line_is_underline() {
+        // Authors write lower bounds as `munder` with a low-line char.
+        assert_eq!(mathml_to_latex("<munder><mi>m</mi><mo>_</mo></munder>"), "\\underline{m}");
+    }
+
+    #[test]
+    fn test_mover_with_content_script_keeps_overset() {
+        assert_eq!(
+            mathml_to_latex("<mover><mi>x</mi><mi>n</mi></mover>"),
+            "\\overset{n}{x}"
+        );
+    }
+
+    #[test]
+    fn test_literal_stretchy_brace_is_escaped() {
+        // A `<mo>{</mo>` cases brace passed through raw changes LaTeX grouping
+        // structure and leaves the formula unbalanced when its mate sits in
+        // another table row.
+        assert_eq!(mathml_to_latex("<mo>{</mo><mi>x</mi>"), "\\{x");
+    }
+
+    #[test]
+    fn test_literal_backslash_is_escaped() {
+        // Set difference written as a raw backslash: `A\B` must not fuse into
+        // an undefined control sequence `\B`.
+        assert_eq!(mathml_to_latex("<mi>A</mi><mo>\\</mo><mi>B</mi>"), "A\\backslash B");
+    }
+
+    #[test]
+    fn test_mfenced_norm_delimiters() {
+        assert_eq!(
+            mathml_to_latex(r#"<mfenced open="&#x2225;" close="&#x2225;"><mi>x</mi></mfenced>"#),
+            "\\left\\|x\\right\\|"
+        );
+    }
+
+    #[test]
+    fn test_mfenced_angle_delimiters_do_not_glue() {
+        assert_eq!(
+            mathml_to_latex(r#"<mfenced open="&#x27E8;" close="&#x27E9;"><mi>A</mi></mfenced>"#),
+            "\\left\\langle A\\right\\rangle "
+        );
+    }
+
+    #[test]
+    fn test_mfenced_with_operator_children_drops_separators() {
+        // `mfenced` abused as grouping: `(1 - x)` must not become `(1,-,x)`.
+        assert_eq!(
+            mathml_to_latex(r#"<mfenced><mn>1</mn><mo>-</mo><mi>x</mi></mfenced>"#),
+            "\\left(1-x\\right)"
+        );
+    }
+
+    #[test]
+    fn test_mtext_greek_moves_outside_text_group() {
+        // `\Delta` is math-mode-only; inside `\text{}` it is undefined.
+        assert_eq!(
+            mathml_to_latex("<mtext>rate \u{0394}x</mtext>"),
+            "\\text{rate }\\Delta \\text{x}"
+        );
+    }
+
+    #[test]
+    fn test_mtext_escapes_structural_chars() {
+        assert_eq!(
+            mathml_to_latex("<mtext>m_{0} 50%</mtext>"),
+            "\\text{m\\_\\{0\\} 50\\%}"
         );
     }
 

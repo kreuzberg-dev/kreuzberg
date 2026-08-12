@@ -124,6 +124,49 @@ mod jats_formula_mathml {
         assert_eq!(extraction.formulas[0].latex, "a^2 \\tag{2}");
     }
 
+    /// A parenthesized label sheds one paren pair: `\tag` adds its own parens
+    /// when it renders, so keeping the source pair displays `((3))`.
+    #[tokio::test]
+    async fn parenthesized_label_sheds_the_outer_pair() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <label>(3)</label>
+      <tex-math>$$a^2$$</tex-math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "a^2 \\tag{3}");
+    }
+
+    /// PMC ships `tex-math` as a full compilable LaTeX document; only the
+    /// body between `\begin{document}` and `\end{document}` is the formula.
+    #[tokio::test]
+    async fn tex_math_document_wrapper_is_stripped() {
+        let jats = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta><article-title>Math Test</article-title></article-meta>
+  </front>
+  <body>
+    <disp-formula id="e1">
+      <tex-math>\documentclass[12pt]{minimal} \usepackage{amsmath} \begin{document} $$E=mc^2$$ \end{document}</tex-math>
+    </disp-formula>
+  </body>
+</article>"#;
+
+        let extraction = extract(jats).await;
+        assert_eq!(extraction.formulas.len(), 1);
+        assert_eq!(extraction.formulas[0].latex, "E=mc^2");
+    }
+
     /// A label prefixes the fallback text when no math notation is present.
     #[tokio::test]
     async fn equation_label_prefixes_the_text_fallback() {
