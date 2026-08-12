@@ -49,6 +49,9 @@ impl Polyline {
         }
     }
 
+    /// Only the SVG front end emits quadratic segments; the PDF front end
+    /// (`pdf` without `svg`) never calls this.
+    #[cfg(all(feature = "svg", feature = "xml"))]
     pub(super) fn push_quad(&mut self, cursor: (f32, f32), control: (f32, f32), end: (f32, f32)) {
         for i in 1..=CURVE_SAMPLES {
             let t = i as f32 / CURVE_SAMPLES as f32;
@@ -131,6 +134,7 @@ pub(super) fn halfway_along(points: &[(f32, f32)]) -> (f32, f32) {
     points[points.len() - 1]
 }
 
+#[cfg(all(feature = "svg", feature = "xml"))]
 fn quad_at(p0: (f32, f32), p1: (f32, f32), p2: (f32, f32), t: f32) -> (f32, f32) {
     let u = 1.0 - t;
     (

@@ -1460,7 +1460,9 @@ mod tests {
         assert!(!rendered[0].run_inference, "gated page must stay out of the ONNX batch");
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    // `feature = "ocr"` exactly, not `any(ocr, ocr-pipeline)`: the standalone
+    // arm calls `render_selected_pages_for_ocr`, which is `ocr`-gated.
+    #[cfg(feature = "ocr")]
     #[test]
     fn layout_and_standalone_ocr_paths_share_rotation_normalization() {
         for rotation in [0, 90, 180, 270] {

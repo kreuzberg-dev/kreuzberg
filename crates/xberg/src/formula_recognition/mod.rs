@@ -339,7 +339,7 @@ impl FormulaRecognizer {
             let input = Tensor::from_array(tensor.clone()).map_err(LayoutError::Ort)?;
             let outputs = self.resizer.run(inputs!["input" => input]).map_err(LayoutError::Ort)?;
             let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
-            let argmax = crate::layout::session::argmax_last_row(shape, data)?;
+            let argmax = argmax_last_row(shape, data)?;
             let predicted = ((argmax as u32) + 1) * DIVISOR;
             // The tensor's padded width is what the model judged.
             let current_padded = pad_up(width, DIVISOR);
@@ -390,7 +390,7 @@ impl FormulaRecognizer {
                 .run(inputs!["x" => x_t, "mask" => mask_t, "context" => ctx_t])
                 .map_err(LayoutError::Ort)?;
             let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
-            let next = crate::layout::session::argmax_last_row(shape, data)? as i64;
+            let next = argmax_last_row(shape, data)? as i64;
             if next == EOS_TOKEN {
                 break;
             }
@@ -447,6 +447,27 @@ impl GrayCanvas {
 /// Round `v` up to the next multiple of `divisor`.
 fn pad_up(v: u32, divisor: u32) -> u32 {
     v.div_ceil(divisor) * divisor
+}
+
+/// Argmax over the last `classes`-sized row of a flat logits buffer.
+///
+/// Errors instead of panicking when the buffer is empty or smaller than one
+/// row: ONNX output shapes are model-controlled input.
+fn argmax_last_row(shape: &[i64], data: &[f32]) -> Result<usize, LayoutError> {
+    let classes = *shape.last().unwrap_or(&0) as usize;
+    if classes == 0 || data.len() < classes {
+        return Err(LayoutError::InvalidOutput(format!(
+            "logits buffer of {} values cannot hold a row of {classes}",
+            data.len()
+        )));
+    }
+    let row = &data[data.len() - classes..];
+    Ok(row
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.total_cmp(b.1))
+        .map(|(i, _)| i)
+        .unwrap_or(0))
 }
 
 /// Port of the reference `pad()` preprocessing: min-max contrast
@@ -561,6 +582,19 @@ mod tests {
         assert_eq!(pad_up(1, 32), 32);
         assert_eq!(pad_up(32, 32), 32);
         assert_eq!(pad_up(33, 32), 64);
+    }
+
+    #[test]
+    fn argmax_picks_the_last_row_maximum() {
+        // Two rows of three classes; the last row's max is index 1.
+        let data = [9.0, 0.0, 0.0, 0.1, 5.0, 0.2];
+        assert_eq!(argmax_last_row(&[2, 3], &data).unwrap(), 1);
+    }
+
+    #[test]
+    fn argmax_on_empty_output_errors_instead_of_panicking() {
+        assert!(argmax_last_row(&[0], &[]).is_err());
+        assert!(argmax_last_row(&[1, 4], &[0.0]).is_err());
     }
 
     #[test]

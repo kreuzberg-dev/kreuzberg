@@ -130,6 +130,14 @@ jobs:
         run: cargo clippy --locked -p xberg --no-default-features --features "layout-tract" --all-targets -- -D warnings
         shell: bash
 
+      # `formula-recognition` is opt-in and excluded from `full`, so no other cell
+      # compiles it standalone. This is the cell that catches helpers whose gate is
+      # broader or narrower than their callers' (layout + ocr-pipeline without any
+      # OCR backend). ~keep
+      - name: Clippy formula recognition cell
+        run: cargo clippy --locked -p xberg --no-default-features --features "formula-recognition,pdf" --all-targets -- -D warnings
+        shell: bash
+
       - name: Run tests
         run: task rust:test:ci
         shell: bash
@@ -153,9 +161,9 @@ jobs:
       # asm needs fullfp16). Keep the two in sync. ~keep
       - name: Run doctests
         run: |
-          features=full
+          features=full,formula-recognition
           if [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "aarch64" ]; then
-            features=full-no-heic,heic
+            features=full-no-heic,heic,formula-recognition
           fi
           echo "xberg doctest features: ${features}"
           cargo test --locked -p xberg --features "${features}" --doc

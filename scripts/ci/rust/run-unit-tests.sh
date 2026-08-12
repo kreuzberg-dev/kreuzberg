@@ -82,10 +82,14 @@ if ! {
   # `full-no-heic,heic` (== full minus candle, heic kept) so the crate still covers
   # everything except the un-buildable candle backends. Matches the candle drop in
   # the gliner leg below; Apple Silicon has fullfp16 and keeps candle. ~keep
-  xberg_test_features=full
+  # `formula-recognition` is excluded from `full` (ORT-dependent, opt-in), so add
+  # it here explicitly: its weight-free unit tests (preprocessing, decode helpers,
+  # cache manifest) have no other CI leg. The end-to-end test that needs the
+  # ~180 MB model download stays `#[ignore]`d. ~keep
+  xberg_test_features=full,formula-recognition
   if [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "aarch64" ]; then
     echo "Linux aarch64: using full-no-heic,heic (full pulls candle -> gemm-f16 needs fullfp16)"
-    xberg_test_features=full-no-heic,heic
+    xberg_test_features=full-no-heic,heic,formula-recognition
   fi
   RUST_BACKTRACE=full cargo test --locked -p xberg --features "$xberg_test_features" --all-targets --verbose || exit
 
