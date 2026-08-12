@@ -62,6 +62,10 @@ pub mod docx;
 #[cfg(any(feature = "office", feature = "xml"))]
 pub mod mathml;
 
+/// Formula capture shared by the XML formats (JATS, DocBook).
+#[cfg(feature = "xml")]
+pub(crate) mod formula_xml;
+
 /// Unicode-to-LaTeX symbol table shared by the OMML (`docx::math`) and MathML
 /// (`mathml`) converters.
 #[cfg(any(feature = "office", feature = "xml"))]

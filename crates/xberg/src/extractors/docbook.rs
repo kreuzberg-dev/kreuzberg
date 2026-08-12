@@ -320,6 +320,23 @@ fn build_docbook_internal_document(
                             builder.push_paragraph(&text, annotations, None, None);
                         }
                     }
+                    "equation" | "informalequation" | "inlineequation" => {
+                        // DocBook writes an equation as MathML, as verbatim TeX
+                        // in `alt`, or as plain text. An `<equation>` also takes
+                        // a `<title>`, which is a caption rather than an
+                        // equation number, so it stays out of the LaTeX.
+                        let latex = crate::extraction::formula_xml::extract_formula_latex(
+                            &mut reader,
+                            budget,
+                            &crate::extraction::formula_xml::FormulaElements {
+                                tex: "alt",
+                                label: None,
+                            },
+                        )?;
+                        if !latex.trim().is_empty() {
+                            builder.push_formula(latex.trim(), None, None);
+                        }
+                    }
                     "programlisting" | "screen" => {
                         let text = extract_element_text(&mut reader, budget)?;
                         if !text.is_empty() {
@@ -1610,6 +1627,78 @@ mod tests {
             content.contains("Architecture Diagram"),
             "expected figure caption, got: {content}"
         );
+    }
+
+    /// Collect the LaTeX of every formula element, in document order.
+    #[cfg(test)]
+    fn docbook_formulas(docbook: &str) -> Vec<String> {
+        use crate::types::internal::ElementKind;
+        let mut budget = SecurityBudget::with_defaults();
+        let doc = build_docbook_internal_document(docbook, false, &mut budget).expect("parse failed");
+        doc.elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    #[test]
+    fn test_docbook_equation_mathml_becomes_a_formula() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <title>Test</title>
+  <equation>
+    <title>Mass energy equivalence</title>
+    <mml:math><mml:mrow><mml:mi>E</mml:mi><mml:mo>=</mml:mo><mml:mi>m</mml:mi>
+    <mml:msup><mml:mi>c</mml:mi><mml:mn>2</mml:mn></mml:msup></mml:mrow></mml:math>
+  </equation>
+</article>"#;
+
+        assert_eq!(docbook_formulas(docbook), vec!["E=mc^{2}"]);
+    }
+
+    #[test]
+    fn test_docbook_informal_and_inline_equations_become_formulas() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <title>Test</title>
+  <informalequation>
+    <mml:math><mml:mrow><mml:mi>a</mml:mi><mml:mo>+</mml:mo><mml:mi>b</mml:mi></mml:mrow></mml:math>
+  </informalequation>
+  <inlineequation>
+    <mml:math><mml:mi>x</mml:mi></mml:math>
+  </inlineequation>
+</article>"#;
+
+        assert_eq!(docbook_formulas(docbook), vec!["a+b", "x"]);
+    }
+
+    /// An `alt` child holds verbatim TeX, which beats reconstructing the MathML.
+    #[test]
+    fn test_docbook_alt_tex_wins_over_mathml() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:mml="http://www.w3.org/1998/Math/MathML">
+  <title>Test</title>
+  <equation>
+    <alt role="tex">\int_0^1 x\,dx = \frac{1}{2}</alt>
+    <mml:math><mml:mi>wrong</mml:mi></mml:math>
+  </equation>
+</article>"#;
+
+        assert_eq!(docbook_formulas(docbook), vec!["\\int_0^1 x\\,dx = \\frac{1}{2}"]);
+    }
+
+    /// An equation with neither MathML nor TeX keeps its text rather than
+    /// vanishing.
+    #[test]
+    fn test_docbook_text_only_equation_keeps_its_text() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <title>Test</title>
+  <informalequation>E = mc^2</informalequation>
+</article>"#;
+
+        assert_eq!(docbook_formulas(docbook), vec!["E = mc^2"]);
     }
 
     #[test]
