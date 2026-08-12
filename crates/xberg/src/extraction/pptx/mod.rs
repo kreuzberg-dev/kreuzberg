@@ -78,6 +78,17 @@ pub struct PptxExtractionOptions {
     pub inject_placeholders: bool,
 }
 
+/// Crate-internal PPTX extraction output.
+///
+/// `slide_contents` keeps the archive-derived slide number alongside each
+/// rendered slide. The public result remains unchanged, while the internal
+/// extractor can rebuild page-aware elements without embedding forgeable
+/// boundary markers in user-controlled text.
+pub(crate) struct PptxInternalExtraction {
+    pub(crate) result: PptxExtractionResult,
+    pub(crate) slide_contents: Vec<(u32, String)>,
+}
+
 impl Default for PptxExtractionOptions {
     fn default() -> Self {
         Self {
@@ -118,12 +129,13 @@ fn join_runs_with_spacing(runs: &[Run], extract: impl Fn(&Run) -> String) -> Str
 ///
 /// # Returns
 ///
-/// A `PptxExtractionResult` containing extracted content, metadata, and images.
-pub(crate) fn extract_pptx_from_path(
+/// The public extraction result plus archive-derived per-slide content used
+/// internally to assign trustworthy page metadata.
+pub(crate) fn extract_pptx_from_path_with_slide_contents(
     path: &str,
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<PptxExtractionResult> {
+) -> Result<PptxInternalExtraction> {
     let container = PptxContainer::open(path)?;
     extract_pptx_from_container(container, options, warnings)
 }
@@ -138,11 +150,20 @@ pub(crate) fn extract_pptx_from_path(
 /// # Returns
 ///
 /// A `PptxExtractionResult` containing extracted content, metadata, and images.
+#[cfg(test)]
 pub(crate) fn extract_pptx_from_bytes(
     data: &[u8],
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<PptxExtractionResult> {
+    Ok(extract_pptx_from_bytes_with_slide_contents(data, options, warnings)?.result)
+}
+
+pub(crate) fn extract_pptx_from_bytes_with_slide_contents(
+    data: &[u8],
+    options: &PptxExtractionOptions,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<PptxInternalExtraction> {
     let container = PptxContainer::from_bytes(data)?;
     extract_pptx_from_container(container, options, warnings)
 }
@@ -151,7 +172,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
     mut container: PptxContainer<R>,
     options: &PptxExtractionOptions,
     warnings: &mut Vec<ProcessingWarning>,
-) -> Result<PptxExtractionResult> {
+) -> Result<PptxInternalExtraction> {
     let config = ParserConfig {
         extract_images: options.extract_images,
         plain: options.plain,
@@ -177,6 +198,7 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
 
     let mut total_image_count = 0;
     let mut total_table_count = 0;
+    let mut slide_contents = Vec::with_capacity(slide_count);
     let mut extracted_images = Vec::new();
     let mut collected_hyperlinks: Vec<(String, Option<String>)> = Vec::new();
     let mut doc_builder = if include_structure {
@@ -194,16 +216,25 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
         };
 
         let slide_content = slide.to_markdown(&config);
-        // Preserve the archive-derived slide number for the internal document
-        // builder. The marker is consumed before final rendering and is kept out
-        // of `slide_content`, so it does not leak into per-slide output.
-        content_builder.add_slide_header(slide.slide_number);
         content_builder.add_text(&slide_content);
 
         let slide_notes = notes.get(&slide.slide_number).cloned();
         if let Some(ref note_text) = slide_notes {
             content_builder.add_notes(note_text);
         }
+
+        let mut internal_slide_content = slide_content.clone();
+        if let Some(ref note_text) = slide_notes
+            && !note_text.trim().is_empty()
+        {
+            if options.plain {
+                internal_slide_content.push_str("\n\nNotes:\n");
+            } else {
+                internal_slide_content.push_str("\n\n### Notes:\n");
+            }
+            internal_slide_content.push_str(note_text);
+        }
+        slide_contents.push((slide.slide_number, internal_slide_content));
 
         let slide_section = section_names.get(&slide.slide_number).cloned();
 
@@ -325,19 +356,22 @@ fn extract_pptx_from_container<R: std::io::Read + std::io::Seek>(
 
     let document = doc_builder.map(|b| b.build()).filter(|d| !d.is_empty());
 
-    Ok(PptxExtractionResult {
-        content,
-        metadata,
-        slide_count,
-        image_count: total_image_count,
-        table_count: total_table_count,
-        images: extracted_images,
-        page_structure,
-        page_contents,
-        document,
-        hyperlinks: collected_hyperlinks,
-        office_metadata,
-        revisions,
+    Ok(PptxInternalExtraction {
+        result: PptxExtractionResult {
+            content,
+            metadata,
+            slide_count,
+            image_count: total_image_count,
+            table_count: total_table_count,
+            images: extracted_images,
+            page_structure,
+            page_contents,
+            document,
+            hyperlinks: collected_hyperlinks,
+            office_metadata,
+            revisions,
+        },
+        slide_contents,
     })
 }
 
@@ -866,7 +900,7 @@ pub(crate) mod tests {
     #[test]
     fn test_extract_pptx_from_bytes_multiple_slides() {
         let pptx_bytes = create_test_pptx_bytes(vec!["Slide 1", "Slide 2", "Slide 3"]);
-        let result = extract_pptx_from_bytes(
+        let internal = extract_pptx_from_bytes_with_slide_contents(
             &pptx_bytes,
             &PptxExtractionOptions {
                 extract_images: false,
@@ -875,19 +909,21 @@ pub(crate) mod tests {
             &mut Vec::new(),
         )
         .unwrap();
+        let result = internal.result;
 
         assert_eq!(result.slide_count, 3);
         assert!(result.content.contains("Slide 1"));
         assert!(result.content.contains("Slide 2"));
         assert!(result.content.contains("Slide 3"));
-        for slide_number in 1..=3 {
-            assert!(
-                result
-                    .content
-                    .contains(&format!("<!-- Slide number: {slide_number} -->")),
-                "combined content should preserve the boundary for slide {slide_number}"
-            );
-        }
+        assert!(!result.content.contains("<!-- Slide number:"));
+        assert_eq!(
+            internal
+                .slide_contents
+                .iter()
+                .map(|(number, _)| *number)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
@@ -1706,7 +1742,7 @@ pub(crate) mod tests {
     /// Build a minimal single-slide PPTX with caller-supplied slide XML,
     /// optional slide relationships XML, and optional extra ZIP parts (used
     /// for chart/SmartArt data parts and referenced media).
-    fn build_single_slide_pptx(
+    pub(crate) fn build_single_slide_pptx(
         slide_xml: &str,
         slide_rels_xml: Option<&str>,
         extra_parts: &[(&str, &[u8])],

@@ -33,11 +33,9 @@ impl PptxExtractor {
 impl PptxExtractor {
     /// Build an `InternalDocument` from PPTX extracted text.
     ///
-    /// Splits content by double-newlines and uses internal slide markers to
-    /// retain the archive-derived slide number while rebuilding elements.
+    /// Parses each archive-derived slide independently so page metadata never
+    /// depends on headings or marker-like user text.
     ///
-    /// Note: For richer structure, the builder should be integrated into
-    /// `crate::extraction::pptx` alongside the existing `DocumentStructure` building.
     /// Try to strip an ordered-list prefix like `1. `, `2. `, `10. ` from a line.
     /// Returns the remaining text after the prefix, or `None` if the line does not
     /// start with a `<digits>. ` pattern.
@@ -58,114 +56,103 @@ impl PptxExtractor {
     }
 
     fn build_internal_document(
-        content: &str,
+        slide_contents: &[(u32, String)],
         slide_count: u32,
         budget: &mut SecurityBudget,
     ) -> Result<InternalDocument> {
         let mut builder = InternalDocumentBuilder::new("pptx");
-        let mut slide_num: u32 = 0;
-        let mut in_notes = false;
-        let has_slide_markers = content.contains("<!-- Slide number: ");
+        let mut saw_title = false;
 
-        let blocks: Vec<&str> = content.split("\n\n").collect();
+        for (slide_num, content) in slide_contents {
+            let mut in_notes = false;
 
-        for block in &blocks {
-            budget.step()?;
-            let trimmed = block.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            if let Some(marker) = trimmed
-                .strip_prefix("<!-- Slide number: ")
-                .and_then(|value| value.strip_suffix(" -->"))
-                && let Ok(number) = marker.parse::<u32>()
-                && (1..=slide_count).contains(&number)
-            {
-                slide_num = number;
-                in_notes = false;
-                continue;
-            }
-
-            if trimmed.starts_with("### Notes:") || trimmed == "Notes:" {
-                in_notes = true;
-                continue;
-            }
-
-            if let Some(title_text) = trimmed.strip_prefix("# ") {
-                in_notes = false;
-                if !has_slide_markers {
-                    slide_num += 1;
+            for block in content.split("\n\n") {
+                budget.step()?;
+                let trimmed = block.trim();
+                if trimmed.is_empty() {
+                    continue;
                 }
-                let title = title_text.trim();
-                if !title.is_empty() {
-                    budget.account_text(title.len())?;
-                    builder.push_heading(2, title, None, None);
+
+                if trimmed.starts_with("### Notes:") || trimmed == "Notes:" {
+                    in_notes = true;
+                    continue;
                 }
-                continue;
-            }
 
-            if in_notes {
-                in_notes = false;
-            }
-
-            if trimmed.starts_with('|') {
-                let cells = Self::parse_markdown_table(trimmed);
-                if !cells.is_empty() {
-                    builder.push_table_from_cells(&cells, Some(slide_num), None);
-                }
-                continue;
-            }
-
-            let mut in_list: Option<bool> = None;
-
-            for line in trimmed.lines() {
-                let lt = line.trim();
-                if lt.is_empty() {
-                    if in_list.is_some() {
-                        builder.end_list();
-                        in_list = None;
+                if let Some(title_text) = trimmed.strip_prefix("# ") {
+                    in_notes = false;
+                    saw_title = true;
+                    let title = title_text.trim();
+                    if !title.is_empty() {
+                        budget.account_text(title.len())?;
+                        builder.push_heading(2, title, Some(*slide_num), None);
                     }
                     continue;
                 }
 
-                let list_match = if let Some(item_text) = lt.strip_prefix("- ") {
-                    Some((false, item_text))
-                } else {
-                    Self::strip_ordered_prefix(lt).map(|item_text| (true, item_text))
-                };
-
-                if let Some((ordered, item_text)) = list_match {
-                    match in_list {
-                        Some(prev_ordered) if prev_ordered != ordered => {
-                            builder.end_list();
-                            builder.push_list(ordered);
-                            in_list = Some(ordered);
-                        }
-                        None => {
-                            builder.push_list(ordered);
-                            in_list = Some(ordered);
-                        }
-                        _ => {}
-                    }
-                    budget.account_text(item_text.len())?;
-                    builder.push_list_item(item_text, ordered, vec![], Some(slide_num), None);
-                } else {
-                    if in_list.is_some() {
-                        builder.end_list();
-                        in_list = None;
-                    }
-                    budget.account_text(lt.len())?;
-                    builder.push_paragraph(lt, vec![], None, None);
+                if in_notes {
+                    in_notes = false;
                 }
-            }
 
-            if in_list.is_some() {
-                builder.end_list();
+                if trimmed.starts_with('|') {
+                    let cells = Self::parse_markdown_table(trimmed);
+                    if !cells.is_empty() {
+                        builder.push_table_from_cells(&cells, Some(*slide_num), None);
+                    }
+                    continue;
+                }
+
+                let mut in_list: Option<bool> = None;
+
+                for line in trimmed.lines() {
+                    let lt = line.trim();
+                    if lt.is_empty() {
+                        if in_list.is_some() {
+                            builder.end_list();
+                            in_list = None;
+                        }
+                        continue;
+                    }
+
+                    let list_match = if let Some(item_text) = lt.strip_prefix("- ") {
+                        Some((false, item_text))
+                    } else {
+                        Self::strip_ordered_prefix(lt).map(|item_text| (true, item_text))
+                    };
+
+                    if let Some((ordered, item_text)) = list_match {
+                        match in_list {
+                            Some(prev_ordered) if prev_ordered != ordered => {
+                                builder.end_list();
+                                builder.push_list(ordered);
+                                in_list = Some(ordered);
+                            }
+                            None => {
+                                builder.push_list(ordered);
+                                in_list = Some(ordered);
+                            }
+                            _ => {}
+                        }
+                        budget.account_text(item_text.len())?;
+                        builder.push_list_item(item_text, ordered, vec![], Some(*slide_num), None);
+                    } else {
+                        if in_list.is_some() {
+                            builder.end_list();
+                            in_list = None;
+                        }
+                        budget.account_text(lt.len())?;
+                        builder.push_paragraph(lt, vec![], Some(*slide_num), None);
+                    }
+                }
+
+                if in_list.is_some() {
+                    builder.end_list();
+                }
             }
         }
 
-        if slide_num == 0 && slide_count > 0 {
+        // Preserve the legacy all-untitled output shape: it contains one Slide
+        // sentinel, while titled decks do not gain new thematic-break/JSON nodes.
+        if !saw_title && slide_count > 0 {
             builder.push_slide(1, None, Some(1));
         }
 
@@ -204,6 +191,7 @@ impl PptxExtractor {
     /// hostile-input limits on the extracted content.
     fn build_document_from_result(
         pptx_result: crate::types::PptxExtractionResult,
+        slide_contents: &[(u32, String)],
         mime_type: &str,
         extract_images: bool,
         budget: &mut SecurityBudget,
@@ -247,7 +235,7 @@ impl PptxExtractor {
             }
         }
 
-        let mut doc = Self::build_internal_document(&pptx_result.content, pptx_result.slide_count as u32, budget)?;
+        let mut doc = Self::build_internal_document(slide_contents, pptx_result.slide_count as u32, budget)?;
         doc.mime_type = mime_type.to_string();
 
         let mut metadata = Metadata {
@@ -324,7 +312,7 @@ impl InternalDocumentExtractor for PptxExtractor {
 
         let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
 
-        let pptx_result = {
+        let pptx_internal = {
             #[cfg(feature = "tokio-runtime")]
             {
                 if crate::core::batch_mode::is_batch_mode() {
@@ -343,8 +331,11 @@ impl InternalDocumentExtractor for PptxExtractor {
                     let (result, warnings) = tokio::task::spawn_blocking(move || {
                         let _guard = span.entered();
                         let mut warnings = Vec::new();
-                        let result =
-                            crate::extraction::pptx::extract_pptx_from_bytes(&content_owned, &options, &mut warnings);
+                        let result = crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                            &content_owned,
+                            &options,
+                            &mut warnings,
+                        );
                         (result, warnings)
                     })
                     .await
@@ -359,7 +350,11 @@ impl InternalDocumentExtractor for PptxExtractor {
                         include_structure: false,
                         inject_placeholders,
                     };
-                    crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
+                    crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                        content,
+                        &options,
+                        &mut pptx_warnings,
+                    )?
                 }
             }
 
@@ -372,12 +367,22 @@ impl InternalDocumentExtractor for PptxExtractor {
                     include_structure: false,
                     inject_placeholders,
                 };
-                crate::extraction::pptx::extract_pptx_from_bytes(content, &options, &mut pptx_warnings)?
+                crate::extraction::pptx::extract_pptx_from_bytes_with_slide_contents(
+                    content,
+                    &options,
+                    &mut pptx_warnings,
+                )?
             }
         };
 
         let mut budget = SecurityBudget::from_config(config);
-        let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        let mut doc = Self::build_document_from_result(
+            pptx_internal.result,
+            &pptx_internal.slide_contents,
+            mime_type,
+            extract_images,
+            &mut budget,
+        )?;
         doc.processing_warnings.extend(pptx_warnings);
 
         if config.max_archive_depth > 0 {
@@ -429,10 +434,20 @@ impl InternalDocumentExtractor for PptxExtractor {
             inject_placeholders,
         };
         let mut pptx_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
-        let pptx_result = crate::extraction::pptx::extract_pptx_from_path(path_str, &options, &mut pptx_warnings)?;
+        let pptx_internal = crate::extraction::pptx::extract_pptx_from_path_with_slide_contents(
+            path_str,
+            &options,
+            &mut pptx_warnings,
+        )?;
 
         let mut budget = SecurityBudget::from_config(config);
-        let mut doc = Self::build_document_from_result(pptx_result, mime_type, extract_images, &mut budget)?;
+        let mut doc = Self::build_document_from_result(
+            pptx_internal.result,
+            &pptx_internal.slide_contents,
+            mime_type,
+            extract_images,
+            &mut budget,
+        )?;
         doc.processing_warnings.extend(pptx_warnings);
         Ok(doc)
     }
@@ -473,25 +488,33 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_slide_markers_set_table_and_list_page_numbers() {
+    fn test_archive_slide_contents_set_table_list_heading_and_paragraph_pages() {
         use crate::types::internal::ElementKind;
 
-        let content = concat!(
-            "<!-- Slide number: 1 -->\n\n",
-            "# Titled slide\n\n",
-            "Introduction\n\n",
-            "<!-- Slide number: 2 -->\n\n",
-            "This untitled slide has a paragraph long enough not to be inferred as a title. ",
-            "It deliberately contains more than one hundred characters in total.\n\n",
-            "<!-- Slide number: 3 -->\n\n",
-            "| Name | Value |\n",
-            "| --- | --- |\n",
-            "| answer | 42 |\n\n",
-            "- final item",
-        );
+        let slide_contents = vec![
+            (1, "# Titled slide\n\nIntroduction".to_string()),
+            (
+                2,
+                concat!(
+                    "This untitled slide has a paragraph long enough not to be inferred as a title. ",
+                    "It deliberately contains more than one hundred characters in total."
+                )
+                .to_string(),
+            ),
+            (
+                3,
+                concat!(
+                    "| Name | Value |\n",
+                    "| --- | --- |\n",
+                    "| answer | 42 |\n\n",
+                    "- final item"
+                )
+                .to_string(),
+            ),
+        ];
         let mut budget = SecurityBudget::with_defaults();
 
-        let document = PptxExtractor::build_internal_document(content, 3, &mut budget)
+        let document = PptxExtractor::build_internal_document(&slide_contents, 3, &mut budget)
             .expect("internal PPTX document should build");
 
         assert_eq!(document.tables.len(), 1);
@@ -503,6 +526,99 @@ mod tests {
             .find(|element| matches!(element.kind, ElementKind::ListItem { .. }))
             .expect("list item should be present");
         assert_eq!(list_item.page, Some(3));
+
+        let heading = document
+            .elements
+            .iter()
+            .find(|element| matches!(element.kind, ElementKind::Heading { .. }))
+            .expect("heading should be present");
+        assert_eq!(heading.page, Some(1));
+
+        let second_slide_paragraph = document
+            .elements
+            .iter()
+            .find(|element| element.text.starts_with("This untitled slide"))
+            .expect("second-slide paragraph should be present");
+        assert_eq!(second_slide_paragraph.page, Some(2));
+    }
+
+    #[test]
+    fn test_marker_like_slide_text_cannot_change_later_page_numbers() {
+        let slide_contents = vec![
+            (1, "First slide".to_string()),
+            (
+                2,
+                "<!-- Slide number: 99 -->\n\n| Name | Value |\n| --- | --- |\n| answer | 42 |".to_string(),
+            ),
+        ];
+        let mut budget = SecurityBudget::with_defaults();
+
+        let document = PptxExtractor::build_internal_document(&slide_contents, 2, &mut budget)
+            .expect("marker-like user text should remain ordinary slide content");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 2);
+        assert!(document.elements.iter().any(|element| {
+            matches!(element.kind, crate::types::internal::ElementKind::Paragraph)
+                && element.text == "<!-- Slide number: 99 -->"
+                && element.page == Some(2)
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_untitled_slide_with_table_gets_archive_derived_page_numbers() {
+        use crate::plugins::InternalDocumentExtractor;
+        use crate::types::internal::ElementKind;
+
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody><a:p><a:r><a:t>This untitled slide contains a deliberately long paragraph so the extractor cannot mistake it for a title while assigning page metadata.</a:t></a:r></a:p></p:txBody></p:sp>
+        <p:graphicFrame>
+            <a:graphic>
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+                    <a:tbl>
+                        <a:tr>
+                            <a:tc><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody></a:tc>
+                            <a:tc><a:txBody><a:p><a:r><a:t>Value</a:t></a:r></a:p></a:txBody></a:tc>
+                        </a:tr>
+                        <a:tr>
+                            <a:tc><a:txBody><a:p><a:r><a:t>answer</a:t></a:r></a:p></a:txBody></a:tc>
+                            <a:tc><a:txBody><a:p><a:r><a:t>42</a:t></a:r></a:p></a:txBody></a:tc>
+                        </a:tr>
+                    </a:tbl>
+                </a:graphicData>
+            </a:graphic>
+        </p:graphicFrame>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+        let pptx = crate::extraction::pptx::tests::build_single_slide_pptx(slide_xml, None, &[]);
+        let extractor = PptxExtractor::new();
+        let config = ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Markdown,
+            ..Default::default()
+        };
+        let mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+        let document = extractor
+            .extract_content(&pptx, mime, &config)
+            .await
+            .expect("real PPTX extraction should succeed");
+
+        assert_eq!(document.tables.len(), 1);
+        assert_eq!(document.tables[0].page_number, 1);
+        assert!(document.elements.iter().any(|element| {
+            matches!(element.kind, ElementKind::Paragraph)
+                && element.text.starts_with("This untitled slide")
+                && element.page == Some(1)
+        }));
+        assert!(
+            document
+                .elements
+                .iter()
+                .any(|element| { matches!(element.kind, ElementKind::Slide { number: 1 }) && element.page == Some(1) })
+        );
     }
 
     /// Full round-trip through PptxExtractor::extract_bytes → derive_extraction_result →
