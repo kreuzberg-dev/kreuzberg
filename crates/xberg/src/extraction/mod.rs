@@ -74,6 +74,10 @@ pub(crate) mod latex_shape;
 #[cfg(feature = "office")]
 pub(crate) mod typst_math;
 
+/// AsciiMath to LaTeX, through the shared MathML converter.
+#[cfg(feature = "office")]
+pub(crate) mod asciimath;
+
 /// Unicode-to-LaTeX symbol table shared by the OMML (`docx::math`) and MathML
 /// (`mathml`) converters.
 #[cfg(any(feature = "office", feature = "xml"))]

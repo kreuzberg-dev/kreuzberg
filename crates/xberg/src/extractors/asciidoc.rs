@@ -256,6 +256,12 @@ impl<'a> AsciiDocParser<'a> {
             self.parse_section_heading(level, trimmed);
             return;
         }
+        if is_delimiter(trimmed, '+')
+            && let Some(notation) = self.pending_math_notation()
+        {
+            self.parse_math_block(trimmed, notation);
+            return;
+        }
         if is_delimiter(trimmed, '-') || is_delimiter(trimmed, '.') {
             self.parse_verbatim_block(trimmed);
             return;
@@ -292,6 +298,70 @@ impl<'a> AsciiDocParser<'a> {
         self.index += 1;
         self.pending_attrs.clear();
         self.pending_title = None;
+    }
+
+    /// The math notation a pending `[latexmath]`, `[asciimath]`, or `[stem]`
+    /// block attribute selects.
+    ///
+    /// `stem` follows the document's `:stem:` attribute, which AsciiDoc defines
+    /// as AsciiMath unless the document names `latexmath`.
+    fn pending_math_notation(&self) -> Option<MathNotation> {
+        self.pending_attrs.first().and_then(|attr| {
+            match attr.split(',').next().unwrap_or("").trim().to_ascii_lowercase().as_str() {
+                "latexmath" => Some(MathNotation::Latex),
+                "asciimath" => Some(MathNotation::AsciiMath),
+                "stem" => Some(self.stem_notation()),
+                _ => None,
+            }
+        })
+    }
+
+    /// What `stem` means in this document.
+    fn stem_notation(&self) -> MathNotation {
+        match self.attributes.get("stem").map(|v| v.trim().to_ascii_lowercase()) {
+            Some(value) if value == "latexmath" || value == "latex" => MathNotation::Latex,
+            _ => MathNotation::AsciiMath,
+        }
+    }
+
+    /// Parse a `++++` passthrough block that a math attribute introduced.
+    ///
+    /// The body is one display equation, so it becomes a formula element.
+    fn parse_math_block(&mut self, delimiter: &str, notation: MathNotation) {
+        self.close_lists();
+        self.index += 1;
+        let (body, terminated) = self.collect_until_delimiter(delimiter);
+        if !terminated {
+            self.warn("unterminated delimited block closed at end of input");
+        }
+        let latex = self.math_to_latex(body.trim(), notation);
+        if let Some(latex) = latex
+            && !latex.is_empty()
+        {
+            self.builder.push_formula(&latex, None, None);
+        }
+        self.pending_attrs.clear();
+        self.pending_title = None;
+    }
+
+    /// Convert math in `notation` to LaTeX.
+    ///
+    /// LaTeX passes through with its delimiters removed, since the formula
+    /// element holds bare LaTeX. AsciiMath goes through the shared converter.
+    fn math_to_latex(&mut self, source: &str, notation: MathNotation) -> Option<String> {
+        if source.is_empty() {
+            return None;
+        }
+        match notation {
+            MathNotation::Latex => {
+                let bare = crate::extraction::derive::strip_math_delimiters(source).trim();
+                if bare.is_empty() { None } else { Some(bare.to_string()) }
+            }
+            MathNotation::AsciiMath => {
+                let mut budget = SecurityBudget::with_defaults();
+                crate::extraction::asciimath::convert_asciimath_to_latex(source, &mut budget)
+            }
+        }
     }
 
     /// Parse a `----` listing block or a `....` literal block into a code element.
@@ -615,6 +685,19 @@ impl<'a> AsciiDocParser<'a> {
         let mut at_boundary = true;
 
         while !rest.is_empty() {
+            // An inline math macro stays in the sentence, as inline math does
+            // for markdown, but reaches the text as LaTeX between `$`
+            // delimiters rather than as the raw macro.
+            if let Some((consumed, source, notation)) = parse_math_macro(rest, self.stem_notation()) {
+                if let Some(latex) = self.math_to_latex(&source, notation) {
+                    out.push('$');
+                    out.push_str(&latex);
+                    out.push('$');
+                }
+                rest = &rest[consumed..];
+                at_boundary = false;
+                continue;
+            }
             if let Some((consumed, display, url)) = parse_link_macro(rest) {
                 let start = out.len() as u32;
                 out.push_str(&display);
@@ -651,6 +734,48 @@ impl<'a> AsciiDocParser<'a> {
 
         (out, annotations)
     }
+}
+
+/// Which notation a math macro or block carries.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum MathNotation {
+    Latex,
+    AsciiMath,
+}
+
+/// Parse an inline math macro: `latexmath:[...]`, `asciimath:[...]`, or
+/// `stem:[...]`, whose notation the document's `:stem:` attribute selects.
+///
+/// Returns the consumed length, the macro's content, and its notation. The
+/// content may hold nested brackets, so the scan tracks depth.
+fn parse_math_macro(text: &str, stem: MathNotation) -> Option<(usize, String, MathNotation)> {
+    let (name, notation) = ["latexmath", "asciimath", "stem"]
+        .iter()
+        .find(|name| text.starts_with(&format!("{name}:[")))
+        .map(|name| {
+            let notation = match *name {
+                "latexmath" => MathNotation::Latex,
+                "asciimath" => MathNotation::AsciiMath,
+                _ => stem,
+            };
+            (*name, notation)
+        })?;
+
+    let open = name.len() + 2;
+    let mut depth = 1usize;
+    for (offset, ch) in text[open..].char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((open + offset + 1, text[open..open + offset].to_string(), notation));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Build a one-entry attribute map.
@@ -939,6 +1064,79 @@ mod tests {
     fn parse(source: &str) -> InternalDocument {
         let normalized = normalize_line_endings(source);
         AsciiDocParser::new(&normalized).parse().document
+    }
+
+    /// The LaTeX of every formula element, in document order.
+    fn formulas(source: &str) -> Vec<String> {
+        parse(source)
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    /// The text of every paragraph, in document order.
+    fn paragraphs(source: &str) -> Vec<String> {
+        parse(source)
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Paragraph))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    #[test]
+    fn should_emit_a_latexmath_block_as_a_formula() {
+        let source = "[latexmath]\n++++\n\\int_0^1 x\\,dx = \\frac{1}{2}\n++++\n";
+        assert_eq!(formulas(source), vec!["\\int_0^1 x\\,dx = \\frac{1}{2}"]);
+    }
+
+    /// A `stem` block is AsciiMath unless the document says otherwise, so it
+    /// converts rather than passing through.
+    #[test]
+    fn should_convert_a_stem_block_from_asciimath() {
+        let source = "[stem]\n++++\nsqrt(4) = 2\n++++\n";
+        assert_eq!(formulas(source), vec!["\\sqrt{4}=2"]);
+    }
+
+    /// `:stem: latexmath` makes `stem` mean LaTeX, which passes through.
+    #[test]
+    fn should_treat_a_stem_block_as_latex_when_the_document_says_so() {
+        let source = "= Doc\n:stem: latexmath\n\n[stem]\n++++\n\\alpha + \\beta\n++++\n";
+        assert_eq!(formulas(source), vec!["\\alpha + \\beta"]);
+    }
+
+    /// A passthrough block with no math attribute is not math.
+    #[test]
+    fn should_leave_a_plain_passthrough_block_alone() {
+        let source = "++++\n<hr/>\n++++\n";
+        assert!(formulas(source).is_empty());
+    }
+
+    /// Inline math stays in the sentence, as it does for markdown, but reaches
+    /// the text as delimited LaTeX rather than as the raw macro.
+    #[test]
+    fn should_render_inline_math_macros_as_delimited_latex() {
+        let source = "The value latexmath:[E = mc^2] holds.\n";
+        assert_eq!(paragraphs(source), vec!["The value $E = mc^2$ holds."]);
+        assert!(formulas(source).is_empty());
+    }
+
+    #[test]
+    fn should_convert_an_inline_stem_macro_from_asciimath() {
+        let source = "Take stem:[sqrt(4)] as given.\n";
+        assert_eq!(paragraphs(source), vec!["Take $\\sqrt{4}$ as given."]);
+    }
+
+    /// Macro content may hold brackets of its own.
+    #[test]
+    fn should_read_a_math_macro_containing_brackets() {
+        let parsed = parse_math_macro("latexmath:[a[i] + b]rest", MathNotation::AsciiMath);
+        let (consumed, source, notation) = parsed.expect("macro parses");
+        assert_eq!(source, "a[i] + b");
+        assert_eq!(notation, MathNotation::Latex);
+        assert_eq!(&"latexmath:[a[i] + b]rest"[consumed..], "rest");
     }
 
     #[test]

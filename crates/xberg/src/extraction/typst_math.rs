@@ -379,6 +379,26 @@ fn escape_text(text: &str) -> String {
     out
 }
 
+
+
+/// Collapse runs of whitespace, which the walk emits freely around commands.
+fn collapse_spaces(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut last_space = false;
+    for ch in text.chars() {
+        let is_space = ch.is_whitespace();
+        if is_space {
+            if !last_space {
+                out.push(' ');
+            }
+        } else {
+            out.push(ch);
+        }
+        last_space = is_space;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,22 +503,4 @@ mod tests {
         let latex = convert_typst_math_to_latex("\"a $ b # c % d\"");
         assert!(latex.contains("\\$") && latex.contains("\\#") && latex.contains("\\%"), "got: {latex}");
     }
-}
-
-/// Collapse runs of whitespace, which the walk emits freely around commands.
-fn collapse_spaces(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut last_space = false;
-    for ch in text.chars() {
-        let is_space = ch.is_whitespace();
-        if is_space {
-            if !last_space {
-                out.push(' ');
-            }
-        } else {
-            out.push(ch);
-        }
-        last_space = is_space;
-    }
-    out
 }
