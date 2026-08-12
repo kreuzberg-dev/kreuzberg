@@ -1723,7 +1723,7 @@ use crate::ocr_metadata_keys::{OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY, OCR_PROC
 #[cfg(feature = "layout-detection")]
 use crate::ocr_metadata_keys::{OCR_AUTO_ROTATED_METADATA_KEY, OCR_ORIENTATION_DEGREES_METADATA_KEY};
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     let value = value.as_f64()?;
     if !value.is_finite() || value <= 0.0 || value > u32::MAX as f64 || value.fract() != 0.0 {
@@ -1732,7 +1732,7 @@ fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     Some(value as u32)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<(u32, u32)> {
     let width = metadata
         .additional
@@ -1758,7 +1758,7 @@ fn resolved_ocr_layout_dimensions(
     processed_ocr_layout_dimensions(metadata).unwrap_or((render_width, render_height))
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn scale_detection_to_dimensions(
     detection: &crate::layout::DetectionResult,
     target_width: u32,
@@ -1782,7 +1782,7 @@ fn scale_detection_to_dimensions(
     scaled
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata) -> Option<u16> {
     if !metadata
         .additional
@@ -1802,7 +1802,7 @@ fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata) -> Option<
     Some(((360 - orientation) % 360) as u16)
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn rotate_detection(
     mut detection: crate::layout::DetectionResult,
     correction_degrees: u16,
@@ -1839,7 +1839,7 @@ fn rotate_detection(
     detection
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn scale_detection_to_ocr_coordinates(
     detection: &crate::layout::DetectionResult,
     metadata: &crate::types::Metadata,
@@ -1861,7 +1861,7 @@ fn scale_detection_to_ocr_coordinates(
     rotate_detection(scaled, correction_degrees)
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn inverse_rotate_ocr_point(
     x: f64,
     y: f64,
@@ -1877,7 +1877,7 @@ fn inverse_rotate_ocr_point(
     }
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn transform_ocr_point_to_render(
     point: (u32, u32),
     correction_degrees: u16,
@@ -1902,7 +1902,7 @@ fn transform_ocr_point_to_render(
     (render_x, render_y)
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn transform_ocr_geometry_to_render(
     geometry: &crate::types::OcrBoundingGeometry,
     correction_degrees: u16,
@@ -1946,7 +1946,7 @@ fn transform_ocr_geometry_to_render(
     }
 }
 
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn transform_ocr_elements_to_render_space(
     elements: &[crate::types::OcrElement],
     metadata: &crate::types::Metadata,
@@ -1986,7 +1986,7 @@ fn transform_ocr_elements_to_render_space(
         .collect()
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "layout-detection"))]
+#[cfg(all(any(feature = "ocr", feature = "ocr-wasm"), feature = "layout-detection"))]
 fn assemble_ocr_page_paragraphs(
     doc: &crate::types::internal::InternalDocument,
     page_height: u32,
@@ -2026,7 +2026,7 @@ fn fill_unstructured_ocr_pages(
 /// from randomness or wall-clock time, so the same input document always
 /// produces the same id. See [`crate::types::Table::table_id`] for the shared
 /// scheme doc.
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn recognized_table_to_public_table(
     recognized: &crate::RecognizedTable,
     page_number: u32,
