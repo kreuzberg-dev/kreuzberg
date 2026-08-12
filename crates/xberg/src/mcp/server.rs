@@ -513,15 +513,16 @@ impl XbergMcp {
 
         #[cfg(feature = "formula-recognition")]
         {
-            let was_cached = crate::formula_recognition::models_cached();
-            crate::formula_recognition::ensure_models().map_err(|e| {
+            let formula_dir = cache_base.join("formula-recognition");
+            let was_cached = crate::formula_recognition::models_cached_in(Some(&formula_dir));
+            crate::formula_recognition::ensure_models_in(Some(&formula_dir)).map_err(|e| {
                 rmcp::ErrorData::internal_error(format!("Failed to download formula recognition models: {e}"), None)
             })?;
             record_warmed_model(
                 &mut available,
                 &mut downloaded,
                 &mut already_cached,
-                "formula-recognition (latex-ocr)".to_string(),
+                "formula-recognition (latex_ocr)".to_string(),
                 if was_cached {
                     CacheWarmDisposition::AlreadyCached
                 } else {

@@ -733,6 +733,10 @@ pub fn derive_extraction_result(
         .iter()
         .map(|f| normalized_latex(strip_math_delimiters(&f.latex)))
         .collect();
+    let side_channel_paged: std::collections::HashSet<(String, u32)> = formulas
+        .iter()
+        .filter_map(|f| Some((normalized_latex(strip_math_delimiters(&f.latex)), f.page?)))
+        .collect();
     formulas.extend(
         doc.elements
             .iter()
@@ -742,8 +746,18 @@ pub fn derive_extraction_result(
                 if latex.is_empty() {
                     return None;
                 }
-                let geometry_less = e.page.is_none() && e.bbox.is_none();
-                if geometry_less && side_channel_latex.contains(&normalized_latex(latex)) {
+                // A geometry-less element that repeats a side-channel formula is
+                // the same formula's second representation. A paged element is
+                // one only when the side channel holds the same latex on the
+                // SAME page: the OCR pipeline emits both an element and a
+                // side-channel entry per detected region.
+                let norm = normalized_latex(latex);
+                let duplicate = match e.page {
+                    None if e.bbox.is_none() => side_channel_latex.contains(&norm),
+                    Some(page) => side_channel_paged.contains(&(norm, page)),
+                    _ => false,
+                };
+                if duplicate {
                     return None;
                 }
                 Some(crate::types::Formula {

@@ -734,6 +734,40 @@ fn build_mixed_ocr_page_document(
     Some(assembled)
 }
 
+/// Convert one OCR formula bbox to PDF points.
+///
+/// Backends can rescale the page image before OCR; when the result metadata
+/// carries the processed dimensions, those describe the bbox's pixel space
+/// and take precedence over the rendered dimensions.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn formula_bbox_to_page_points(
+    formula: &mut crate::types::Formula,
+    doc: &pdf_oxide::PdfDocument,
+    page_idx: usize,
+    metadata: Option<&crate::types::Metadata>,
+    rendered_w: u32,
+    rendered_h: u32,
+) {
+    if let Some(bbox) = formula.bbox {
+        let processed = metadata.and_then(|m| {
+            let read = |key: &str| {
+                m.additional
+                    .get(key)
+                    .and_then(serde_json::Value::as_u64)
+                    .and_then(|v| u32::try_from(v).ok())
+                    .filter(|&v| v > 0)
+            };
+            Some((
+                read(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY)?,
+                read(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY)?,
+            ))
+        });
+        let (px_w, px_h) = processed.unwrap_or((rendered_w, rendered_h));
+        let (w_pt, h_pt) = crate::pdf::render::get_page_dimensions_pt(doc, page_idx);
+        formula.bbox = Some(crate::pdf::render::pixel_bbox_to_pdf_points(bbox, px_w, px_h, w_pt, h_pt));
+    }
+}
+
 /// Build mixed text from native extraction and per-page OCR results.
 ///
 /// For each page boundary, if the page is in `ocr_page_numbers` (1-indexed),
@@ -742,22 +776,6 @@ fn build_mixed_ocr_page_document(
 /// Page numbers must be >= 1 (invalid values are filtered out with a warning).
 /// An `ocr` config is recommended but not required; defaults are used if absent.
 #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
-fn formula_bbox_to_page_points(
-    formula: &mut crate::types::Formula,
-    doc: &pdf_oxide::PdfDocument,
-    page_idx: usize,
-    rendered_w: u32,
-    rendered_h: u32,
-) {
-    if let Some(bbox) = formula.bbox {
-        let (w_pt, h_pt) = crate::pdf::render::get_page_dimensions_pt(doc, page_idx);
-        formula.bbox = Some(crate::pdf::render::pixel_bbox_to_pdf_points(
-            bbox, rendered_w, rendered_h, w_pt, h_pt,
-        ));
-    }
-}
-
 pub(crate) async fn extract_mixed_ocr_native(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -923,7 +941,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     for mut formula in formulas {
                         formula.page = Some(page_number);
                         if let Some((w, h)) = page_dims {
-                            formula_bbox_to_page_points(&mut formula, &render_doc, page_idx, w, h);
+                            formula_bbox_to_page_points(&mut formula, &render_doc, page_idx, None, w, h);
                         }
                         accumulated_formulas.push(formula);
                     }
@@ -974,6 +992,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                             &mut formula,
                             &render_doc,
                             *page_idx,
+                            None,
                             image.width(),
                             image.height(),
                         );
@@ -1094,7 +1113,14 @@ pub(crate) async fn extract_mixed_ocr_native(
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
                     formula.page = Some((page_idx + 1) as u32);
                     if let Some((w, h)) = page_dims {
-                        formula_bbox_to_page_points(&mut formula, &render_doc, page_idx, w, h);
+                        formula_bbox_to_page_points(
+                            &mut formula,
+                            &render_doc,
+                            page_idx,
+                            Some(&extraction_result.metadata),
+                            w,
+                            h,
+                        );
                     }
                     accumulated_formulas.push(formula);
                 }
@@ -1128,7 +1154,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                 }
                 for mut formula in std::mem::take(&mut extraction_result.formulas) {
                     formula.page = Some((*page_idx + 1) as u32);
-                    formula_bbox_to_page_points(&mut formula, &render_doc, *page_idx, *width, *height);
+                    formula_bbox_to_page_points(&mut formula, &render_doc, *page_idx, Some(&extraction_result.metadata), *width, *height);
                     accumulated_formulas.push(formula);
                 }
                 crate::core::diagnostics::dedup_extend_warnings(
@@ -2359,7 +2385,7 @@ pub(crate) async fn extract_with_ocr(
                 #[cfg(feature = "pdf")]
                 if let Some((doc, _, _)) = lazy_pdf_render_state.as_ref() {
                     let (w, h) = (encoded_batch[offset].2, encoded_batch[offset].3);
-                    formula_bbox_to_page_points(&mut formula, doc, page_idx, w, h);
+                    formula_bbox_to_page_points(&mut formula, doc, page_idx, Some(&ocr_result.metadata), w, h);
                 }
                 accumulated_formulas.push(formula);
             }

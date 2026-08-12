@@ -950,8 +950,13 @@ async fn recognize_assembled_formula_regions(
                     x1: detection.bbox.x2 as f64,
                     y1: detection.bbox.y2 as f64,
                 };
+                // The layout pass pushed the side-channel formula and its
+                // element together from the same detection, so both hold the
+                // detection's values; match the formula by its own bbox and
+                // its element by the not-yet-replaced OCR text, front to back,
+                // so repeated text on one page pairs positionally.
                 for formula in doc.formulas.iter_mut() {
-                    if formula.bbox == Some(target) {
+                    if formula.bbox == Some(target) && formula.latex != latex {
                         let ocr_text = formula.latex.clone();
                         if let Some(element) = doc.elements.iter_mut().find(|e| {
                             matches!(e.kind, crate::types::internal::ElementKind::Formula) && e.text == ocr_text
@@ -975,16 +980,8 @@ async fn recognize_assembled_formula_regions(
 /// clamped region is empty.
 #[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
 fn crop_layout_region(rgb: &image::RgbImage, detection: &crate::layout::LayoutDetection) -> Option<image::RgbImage> {
-    let x1 = (detection.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
-    let y1 = (detection.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
-    let x2 = (detection.bbox.x2.max(0.0).ceil() as u32).min(rgb.width());
-    let y2 = (detection.bbox.y2.max(0.0).ceil() as u32).min(rgb.height());
-    let w = x2.saturating_sub(x1);
-    let h = y2.saturating_sub(y1);
-    if w == 0 || h == 0 {
-        return None;
-    }
-    Some(image::imageops::crop_imm(rgb, x1, y1, w, h).to_image())
+    let (x, y, w, h) = detection.bbox.clamp_to_image(rgb.width(), rgb.height())?;
+    Some(image::imageops::crop_imm(rgb, x, y, w, h).to_image())
 }
 
 #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
@@ -997,12 +994,9 @@ fn encode_layout_region(rgb: &image::RgbImage, detection: &crate::layout::Layout
     ) {
         return Ok(None);
     }
-    let x1 = (detection.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
-    let y1 = (detection.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
-    let x2 = (detection.bbox.x2.max(0.0).ceil() as u32).min(rgb.width());
-    let y2 = (detection.bbox.y2.max(0.0).ceil() as u32).min(rgb.height());
-    let crop_width = x2.saturating_sub(x1);
-    let crop_height = y2.saturating_sub(y1);
+    let Some((x1, y1, crop_width, crop_height)) = detection.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
+        return Ok(None);
+    };
     if crop_width < MIN_LAYOUT_CROP_DIMENSION || crop_height < MIN_LAYOUT_CROP_DIMENSION {
         return Ok(None);
     }

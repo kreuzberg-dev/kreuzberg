@@ -84,9 +84,8 @@ fn recognizes_a_formula_shaped_crop_end_to_end() {
 
     let blank = RgbImage::from_pixel(96, 48, Rgb([255, 255, 255]));
     let blank_result = xberg::formula_recognition::recognize_for_test(&blank).expect("blank crop must not fail");
-    let blank_latex = blank_result.unwrap_or_default();
     assert!(
-        blank_latex.len() < 64,
-        "a blank crop must not hallucinate long output: {blank_latex}"
+        blank_result.is_none(),
+        "a blank crop must yield no formula: {blank_result:?}"
     );
 }

@@ -43,6 +43,7 @@ cache or running inference.
 | Late interaction (ColBERT) | [`answerdotai/answerai-colbert-small-v1`](https://huggingface.co/answerdotai/answerai-colbert-small-v1) |
 | Transcription (Whisper) | [`onnx-community/whisper-tiny`](https://huggingface.co/onnx-community/whisper-tiny), [`onnx-community/whisper-base`](https://huggingface.co/onnx-community/whisper-base), [`onnx-community/whisper-small`](https://huggingface.co/onnx-community/whisper-small), [`Xenova/whisper-medium`](https://huggingface.co/Xenova/whisper-medium), [`Xenova/whisper-large-v3`](https://huggingface.co/Xenova/whisper-large-v3) |
 | Tokenizers (token counting / chunk sizing) | [`Xenova/gpt-4o`](https://huggingface.co/Xenova/gpt-4o), [`thenlper/gte-small`](https://huggingface.co/thenlper/gte-small) |
+| Formula recognition (LaTeX) | [`RapidAI/RapidLaTeXOCR`](https://github.com/RapidAI/RapidLaTeXOCR) (GitHub release `v0.0.0`) | Resizer + encoder + decoder ONNX and tokenizer (MIT, pix2tex family), ~180 MB, SHA256-pinned, used by the opt-in `formula-recognition` feature. |
 
 You can point the reranker and embedding `Custom` presets at any compatible
 ONNX repository on the Hub; see the [reranking](/guides/reranking/) guide.

@@ -728,12 +728,7 @@ async fn run_ocr_with_layout(
     ))
 }
 
-/// Recognize layout-detected formula regions on rendered PDF pages, replacing
-/// the region text (element and side-channel formula) with model LaTeX.
-///
-/// Detections and formulas are matched per page in reading order; a page
-/// whose formula-detection count differs from its formula count is skipped
-/// with a warning rather than guessed at. Failures keep the existing text.
+/// A page raster the formula recognizer can crop, however the flow stores it.
 #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
 trait AsPageRgb {
     fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage>;
@@ -751,6 +746,12 @@ impl AsPageRgb for image::RgbImage {
     }
 }
 
+/// Recognize layout-detected formula regions on rendered PDF pages, replacing
+/// the region text (element and side-channel formula) with model LaTeX.
+///
+/// Detections and formulas are matched per page in reading order; a page
+/// whose formula-detection count differs from its formula count is skipped
+/// with a warning rather than guessed at. Failures keep the existing text.
 #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
 async fn recognize_pdf_formula_regions(
     ocr_doc: Option<&mut crate::types::internal::InternalDocument>,
@@ -810,14 +811,10 @@ async fn recognize_pdf_formula_regions(
         let rgb = image.page_rgb();
         let rgb: &image::RgbImage = &rgb;
         for (region_idx, region) in regions.iter().enumerate() {
-            let x1 = (region.bbox.x1.max(0.0) as u32).min(rgb.width().saturating_sub(1));
-            let y1 = (region.bbox.y1.max(0.0) as u32).min(rgb.height().saturating_sub(1));
-            let x2 = (region.bbox.x2.max(0.0).ceil() as u32).min(rgb.width());
-            let y2 = (region.bbox.y2.max(0.0).ceil() as u32).min(rgb.height());
-            if x2 <= x1 || y2 <= y1 {
+            let Some((x, y, w, h)) = region.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
                 continue;
-            }
-            let crop = image::imageops::crop_imm(rgb, x1, y1, x2 - x1, y2 - y1).to_image();
+            };
+            let crop = image::imageops::crop_imm(rgb, x, y, w, h).to_image();
             match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
                 Ok(Some(latex)) => {
                     if matched_formulas && let Some(slot) = formula_slots.get_mut(region_idx) {

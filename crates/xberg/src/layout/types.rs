@@ -226,6 +226,21 @@ impl fmt::Display for LayoutClass {
 
 /// A single layout detection result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+impl BBox {
+    /// Clamp this box to an image of `width` x `height` pixels, returning the
+    /// integer crop rectangle `(x, y, w, h)`. `None` when the clamped region
+    /// is empty.
+    pub(crate) fn clamp_to_image(&self, width: u32, height: u32) -> Option<(u32, u32, u32, u32)> {
+        let x1 = (self.x1.max(0.0) as u32).min(width.saturating_sub(1));
+        let y1 = (self.y1.max(0.0) as u32).min(height.saturating_sub(1));
+        let x2 = (self.x2.max(0.0).ceil() as u32).min(width);
+        let y2 = (self.y2.max(0.0).ceil() as u32).min(height);
+        let w = x2.saturating_sub(x1);
+        let h = y2.saturating_sub(y1);
+        if w == 0 || h == 0 { None } else { Some((x1, y1, w, h)) }
+    }
+}
+
 pub struct LayoutDetection {
     /// Detected layout class (e.g. `Table`, `Text`, `Title`).
     pub class_name: LayoutClass,

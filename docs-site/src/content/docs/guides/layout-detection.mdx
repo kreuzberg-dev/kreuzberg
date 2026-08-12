@@ -19,6 +19,12 @@ Layout detection uses the **RT-DETR v2** model, an ONNX-based deep learning mode
 Layout detection now populates `ExtractedDocument.formulas` for formula regions and supports chart understanding via
 `enable_chart_understanding`.
 
+With the opt-in `formula-recognition` cargo feature, formula regions can also run through a dedicated
+LaTeX recognition model. Set `formula_model = "latex_ocr"` in the layout configuration (or pass
+`--layout-formula-model latex_ocr`) to convert each detected formula region's image to LaTeX; the
+region's plain OCR text stays as the fallback whenever recognition yields nothing. The feature is in
+no default build profile, so it needs a build with `--features formula-recognition`.
+
 ### When to Enable
 
 **Recommended for:** complex multi-column PDFs, scanned documents, academic papers, business forms, and any document where layout understanding improves extraction accuracy.
