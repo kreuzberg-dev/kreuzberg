@@ -918,7 +918,75 @@ fn sort_layout_detections(detections: &mut [crate::layout::LayoutDetection], ima
     });
 }
 
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
+/// Run formula recognition off the async executor: the recognizer holds a
+/// process-wide lock for the whole multi-step decode, so it must not park a
+/// runtime worker. On wasm32 (no OS threads) it runs inline.
+#[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
+async fn recognize_formula_crop_blocking(
+    crop: image::RgbImage,
+    accel: Option<crate::core::config::AccelerationConfig>,
+) -> std::result::Result<Option<String>, String> {
+    #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
+    {
+        tokio::task::spawn_blocking(move || crate::formula_recognition::recognize_crop(&crop, accel.as_ref()))
+            .await
+            .map_err(|e| format!("formula recognition task failed: {e}"))?
+    }
+    #[cfg(any(not(feature = "tokio-runtime"), target_arch = "wasm32"))]
+    {
+        crate::formula_recognition::recognize_crop(&crop, accel.as_ref())
+    }
+}
+
+/// Recognize the formula regions of an assembled cached-layout document,
+/// replacing the plain OCR text in both the side channel and the matching
+/// element. Failures keep the OCR text.
+#[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
+async fn recognize_assembled_formula_regions(
+    doc: &mut InternalDocument,
+    rgb: &image::RgbImage,
+    detections: &[crate::layout::LayoutDetection],
+    layout: &crate::core::config::LayoutDetectionConfig,
+) {
+    if layout.formula_model.is_none() {
+        return;
+    }
+    for detection in detections
+        .iter()
+        .filter(|d| matches!(d.class_name, crate::layout::LayoutClass::Formula))
+    {
+        let Some(crop) = crop_layout_region(rgb, detection) else {
+            continue;
+        };
+        match recognize_formula_crop_blocking(crop, layout.acceleration.clone()).await {
+            Ok(Some(latex)) => {
+                let target = crate::types::BoundingBox {
+                    x0: detection.bbox.x1 as f64,
+                    y0: detection.bbox.y1 as f64,
+                    x1: detection.bbox.x2 as f64,
+                    y1: detection.bbox.y2 as f64,
+                };
+                for formula in doc.formulas.iter_mut() {
+                    if formula.bbox == Some(target) {
+                        let ocr_text = formula.latex.clone();
+                        if let Some(element) = doc.elements.iter_mut().find(|e| {
+                            matches!(e.kind, crate::types::internal::ElementKind::Formula) && e.text == ocr_text
+                        }) {
+                            element.text = latex.clone();
+                        }
+                        formula.latex = latex.clone();
+                        break;
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(error = %error, "cached-path formula recognition failed; keeping OCR text");
+            }
+        }
+    }
+}
+
 /// Crop the detection's region out of the page raster. `None` when the
 /// clamped region is empty.
 #[cfg(all(feature = "formula-recognition", any(feature = "ocr", feature = "ocr-wasm")))]
@@ -935,6 +1003,7 @@ fn crop_layout_region(rgb: &image::RgbImage, detection: &crate::layout::LayoutDe
     Some(image::imageops::crop_imm(rgb, x1, y1, w, h).to_image())
 }
 
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 fn encode_layout_region(rgb: &image::RgbImage, detection: &crate::layout::LayoutDetection) -> Result<Option<Vec<u8>>> {
     use image::ImageEncoder;
 
@@ -1005,7 +1074,7 @@ async fn extract_layout_regions(
             && layout.formula_model.is_some()
             && let Some(crop) = crop_layout_region(rgb, detection)
         {
-            match crate::formula_recognition::recognize_crop(&crop, layout.acceleration.as_ref()) {
+            match recognize_formula_crop_blocking(crop, layout.acceleration.clone()).await {
                 Ok(Some(latex)) => {
                     push_mapped_layout_text(&mut builder, &mut formulas, detection, &latex);
                     continue;
@@ -1013,6 +1082,10 @@ async fn extract_layout_regions(
                 Ok(None) => {}
                 Err(error) => {
                     tracing::warn!(error = %error, "formula recognition failed; using OCR text for the region");
+                    processing_warnings.push(crate::core::diagnostics::warning(
+                        "formula-recognition",
+                        format!("formula region fell back to OCR text: {error}"),
+                    ));
                 }
             }
         }
@@ -1701,6 +1774,12 @@ impl ImageExtractor {
                 rgb.height(),
             )
         {
+            #[cfg(feature = "formula-recognition")]
+            let mut structured = structured;
+            #[cfg(feature = "formula-recognition")]
+            if let Some(layout) = config.layout.as_ref() {
+                recognize_assembled_formula_regions(&mut structured, &rgb, &detections, layout).await;
+            }
             tracing::debug!(
                 tables = structured.tables.len(),
                 "Assembled cached image OCR with layout structure"

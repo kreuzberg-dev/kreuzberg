@@ -888,7 +888,7 @@ impl ExtractionOverrides {
                 if let Some(ref formula_model) = self.layout_formula_model {
                     match formula_model.parse() {
                         Ok(model) => layout.formula_model = Some(model),
-                        Err(error) => eprintln!("warning: {error}; formula recognition stays off"),
+                        Err(error) => eprintln!("warning: {error}; ignoring --layout-formula-model"),
                     }
                 }
                 config.layout = Some(layout);

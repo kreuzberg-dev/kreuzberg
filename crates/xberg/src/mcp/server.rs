@@ -513,9 +513,21 @@ impl XbergMcp {
 
         #[cfg(feature = "formula-recognition")]
         {
-            crate::formula_recognition::ensure_models()
-                .map_err(crate::XbergError::validation)?;
-            downloaded.push("formula-recognition (latex-ocr)".to_string());
+            let was_cached = crate::formula_recognition::models_cached();
+            crate::formula_recognition::ensure_models().map_err(|e| {
+                rmcp::ErrorData::internal_error(format!("Failed to download formula recognition models: {e}"), None)
+            })?;
+            record_warmed_model(
+                &mut available,
+                &mut downloaded,
+                &mut already_cached,
+                "formula-recognition (latex-ocr)".to_string(),
+                if was_cached {
+                    CacheWarmDisposition::AlreadyCached
+                } else {
+                    CacheWarmDisposition::Downloaded
+                },
+            );
         }
 
         #[cfg(feature = "layout-detection")]

@@ -365,7 +365,7 @@ where
     feature = "onnx-runtime",
     all(feature = "static-embeddings", not(target_arch = "wasm32"))
 ))]
-fn download_lock(key: &str) -> std::sync::Arc<std::sync::Mutex<()>> {
+pub(crate) fn download_lock(key: &str) -> std::sync::Arc<std::sync::Mutex<()>> {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex, OnceLock};
 

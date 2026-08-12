@@ -13,7 +13,7 @@ use image::RgbImage;
 use ndarray::{Array2, Array4};
 use ort::inputs;
 use ort::session::Session;
-use ort::value::Tensor;
+use ort::value::{Tensor, TensorRef};
 
 use crate::core::config::AccelerationConfig;
 use crate::layout::error::LayoutError;
@@ -55,14 +55,26 @@ const MIN_HEIGHT: u32 = 32;
 /// Pad dimension granularity; the resizer predicts widths in these buckets.
 const DIVISOR: u32 = 32;
 
-/// Decoder token contract.
+/// Decoder token contract. Ids 0..=3 are `<pad>`, `<s>`, `</s>`, `<unk>`.
 const BOS_TOKEN: i64 = 1;
 const EOS_TOKEN: i64 = 2;
+const FIRST_CONTENT_TOKEN: i64 = 4;
 const MAX_SEQ_LEN: usize = 512;
+/// Break the decode when this many consecutive identical tokens appear:
+/// the model has degenerated and further steps only repeat.
+const REPETITION_CUTOFF: usize = 8;
 
-/// Grayscale normalization from the upstream preprocessing.
+/// Grayscale normalization from the upstream preprocessing, applied after
+/// min-max contrast normalization.
 const NORM_MEAN: f32 = 0.7931;
 const NORM_STD: f32 = 0.1738;
+
+/// White border added around the ink bounding box, like the reference crop.
+const INK_BORDER: u32 = 8;
+
+/// After one initialization failure, later calls fail fast for this long
+/// instead of re-paying the download deadline per region.
+const INIT_RETRY_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Local filenames of the downloaded model set.
 #[derive(Debug, Clone)]
@@ -74,8 +86,8 @@ pub struct FormulaModelPaths {
     pub tokenizer: std::path::PathBuf,
 }
 
-/// Cache directory for the formula recognition models.
-fn cache_dir() -> std::path::PathBuf {
+/// Default cache directory. The layout model manager uses the same root.
+fn default_cache_dir() -> std::path::PathBuf {
     hf_hub::resolve_cache_dir().join("formula-recognition")
 }
 
@@ -93,42 +105,61 @@ pub fn manifest() -> Vec<ModelManifestEntry> {
         .collect()
 }
 
-/// True when every model file is already cached.
+/// True when every model file is already cached in `dir` (default cache when
+/// `None`).
+#[cfg_attr(alef, alef(skip))]
+pub fn models_cached_in(dir: Option<&std::path::Path>) -> bool {
+    let dir = dir.map(std::path::Path::to_path_buf).unwrap_or_else(default_cache_dir);
+    MODEL_FILES.iter().all(|(name, ..)| dir.join(name).is_file())
+}
+
+/// True when every model file is already cached in the default location.
 #[cfg_attr(alef, alef(skip))]
 pub fn models_cached() -> bool {
-    let dir = cache_dir();
-    MODEL_FILES.iter().all(|(name, ..)| dir.join(name).is_file())
+    models_cached_in(None)
 }
 
 /// Largest accepted model download; the encoder is ~89 MB.
 const MAX_MODEL_BYTES: u64 = 256 * 1024 * 1024;
 
-/// Download a file and write it atomically next to its final path.
+/// Download a file and write it atomically next to its final path. The temp
+/// name embeds the process id so concurrent processes never share it, and a
+/// failed attempt removes its own partial file.
 fn download_file(url: &str, target: &std::path::Path) -> Result<(), String> {
-    let response = ureq::get(url).call().map_err(|e| format!("download {url} failed: {e}"))?;
-    if response.status() != 200 {
-        return Err(format!("download {url} failed: HTTP {}", response.status()));
+    let tmp = target.with_extension(format!("partial.{}", std::process::id()));
+    let result = (|| {
+        let response = ureq::get(url).call().map_err(|e| format!("download {url} failed: {e}"))?;
+        if response.status() != 200 {
+            return Err(format!("download {url} failed: HTTP {}", response.status()));
+        }
+        let bytes = response
+            .into_body()
+            .with_config()
+            .limit(MAX_MODEL_BYTES)
+            .read_to_vec()
+            .map_err(|e| format!("download {url} read failed: {e}"))?;
+        std::fs::write(&tmp, bytes).map_err(|e| format!("write {} failed: {e}", tmp.display()))?;
+        std::fs::rename(&tmp, target).map_err(|e| format!("rename to {} failed: {e}", target.display()))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
     }
-    let bytes = response
-        .into_body()
-        .with_config()
-        .limit(MAX_MODEL_BYTES)
-        .read_to_vec()
-        .map_err(|e| format!("download {url} read failed: {e}"))?;
-    let tmp = target.with_extension("partial");
-    std::fs::write(&tmp, bytes).map_err(|e| format!("write {} failed: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, target).map_err(|e| format!("rename to {} failed: {e}", target.display()))?;
-    Ok(())
+    result
 }
 
-/// Download (if needed) and verify the model set, returning the local paths.
+/// Download (if needed) and verify the model set in `dir` (default cache when
+/// `None`), returning the local paths. Per-file downloads serialize through
+/// the shared in-process download lock.
 #[cfg_attr(alef, alef(skip))]
-pub fn ensure_models() -> Result<FormulaModelPaths, String> {
-    let dir = cache_dir();
+pub fn ensure_models_in(dir: Option<&std::path::Path>) -> Result<FormulaModelPaths, String> {
+    let dir = dir.map(std::path::Path::to_path_buf).unwrap_or_else(default_cache_dir);
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create model cache dir {}: {e}", dir.display()))?;
 
     for (name, sha256, _) in MODEL_FILES {
         let target = dir.join(name);
+        let lock = crate::model_download::download_lock(&format!("formula-recognition/{name}"));
+        let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if target.is_file() && crate::model_download::verify_sha256(&target, sha256, name).is_ok() {
             continue;
         }
@@ -146,21 +177,69 @@ pub fn ensure_models() -> Result<FormulaModelPaths, String> {
     })
 }
 
-/// Process-wide recognizer pool: sessions load once and are reused.
-static RECOGNIZER: std::sync::OnceLock<std::sync::Mutex<FormulaRecognizer>> = std::sync::OnceLock::new();
+/// Download (if needed) and verify the model set in the default location.
+#[cfg_attr(alef, alef(skip))]
+pub fn ensure_models() -> Result<FormulaModelPaths, String> {
+    ensure_models_in(None)
+}
 
-/// Recognize one region crop with the pooled recognizer, initializing it on
-/// first use (model download included). Errors are strings so callers can
-/// degrade to plain OCR text with a warning.
+/// Pool state: the loaded recognizer plus the acceleration it was built with,
+/// so a changed acceleration config rebuilds the sessions, like the layout
+/// engine's `matches_config`.
+struct PooledRecognizer {
+    recognizer: FormulaRecognizer,
+    acceleration: Option<AccelerationConfig>,
+}
+
+/// Process-wide recognizer pool and the failure cooldown timestamp. Lock
+/// poisoning recovers via `into_inner`: the recognizer holds no cross-call
+/// state, so a panic mid-recognition leaves nothing inconsistent behind.
+static RECOGNIZER: std::sync::Mutex<Option<PooledRecognizer>> = std::sync::Mutex::new(None);
+static LAST_INIT_FAILURE: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Recognize one region crop with the pooled recognizer, initializing (model
+/// download included) or rebuilding it as needed. Errors are strings so
+/// callers can degrade to plain OCR text with a warning.
+///
+/// The pool lock is held for the whole recognition; callers on an async
+/// runtime must wrap this in `spawn_blocking`.
 pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>) -> Result<Option<String>, String> {
-    if RECOGNIZER.get().is_none() {
-        let paths = ensure_models()?;
-        let loaded = FormulaRecognizer::load(&paths, accel).map_err(|e| format!("formula model load failed: {e}"))?;
-        let _ = RECOGNIZER.set(std::sync::Mutex::new(loaded));
+    {
+        let last = LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(at) = *last
+            && at.elapsed() < INIT_RETRY_COOLDOWN
+        {
+            return Err("formula recognizer initialization failed recently; retry later".to_string());
+        }
     }
-    let cell = RECOGNIZER.get().expect("set above");
-    let mut recognizer = cell.lock().map_err(|_| "formula recognizer lock poisoned".to_string())?;
-    recognizer
+
+    let mut pool = RECOGNIZER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let rebuild = match pool.as_ref() {
+        None => true,
+        Some(pooled) => pooled.acceleration.as_ref() != accel,
+    };
+    if rebuild {
+        let init = ensure_models().and_then(|paths| {
+            FormulaRecognizer::load(&paths, accel).map_err(|e| format!("formula model load failed: {e}"))
+        });
+        match init {
+            Ok(recognizer) => {
+                *pool = Some(PooledRecognizer {
+                    recognizer,
+                    acceleration: accel.cloned(),
+                });
+                *LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            }
+            Err(e) => {
+                *LAST_INIT_FAILURE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+                    Some(std::time::Instant::now());
+                return Err(e);
+            }
+        }
+    }
+    let pooled = pool.as_mut().expect("initialized above");
+    pooled
+        .recognizer
         .recognize(crop)
         .map_err(|e| format!("formula recognition failed: {e}"))
 }
@@ -199,12 +278,12 @@ impl FormulaRecognizer {
 
     /// Recognize the LaTeX for one formula region crop.
     ///
-    /// Returns `Ok(None)` when the model produces no tokens.
+    /// Returns `Ok(None)` when the crop carries no ink or the model produces
+    /// no tokens.
     pub(crate) fn recognize(&mut self, crop: &RgbImage) -> Result<Option<String>, LayoutError> {
-        let gray = preprocess_gray(crop);
-        if !gray.has_ink() {
+        let Some(gray) = preprocess_gray(crop) else {
             return Ok(None);
-        }
+        };
         let sized = self.resize_to_model_width(&gray)?;
         let context = self.encode(&sized)?;
         let ids = self.greedy_decode(&context)?;
@@ -222,8 +301,8 @@ impl FormulaRecognizer {
     /// The upstream adaptive-resize loop: the resizer model predicts the best
     /// model width bucket for the current render; iterate until stable.
     fn resize_to_model_width(&mut self, gray: &GrayCanvas) -> Result<Array4<f32>, LayoutError> {
-        let mut width = gray.width;
-        let mut height = gray.height;
+        let mut width = gray.width.clamp(MIN_WIDTH, MAX_WIDTH);
+        let mut height = gray.height.clamp(MIN_HEIGHT, MAX_HEIGHT);
         let mut tensor = gray.to_tensor(width, height);
 
         for _ in 0..10 {
@@ -232,10 +311,8 @@ impl FormulaRecognizer {
                 .resizer
                 .run(inputs!["input" => input])
                 .map_err(LayoutError::Ort)?;
-            let (shape, data) = outputs[0]
-                .try_extract_tensor::<f32>()
-                .map_err(LayoutError::Ort)?;
-            let classes = *shape.last().unwrap_or(&1) as usize;
+            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
+            let classes = (*shape.last().unwrap_or(&1) as usize).clamp(1, data.len().max(1));
             let flat = &data[data.len() - classes..];
             let argmax = flat
                 .iter()
@@ -244,13 +321,14 @@ impl FormulaRecognizer {
                 .map(|(i, _)| i)
                 .unwrap_or(0);
             let predicted = ((argmax as u32) + 1) * DIVISOR;
-            let padded_width = pad_up(width.min(MAX_WIDTH).max(MIN_WIDTH), DIVISOR);
-            if predicted == padded_width {
+            // The tensor's padded width is what the model judged.
+            let current_padded = pad_up(width, DIVISOR);
+            if predicted == current_padded {
                 break;
             }
-            let ratio = predicted as f32 / padded_width as f32;
-            width = ((width as f32) * ratio).round().max(1.0) as u32;
-            height = ((height as f32) * ratio).round().max(1.0) as u32;
+            let ratio = f64::from(predicted) / f64::from(current_padded);
+            width = ((f64::from(width) * ratio).round().max(1.0) as u32).clamp(1, MAX_WIDTH);
+            height = ((f64::from(height) * ratio).round().max(1.0) as u32).clamp(1, MAX_HEIGHT);
             tensor = gray.to_tensor(width, height);
         }
         Ok(tensor)
@@ -262,9 +340,7 @@ impl FormulaRecognizer {
             .encoder
             .run(inputs!["input" => input])
             .map_err(LayoutError::Ort)?;
-        let (shape, data) = outputs[0]
-            .try_extract_tensor::<f32>()
-            .map_err(LayoutError::Ort)?;
+        let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
         let dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
         if dims.len() != 3 {
             return Err(LayoutError::InvalidOutput(format!(
@@ -276,9 +352,11 @@ impl FormulaRecognizer {
             .map_err(|e| LayoutError::InvalidOutput(format!("formula encoder output reshape failed: {e}")))
     }
 
-    /// Greedy decode without KV cache: each step feeds the full prefix.
+    /// Greedy decode without KV cache: each step feeds the full prefix. The
+    /// encoder context is passed as a zero-copy view each step.
     fn greedy_decode(&mut self, context: &ndarray::Array3<f32>) -> Result<Vec<i64>, LayoutError> {
         let mut out: Vec<i64> = vec![BOS_TOKEN];
+        let mut repeats = 1usize;
 
         for _ in 0..MAX_SEQ_LEN {
             let window = &out[out.len().saturating_sub(MAX_SEQ_LEN)..];
@@ -289,15 +367,13 @@ impl FormulaRecognizer {
 
             let x_t = Tensor::from_array(x).map_err(LayoutError::Ort)?;
             let mask_t = Tensor::from_array(mask).map_err(LayoutError::Ort)?;
-            let ctx_t = Tensor::from_array(context.clone()).map_err(LayoutError::Ort)?;
+            let ctx_t = TensorRef::from_array_view(context.view()).map_err(LayoutError::Ort)?;
             let outputs = self
                 .decoder
                 .run(inputs!["x" => x_t, "mask" => mask_t, "context" => ctx_t])
                 .map_err(LayoutError::Ort)?;
-            let (shape, data) = outputs[0]
-                .try_extract_tensor::<f32>()
-                .map_err(LayoutError::Ort)?;
-            let vocab = *shape.last().unwrap_or(&1) as usize;
+            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
+            let vocab = (*shape.last().unwrap_or(&1) as usize).clamp(1, data.len().max(1));
             let last = &data[data.len() - vocab..];
             let next = last
                 .iter()
@@ -308,15 +384,26 @@ impl FormulaRecognizer {
             if next == EOS_TOKEN {
                 break;
             }
+            repeats = if Some(&next) == out.last() { repeats + 1 } else { 1 };
             out.push(next);
+            if repeats >= REPETITION_CUTOFF {
+                // Degenerated output: drop the repeated tail and stop.
+                let keep = out.len() - repeats;
+                out.truncate(keep);
+                break;
+            }
         }
 
-        Ok(out.into_iter().skip(1).filter(|&t| t != BOS_TOKEN && t != EOS_TOKEN).collect())
+        Ok(out
+            .into_iter()
+            .skip(1)
+            .filter(|&t| t >= FIRST_CONTENT_TOKEN)
+            .collect())
     }
 }
 
-/// A grayscale, background-normalized copy of the source crop plus its
-/// content dimensions, renderable at any scale.
+/// A contrast-normalized, polarity-corrected, ink-cropped grayscale copy of
+/// the source crop, renderable at any scale.
 struct GrayCanvas {
     pixels: image::GrayImage,
     width: u32,
@@ -324,36 +411,26 @@ struct GrayCanvas {
 }
 
 impl GrayCanvas {
-    /// True when the (background-normalized) crop contains any dark pixels.
-    /// A blank region has nothing to recognize; running the model on it only
-    /// produces hallucinated tokens.
-    fn has_ink(&self) -> bool {
-        let threshold = 128u8;
-        let dark = self.pixels.pixels().filter(|p| p.0[0] < threshold).count();
-        dark * 1000 >= self.pixels.len()
-    }
-
-    /// Render at `(width, height)` content size, clamp into the model limits,
-    /// pad up to the divisor with white, normalize, and shape as `[1,1,H,W]`.
+    /// Render at `(width, height)` content size, pad up to the divisor with
+    /// white, normalize, and shape as `[1,1,H,W]`. Upscaling uses bilinear
+    /// and downscaling Lanczos, like the reference.
     fn to_tensor(&self, width: u32, height: u32) -> Array4<f32> {
-        let (mut w, mut h) = (width.max(1), height.max(1));
-        // Clamp into the model's min/max box, keeping aspect.
-        let scale = (MAX_WIDTH as f32 / w as f32)
-            .min(MAX_HEIGHT as f32 / h as f32)
-            .min(1.0);
-        w = ((w as f32) * scale).round().max(1.0) as u32;
-        h = ((h as f32) * scale).round().max(1.0) as u32;
-        w = w.max(MIN_WIDTH.min(MAX_WIDTH));
-        h = h.max(MIN_HEIGHT.min(MAX_HEIGHT));
+        let w = width.clamp(1, MAX_WIDTH);
+        let h = height.clamp(1, MAX_HEIGHT);
+        let filter = if w > self.width || h > self.height {
+            image::imageops::FilterType::Triangle
+        } else {
+            image::imageops::FilterType::Lanczos3
+        };
+        let resized = image::imageops::resize(&self.pixels, w, h, filter);
+        let padded_w = pad_up(w.max(MIN_WIDTH), DIVISOR);
+        let padded_h = pad_up(h.max(MIN_HEIGHT), DIVISOR);
 
-        let resized = image::imageops::resize(&self.pixels, w, h, image::imageops::FilterType::Lanczos3);
-        let padded_w = pad_up(w, DIVISOR);
-        let padded_h = pad_up(h, DIVISOR);
-
-        let mut tensor = Array4::<f32>::from_elem((1, 1, padded_h as usize, padded_w as usize), (1.0 - NORM_MEAN) / NORM_STD);
+        let white = (1.0 - NORM_MEAN) / NORM_STD;
+        let mut tensor = Array4::<f32>::from_elem((1, 1, padded_h as usize, padded_w as usize), white);
         for y in 0..h {
             for x in 0..w {
-                let v = resized.get_pixel(x, y).0[0] as f32 / 255.0;
+                let v = f32::from(resized.get_pixel(x, y).0[0]) / 255.0;
                 tensor[[0, 0, y as usize, x as usize]] = (v - NORM_MEAN) / NORM_STD;
             }
         }
@@ -366,26 +443,71 @@ fn pad_up(v: u32, divisor: u32) -> u32 {
     v.div_ceil(divisor) * divisor
 }
 
-/// Grayscale the crop and invert when the background is dark, per the
-/// upstream `pad()` preprocessing.
-fn preprocess_gray(crop: &RgbImage) -> GrayCanvas {
-    let mut gray = image::imageops::grayscale(crop);
-    let mean: u64 = gray.pixels().map(|p| p.0[0] as u64).sum::<u64>() / (gray.len().max(1) as u64);
-    if mean < 128 {
-        for p in gray.pixels_mut() {
+/// Port of the reference `pad()` preprocessing: min-max contrast
+/// normalization, polarity correction on the normalized mean, and a crop to
+/// the ink bounding box with a small white border. Returns `None` for a
+/// flat (ink-less) crop.
+fn preprocess_gray(crop: &RgbImage) -> Option<GrayCanvas> {
+    let gray = image::imageops::grayscale(crop);
+    let (min, max) = gray
+        .pixels()
+        .fold((u8::MAX, u8::MIN), |(lo, hi), p| (lo.min(p.0[0]), hi.max(p.0[0])));
+    if max <= min {
+        return None; // flat crop: nothing to recognize
+    }
+
+    // Min-max normalize to the full range, then correct polarity so ink is
+    // dark on light: the reference keeps the image when the normalized mean
+    // is light and inverts otherwise.
+    let range = f32::from(max - min);
+    let mut normalized = image::GrayImage::new(gray.width(), gray.height());
+    let mut sum: u64 = 0;
+    for (src, dst) in gray.pixels().zip(normalized.pixels_mut()) {
+        let v = ((f32::from(src.0[0] - min) / range) * 255.0).round() as u8;
+        dst.0[0] = v;
+        sum += u64::from(v);
+    }
+    let mean = sum / (normalized.len() as u64).max(1);
+    if mean <= 128 {
+        for p in normalized.pixels_mut() {
             p.0[0] = 255 - p.0[0];
         }
     }
-    let (width, height) = gray.dimensions();
-    GrayCanvas {
-        pixels: gray,
+
+    // Crop to the ink bounding box plus a white border.
+    let mut min_x = u32::MAX;
+    let mut min_y = u32::MAX;
+    let mut max_x = 0u32;
+    let mut max_y = 0u32;
+    for (x, y, p) in normalized.enumerate_pixels() {
+        if p.0[0] < 250 {
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+    if min_x > max_x {
+        return None; // normalization left pure white: no ink
+    }
+    let x0 = min_x.saturating_sub(INK_BORDER);
+    let y0 = min_y.saturating_sub(INK_BORDER);
+    let x1 = (max_x + 1 + INK_BORDER).min(normalized.width());
+    let y1 = (max_y + 1 + INK_BORDER).min(normalized.height());
+    let cropped = image::imageops::crop_imm(&normalized, x0, y0, x1 - x0, y1 - y0).to_image();
+
+    let (width, height) = cropped.dimensions();
+    Some(GrayCanvas {
+        pixels: cropped,
         width,
         height,
-    }
+    })
 }
 
 /// The upstream whitespace cleanup: spaces between non-letter tokens are
-/// artifacts of BPE decoding, not LaTeX content.
+/// artifacts of BPE decoding, not LaTeX content. The explicit-space command
+/// `\ ` is protected before the collapse and restored after, standing in for
+/// the reference's negative lookahead.
 fn post_process(s: &str) -> String {
     use std::sync::OnceLock;
     static TEXT_RE: OnceLock<regex::Regex> = OnceLock::new();
@@ -404,11 +526,14 @@ fn post_process(s: &str) -> String {
         ]
     });
 
-    // Protect \operatorname{...}-style groups by collapsing their inner spaces
-    // first, so the pair rules cannot touch them.
+    const SPACE_SENTINEL: &str = "\u{E000}";
+
+    // Protect \operatorname{...}-style groups and the `\ ` command from the
+    // pair collapse.
     let mut out = text_re
         .replace_all(s, |caps: &regex::Captures<'_>| caps[0].replace(' ', ""))
         .into_owned();
+    out = out.replace("\\ ", SPACE_SENTINEL);
 
     loop {
         let mut next = out.clone();
@@ -420,7 +545,7 @@ fn post_process(s: &str) -> String {
         }
         out = next;
     }
-    out.trim().to_string()
+    out.replace(SPACE_SENTINEL, "\\ ").trim().to_string()
 }
 
 #[cfg(test)]
@@ -448,6 +573,11 @@ mod tests {
     }
 
     #[test]
+    fn post_process_preserves_explicit_space_command() {
+        assert_eq!(post_process(r"a \ b"), r"a\ b");
+    }
+
+    #[test]
     fn manifest_lists_every_model_file() {
         let m = manifest();
         assert_eq!(m.len(), 4);
@@ -457,41 +587,51 @@ mod tests {
 
     #[test]
     fn gray_canvas_tensor_is_padded_and_normalized() {
-        let img = RgbImage::from_pixel(100, 40, image::Rgb([255, 255, 255]));
-        let canvas = preprocess_gray(&img);
-        let t = canvas.to_tensor(100, 40);
+        let mut img = RgbImage::from_pixel(100, 40, image::Rgb([255, 255, 255]));
+        for x in 30..70 {
+            img.put_pixel(x, 20, image::Rgb([0, 0, 0]));
+        }
+        let canvas = preprocess_gray(&img).expect("inked crop");
+        let t = canvas.to_tensor(canvas.width, canvas.height);
         let shape = t.shape();
         assert_eq!(shape[0], 1);
         assert_eq!(shape[1], 1);
         assert_eq!(shape[2] % 32, 0);
         assert_eq!(shape[3] % 32, 0);
-        // White background normalizes to (1 - mean) / std everywhere.
-        let expected = (1.0 - NORM_MEAN) / NORM_STD;
-        assert!((t[[0, 0, 0, 0]] - expected).abs() < 1e-4);
+        let white = (1.0 - NORM_MEAN) / NORM_STD;
+        assert!((t[[0, 0, 0, 0]] - white).abs() < 0.2, "border stays white-ish");
     }
 
     #[test]
-    fn blank_crops_have_no_ink() {
+    fn blank_crops_yield_no_canvas() {
         let blank = RgbImage::from_pixel(96, 48, image::Rgb([255, 255, 255]));
-        assert!(!preprocess_gray(&blank).has_ink());
-        let inked = render_stroke();
-        assert!(preprocess_gray(&inked).has_ink());
+        assert!(preprocess_gray(&blank).is_none());
+        let gray_flat = RgbImage::from_pixel(96, 48, image::Rgb([180, 180, 180]));
+        assert!(preprocess_gray(&gray_flat).is_none());
     }
 
-    fn render_stroke() -> RgbImage {
-        let mut img = RgbImage::from_pixel(96, 48, image::Rgb([255, 255, 255]));
-        for x in 10..80 {
-            for y in 20..24 {
-                img.put_pixel(x, y, image::Rgb([0, 0, 0]));
-            }
+    #[test]
+    fn low_contrast_sparse_ink_survives_normalization() {
+        // A thin, low-contrast stroke: min-max normalization must amplify it
+        // into recognizable ink instead of dropping the crop.
+        let mut img = RgbImage::from_pixel(300, 120, image::Rgb([230, 230, 230]));
+        for x in 40..260 {
+            img.put_pixel(x, 60, image::Rgb([180, 180, 180]));
         }
-        img
+        let canvas = preprocess_gray(&img).expect("sparse ink must survive");
+        // The ink crop shrinks the canvas to the stroke plus border.
+        assert!(canvas.height <= 1 + 2 * INK_BORDER);
     }
 
     #[test]
     fn dark_background_inverts() {
-        let img = RgbImage::from_pixel(64, 32, image::Rgb([10, 10, 10]));
-        let canvas = preprocess_gray(&img);
-        assert!(canvas.pixels.get_pixel(0, 0).0[0] > 200);
+        let mut img = RgbImage::from_pixel(64, 32, image::Rgb([10, 10, 10]));
+        for x in 20..44 {
+            img.put_pixel(x, 16, image::Rgb([240, 240, 240]));
+        }
+        let canvas = preprocess_gray(&img).expect("inked");
+        // After polarity correction the majority background is light.
+        let light = canvas.pixels.pixels().filter(|p| p.0[0] > 128).count();
+        assert!(light * 2 > canvas.pixels.len());
     }
 }

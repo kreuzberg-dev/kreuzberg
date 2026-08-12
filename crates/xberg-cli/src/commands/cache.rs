@@ -382,10 +382,11 @@ pub fn warm_command(
 
     #[cfg(feature = "formula-recognition")]
     {
-        if xberg::formula_recognition::models_cached() {
+        let formula_dir = cache_base.join("formula-recognition");
+        if xberg::formula_recognition::models_cached_in(Some(&formula_dir)) {
             already_cached.push("formula-recognition (latex-ocr)".to_string());
         } else {
-            xberg::formula_recognition::ensure_models()
+            xberg::formula_recognition::ensure_models_in(Some(&formula_dir))
                 .map_err(|e| anyhow::anyhow!(e))
                 .context("Failed to download formula recognition models")?;
             downloaded.push("formula-recognition (latex-ocr)".to_string());
