@@ -68,6 +68,19 @@ fn extract_hwp_content(content: &[u8]) -> Result<HwpDocument> {
         .map_err(|e| crate::XbergError::parsing(format!("Failed to read HWP file: {e}")))
 }
 
+/// The LaTeX of a paragraph that holds one equation and nothing else.
+///
+/// The parser writes an equation record as `$latex$`, so a paragraph whose whole
+/// text is a single `$`-delimited span is that equation on its own.
+fn standalone_equation(text: &str) -> Option<&str> {
+    let trimmed = text.trim();
+    let inner = trimmed.strip_prefix('$')?.strip_suffix('$')?;
+    if inner.is_empty() || inner.contains('$') {
+        return None;
+    }
+    Some(inner)
+}
+
 /// Build an `InternalDocument` from HWP structured model.
 fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
     let mut builder = InternalDocumentBuilder::new("hwp");
@@ -81,6 +94,16 @@ fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
             if let Some(ref t) = para.text
                 && !t.content.is_empty()
             {
+                // The parser converts an equation record to LaTeX and splices it
+                // into this text between `$` delimiters. A paragraph that holds
+                // nothing else is an equation object, so it becomes a formula.
+                // Math mixed with prose stays in the sentence: `char_shape_runs`
+                // are byte offsets into this string, so lifting a span out would
+                // move every annotation after it.
+                if let Some(latex) = standalone_equation(&t.content) {
+                    builder.push_formula(latex, None, None);
+                    continue;
+                }
                 let annotations = apply_char_shapes(&t.content, &para.char_shape_runs, &hwp_doc.char_shapes);
                 if para.outline_level > 0 {
                     let idx = builder.push_heading(para.outline_level, &t.content, None, None);
@@ -461,4 +484,20 @@ mod tests {
             "application/haansofthwpx must not be routed to HwpExtractor"
         );
     }
+    #[test]
+    fn test_standalone_equation_is_recognised() {
+        assert_eq!(standalone_equation("$\\frac{a}{b}$"), Some("\\frac{a}{b}"));
+        assert_eq!(standalone_equation("  $x^2$  "), Some("x^2"));
+    }
+
+    /// Math mixed with prose stays in the sentence, and a paragraph holding two
+    /// spans is prose about math rather than one equation.
+    #[test]
+    fn test_mixed_paragraph_is_not_a_standalone_equation() {
+        assert_eq!(standalone_equation("Result: $x^2$"), None);
+        assert_eq!(standalone_equation("$a$ and $b$"), None);
+        assert_eq!(standalone_equation("plain text"), None);
+        assert_eq!(standalone_equation("$$"), None);
+    }
+
 }

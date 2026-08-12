@@ -297,9 +297,12 @@ fn build_paragraph_content(
                     .latex
                     .clone()
                     .unwrap_or_else(|| unhwp::equation::to_latex(&eq.script));
-                text.push('$');
-                text.push_str(&latex);
-                text.push('$');
+                // An HWP equation is an object rather than inline notation, so it
+                // becomes its own element and leaves the paragraph text, the shape
+                // DOCX and PPTX use for a math run.
+                if !latex.trim().is_empty() {
+                    builder.push_formula(latex.trim(), None, None);
+                }
             }
             unhwp::model::InlineContent::Footnote(note_text) => {
                 *footnote_counter += 1;
@@ -543,8 +546,10 @@ mod tests {
         );
     }
 
+    /// An equation is an object, so its LaTeX becomes a formula element ahead of
+    /// the paragraph and leaves the paragraph's own text.
     #[test]
-    fn test_equation_is_converted_to_latex_via_unhwp() {
+    fn test_equation_becomes_a_formula_element() {
         let mut doc = Document::new();
         let mut section = Section::new(0);
         let mut p = Paragraph::new();
@@ -555,16 +560,26 @@ mod tests {
 
         let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
 
+        let formulas: Vec<&str> = internal
+            .elements
+            .iter()
+            .filter(|e| e.kind == ElementKind::Formula)
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(formulas, vec!["\\frac{a}{b}"]);
+
         let elem = internal
             .elements
             .iter()
             .find(|e| e.kind == ElementKind::Paragraph)
             .expect("paragraph must be present");
-        assert_eq!(elem.text, "Result: $\\frac{a}{b}$");
+        assert_eq!(elem.text, "Result:");
     }
 
+    /// A paragraph holding nothing but an equation still carries its math: the
+    /// formula element stands in for the paragraph that no longer has text.
     #[test]
-    fn test_equation_only_paragraph_is_not_dropped() {
+    fn test_equation_only_paragraph_keeps_its_math() {
         let mut doc = Document::new();
         let mut section = Section::new(0);
         let mut p = Paragraph::new();
@@ -574,12 +589,13 @@ mod tests {
 
         let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
 
-        let elem = internal
+        let formulas: Vec<&str> = internal
             .elements
             .iter()
-            .find(|e| e.kind == ElementKind::Paragraph)
-            .expect("equation-only paragraph must still be emitted (#98)");
-        assert_eq!(elem.text, "$\\frac{a}{b}$");
+            .filter(|e| e.kind == ElementKind::Formula)
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(formulas, vec!["\\frac{a}{b}"], "the equation survives (#98)");
     }
 
     #[test]
