@@ -55,6 +55,19 @@ const RST_WARNING_SOURCE: &str = "rst";
 #[cfg(feature = "office")]
 pub struct RstExtractor;
 
+/// Wrap a `.. math::` block that uses alignment columns in an `aligned`
+/// environment. Sphinx renders such blocks inside an align environment, so a
+/// bare `E &= mc^2 \\ F &= \pi E` is only valid LaTeX with the wrapper.
+#[cfg(feature = "office")]
+fn wrap_aligned_math(content: &str) -> String {
+    let has_alignment = content.contains('&') && !content.contains("\\&");
+    if has_alignment && !content.contains("\\begin{") {
+        format!("\\begin{{aligned}}{content}\\end{{aligned}}")
+    } else {
+        content.to_string()
+    }
+}
+
 #[cfg(feature = "office")]
 impl RstExtractor {
     /// Create a new RST extractor.
@@ -257,7 +270,7 @@ impl RstExtractor {
                     }
                     if !math_content.is_empty() {
                         output.push_str("$$\n");
-                        output.push_str(&math_content);
+                        output.push_str(&wrap_aligned_math(&math_content));
                         output.push_str("\n$$\n");
                     }
                     continue;
@@ -959,7 +972,7 @@ impl RstExtractor {
                 while i < lines.len() && (lines[i].starts_with("   ") || lines[i].is_empty()) {
                     if lines[i].is_empty() {
                         if !math_content.is_empty() {
-                            b.push_formula(&math_content, None, None);
+                            b.push_formula(&wrap_aligned_math(&math_content), None, None);
                             math_content = String::new();
                         }
                     } else {
@@ -971,7 +984,7 @@ impl RstExtractor {
                     i += 1;
                 }
                 if !math_content.is_empty() {
-                    b.push_formula(&math_content, None, None);
+                    b.push_formula(&wrap_aligned_math(&math_content), None, None);
                 }
                 continue;
             }
@@ -1573,6 +1586,19 @@ Another paragraph.
         assert!(output.contains("Title"));
         assert!(output.contains("This is a paragraph"));
         assert!(output.contains("Another paragraph"));
+    }
+
+    #[test]
+    fn test_math_block_with_alignment_wraps_in_aligned() {
+        // Sphinx renders `.. math::` blocks with alignment columns inside an
+        // align environment; a bare `&` is not valid LaTeX.
+        let content = "\n.. math::\n\n   E &= mc^2\\\\\n   F &= \\pi E\n\nAfter.\n";
+        let mut metadata = AHashMap::new();
+        let output = RstExtractor::extract_text_from_rst(content, &mut metadata);
+        assert!(
+            output.contains("\\begin{aligned}E &= mc^2\\\\\nF &= \\pi E\\end{aligned}"),
+            "aligned wrapper expected; got: {output}"
+        );
     }
 
     #[test]
