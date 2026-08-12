@@ -2109,7 +2109,7 @@ pub(crate) async fn extract_with_ocr(
     let structured_ocr_config;
     let ocr_config = {
         let cfg = ensure_elements_enabled(base_ocr_config);
-        #[cfg(feature = "layout-detection")]
+        #[cfg(all(feature = "ocr", feature = "layout-detection"))]
         let cfg = if layout_detections.is_some() || backend.emits_structured_markdown() {
             inject_layout_config_to_backend(&cfg, config)
         } else {
@@ -2411,7 +2411,7 @@ pub(crate) async fn extract_with_ocr(
                 }
             }
 
-            #[cfg(feature = "layout-detection")]
+            #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
             if ocr_result.ocr_internal_document.is_some()
                 || ocr_result
                     .ocr_elements
