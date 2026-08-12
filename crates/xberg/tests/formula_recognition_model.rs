@@ -77,7 +77,10 @@ fn recognizes_a_formula_shaped_crop_end_to_end() {
         !latex.is_empty(),
         "the model must produce LaTeX for a formula-shaped crop"
     );
-    assert!(latex.len() < 512, "runaway decode: {latex}");
+    // The decoder caps at 512 TOKENS; one token can decode to several
+    // characters, so the character bound is generous and only catches
+    // runaway repetition.
+    assert!(latex.len() < 4096, "runaway decode: {latex}");
 
     let blank = RgbImage::from_pixel(96, 48, Rgb([255, 255, 255]));
     let blank_result = xberg::formula_recognition::recognize_for_test(&blank).expect("blank crop must not fail");
