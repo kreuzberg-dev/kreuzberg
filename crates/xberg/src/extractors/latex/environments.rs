@@ -8,6 +8,31 @@ use super::utilities::{clean_text, collect_environment, extract_braced, extract_
 use crate::rendering::common::render_table_markdown;
 use crate::types::Table;
 
+/// Whether an environment name holds display math.
+///
+/// The LaTeX extractor and the Org extractor both meet these environments, so
+/// the list lives in one place.
+pub(crate) fn is_math_environment(name: &str) -> bool {
+    matches!(
+        name,
+        "equation"
+            | "equation*"
+            | "align"
+            | "align*"
+            | "gather"
+            | "gather*"
+            | "multline"
+            | "multline*"
+            | "eqnarray"
+            | "eqnarray*"
+            | "math"
+            | "displaymath"
+            | "flalign"
+            | "flalign*"
+            | "cases"
+    )
+}
+
 /// Processes a list environment (itemize, enumerate, or description).
 ///
 /// Converts LaTeX lists into markdown-style lists with proper nesting.

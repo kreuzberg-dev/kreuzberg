@@ -15,6 +15,7 @@
 
 mod commands;
 mod environments;
+pub(crate) use environments::is_math_environment;
 mod metadata;
 mod parser;
 mod utilities;
@@ -551,8 +552,7 @@ impl LatexExtractor {
                         i = new_i;
                         continue;
                     }
-                    "equation" | "equation*" | "align" | "align*" | "gather" | "gather*" | "multline" | "multline*"
-                    | "eqnarray" | "eqnarray*" | "math" | "displaymath" | "flalign" | "flalign*" | "cases" => {
+                    name if environments::is_math_environment(name) => {
                         let (env_content, new_i) = collect_environment(&lines, i, &env_name);
                         let formula_text = format!("\\begin{{{}}}\n{}\\end{{{}}}", env_name, env_content, env_name);
                         let idx = b.push_formula(&formula_text, None, None);
@@ -668,8 +668,7 @@ impl LatexExtractor {
                         i = new_i;
                         continue;
                     }
-                    "equation" | "equation*" | "align" | "align*" | "gather" | "gather*" | "multline" | "multline*"
-                    | "eqnarray" | "eqnarray*" | "math" | "displaymath" | "flalign" | "flalign*" | "cases" => {
+                    name if environments::is_math_environment(name) => {
                         let (env_content, new_i) = collect_environment(lines, i, &env_name);
                         let formula_text = format!("\\begin{{{}}}\n{}\\end{{{}}}", env_name, env_content, env_name);
                         b.push_formula(&formula_text, None, None);

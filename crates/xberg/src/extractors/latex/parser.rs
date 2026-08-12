@@ -134,8 +134,7 @@ impl<'a> LatexParser<'a> {
                 *i = new_i;
                 true
             }
-            "equation" | "equation*" | "align" | "align*" | "gather" | "gather*" | "multline" | "multline*"
-            | "eqnarray" | "eqnarray*" | "math" | "displaymath" | "flalign" | "flalign*" | "cases" => {
+            name if super::environments::is_math_environment(name) => {
                 let (env_content, new_i) = collect_environment(lines, *i, &env_name);
                 self.output.push_str("$$\\begin{");
                 self.output.push_str(&env_name);

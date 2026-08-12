@@ -532,7 +532,13 @@ impl OrgModeExtractor {
                         break;
                     }
                     if !t.is_empty() {
-                        b.push_paragraph(t, vec![], None, None);
+                        // A quote keeps its lines separate, so only math that fits
+                        // on one line leaves the text here.
+                        let (line_text, display_math) = Self::split_display_math(t);
+                        Self::push_display_math(&mut b, &display_math);
+                        if !line_text.trim().is_empty() {
+                            b.push_paragraph(&line_text, vec![], None, None);
+                        }
                     }
                     i += 1;
                 }
@@ -645,7 +651,11 @@ impl OrgModeExtractor {
                             }
                         }
                         let joined_item = item_parts.join(" ");
-                        b.push_list_item(&joined_item, is_ordered, vec![], None, None);
+                        let (joined_item, display_math) = Self::split_display_math(&joined_item);
+                        Self::push_display_math(&mut b, &display_math);
+                        if !joined_item.trim().is_empty() {
+                            b.push_list_item(&joined_item, is_ordered, vec![], None, None);
+                        }
                     } else {
                         break;
                     }
@@ -718,6 +728,14 @@ impl OrgModeExtractor {
                 }
 
                 let joined_raw = para_raw_lines.join(" ");
+                // Math leaves the text before the markup parser runs: Org markup
+                // characters (`_`, `/`, `=`) also occur inside LaTeX.
+                let (joined_raw, display_math) = Self::split_display_math(&joined_raw);
+                Self::push_display_math(&mut b, &display_math);
+                if joined_raw.trim().is_empty() {
+                    i = next;
+                    continue;
+                }
 
                 let footnote_refs = Self::find_footnote_references(&joined_raw);
                 let (stripped, annotations) = Self::parse_inline_markup(&joined_raw);
@@ -796,6 +814,78 @@ impl OrgModeExtractor {
             return false;
         };
         matches!(key.trim().to_ascii_uppercase().as_str(), "CAPTION" | "NAME")
+    }
+
+    /// Pull display math out of a block of Org text.
+    ///
+    /// Returns the text without its math and the LaTeX of every fragment removed,
+    /// in the order the fragments appeared. Org writes display math as `\[...\]`,
+    /// `$$...$$`, or a LaTeX math environment, and each becomes a formula element.
+    /// Inline math (`\(...\)`, `$...$`) stays in the text, as it does for
+    /// markdown: it belongs to the sentence around it.
+    fn split_display_math(raw: &str) -> (String, Vec<String>) {
+        let mut rest = raw;
+        let mut text = String::new();
+        let mut formulas: Vec<String> = Vec::new();
+
+        while let Some((start, latex, resume)) = Self::next_display_math(rest) {
+            text.push_str(&rest[..start]);
+            formulas.push(latex);
+            rest = &rest[resume..];
+        }
+        if formulas.is_empty() {
+            return (raw.to_string(), formulas);
+        }
+        text.push_str(rest);
+
+        (text.split_whitespace().collect::<Vec<_>>().join(" "), formulas)
+    }
+
+    /// Locate the first display-math fragment in `text`.
+    ///
+    /// Returns its start offset, its LaTeX, and the offset just past its closing
+    /// delimiter. An unclosed fragment is not math: the text keeps it.
+    fn next_display_math(text: &str) -> Option<(usize, String, usize)> {
+        let mut search = 0;
+        while search < text.len() {
+            let rel = text[search..].find(['\\', '$'])?;
+            let start = search + rel;
+            let tail = &text[start..];
+
+            if let Some(body) = tail.strip_prefix("\\[") {
+                if let Some(end) = body.find("\\]") {
+                    return Some((start, body[..end].trim().to_string(), start + 2 + end + 2));
+                }
+            } else if let Some(body) = tail.strip_prefix("$$") {
+                if let Some(end) = body.find("$$") {
+                    return Some((start, body[..end].trim().to_string(), start + 2 + end + 2));
+                }
+            } else if let Some(body) = tail.strip_prefix("\\begin{")
+                && let Some(name_end) = body.find('}')
+            {
+                let name = &body[..name_end];
+                let closing = format!("\\end{{{name}}}");
+                if crate::extractors::latex::is_math_environment(name)
+                    && let Some(end) = body.find(&closing)
+                {
+                    let inner = &body[name_end + 1..end];
+                    let latex = format!("\\begin{{{name}}}{inner}\\end{{{name}}}");
+                    return Some((start, latex, start + 7 + end + closing.len()));
+                }
+            }
+
+            search = start + 1;
+        }
+        None
+    }
+
+    /// Emit a formula element per LaTeX fragment, in order.
+    fn push_display_math(b: &mut InternalDocumentBuilder, formulas: &[String]) {
+        for latex in formulas {
+            if !latex.is_empty() {
+                b.push_formula(latex, None, None);
+            }
+        }
     }
 
     /// Check whether a trimmed line starts an element that Org "affiliated keywords"
@@ -1415,6 +1505,115 @@ mod tests {
         let content = OrgModeExtractor::extract_content(&org);
         assert!(content.contains("見出し"), "CJK heading preserved");
         assert!(content.contains("太字"), "Bold CJK text present");
+    }
+
+    /// Collect the LaTeX of every formula element, in document order.
+    #[cfg(test)]
+    fn formula_texts(doc: &InternalDocument) -> Vec<String> {
+        use crate::types::internal::ElementKind;
+        doc.elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Formula))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    /// Collect the text of every paragraph and list item, in document order.
+    #[cfg(test)]
+    fn prose_texts(doc: &InternalDocument) -> Vec<String> {
+        use crate::types::internal::ElementKind;
+        doc.elements
+            .iter()
+            .filter(|e| matches!(e.kind, ElementKind::Paragraph | ElementKind::ListItem { .. }))
+            .map(|e| e.text.clone())
+            .collect()
+    }
+
+    #[test]
+    fn test_bracket_display_math_becomes_a_formula() {
+        let doc = OrgModeExtractor::build_internal_document("Einstein wrote \\[E = mc^2\\] in 1905.\n");
+
+        assert_eq!(formula_texts(&doc), vec!["E = mc^2"]);
+        assert_eq!(prose_texts(&doc), vec!["Einstein wrote in 1905."]);
+    }
+
+    #[test]
+    fn test_dollar_display_math_becomes_a_formula() {
+        let doc = OrgModeExtractor::build_internal_document("$$\\int_0^1 x\\,dx = \\frac{1}{2}$$\n");
+
+        assert_eq!(formula_texts(&doc), vec!["\\int_0^1 x\\,dx = \\frac{1}{2}"]);
+        assert!(prose_texts(&doc).is_empty(), "a math-only paragraph emits no prose");
+    }
+
+    /// An environment that spans lines becomes one formula. Org joins the lines of
+    /// a block with spaces, and `\\` separates the rows, so the result renders the
+    /// same as the source.
+    #[test]
+    fn test_math_environment_becomes_a_formula() {
+        let org_text = "Result:\n\n\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        assert_eq!(formula_texts(&doc), vec!["\\begin{align} a &= b \\\\ c &= d \\end{align}"]);
+        assert_eq!(prose_texts(&doc), vec!["Result:"]);
+    }
+
+    #[test]
+    fn test_prose_environment_stays_prose() {
+        let org_text = "\\begin{center}\nnot math\n\\end{center}\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        assert!(formula_texts(&doc).is_empty(), "a non-math environment is not a formula");
+    }
+
+    #[test]
+    fn test_inline_math_stays_in_the_sentence() {
+        let doc = OrgModeExtractor::build_internal_document("The value $x$ and \\(y\\) stay inline.\n");
+
+        assert!(formula_texts(&doc).is_empty());
+        assert_eq!(prose_texts(&doc), vec!["The value $x$ and \\(y\\) stay inline."]);
+    }
+
+    #[test]
+    fn test_unclosed_display_math_stays_text() {
+        let doc = OrgModeExtractor::build_internal_document("An open \\[ fragment with no close.\n");
+
+        assert!(formula_texts(&doc).is_empty());
+        assert_eq!(prose_texts(&doc), vec!["An open \\[ fragment with no close."]);
+    }
+
+    #[test]
+    fn test_display_math_spanning_lines_becomes_one_formula() {
+        let doc = OrgModeExtractor::build_internal_document("\\[\na^2 + b^2\n= c^2\n\\]\n");
+
+        assert_eq!(formula_texts(&doc), vec!["a^2 + b^2 = c^2"]);
+    }
+
+    #[test]
+    fn test_quoted_math_becomes_a_formula() {
+        let org_text = "#+BEGIN_QUOTE\nHe wrote \\[E = mc^2\\] there.\n#+END_QUOTE\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        assert_eq!(formula_texts(&doc), vec!["E = mc^2"]);
+        assert_eq!(prose_texts(&doc), vec!["He wrote there."]);
+    }
+
+    #[test]
+    fn test_example_block_math_stays_verbatim() {
+        let org_text = "#+BEGIN_EXAMPLE\n\\[E = mc^2\\]\n#+END_EXAMPLE\n";
+        let doc = OrgModeExtractor::build_internal_document(org_text);
+
+        assert!(
+            formula_texts(&doc).is_empty(),
+            "an example block shows its content as written"
+        );
+    }
+
+    #[test]
+    fn test_list_item_math_becomes_a_formula() {
+        let doc = OrgModeExtractor::build_internal_document("- energy \\[E = mc^2\\]\n- mass\n");
+
+        assert_eq!(formula_texts(&doc), vec!["E = mc^2"]);
+        assert_eq!(prose_texts(&doc), vec!["energy", "mass"]);
     }
 
     #[test]
