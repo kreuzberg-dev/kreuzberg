@@ -66,6 +66,14 @@ pub mod mathml;
 #[cfg(feature = "xml")]
 pub(crate) mod formula_xml;
 
+/// Shaping helpers for LaTeX an extractor has produced.
+#[cfg(feature = "office")]
+pub(crate) mod latex_shape;
+
+/// Typst math to LaTeX.
+#[cfg(feature = "office")]
+pub(crate) mod typst_math;
+
 /// Unicode-to-LaTeX symbol table shared by the OMML (`docx::math`) and MathML
 /// (`mathml`) converters.
 #[cfg(any(feature = "office", feature = "xml"))]

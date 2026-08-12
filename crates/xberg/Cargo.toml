@@ -80,6 +80,7 @@ office = [
     "dep:biblib",
     "dep:org",
     "dep:dbase",
+    "dep:typst-syntax",
     "html",
     "notebook",
 ]
@@ -1236,6 +1237,8 @@ rmcp = { version = "3.1.2", features = [
 rmp-serde = "1.3"
 
 roxmltree = { version = "0.21.1", optional = true }
+# Typst's own parser, used to convert Typst math to LaTeX.
+typst-syntax = { version = "0.15.1", optional = true }
 rqrr = { version = "0.10", optional = true }
 sceptre = { workspace = true, optional = true }
 scrypt = { version = "0.12", optional = true, default-features = false, features = ["kdf"] }

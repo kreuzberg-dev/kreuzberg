@@ -28,6 +28,8 @@ use crate::types::builder;
 #[cfg(feature = "office")]
 use crate::types::document_structure::TextAnnotation;
 #[cfg(feature = "office")]
+use crate::extraction::typst_math::convert_typst_math_to_latex;
+#[cfg(feature = "office")]
 use crate::types::internal::InternalDocument;
 #[cfg(feature = "office")]
 use crate::types::internal_builder::InternalDocumentBuilder;
@@ -154,7 +156,7 @@ impl TypstExtractor {
                     let math_text = math_buf.trim().to_string();
                     math_buf.clear();
                     if !math_text.is_empty() {
-                        builder.push_formula(&math_text, None, None);
+                        builder.push_formula(&convert_typst_math_to_latex(&math_text), None, None);
                     }
                 } else {
                     if !math_buf.is_empty() {
@@ -308,7 +310,7 @@ impl TypstExtractor {
                     Some(close) => {
                         let math = rest[..close].trim();
                         if !math.is_empty() {
-                            builder.push_formula(math, None, None);
+                            builder.push_formula(&convert_typst_math_to_latex(math), None, None);
                         }
                         let after = rest[close + 1..].trim();
                         if !after.is_empty() {
@@ -436,7 +438,7 @@ impl TypstExtractor {
         if in_display_math {
             let math_text = math_buf.trim().to_string();
             if !math_text.is_empty() {
-                builder.push_formula(&math_text, None, None);
+                builder.push_formula(&convert_typst_math_to_latex(&math_text), None, None);
             }
         }
 
@@ -1337,14 +1339,14 @@ mod tests {
             "Use low dots in a list.\n",
         );
 
-        assert_eq!(typst_formulas(content), vec!["underbrace(x + y, |A|)"]);
+        assert_eq!(typst_formulas(content), vec!["\\underbrace{x + y}_{|A|}"]);
     }
 
     #[test]
     fn test_display_math_block_still_spans_lines() {
         let content = "$\nf(x) = x^2\n+ 1\n$\n";
 
-        assert_eq!(typst_formulas(content), vec!["f(x) = x^2\n+ 1"]);
+        assert_eq!(typst_formulas(content), vec!["f(x) = x^2 + 1"]);
     }
 
     #[test]
@@ -1353,7 +1355,7 @@ mod tests {
 
         assert_eq!(
             typst_formulas(content),
-            vec!["nabla dot bold(D) &= rho \\\nnabla dot bold(B) &= 0"]
+            vec!["\\begin{aligned}\\nabla \\cdot \\mathbf{D} & = \\rho \\\\ \\nabla \\cdot \\mathbf{B} & = 0\\end{aligned}"]
         );
     }
 

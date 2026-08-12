@@ -59,14 +59,7 @@ pub struct RstExtractor;
 /// environment. Sphinx renders such blocks inside an align environment, so a
 /// bare `E &= mc^2 \\ F &= \pi E` is only valid LaTeX with the wrapper.
 #[cfg(feature = "office")]
-fn wrap_aligned_math(content: &str) -> String {
-    let has_alignment = content.contains('&') && !content.contains("\\&");
-    if has_alignment && !content.contains("\\begin{") {
-        format!("\\begin{{aligned}}{content}\\end{{aligned}}")
-    } else {
-        content.to_string()
-    }
-}
+use crate::extraction::latex_shape::wrap_aligned_math;
 
 #[cfg(feature = "office")]
 impl RstExtractor {
