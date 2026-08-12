@@ -17,6 +17,9 @@ use ort::value::{Tensor, TensorRef};
 
 use crate::core::config::AccelerationConfig;
 use crate::layout::error::LayoutError;
+#[cfg(paddle_ocr)]
+use crate::paddle_ocr::ModelManifestEntry;
+#[cfg(not(paddle_ocr))]
 use crate::layout::model_manager::ModelManifestEntry;
 use crate::layout::session::build_session;
 

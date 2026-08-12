@@ -396,6 +396,12 @@ pub use paddle_ocr::{ModelPaths, PaddleInferenceBackend, PaddleLanguage, PaddleO
 #[cfg(paddle_ocr)]
 pub use paddle_ocr::{ModelCacheStats, ModelManager, ModelManifestEntry, PaddleOcrBackend};
 
+/// The layout model manager's local manifest-entry mirror, promoted to the
+/// same public name the paddle build re-exports, so `manifest()` surfaces
+/// stay public in every feature combination.
+#[cfg(all(feature = "layout-detection", not(paddle_ocr)))]
+pub use layout::model_manager::ModelManifestEntry;
+
 pub use cache::CacheStats;
 
 #[cfg(feature = "layout-types")]
