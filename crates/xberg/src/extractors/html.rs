@@ -290,6 +290,23 @@ fn push_link_uris_from_annotations(annotations: &[TextAnnotation], text: &str, b
 static MATH_TAG_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<math\b[^>]*>.*?</math>").unwrap());
 
+/// Matches a `<script type="math/tex">` block, which MathJax v2 pages use to carry
+/// the LaTeX source. `math/tex; mode=display` marks display math.
+static MATH_SCRIPT_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r#"(?is)<script[^>]*\btype\s*=\s*["']?math/tex[^"'>]*["']?[^>]*>(.*?)</script>"#).unwrap()
+});
+
+/// Matches the `alt` text of an image whose class marks it as a rendered
+/// equation, the shape legacy MathJax and MediaWiki pages use.
+static TEX_IMG_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r#"(?is)<img\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:tex|mwe-math-fallback-image-\w+|latex)\b[^"']*["'][^>]*>"#)
+        .unwrap()
+});
+
+/// Matches an `alt` attribute's value.
+static ALT_ATTR_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r#"(?is)\balt\s*=\s*["']([^"']*)["']"#).unwrap());
+
 /// Matches the `<!-- MathML: ... -->` comment that `html-to-markdown-rs` emits inline for
 /// every `<math>` element it converts (see `handle_math` in that crate). The comment
 /// serializes the raw MathML XML and leaks straight into `pre_rendered_content`/plain text
@@ -321,16 +338,40 @@ fn recover_mathml_formulas(html: &str, doc: &mut InternalDocument) {
         let mut budget = crate::extractors::security::SecurityBudget::from_limits(
             &crate::extractors::security::SecurityLimits::default(),
         );
-        for m in MATH_TAG_RE.find_iter(html) {
-            if let Ok(latex) = crate::extraction::mathml::convert_mathml_str_to_latex(m.as_str(), &mut budget)
-                && !latex.trim().is_empty()
-            {
+        let push_formula = |latex: String, doc: &mut InternalDocument| {
+            if !latex.trim().is_empty() {
                 doc.push_element(crate::types::internal::InternalElement::text(
                     crate::types::internal::ElementKind::Formula,
                     latex,
                     0,
                 ));
             }
+        };
+
+        for m in MATH_TAG_RE.find_iter(html) {
+            if let Ok(latex) = crate::extraction::mathml::convert_mathml_str_to_latex(m.as_str(), &mut budget) {
+                push_formula(latex, doc);
+            }
+        }
+
+        // A `math/tex` script holds the LaTeX source itself, so it needs no
+        // conversion; only its delimiters and entities come off.
+        for caps in MATH_SCRIPT_RE.captures_iter(html) {
+            let raw = quick_xml::escape::unescape(caps.get(1).map_or("", |m| m.as_str()))
+                .unwrap_or_else(|_| caps.get(1).map_or("", |m| m.as_str()).into());
+            let latex = crate::extraction::derive::strip_math_delimiters(raw.trim());
+            push_formula(latex.to_string(), doc);
+        }
+
+        // A rendered-equation image carries its source in `alt`, which is the
+        // only copy of the math on pages that ship no MathML.
+        for m in TEX_IMG_RE.find_iter(html) {
+            let Some(alt) = ALT_ATTR_RE.captures(m.as_str()).and_then(|c| c.get(1)) else {
+                continue;
+            };
+            let raw = quick_xml::escape::unescape(alt.as_str()).unwrap_or_else(|_| alt.as_str().into());
+            let latex = crate::extraction::derive::strip_math_delimiters(raw.trim());
+            push_formula(latex.to_string(), doc);
         }
     }
 
@@ -1400,4 +1441,63 @@ mod tests {
         );
         assert_eq!(meta.author, Some("Jane Doe".to_string()), "Author should be extracted");
     }
+    /// MathJax v2 pages carry the LaTeX source in a `math/tex` script, which is
+    /// the only copy of the math on a page that ships no MathML.
+    #[tokio::test]
+    async fn test_math_tex_script_becomes_a_formula() {
+        use crate::core::config::ExtractionConfig;
+        let html = r#"<html><body><p>Einstein wrote
+            <script type="math/tex; mode=display">E = mc^2</script></p></body></html>"#;
+        let doc = HtmlExtractor::new()
+            .extract_content(html.as_bytes(), "text/html", &ExtractionConfig::default())
+            .await
+            .expect("extraction failed");
+
+        let latex: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(latex, vec!["E = mc^2"]);
+    }
+
+    /// A rendered-equation image carries its source in `alt`, and the entities
+    /// in it decode.
+    #[tokio::test]
+    async fn test_tex_image_alt_becomes_a_formula() {
+        use crate::core::config::ExtractionConfig;
+        let html = r#"<html><body><img class="mwe-math-fallback-image-inline"
+            alt="a &lt; b" src="eq.png"/></body></html>"#;
+        let doc = HtmlExtractor::new()
+            .extract_content(html.as_bytes(), "text/html", &ExtractionConfig::default())
+            .await
+            .expect("extraction failed");
+
+        let latex: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(latex, vec!["a < b"]);
+    }
+
+    /// An ordinary image is not an equation.
+    #[tokio::test]
+    async fn test_plain_image_alt_is_not_a_formula() {
+        use crate::core::config::ExtractionConfig;
+        let html = r#"<html><body><img class="photo" alt="a cat" src="cat.png"/></body></html>"#;
+        let doc = HtmlExtractor::new()
+            .extract_content(html.as_bytes(), "text/html", &ExtractionConfig::default())
+            .await
+            .expect("extraction failed");
+
+        assert!(
+            !doc.elements
+                .iter()
+                .any(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+        );
+    }
+
 }
