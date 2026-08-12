@@ -125,15 +125,12 @@ pub fn models_cached() -> bool {
 /// Largest accepted model download; the encoder is ~89 MB.
 const MAX_MODEL_BYTES: u64 = 256 * 1024 * 1024;
 
-/// Download a file and write it atomically next to its final path. The temp
-/// name embeds the process id so concurrent processes never share it, and a
-/// failed attempt removes its own partial file.
-fn download_file(url: &str, target: &std::path::Path) -> Result<(), String> {
-    let tmp = target.with_extension(format!("partial.{}", std::process::id()));
+/// Download a file to a process-unique staging path. Publication (verify +
+/// atomic rename under the in-process and cross-process locks, with the
+/// Windows replace fallback) is the layout model manager's `atomic_publish`.
+fn download_to_staging(url: &str, staging: &std::path::Path) -> Result<(), String> {
     let result = (|| {
-        let response = ureq::get(url)
-            .call()
-            .map_err(|e| format!("download {url} failed: {e}"))?;
+        let response = ureq::get(url).call().map_err(|e| format!("download {url} failed: {e}"))?;
         if response.status() != 200 {
             return Err(format!("download {url} failed: HTTP {}", response.status()));
         }
@@ -143,12 +140,11 @@ fn download_file(url: &str, target: &std::path::Path) -> Result<(), String> {
             .limit(MAX_MODEL_BYTES)
             .read_to_vec()
             .map_err(|e| format!("download {url} read failed: {e}"))?;
-        std::fs::write(&tmp, bytes).map_err(|e| format!("write {} failed: {e}", tmp.display()))?;
-        std::fs::rename(&tmp, target).map_err(|e| format!("rename to {} failed: {e}", target.display()))?;
+        std::fs::write(staging, bytes).map_err(|e| format!("write {} failed: {e}", staging.display()))?;
         Ok(())
     })();
     if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(staging);
     }
     result
 }
@@ -169,9 +165,12 @@ pub fn ensure_models_in(dir: Option<&std::path::Path>) -> Result<FormulaModelPat
             continue;
         }
         let url = format!("{RELEASE_BASE_URL}/{name}");
-        let dl_target = target.clone();
-        crate::model_download::with_download_deadline(name, move || download_file(&url, &dl_target))?;
-        crate::model_download::verify_sha256(&target, sha256, name)?;
+        let staging = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+        let dl_staging = staging.clone();
+        crate::model_download::with_download_deadline(name, move || download_to_staging(&url, &dl_staging))?;
+        let published = crate::layout::model_manager::atomic_publish(&staging, &target, &dir, sha256, name);
+        let _ = std::fs::remove_file(&staging);
+        published?;
     }
 
     Ok(FormulaModelPaths {
@@ -256,7 +255,9 @@ pub(crate) fn recognize_crop(crop: &RgbImage, accel: Option<&AccelerationConfig>
 
 /// Recognize a crop off the async executor: the recognizer holds a
 /// process-wide lock for the whole multi-step decode, so it must not park a
-/// runtime worker. On wasm32 (no OS threads) it runs inline.
+/// runtime worker. The inline arm is unreachable today (the feature implies
+/// `tokio-runtime` and cannot be enabled on wasm32); it exists so the
+/// function stays total if either implication ever changes.
 pub(crate) async fn recognize_crop_blocking(
     crop: RgbImage,
     accel: Option<AccelerationConfig>,
@@ -338,14 +339,7 @@ impl FormulaRecognizer {
             let input = Tensor::from_array(tensor.clone()).map_err(LayoutError::Ort)?;
             let outputs = self.resizer.run(inputs!["input" => input]).map_err(LayoutError::Ort)?;
             let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
-            let classes = (*shape.last().unwrap_or(&1) as usize).clamp(1, data.len().max(1));
-            let flat = &data[data.len() - classes..];
-            let argmax = flat
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.total_cmp(b.1))
-                .map(|(i, _)| i)
-                .unwrap_or(0);
+            let argmax = crate::layout::session::argmax_last_row(shape, data)?;
             let predicted = ((argmax as u32) + 1) * DIVISOR;
             // The tensor's padded width is what the model judged.
             let current_padded = pad_up(width, DIVISOR);
@@ -396,14 +390,7 @@ impl FormulaRecognizer {
                 .run(inputs!["x" => x_t, "mask" => mask_t, "context" => ctx_t])
                 .map_err(LayoutError::Ort)?;
             let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(LayoutError::Ort)?;
-            let vocab = (*shape.last().unwrap_or(&1) as usize).clamp(1, data.len().max(1));
-            let last = &data[data.len() - vocab..];
-            let next = last
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.total_cmp(b.1))
-                .map(|(i, _)| i as i64)
-                .unwrap_or(EOS_TOKEN);
+            let next = crate::layout::session::argmax_last_row(shape, data)? as i64;
             if next == EOS_TOKEN {
                 break;
             }
@@ -488,9 +475,7 @@ fn preprocess_gray(crop: &RgbImage) -> Option<GrayCanvas> {
     }
     let mean = sum / (normalized.len() as u64).max(1);
     if mean <= 128 {
-        for p in normalized.pixels_mut() {
-            p.0[0] = 255 - p.0[0];
-        }
+        image::imageops::invert(&mut normalized);
     }
 
     // Crop to the ink bounding box plus a white border.
@@ -594,6 +579,21 @@ mod tests {
     #[test]
     fn post_process_preserves_explicit_space_command() {
         assert_eq!(post_process(r"a \ b"), r"a\ b");
+    }
+
+    #[test]
+    fn models_cached_in_requires_every_file() {
+        let dir = std::env::temp_dir().join(format!("xberg-formula-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(!models_cached_in(Some(&dir)), "empty dir is not cached");
+        for (name, ..) in MODEL_FILES {
+            std::fs::write(dir.join(name), b"stub").unwrap();
+        }
+        assert!(models_cached_in(Some(&dir)), "all files present counts as cached");
+        std::fs::remove_file(dir.join(MODEL_FILES[0].0)).unwrap();
+        assert!(!models_cached_in(Some(&dir)), "one missing file breaks the cache");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

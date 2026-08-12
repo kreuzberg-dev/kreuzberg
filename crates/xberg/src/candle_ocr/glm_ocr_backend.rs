@@ -275,12 +275,10 @@ fn task_for_label(label: crate::layout::LayoutClass, enable_chart_understanding:
 /// Strip leading and trailing `$$` delimiters and surrounding whitespace from a string.
 ///
 /// Used to normalize formula content that may have been wrapped by the model.
-/// If the content starts with `$$` or ends with `$$`, removes those delimiters
-/// and any immediately adjacent whitespace.
+/// Delegates to the shared math-delimiter stripper, which removes one pair of
+/// `$$..$$`, `\[..\]`, or `$..$` delimiters and trims the result.
 fn strip_formula_delimiters(content: &str) -> String {
-    let trimmed = content.trim();
-    let stripped = trimmed.strip_prefix("$$").unwrap_or(trimmed).trim_start();
-    stripped.strip_suffix("$$").unwrap_or(stripped).trim_end().to_string()
+    crate::extraction::derive::strip_math_delimiters(content).to_string()
 }
 
 fn wrap_output(task: GlmOcrTask, content: &str) -> String {

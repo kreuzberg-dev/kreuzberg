@@ -728,9 +728,14 @@ async fn run_ocr_with_layout(
     ))
 }
 
-/// The formula detections of one page, sorted top-to-bottom then
-/// left-to-right, matching the reading order the OCR pipeline uses when it
-/// emits the page's formulas.
+/// The formula detections of one page, sorted by raw `y1` then `x1`.
+///
+/// This comparator deliberately matches the order the OCR side channel emits
+/// formulas in (`glm_ocr_backend::process_paired` sorts its regions the same
+/// way) — the pairing below is positional, so both sides must sort
+/// identically. It is NOT the row-banded reading order the image extractor
+/// uses for element layout; do not "unify" them without changing the
+/// pairing to a geometric match.
 #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
 fn formula_regions_in_reading_order(
     detection: &crate::layout::DetectionResult,

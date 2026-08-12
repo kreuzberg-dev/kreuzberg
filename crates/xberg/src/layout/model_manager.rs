@@ -127,7 +127,7 @@ fn publish_with_rollback(tmp: &Path, dst: &Path, backup: &Path, sha256: &str, la
 /// A bounded advisory file lock extends that serialization across Xberg processes;
 /// every waiter re-verifies the destination after acquiring it so a peer's valid
 /// publication short-circuits its own write.
-fn atomic_publish(src: &Path, dst: &Path, dst_dir: &Path, sha256: &str, label: &str) -> Result<(), String> {
+pub(crate) fn atomic_publish(src: &Path, dst: &Path, dst_dir: &Path, sha256: &str, label: &str) -> Result<(), String> {
     atomic_publish_with_lock_timeout(src, dst, dst_dir, sha256, label, None)
 }
 

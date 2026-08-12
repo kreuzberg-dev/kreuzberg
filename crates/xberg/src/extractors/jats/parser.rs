@@ -88,10 +88,13 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
                 let local = local_name_of(s.name().as_ref());
                 if let Some(buf) = capture.as_mut() {
                     capture_depth += 1;
+                    let before = buf.len();
                     write_start_tag(buf, &s, false);
+                    budget.account_text(buf.len() - before)?;
                 } else if local == "math" {
                     let mut buf = String::new();
                     write_start_tag(&mut buf, &s, false);
+                    budget.account_text(buf.len())?;
                     capture = Some(buf);
                     capture_depth = 1;
                     capture_in_alternatives = alternatives_depth > 0;
@@ -105,7 +108,9 @@ pub(super) fn extract_formula_latex(reader: &mut EntityReader<'_>, budget: &mut 
             }
             Ok(Event::Empty(s)) => {
                 if let Some(buf) = capture.as_mut() {
+                    let before = buf.len();
                     write_start_tag(buf, &s, true);
+                    budget.account_text(buf.len() - before)?;
                 }
             }
             Ok(Event::End(e)) => {
