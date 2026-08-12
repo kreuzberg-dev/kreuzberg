@@ -69,7 +69,7 @@ impl OcrBoundingGeometry {
         all(
             feature = "layout-detection",
             feature = "pdf",
-            any(feature = "ocr", feature = "ocr-pipeline")
+            any(feature = "ocr", feature = "ocr-wasm")
         ),
         all(test, any(paddle_ocr, feature = "layout-detection", feature = "ocr"))
     ))]
@@ -96,7 +96,7 @@ impl OcrBoundingGeometry {
         all(
             feature = "layout-detection",
             feature = "pdf",
-            any(feature = "ocr", feature = "ocr-pipeline")
+            any(feature = "ocr", feature = "ocr-wasm")
         ),
         all(test, feature = "layout-detection")
     ))]
