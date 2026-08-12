@@ -1715,12 +1715,12 @@ fn analyze_container_markers(elements: &[crate::types::internal::InternalElement
 // than from `crate::ocr`: this PDF OCR path also compiles under `ocr-pipeline` (VLM OCR,
 // e.g. the `binstall` CLI) or under `layout-detection` alone (layout without any OCR
 // backend enabled), where the `ocr` module — gated on `ocr`/`ocr-wasm` — is absent. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 use crate::ocr_metadata_keys::{OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY, OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY};
 // Same rationale, scoped to `layout-detection` only: `resolved_ocr_correction_degrees` and
 // `transform_ocr_elements_to_render_space` (both `layout-detection`-only) are the sole
 // readers of these two key names in this file.
-#[cfg(feature = "layout-detection")]
+#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
 use crate::ocr_metadata_keys::{OCR_AUTO_ROTATED_METADATA_KEY, OCR_ORIENTATION_DEGREES_METADATA_KEY};
 
 #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
@@ -1749,7 +1749,7 @@ fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
 fn resolved_ocr_layout_dimensions(
     metadata: &crate::types::Metadata,
     render_width: u32,
@@ -5915,7 +5915,7 @@ Name: ___
         );
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     #[test]
     fn ocr_layout_dimensions_use_valid_processed_image_metadata() {
         let mut metadata = crate::types::Metadata::default();
@@ -5931,7 +5931,7 @@ Name: ___
         assert_eq!(resolved_ocr_layout_dimensions(&metadata, 1000, 1500), (2000, 3000));
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     #[test]
     fn ocr_layout_dimensions_fall_back_for_incomplete_or_invalid_metadata() {
         let mut metadata = crate::types::Metadata::default();
@@ -5957,7 +5957,7 @@ Name: ___
         assert_eq!(resolved_ocr_layout_dimensions(&metadata, 1000, 1500), (1000, 1500));
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     #[test]
     fn detection_scaling_targets_ocr_coordinate_space() {
         let detection = crate::layout::DetectionResult {
@@ -5985,7 +5985,7 @@ Name: ___
         assert_eq!(scaled.detections[0].bbox.y2, 600.0);
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     fn rotated_ocr_metadata(final_width: u32, final_height: u32, orientation_degrees: i32) -> crate::types::Metadata {
         let mut metadata = crate::types::Metadata::default();
         metadata.additional.insert(
@@ -6007,7 +6007,7 @@ Name: ___
         metadata
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     fn rotation_test_detection() -> crate::layout::DetectionResult {
         crate::layout::DetectionResult {
             page_width: 100,
@@ -6025,7 +6025,7 @@ Name: ___
         }
     }
 
-    #[cfg(feature = "layout-detection")]
+    #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
     #[test]
     fn ocr_detection_rotation_matches_clockwise_90_pixel_transform() {
         let metadata = rotated_ocr_metadata(200, 100, 270);
