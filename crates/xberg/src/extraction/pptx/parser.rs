@@ -519,6 +519,8 @@ fn parse_list_properties(p_node: &Node) -> Result<(u32, bool, bool)> {
 /// - `mc:AlternateContent` — an extension wrapper; `mc:Choice` commonly carries
 ///   OMML math (`a14:m/m:oMath(Para)`) with `mc:Fallback` holding a plain-text
 ///   or image substitute for older readers (#47, #79).
+/// - `m:oMathPara` / `m:oMath` — math written straight into the paragraph, with
+///   no compatibility wrapper. DOCX paragraphs accept the same two shapes.
 ///
 /// `add_new_line` mirrors the pre-existing behavior of appending a trailing
 /// `"\n"` after the paragraph's last run (matching a `<a:p>` boundary).
@@ -537,6 +539,11 @@ fn parse_paragraph(p_node: &Node, add_new_line: bool, xml_str: &str) -> Result<V
             runs.push(parse_field(&child));
         } else if ns == Some(MARKUP_COMPATIBILITY_NAMESPACE) && name == "AlternateContent" {
             runs.extend(parse_alternate_content_runs(&child, xml_str));
+        } else if ns == Some(MATH_NAMESPACE)
+            && (name == "oMathPara" || name == "oMath")
+            && let Some(math_run) = omml_node_to_run(&child, xml_str)
+        {
+            runs.push(math_run);
         }
     }
 
