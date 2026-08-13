@@ -21,7 +21,18 @@ pub(crate) fn convert_asciimath_to_latex(source: &str, budget: &mut SecurityBudg
     if trimmed.is_empty() {
         return None;
     }
-    let mathml = mathemascii::render_mathml(mathemascii::parse(trimmed));
+    // `mathemascii` 0.4.0 scans by byte index and splits a multi-byte character,
+    // so a real specification that writes `≤` panics inside the parser and takes
+    // the whole extraction with it. The panic is contained here, the way the
+    // crate already contains ORT and pdf_oxide, so one equation degrades to its
+    // source text instead of losing the document.
+    let mathml = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        mathemascii::render_mathml(mathemascii::parse(trimmed))
+    }))
+    .map_err(|_| {
+        log::debug!("asciimath parser panicked, keeping the source text");
+    })
+    .ok()?;
     let latex = crate::extraction::mathml::convert_mathml_str_to_latex(&mathml, budget).ok()?;
     let latex = latex.trim();
     if latex.is_empty() { None } else { Some(latex.to_string()) }
@@ -33,6 +44,34 @@ mod tests {
 
     fn convert(source: &str) -> Option<String> {
         convert_asciimath_to_latex(source, &mut SecurityBudget::with_defaults())
+    }
+
+    /// A published specification writes `≤` in its AsciiMath. The parser slices
+    /// by byte index, so this input panicked and lost the whole document.
+    #[test]
+    fn test_multibyte_asciimath_does_not_panic() {
+        // Reaching the next line at all is the test: this input aborted the
+        // process before, so the whole document was lost.
+        let _ = convert("t(t_i≤t≤t_(i+1))");
+        assert!(convert("a+b").is_some(), "the converter still works afterwards");
+    }
+
+    /// A real specification writes AsciiMath like this. Each of these comes
+    /// from a published document and must convert.
+    #[test]
+    fn test_real_specification_asciimath() {
+        for source in [
+            "b_(g0)=1/(mn)sum_(i=0)^(mn-1)g_i",
+            "|barg_(xii)|leC",
+            "|sigma_(xii)|lesigma",
+        ] {
+            let latex = convert(source);
+            assert!(latex.is_some(), "no LaTeX for {source:?}");
+            assert!(
+                !latex.as_deref().unwrap_or("").trim().is_empty(),
+                "empty LaTeX for {source:?}"
+            );
+        }
     }
 
     #[test]

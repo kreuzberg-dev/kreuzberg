@@ -81,6 +81,26 @@ fn standalone_equation(text: &str) -> Option<&str> {
     Some(inner)
 }
 
+/// The LaTeX of every equation spliced into a paragraph of prose.
+///
+/// The parser delimits each equation with `$`, so the spans between the
+/// delimiters are the equations. A lone `$` is not an equation, and neither is
+/// an empty span.
+fn embedded_equations(text: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut rest = text;
+    while let Some(start) = rest.find('$') {
+        let after = &rest[start + 1..];
+        let Some(end) = after.find('$') else { break };
+        let inner = after[..end].trim();
+        if !inner.is_empty() {
+            found.push(inner);
+        }
+        rest = &after[end + 1..];
+    }
+    found
+}
+
 /// Build an `InternalDocument` from HWP structured model.
 fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
     let mut builder = InternalDocumentBuilder::new("hwp");
@@ -103,6 +123,14 @@ fn build_hwp_internal_document(hwp_doc: &HwpDocument) -> InternalDocument {
                 if let Some(latex) = standalone_equation(&t.content) {
                     builder.push_formula(latex, None, None);
                     continue;
+                }
+                // Math mixed with prose stays in the sentence, because
+                // `char_shape_runs` are byte offsets into this string and
+                // lifting a span out would move every annotation after it. The
+                // equation is still one of the document's formulas, so it is
+                // recorded in the side channel, which leaves the text alone.
+                for latex in embedded_equations(&t.content) {
+                    builder.record_formula(latex);
                 }
                 let annotations = apply_char_shapes(&t.content, &para.char_shape_runs, &hwp_doc.char_shapes);
                 if para.outline_level > 0 {

@@ -187,11 +187,7 @@ impl InternalDocumentBuilder {
         for row in cells {
             for cell in row {
                 for latex in display_math_spans(cell) {
-                    self.doc.formulas.push(crate::types::Formula {
-                        latex,
-                        bbox: None,
-                        page,
-                    });
+                    self.record_formula(&latex);
                 }
             }
         }
@@ -232,6 +228,24 @@ impl InternalDocumentBuilder {
     ) -> u32 {
         let attrs = language.map(|lang| single_attr("language", lang));
         self.push_simple(ElementKind::Code, text, page, bbox, Vec::new(), attrs, None)
+    }
+
+    /// Record a formula that stays inside the text it came from.
+    ///
+    /// An equation in a table cell or spliced into a sentence cannot become an
+    /// element without changing that text, so it goes to the side channel. The
+    /// derivation step appends the side channel to the public formula list, so a
+    /// caller still sees every formula the document holds.
+    pub fn record_formula(&mut self, latex: &str) {
+        let latex = latex.trim();
+        if latex.is_empty() {
+            return;
+        }
+        self.doc.formulas.push(crate::types::Formula {
+            latex: latex.to_string(),
+            bbox: None,
+            page: None,
+        });
     }
 
     /// Push a math formula element.
