@@ -689,6 +689,27 @@ const _: () = {
     }
 };
 
+/// Return the LaTeX of every `$$...$$` span in a table cell.
+///
+/// A cell renders its math delimited, so the delimiters mark where each formula
+/// starts and ends. Inline `$...$` is left alone: a cell holding a price reads
+/// the same as a cell holding one-character math, and inline math stays in its
+/// sentence everywhere else.
+fn display_math_spans(cell: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = cell;
+    while let Some(start) = rest.find("$$") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("$$") else { break };
+        let latex = after[..end].trim();
+        if !latex.is_empty() {
+            out.push(latex.to_string());
+        }
+        rest = &after[end + 2..];
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1282,25 +1303,4 @@ mod tests {
         );
         assert_eq!(doc.images.len(), 2, "both stored images retained");
     }
-}
-
-/// Return the LaTeX of every `$$...$$` span in a table cell.
-///
-/// A cell renders its math delimited, so the delimiters mark where each formula
-/// starts and ends. Inline `$...$` is left alone: a cell holding a price reads
-/// the same as a cell holding one-character math, and inline math stays in its
-/// sentence everywhere else.
-fn display_math_spans(cell: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = cell;
-    while let Some(start) = rest.find("$$") {
-        let after = &rest[start + 2..];
-        let Some(end) = after.find("$$") else { break };
-        let latex = after[..end].trim();
-        if !latex.is_empty() {
-            out.push(latex.to_string());
-        }
-        rest = &after[end + 2..];
-    }
-    out
 }

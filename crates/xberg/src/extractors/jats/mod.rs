@@ -55,11 +55,12 @@ const JATS_WARNING_SOURCE: &str = "jats";
 fn extract_para_with_annotations_jats(
     reader: &mut EntityReader<'_>,
     budget: &mut SecurityBudget,
-) -> crate::Result<(String, Vec<crate::types::document_structure::TextAnnotation>)> {
+) -> crate::Result<(String, Vec<crate::types::document_structure::TextAnnotation>, Vec<String>)> {
     use crate::types::builder;
 
     let mut text = String::new();
     let mut annotations = Vec::new();
+    let mut formulas: Vec<String> = Vec::new();
     let mut depth: u32 = 0;
 
     let mut inline_stack: Vec<(&'static str, u32, u32, Option<String>)> = Vec::new();
@@ -75,6 +76,16 @@ fn extract_para_with_annotations_jats(
                 let tag = crate::utils::xml_tag_name(name.as_ref());
 
                 match tag.as_ref() {
+                    // An article writes its equation inside the sentence that
+                    // refers to it. The equation belongs in the formula list, so
+                    // it is captured rather than flattened into the prose.
+                    "disp-formula" | "inline-formula" => {
+                        let latex = jats_extract_formula(reader, budget)?;
+                        depth = depth.saturating_sub(1);
+                        if !latex.trim().is_empty() {
+                            formulas.push(latex.trim().to_string());
+                        }
+                    }
                     "italic" => {
                         inline_stack.push(("italic", depth, text.len() as u32, None));
                     }
@@ -177,7 +188,7 @@ fn extract_para_with_annotations_jats(
         }
     }
 
-    Ok((text.trim().to_string(), annotations))
+    Ok((text.trim().to_string(), annotations, formulas))
 }
 
 /// Build an `InternalDocument` from JATS XML content.
@@ -232,7 +243,11 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "p" if in_abstract => {
-                        let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        let (text, annotations, para_formulas) =
+                            extract_para_with_annotations_jats(&mut reader, budget)?;
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
+                        }
                         if !text.is_empty() {
                             builder.push_paragraph(&text, annotations, None, None);
                         }
@@ -254,7 +269,10 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "p" if in_body => {
-                        let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
+                        }
                         if !text.is_empty() {
                             for ann in &annotations {
                                 if let crate::types::document_structure::AnnotationKind::Link { url, .. } = &ann.kind
@@ -320,7 +338,10 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "p" if in_back && !in_ref_list => {
-                        let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
+                        }
                         if !text.is_empty() {
                             builder.push_paragraph(&text, annotations, None, None);
                         }
@@ -334,7 +355,10 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "list-item" if in_back && !in_ref_list => {
-                        let (text, annotations) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
+                        }
                         if !text.is_empty() {
                             if !back_list_opened {
                                 builder.push_list(false);
@@ -685,6 +709,27 @@ impl InternalDocumentExtractor for JatsExtractor {
 mod tests {
     use super::*;
     use elements::extract_jats_all_in_one;
+
+    /// A journal writes its equation inside the sentence that refers to it.
+    /// The paragraph reader consumed the whole `<p>`, so an article whose
+    /// mathematics is inline reported none of it.
+    #[test]
+    fn test_formula_inside_a_paragraph_reaches_the_formula_list() {
+        let jats = r#"<article><body><sec><p>The value <inline-formula><alternatives>
+<tex-math><![CDATA[J]]></tex-math>
+<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:mi>J</mml:mi></mml:math></alternatives></inline-formula> is the cost.</p></sec></body></article>"#;
+
+        let mut budget = SecurityBudget::with_defaults();
+        let doc = build_jats_internal_document(jats, &mut budget).expect("parse");
+
+        let formulas: Vec<&str> = doc
+            .elements
+            .iter()
+            .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(formulas, vec!["J"], "the inline equation is one of the document's formulas");
+    }
 
     #[test]
     fn test_jats_extractor_plugin_interface() {
