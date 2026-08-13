@@ -6,7 +6,69 @@
 		"topic": "plugin_api",
 		"title": "register_reranker_backend: trait bridge",
 		"description": "register_reranker_backend: trait bridge",
-		"side_effects": "safe"
+		"side_effects": "safe",
+		"coverage_exceptions": {
+			"c": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"csharp": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"dart": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"elixir": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"go": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"java": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"kotlin_android": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"node": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"php": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"python": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"ruby": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"rust": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"swift": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"wasm": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			},
+			"zig": {
+				"reason": "test-backend fixture requires an extension-owned documentation recipe",
+				"documentation": "docs-site/src/content/docs/guides/plugins.mdx"
+			}
+		}
 	},
 	"tags": ["trait-bridge"],
 	"call": "register_reranker_backend",
