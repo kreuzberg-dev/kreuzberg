@@ -652,6 +652,122 @@ mod tests {
         );
     }
 
+    /// A deck written by a tool other than PowerPoint puts the math straight
+    /// into the paragraph, with no `a14:m` wrapper and no `mc:AlternateContent`.
+    #[tokio::test]
+    async fn test_bare_omml_in_a_paragraph_populates_formulas() {
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody>
+            <a:p>
+                <m:oMathPara><m:oMath><m:sSup>
+                    <m:e><m:r><m:t>y</m:t></m:r></m:e>
+                    <m:sup><m:r><m:t>3</m:t></m:r></m:sup>
+                </m:sSup></m:oMath></m:oMathPara>
+            </a:p>
+        </p:txBody></p:sp>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+
+        assert_eq!(slide_formulas(slide_xml).await, vec!["y^{3}"]);
+    }
+
+    /// PowerPoint writes the equation as `a14:m` in its 2010 drawing namespace,
+    /// with no compatibility wrapper. A real deck extracted to nothing before.
+    #[tokio::test]
+    async fn test_drawing_extension_math_without_a_compatibility_wrapper() {
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main"
+       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody>
+            <a:p><a14:m>
+                <m:oMathPara><m:oMath><m:sSup>
+                    <m:e><m:r><m:t>e</m:t></m:r></m:e>
+                    <m:sup><m:r><m:t>x</m:t></m:r></m:sup>
+                </m:sSup></m:oMath></m:oMathPara>
+            </a14:m></a:p>
+        </p:txBody></p:sp>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+
+        assert_eq!(slide_formulas(slide_xml).await, vec!["e^{x}"]);
+    }
+
+    /// Bare inline math sits beside the words of its sentence. The equation
+    /// becomes a formula and the words keep their spacing.
+    #[tokio::test]
+    async fn test_bare_inline_omml_leaves_the_sentence_intact() {
+        use crate::core::config::ExtractionConfig;
+        use crate::extraction::derive::derive_extraction_result;
+        use crate::plugins::InternalDocumentExtractor;
+
+        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+    <p:cSld><p:spTree>
+        <p:sp><p:txBody>
+            <a:p>
+                <a:r><a:t>Speed </a:t></a:r>
+                <m:oMath><m:r><m:t>v</m:t></m:r></m:oMath>
+                <a:r><a:t> in metres</a:t></a:r>
+            </a:p>
+        </p:txBody></p:sp>
+    </p:spTree></p:cSld>
+</p:sld>"#;
+
+        let pptx = crate::extraction::pptx::tests::build_single_slide_pptx(slide_xml, None, &[]);
+        let extractor = PptxExtractor::new();
+        let mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        let config = ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Markdown,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(&pptx, mime, &config)
+            .await
+            .expect("extraction failed");
+        let result = derive_extraction_result(internal_doc, false, crate::core::config::OutputFormat::Markdown);
+
+        let latex: Vec<&str> = result.formulas.iter().map(|f| f.latex.as_str()).collect();
+        assert_eq!(latex, vec!["v"], "the inline equation becomes a formula");
+        assert!(
+            result.content.contains("Speed in metres"),
+            "the sentence keeps one space where the equation left it, got: {:?}",
+            result.content
+        );
+    }
+
+    /// Extract one slide and return the LaTeX of every formula it yields.
+    async fn slide_formulas(slide_xml: &str) -> Vec<String> {
+        use crate::core::config::ExtractionConfig;
+        use crate::extraction::derive::derive_extraction_result;
+        use crate::plugins::InternalDocumentExtractor;
+
+        let pptx = crate::extraction::pptx::tests::build_single_slide_pptx(slide_xml, None, &[]);
+        let extractor = PptxExtractor::new();
+        let mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        let config = ExtractionConfig {
+            output_format: crate::core::config::OutputFormat::Markdown,
+            ..Default::default()
+        };
+        let internal_doc = extractor
+            .extract_content(&pptx, mime, &config)
+            .await
+            .expect("extraction failed");
+        derive_extraction_result(internal_doc, false, crate::core::config::OutputFormat::Markdown)
+            .formulas
+            .iter()
+            .map(|f| f.latex.clone())
+            .collect()
+    }
+
     /// Plain output carries no math delimiters, so a shape that holds nothing but
     /// math is still recognized by its exact LaTeX. Math mixed into a line of text
     /// stays in that line.
