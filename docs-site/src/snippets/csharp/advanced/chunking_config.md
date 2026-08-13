@@ -26,8 +26,11 @@ class Program
                 "document.pdf"), config
             )).Results[0];
 
-            Console.WriteLine($"Chunks: {result.Chunks.Count}");
-            foreach (var chunk in result.Chunks)
+            // Chunks is null unless chunking is configured, as it is above.
+            var chunks = result.Chunks ?? [];
+
+            Console.WriteLine($"Chunks: {chunks.Count}");
+            foreach (var chunk in chunks)
             {
                 Console.WriteLine($"Content length: {chunk.Content.Length}");
                 if (chunk.Embedding != null)
@@ -67,12 +70,14 @@ class Program
                 "document.md"), config
             )).Results[0];
 
-            foreach (var chunk in result.Chunks)
+            foreach (var chunk in result.Chunks ?? [])
             {
-                if (chunk.HeadingContext?.Headings != null)
+                // Heading context lives on the chunk's metadata.
+                var headingContext = chunk.Metadata.HeadingContext;
+                if (headingContext != null)
                 {
                     Console.WriteLine("Headings:");
-                    foreach (var heading in chunk.HeadingContext.Headings)
+                    foreach (var heading in headingContext.Headings)
                     {
                         Console.WriteLine($"  Level {heading.Level}: {heading.Text}");
                     }
@@ -110,7 +115,7 @@ class Program
                 "document.md"), config
             )).Results[0];
 
-            foreach (var chunk in result.Chunks)
+            foreach (var chunk in result.Chunks ?? [])
             {
                 // Each chunk's content is prefixed with its heading breadcrumb
                 Console.WriteLine(chunk.Content[..Math.Min(100, chunk.Content.Length)]);
