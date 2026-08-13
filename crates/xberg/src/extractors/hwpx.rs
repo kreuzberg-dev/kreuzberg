@@ -107,9 +107,18 @@ fn collect_section_formulas<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) ->
     use crate::utils::xml_utils::EntityReader;
     use quick_xml::events::Event;
 
-    let section_parts: Vec<(usize, String)> = archive
+    // `unhwp` numbers a section by its position in the list it reads, not by the
+    // digits in its name, so the key is the position here too. A package whose
+    // parts are `section0` and `section2` gives positions 0 and 1 on both sides.
+    let mut section_parts: Vec<(usize, String)> = archive
         .file_names()
-        .filter_map(|name| section_index_of(name).map(|index| (index, name.to_string())))
+        .filter_map(|name| section_index_of(name).map(|digits| (digits, name.to_string())))
+        .collect();
+    section_parts.sort();
+    let section_parts: Vec<(usize, String)> = section_parts
+        .into_iter()
+        .enumerate()
+        .map(|(position, (_, name))| (position, name))
         .collect();
 
     let mut per_section: AHashMap<usize, Vec<(usize, String)>> = AHashMap::new();
@@ -176,10 +185,11 @@ fn collect_section_formulas<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) ->
     per_section
 }
 
-/// Return the index of a section part, so `Contents/section3.xml` gives `3`.
+/// Return the number in a section part's name, so `Contents/section3.xml`
+/// gives `3`.
 ///
-/// `unhwp::model::Section::index` carries the same number, which keys the two
-/// sides together even when the crate drops a section it cannot read.
+/// The number orders the parts. It is not the key: `unhwp` numbers a section by
+/// its position in the list it reads, and a package may skip a number.
 fn section_index_of(name: &str) -> Option<usize> {
     let file = name.rsplit('/').next()?;
     let digits = file.strip_prefix("section")?.strip_suffix(".xml")?;
@@ -352,8 +362,13 @@ fn build_hwpx_internal_document(
                 // The scan is the only source of formula elements, because it
                 // sees an equation wherever it sits. Emitting here keeps the
                 // equation next to the paragraph that introduces it.
+                // The two sides count paragraphs independently, and a shape
+                // that holds its own paragraphs makes the crate emit more
+                // blocks than the scan saw. Emitting everything up to the
+                // current ordinal places a formula late when the counts drift,
+                // rather than stranding every formula after it.
                 while let Some((ordinal, latex)) = scanned.and_then(|list| list.get(next_formula)) {
-                    if *ordinal != paragraph_ordinal {
+                    if *ordinal > paragraph_ordinal {
                         break;
                     }
                     builder.push_formula(latex, None, None);
@@ -628,6 +643,38 @@ mod tests {
 
     /// Hangul writes the equation into the run, which `unhwp` skips, so the scan
     /// is the only thing that finds it.
+    /// A formula is placed after the paragraph that holds it, and a section's
+    /// map is read by the section's own number.
+    #[test]
+    fn test_a_section_formula_follows_its_paragraph() {
+        use unhwp::model::{Block, Document, Paragraph, Section, TextRun};
+
+        let mut doc = Document::new();
+        let mut section = Section::new(2);
+        for text in ["First.", "Second.", "Third."] {
+            let mut p = Paragraph::new();
+            p.push_text(TextRun::new(text));
+            section.content.push(Block::Paragraph(p));
+        }
+        doc.sections.push(section);
+
+        // The equation sits in the third paragraph, which is ordinal 2.
+        let scanned: AHashMap<usize, Vec<(usize, String)>> =
+            [(2usize, vec![(2usize, "\\frac{a}{b}".to_string())])].into_iter().collect();
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &scanned);
+
+        let kinds: Vec<&ElementKind> = internal.elements.iter().map(|e| &e.kind).collect();
+        let formula_at = kinds
+            .iter()
+            .position(|k| matches!(k, ElementKind::Formula))
+            .expect("the equation reaches the document");
+        assert_eq!(
+            formula_at,
+            kinds.len() - 1,
+            "the equation follows the third paragraph, got {kinds:?}"
+        );
+    }
+
     #[test]
     fn test_scan_reads_an_equation_inside_a_run() {
         let xml = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
@@ -678,9 +725,11 @@ mod tests {
             ("Contents/section2.xml", two),
         ]));
 
+        // The parts are keyed by position, which is how the crate numbers a
+        // section. A package that skips a number still lines the two sides up.
         assert_eq!(found.get(&0).map(|f| f[0].1.as_str()), Some("\\frac{x}{y}"));
-        assert_eq!(found.get(&2).map(|f| f[0].1.as_str()), Some("\\frac{p}{q}"));
-        assert!(found.get(&1).is_none(), "no section 1 part exists");
+        assert_eq!(found.get(&1).map(|f| f[0].1.as_str()), Some("\\frac{p}{q}"));
+        assert!(found.get(&2).is_none(), "only two parts exist");
     }
 
     /// A paragraph inside a table stays in the cell for `unhwp`, so counting it

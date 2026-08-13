@@ -189,7 +189,6 @@ mod tests {
 /// `tail` starts just after `<!DOCTYPE`. An internal subset may hold a `>`
 /// inside its brackets, so the scan tracks bracket depth and returns the first
 /// `>` outside them. A declaration that never closes returns `None`.
-#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 pub(crate) fn doctype_end(tail: &str) -> Option<usize> {
     let mut bracket_depth: usize = 0;
     for (idx, ch) in tail.char_indices() {

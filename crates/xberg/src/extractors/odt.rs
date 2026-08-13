@@ -460,6 +460,16 @@ fn handle_odt_frame(
         if frame_child.tag_name().name() != "image" {
             continue;
         }
+        // A captioned figure nests a frame inside this one, and the inner frame
+        // owns its image. Without this the caller emits the image once for the
+        // outer frame and again for the inner one.
+        if frame_child
+            .ancestors()
+            .take_while(|a| *a != frame)
+            .any(|a| a.tag_name().name() == "frame")
+        {
+            continue;
+        }
         let href = frame_child
             .attribute(("http://www.w3.org/1999/xlink", "href"))
             .or_else(|| frame_child.attribute("xlink:href"));

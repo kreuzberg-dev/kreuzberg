@@ -945,15 +945,13 @@ fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
     let from_magic = detect_mime_type_from_bytes(&header).ok()?;
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
     if from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument.") {
-        if let Some(package_mime) = detect_zip_mimetype_entry(std::fs::File::open(path).ok()?) {
-            return (package_mime != extension_mime).then(|| package_mime.to_string());
-        }
         // The header holds only the first entries of the archive, and a real
         // document names its main part far later: `ppt/presentation.xml` sits
-        // 107 KB into a 27-slide deck. Reading the archive directory finds the
-        // part wherever it is, so the document is not mistaken for a plain ZIP.
-        if let Some(office_mime) = detect_office_format_from_archive(std::fs::File::open(path).ok()?) {
-            return (office_mime != extension_mime).then(|| office_mime.to_string());
+        // 107 KB into a 27-slide deck. The archive directory finds the part
+        // wherever it is, so the document is not mistaken for a plain ZIP. One
+        // open answers both questions.
+        if let Some(package_mime) = detect_zip_package(std::fs::File::open(path).ok()?) {
+            return (package_mime != extension_mime).then(|| package_mime.to_string());
         }
     }
 
@@ -1020,7 +1018,7 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
 
         #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
         if mime_type.starts_with("application/vnd.oasis.opendocument.") {
-            return Ok(detect_zip_mimetype_entry(std::io::Cursor::new(content))
+            return Ok(detect_zip_package(std::io::Cursor::new(content))
                 .unwrap_or(ZIP_MIME_TYPE)
                 .to_string());
         }
@@ -1126,7 +1124,7 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
     #[cfg(feature = "hwpx")]
     const HWPX_MARKER: &[u8] = b"Contents/content.hpf";
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-    if let Some(package_mime) = detect_zip_mimetype_entry(std::io::Cursor::new(content)) {
+    if let Some(package_mime) = detect_zip_package(std::io::Cursor::new(content)) {
         return Some(package_mime);
     }
 
@@ -1176,58 +1174,57 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
 /// of the archive it was given. A caller that reads a fixed-size header misses
 /// every part written after it.
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-fn detect_office_format_from_archive<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
-    let limits = SecurityLimits::default();
-    if !zip_central_directory_within_limits(&mut reader, &limits) {
-        return None;
-    }
-    reader.seek(SeekFrom::Start(0)).ok()?;
-    let mut archive = zip::ZipArchive::new(reader).ok()?;
-
+fn detect_office_format_from_archive<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> Option<&'static str> {
     let has = |archive: &mut zip::ZipArchive<R>, name: &str| archive.index_for_name(name).is_some();
     #[cfg(feature = "hwpx")]
-    if has(&mut archive, "Contents/content.hpf") {
+    if has(archive, "Contents/content.hpf") {
         return Some(HWPX_MIME_TYPE);
     }
-    if has(&mut archive, "word/document.xml") {
+    if has(archive, "word/document.xml") {
         return Some(DOCX_MIME_TYPE);
     }
-    if has(&mut archive, "xl/workbook.xml") {
+    if has(archive, "xl/workbook.xml") {
         return Some(EXCEL_MIME_TYPE);
     }
-    if has(&mut archive, "ppt/presentation.xml") {
+    if has(archive, "ppt/presentation.xml") {
         return Some(POWER_POINT_MIME_TYPE);
     }
     // A Numbers package also carries `Index/Document.iwa`, so the discriminating
     // parts are tested first. Otherwise a spreadsheet is read as a Pages
     // document and yields no sheets at all.
-    if has(&mut archive, "Index/CalculationEngine.iwa") {
+    if has(archive, "Index/CalculationEngine.iwa") {
         return Some(IWORK_NUMBERS_MIME_TYPE);
     }
-    if has(&mut archive, "Index/Presentation.iwa")
+    if has(archive, "Index/Presentation.iwa")
         || archive.file_names().any(|n| n.starts_with("Index/Slide-") || n.starts_with("Index/Slide_"))
     {
         return Some(IWORK_KEYNOTE_MIME_TYPE);
     }
-    if has(&mut archive, "Index/Document.iwa") {
+    if has(archive, "Index/Document.iwa") {
         return Some(IWORK_PAGES_MIME_TYPE);
     }
     None
 }
 
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-fn detect_zip_mimetype_entry<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
-    /// The value an HWPX package stores in its `mimetype` entry.
-    const HWPX_PACKAGE_MIMETYPE: &[u8] = b"application/hwp+zip";
-    const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
-
+fn detect_zip_package<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
     let limits = SecurityLimits::default();
     if !zip_central_directory_within_limits(&mut reader, &limits) {
         return None;
     }
     reader.seek(SeekFrom::Start(0)).ok()?;
-
     let mut archive = zip::ZipArchive::new(reader).ok()?;
+
+    // The package's own declaration wins, and its main part answers otherwise.
+    detect_zip_mimetype_entry(&mut archive).or_else(|| detect_office_format_from_archive(&mut archive))
+}
+
+/// Read the `mimetype` entry a ZIP-based document package declares.
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn detect_zip_mimetype_entry<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> Option<&'static str> {
+    /// The value an HWPX package stores in its `mimetype` entry.
+    const HWPX_PACKAGE_MIMETYPE: &[u8] = b"application/hwp+zip";
+    const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
 
     let mut mimetype_index = None;
     for index in 0..archive.len() {
