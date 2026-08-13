@@ -28,6 +28,10 @@ const MARKUP_COMPATIBILITY_NAMESPACE: &str = "http://schemas.openxmlformats.org/
 /// OMML (Office Math Markup Language) namespace for `m:oMath`/`m:oMathPara`.
 const MATH_NAMESPACE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/math";
 
+/// The Office 2010 drawing extension namespace, whose `m` element wraps OMML
+/// that PowerPoint writes straight into a paragraph.
+const DRAWING_2010_NAMESPACE: &str = "http://schemas.microsoft.com/office/drawing/2010/main";
+
 /// DrawingML chart namespace for `p:graphicFrame` chart payloads.
 const CHART_NAMESPACE: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 
@@ -521,6 +525,8 @@ fn parse_list_properties(p_node: &Node) -> Result<(u32, bool, bool)> {
 ///   or image substitute for older readers (#47, #79).
 /// - `m:oMathPara` / `m:oMath` — math written straight into the paragraph, with
 ///   no compatibility wrapper. DOCX paragraphs accept the same two shapes.
+/// - `a14:m` — the Office 2010 wrapper PowerPoint writes around OMML when the
+///   paragraph holds only math, with no `mc:AlternateContent` around it.
 ///
 /// `add_new_line` mirrors the pre-existing behavior of appending a trailing
 /// `"\n"` after the paragraph's last run (matching a `<a:p>` boundary).
@@ -539,8 +545,8 @@ fn parse_paragraph(p_node: &Node, add_new_line: bool, xml_str: &str) -> Result<V
             runs.push(parse_field(&child));
         } else if ns == Some(MARKUP_COMPATIBILITY_NAMESPACE) && name == "AlternateContent" {
             runs.extend(parse_alternate_content_runs(&child, xml_str));
-        } else if ns == Some(MATH_NAMESPACE)
-            && (name == "oMathPara" || name == "oMath")
+        } else if (ns == Some(MATH_NAMESPACE) && (name == "oMathPara" || name == "oMath")
+            || ns == Some(DRAWING_2010_NAMESPACE) && name == "m")
             && let Some(math_run) = omml_node_to_run(&child, xml_str)
         {
             runs.push(math_run);
@@ -698,6 +704,10 @@ fn omml_node_to_run(container: &Node, xml_str: &str) -> Option<Run> {
         crate::extraction::docx::math::collect_and_convert_omath(&mut reader, &mut budget).ok()?
     };
 
+    // The rendered slide text is trimmed, so a converter result that keeps the
+    // source indentation would no longer equal the LaTeX kept for the formula
+    // element and the equation would stay in the text only.
+    let latex = latex.trim().to_string();
     if latex.is_empty() {
         return None;
     }
