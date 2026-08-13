@@ -218,7 +218,7 @@ manifest = "packages/swift/Package.swift"
 # and take the whole snippet run down, exactly the failure mode this guard
 # exists to prevent. ~keep
 before = [
-  'if ! command -v swift >/dev/null 2>&1; then echo "alef: swift not on PATH; skipping cargo build -p xberg-swift (Swift snippets will fail typecheck)"; elif [ -f ../../target/release/libxberg_swift.a ] && [ -f ../../target/release/libxberg_ffi.a ]; then echo "alef: release staticlibs already built; skipping cargo build -p xberg-swift"; elif [ -f ../../target/debug/libxberg_swift.a ] && [ -f ../../target/debug/libxberg_ffi.a ]; then echo "alef: debug staticlibs already built; skipping cargo build -p xberg-swift"; else cargo build --manifest-path rust/Cargo.toml -p xberg-swift || echo "alef: cargo build -p xberg-swift failed; Swift snippets will fail typecheck (Xberg module unavailable), other languages unaffected"; fi; true',
+  'if ! command -v swift >/dev/null 2>&1; then echo "alef: swift not on PATH; skipping cargo build (Swift snippets will fail typecheck)"; elif [ -f ../../target/release/libxberg_swift.a ] && [ -f ../../target/release/libxberg_ffi.a ]; then echo "alef: release staticlibs already built; skipping cargo build"; elif [ -f ../../target/debug/libxberg_swift.a ] && [ -f ../../target/debug/libxberg_ffi.a ]; then echo "alef: debug staticlibs already built; skipping cargo build"; else cargo build --manifest-path rust/Cargo.toml -p xberg-swift -p xberg-ffi || echo "alef: cargo build -p xberg-swift -p xberg-ffi failed; Swift snippets will fail typecheck (Xberg module unavailable), other languages unaffected"; fi; true',
 ]
 
 [workspace.docs.snippets.sessions.zig]
