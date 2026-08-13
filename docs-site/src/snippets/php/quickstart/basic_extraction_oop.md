@@ -1,3 +1,4 @@
+```php title="PHP"
 <?php
 
 declare(strict_types=1);
@@ -34,3 +35,4 @@ if (count($result->tables) > 0) {
         echo $table->markdown . "\n";
     }
 }
+```

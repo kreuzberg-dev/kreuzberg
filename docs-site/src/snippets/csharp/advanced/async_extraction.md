@@ -1,3 +1,4 @@
+```csharp title="C#"
 using Xberg;
 
 class Program
@@ -32,3 +33,4 @@ class Program
         }
     }
 }
+```

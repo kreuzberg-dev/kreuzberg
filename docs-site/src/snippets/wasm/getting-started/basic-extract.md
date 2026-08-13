@@ -1,3 +1,4 @@
+```typescript title="Wasm"
 import { ExtractInputKind, extract, initWasm } from "@xberg-io/xberg-wasm";
 
 async function main() {
@@ -20,3 +21,4 @@ async function main() {
 }
 
 main().catch(console.error);
+```

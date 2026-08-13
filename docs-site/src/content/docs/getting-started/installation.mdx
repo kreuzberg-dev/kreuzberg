@@ -4,6 +4,16 @@ description: "Install Xberg — pick Python, TypeScript, Rust, Go, Java/Kotlin, 
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_c_getting_started_basic_usage } from "../../../snippets/c/getting-started/basic_usage.md";
+import { Content as Snip_csharp_getting_started_basic_usage } from "../../../snippets/csharp/getting-started/basic_usage.md";
+import { Content as Snip_go_getting_started_hello_world } from "../../../snippets/go/getting-started/hello_world.md";
+import { Content as Snip_java_getting_started_basic_usage } from "../../../snippets/java/getting-started/basic_usage.md";
+import { Content as Snip_php_quickstart_basic_extraction_oop } from "../../../snippets/php/quickstart/basic_extraction_oop.md";
+import { Content as Snip_python_getting_started_hello_world } from "../../../snippets/python/getting-started/hello_world.md";
+import { Content as Snip_ruby_getting_started_install_verify } from "../../../snippets/ruby/getting-started/install_verify.md";
+import { Content as Snip_elixir_getting_started_basic_usage } from "../../../snippets/elixir/getting-started/basic_usage.md";
+import { Content as Snip_wasm_getting_started_basic_extract } from "../../../snippets/wasm/getting-started/basic-extract.md";
+import { Content as Snip_wasm_getting_started_runtime_detection } from "../../../snippets/wasm/getting-started/runtime-detection.md";
 
 Polyglot SDKs plus a standalone CLI. Most packages ship **prebuilt binaries** for Linux (x86_64/aarch64), macOS, and Windows — no compile step needed.
 
@@ -254,6 +264,60 @@ Apple Silicon (arm64) macOS is fully supported across every package. On **Intel 
 
 ---
 
+## Verify your install
+
+Run one extraction after you install a package. Each example reads `document.pdf` and prints the extracted text. A successful run confirms that the binding finds and loads its native library.
+
+<Tabs syncKey="lang">
+<TabItem label="C">
+
+<Snip_c_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="C#">
+
+<Snip_csharp_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="Go">
+
+<Snip_go_getting_started_hello_world />
+
+</TabItem>
+<TabItem label="Java">
+
+<Snip_java_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="PHP">
+
+<Snip_php_quickstart_basic_extraction_oop />
+
+</TabItem>
+<TabItem label="Python">
+
+<Snip_python_getting_started_hello_world />
+
+</TabItem>
+<TabItem label="Ruby">
+
+<Snip_ruby_getting_started_install_verify />
+
+</TabItem>
+<TabItem label="Elixir">
+
+<Snip_elixir_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="Wasm">
+
+<Snip_wasm_getting_started_basic_extract />
+
+</TabItem>
+</Tabs>
+
+---
+
 ## System requirements
 
 Only relevant if building from source or enabling OCR:
@@ -398,6 +462,10 @@ export default {
 :::
 
 **Supported runtimes:** Chrome 74+, Firefox 79+, Safari 14+, Edge 79+, Node.js 22+, Deno 1.35+, Cloudflare Workers.
+
+The package reports the host runtime and its Wasm capabilities. Read them before you call `initWasm` if your code must branch on workers or `SharedArrayBuffer`:
+
+<Snip_wasm_getting_started_runtime_detection />
 
 :::note[Wasm — package layout (`web` target only)]
 `@xberg-io/xberg-wasm` publishes a single wasm-pack **`web`** target — a standard ES module you
