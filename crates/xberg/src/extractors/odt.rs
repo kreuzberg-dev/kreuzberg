@@ -869,16 +869,7 @@ pub(crate) fn build_internal_elements(
                 }
             }
             "list" => {
-                // A list item holds its own paragraphs, and a formula or an
-                // image anchored in one of them is a `draw:frame` the list
-                // builder does not read. The `p` arm scans for those frames the
-                // same way.
-                for desc in node.descendants() {
-                    if desc.tag_name().name() == "frame" {
-                        handle_odt_frame(desc, image_data, formula_data, builder);
-                    }
-                }
-                build_internal_list(node, builder, list_style_map);
+                build_internal_list(node, builder, list_style_map, image_data, formula_data);
             }
             "section" => {
                 build_internal_elements(
@@ -931,6 +922,8 @@ fn build_internal_list(
     list_node: roxmltree::Node,
     builder: &mut InternalDocumentBuilder,
     list_style_map: &AHashMap<String, bool>,
+    image_data: &AHashMap<String, (Vec<u8>, String)>,
+    formula_data: &AHashMap<String, String>,
 ) {
     let ordered = list_node
         .attribute(("urn:oasis:names:tc:opendocument:xmlns:text:1.0", "style-name"))
@@ -951,9 +944,18 @@ fn build_internal_list(
                                 builder.push_list_item(trimmed, ordered, vec![], None, None);
                             }
                         }
+                        // An item holds its formula and its images in a frame,
+                        // which the text above does not carry. Each one follows
+                        // the item that holds it, so the order of the document
+                        // survives.
+                        for desc in child.descendants() {
+                            if desc.tag_name().name() == "frame" {
+                                handle_odt_frame(desc, image_data, formula_data, builder);
+                            }
+                        }
                     }
                     "list" => {
-                        build_internal_list(child, builder, list_style_map);
+                        build_internal_list(child, builder, list_style_map, image_data, formula_data);
                     }
                     _ => {}
                 }
@@ -1637,6 +1639,53 @@ mod tests {
         let extractor = OdtExtractor::new();
         assert!(extractor.initialize().is_ok());
         assert!(extractor.shutdown().is_ok());
+    }
+
+    /// The OASIS OpenDocument specification anchors all of its formula objects
+    /// inside list items, and reported none of them.
+    #[test]
+    fn test_formula_in_a_list_item_reaches_the_document_after_its_item() {
+        let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+ <office:body><office:text>
+  <text:list><text:list-item><text:p>First item
+   <draw:frame><draw:object xlink:href="./Object 1"/></draw:frame>
+  </text:p></text:list-item></text:list>
+ </office:text></office:body></office:document-content>"#;
+        let object = r#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#;
+
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(Cursor::new(&mut buffer));
+            let options = zip::write::SimpleFileOptions::default();
+            writer.start_file("content.xml", options).unwrap();
+            std::io::Write::write_all(&mut writer, content.as_bytes()).unwrap();
+            writer.start_file("Object 1/content.xml", options).unwrap();
+            std::io::Write::write_all(&mut writer, object.as_bytes()).unwrap();
+            writer.finish().unwrap();
+        }
+
+        let mut archive = zip::ZipArchive::new(Cursor::new(buffer)).unwrap();
+        let mut budget = SecurityBudget::with_defaults();
+        let doc = build_internal_document(&mut archive, &mut budget).expect("extracts");
+
+        let kinds: Vec<&crate::types::internal::ElementKind> = doc.elements.iter().map(|e| &e.kind).collect();
+        let formula_at = kinds
+            .iter()
+            .position(|k| matches!(k, crate::types::internal::ElementKind::Formula))
+            .expect("the list item's formula reaches the document");
+        let item_at = kinds
+            .iter()
+            .position(|k| matches!(k, crate::types::internal::ElementKind::ListItem { .. }))
+            .expect("the list item is present");
+        assert!(
+            formula_at > item_at,
+            "the equation follows the item that holds it, got kinds {kinds:?}"
+        );
     }
 
     #[test]

@@ -1100,6 +1100,7 @@ mod tests {
 
     /// A `stem` block is AsciiMath unless the document says otherwise, so it
     /// converts rather than passing through.
+    #[cfg(feature = "office")]
     #[test]
     fn should_convert_a_stem_block_from_asciimath() {
         let source = "[stem]\n++++\nsqrt(4) = 2\n++++\n";
@@ -1107,10 +1108,20 @@ mod tests {
     }
 
     /// An `[asciimath]` block names its notation, whatever `:stem:` says.
+    #[cfg(feature = "office")]
     #[test]
     fn should_convert_an_asciimath_block_whatever_the_stem_attribute_says() {
         let source = "= Doc\n:stem: latexmath\n\n[asciimath]\n++++\nsqrt(4) = 2\n++++\n";
         assert_eq!(formulas(source), vec!["\\sqrt{4}=2"]);
+    }
+
+    /// Without the feature that provides the converter, an AsciiMath block keeps
+    /// its own notation rather than losing the mathematics.
+    #[cfg(not(feature = "office"))]
+    #[test]
+    fn should_keep_asciimath_source_when_the_converter_is_absent() {
+        let source = "[asciimath]\n++++\nsqrt(4) = 2\n++++\n";
+        assert_eq!(formulas(source), vec!["sqrt(4) = 2"]);
     }
 
     /// `:stem: latexmath` makes `stem` mean LaTeX, which passes through.
@@ -1136,6 +1147,7 @@ mod tests {
         assert!(formulas(source).is_empty());
     }
 
+    #[cfg(feature = "office")]
     #[test]
     fn should_convert_an_inline_stem_macro_from_asciimath() {
         let source = "Take stem:[sqrt(4)] as given.\n";

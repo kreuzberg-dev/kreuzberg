@@ -729,13 +729,8 @@ pub fn derive_extraction_result(
     // (`InternalDocument::from(ExtractedDocument)`) restores `doc.formulas`
     // with an empty element list, so re-derivation cannot duplicate either.
     let mut formulas = std::mem::take(&mut doc.formulas);
-    // Only an OCR entry can be the second representation of an element, and an
-    // OCR entry carries geometry. A geometry-less side-channel entry comes from
-    // a table cell, where the same equation may legitimately appear again in the
-    // body as its own element.
     let side_channel_latex: std::collections::HashSet<String> = formulas
         .iter()
-        .filter(|f| f.bbox.is_some() || f.page.is_some())
         .map(|f| normalized_latex(strip_math_delimiters(&f.latex)))
         .collect();
     let side_channel_paged: std::collections::HashSet<(String, u32)> = formulas
@@ -772,6 +767,11 @@ pub fn derive_extraction_result(
                 })
             }),
     );
+
+    // A formula that stays inside its text is its own formula, never a second
+    // representation of an element, so it joins the list without the dedup
+    // above.
+    formulas.extend(std::mem::take(&mut doc.recorded_formulas));
 
     tracing::debug!(
         content_length = content.len(),
@@ -1098,17 +1098,17 @@ mod tests {
         InternalDocument::new(source_format)
     }
 
-    /// A table cell records its formula in the side channel with no geometry.
-    /// The same equation may appear again in the body as its own element, and
-    /// both are real formulas: only an OCR entry, which carries geometry, is a
-    /// second representation of an element.
+    /// A table cell records its formula in the side channel with a page but no
+    /// bounding box. The same equation may appear again in the body as its own
+    /// element, and both are real formulas: only an OCR entry, which carries a
+    /// bounding box, is a second representation of an element.
     #[test]
     fn test_a_table_formula_does_not_suppress_the_same_equation_in_the_body() {
         let mut doc = InternalDocument::new("docx");
-        doc.formulas.push(crate::types::Formula {
+        doc.recorded_formulas.push(crate::types::Formula {
             latex: "E = mc^2".to_string(),
             bbox: None,
-            page: None,
+            page: Some(3),
         });
         doc.push_element(InternalElement::text(ElementKind::Formula, "E = mc^2", 0));
 

@@ -233,6 +233,18 @@ pub struct InternalDocument {
     /// `derive_extraction_result` transfers this directly to `ExtractedDocument.formulas`.
     pub formulas: Vec<crate::types::Formula>,
 
+    /// Formulas that stay inside the text they came from.
+    ///
+    /// A table cell keeps its equation in the cell, and an HWP sentence keeps
+    /// its equation in the sentence, so neither can become an element without
+    /// changing that text. They are still formulas of the document.
+    ///
+    /// Kept apart from `formulas` because that field holds what the OCR
+    /// pipeline produced, and `derive_extraction_result` treats an OCR entry as
+    /// a second representation of an element. An entry here is not.
+    #[serde(skip)]
+    pub recorded_formulas: Vec<crate::types::Formula>,
+
     /// When `true`, image OCR results are rendered as plain text without the
     /// `![...](...)` markdown placeholder. Set by the pipeline from
     /// `ImageExtractionConfig.ocr_text_only`.
@@ -342,6 +354,7 @@ impl InternalDocument {
             table_anchors: false,
             form_fields: Vec::new(),
             formulas: Vec::new(),
+            recorded_formulas: Vec::new(),
         }
     }
 

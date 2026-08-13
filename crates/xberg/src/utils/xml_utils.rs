@@ -183,3 +183,42 @@ mod tests {
         assert_eq!(summary, vec!["start:root", "text:xAy", "empty:child", "end:root"]);
     }
 }
+
+/// Return the offset of the `>` that closes a `<!DOCTYPE` declaration.
+///
+/// `tail` starts just after `<!DOCTYPE`. An internal subset may hold a `>`
+/// inside its brackets, so the scan tracks bracket depth and returns the first
+/// `>` outside them. A declaration that never closes returns `None`.
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+pub(crate) fn doctype_end(tail: &str) -> Option<usize> {
+    let mut bracket_depth: usize = 0;
+    for (idx, ch) in tail.char_indices() {
+        match ch {
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            '>' if bracket_depth == 0 => return Some(idx),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Return `xml` without its `<!DOCTYPE ...>` declaration.
+///
+/// A parser that rejects a DTD cannot read a document that carries one, and an
+/// embedded formula object always does. Removing the declaration keeps the
+/// rejection in place for the entities it exists to guard against.
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+pub(crate) fn strip_doctype(xml: &str) -> std::borrow::Cow<'_, str> {
+    let Some(start) = xml.find("<!DOCTYPE") else {
+        return std::borrow::Cow::Borrowed(xml);
+    };
+    let tail = &xml[start + "<!DOCTYPE".len()..];
+    let Some(end) = doctype_end(tail) else {
+        return std::borrow::Cow::Borrowed(xml);
+    };
+    let mut out = String::with_capacity(xml.len());
+    out.push_str(&xml[..start]);
+    out.push_str(&tail[end + 1..]);
+    std::borrow::Cow::Owned(out)
+}

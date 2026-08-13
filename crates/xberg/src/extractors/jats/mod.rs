@@ -55,7 +55,11 @@ const JATS_WARNING_SOURCE: &str = "jats";
 fn extract_para_with_annotations_jats(
     reader: &mut EntityReader<'_>,
     budget: &mut SecurityBudget,
-) -> crate::Result<(String, Vec<crate::types::document_structure::TextAnnotation>, Vec<String>)> {
+) -> crate::Result<(
+    String,
+    Vec<crate::types::document_structure::TextAnnotation>,
+    Vec<String>,
+)> {
     use crate::types::builder;
 
     let mut text = String::new();
@@ -245,11 +249,14 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                     "p" if in_abstract => {
                         let (text, annotations, para_formulas) =
                             extract_para_with_annotations_jats(&mut reader, budget)?;
-                        for latex in &para_formulas {
-                            builder.push_formula(latex, None, None);
-                        }
                         if !text.is_empty() {
                             builder.push_paragraph(&text, annotations, None, None);
+                        }
+                        // The equation belongs where the sentence put it, so it
+                        // follows the block that holds it. A paragraph that is only
+                        // an equation has no text, and still has its formula.
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
                         }
                         continue;
                     }
@@ -269,10 +276,8 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "p" if in_body => {
-                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
-                        for latex in &para_formulas {
-                            builder.push_formula(latex, None, None);
-                        }
+                        let (text, annotations, para_formulas) =
+                            extract_para_with_annotations_jats(&mut reader, budget)?;
                         if !text.is_empty() {
                             for ann in &annotations {
                                 if let crate::types::document_structure::AnnotationKind::Link { url, .. } = &ann.kind
@@ -283,6 +288,12 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                                 }
                             }
                             builder.push_paragraph(&text, annotations, None, None);
+                        }
+                        // The equation belongs where the sentence put it, so it
+                        // follows the block that holds it. A paragraph that is only
+                        // an equation has no text, and still has its formula.
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
                         }
                         continue;
                     }
@@ -338,12 +349,16 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "p" if in_back && !in_ref_list => {
-                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
-                        for latex in &para_formulas {
-                            builder.push_formula(latex, None, None);
-                        }
+                        let (text, annotations, para_formulas) =
+                            extract_para_with_annotations_jats(&mut reader, budget)?;
                         if !text.is_empty() {
                             builder.push_paragraph(&text, annotations, None, None);
+                        }
+                        // The equation belongs where the sentence put it, so it
+                        // follows the block that holds it. A paragraph that is only
+                        // an equation has no text, and still has its formula.
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
                         }
                         continue;
                     }
@@ -355,16 +370,20 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
                         continue;
                     }
                     "list-item" if in_back && !in_ref_list => {
-                        let (text, annotations, para_formulas) = extract_para_with_annotations_jats(&mut reader, budget)?;
-                        for latex in &para_formulas {
-                            builder.push_formula(latex, None, None);
-                        }
+                        let (text, annotations, para_formulas) =
+                            extract_para_with_annotations_jats(&mut reader, budget)?;
                         if !text.is_empty() {
                             if !back_list_opened {
                                 builder.push_list(false);
                                 back_list_opened = true;
                             }
                             builder.push_list_item(&text, false, annotations, None, None);
+                        }
+                        // The equation belongs where the sentence put it, so it
+                        // follows the block that holds it. A paragraph that is only
+                        // an equation has no text, and still has its formula.
+                        for latex in &para_formulas {
+                            builder.push_formula(latex, None, None);
                         }
                         continue;
                     }
@@ -728,7 +747,11 @@ mod tests {
             .filter(|e| matches!(e.kind, crate::types::internal::ElementKind::Formula))
             .map(|e| e.text.as_str())
             .collect();
-        assert_eq!(formulas, vec!["J"], "the inline equation is one of the document's formulas");
+        assert_eq!(
+            formulas,
+            vec!["J"],
+            "the inline equation is one of the document's formulas"
+        );
     }
 
     #[test]

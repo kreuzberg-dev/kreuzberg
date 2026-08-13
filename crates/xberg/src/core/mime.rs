@@ -174,15 +174,17 @@ fn root_is_in_namespace(root: &str, namespace: &str) -> bool {
 }
 
 /// Return the text of the first declaration that opens with `opener`.
+///
+/// The declaration ends at its own `>`. An internal subset may hold a `>`
+/// inside brackets, so the scan tracks bracket depth rather than searching for
+/// a `]` anywhere in the document: a `]` in the body would otherwise stretch
+/// the declaration over the whole file.
 fn declaration_of<'a>(trimmed: &'a str, opener: &str) -> Option<&'a str> {
     let start = trimmed.find(opener)?;
-    // An internal subset ends with `]>`, a plain declaration with `>`.
     let rest = &trimmed[start..];
-    let end = match rest.find(']') {
-        Some(bracket) => rest[bracket..].find('>').map(|offset| bracket + offset)?,
-        None => rest.find('>')?,
-    };
-    Some(&rest[..end])
+    let tail = &rest[opener.len()..];
+    let end = crate::utils::xml_utils::doctype_end(tail)?;
+    Some(&rest[..opener.len() + end])
 }
 
 /// Return the start tag of the root element, skipping the prolog.
@@ -200,6 +202,7 @@ fn root_start_tag(trimmed: &str) -> Option<&str> {
             } else {
                 rest.find('>')?
             };
+            debug_assert!(skip < rest.len(), "a declaration ends inside the input");
             rest = &rest[skip + 1..];
             continue;
         }
@@ -1132,9 +1135,8 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
         return Some(HWPX_MIME_TYPE);
     }
 
-    if contains_subsequence(content, PAGES_MARKER) {
-        return Some(IWORK_PAGES_MIME_TYPE);
-    }
+    // A Numbers package carries `Index/Document.iwa` as well, so the
+    // discriminating parts are tested before it.
     if contains_subsequence(content, NUMBERS_MARKER) {
         return Some(IWORK_NUMBERS_MIME_TYPE);
     }
@@ -1145,6 +1147,9 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
             .any(|marker| contains_subsequence(content, marker))
     {
         return Some(IWORK_KEYNOTE_MIME_TYPE);
+    }
+    if contains_subsequence(content, PAGES_MARKER) {
+        return Some(IWORK_PAGES_MIME_TYPE);
     }
 
     if contains_subsequence(content, DOCX_MARKER) {
@@ -1193,14 +1198,19 @@ fn detect_office_format_from_archive<R: Read + Seek>(mut reader: R) -> Option<&'
     if has(&mut archive, "ppt/presentation.xml") {
         return Some(POWER_POINT_MIME_TYPE);
     }
-    if has(&mut archive, "Index/Document.iwa") {
-        return Some(IWORK_PAGES_MIME_TYPE);
-    }
+    // A Numbers package also carries `Index/Document.iwa`, so the discriminating
+    // parts are tested first. Otherwise a spreadsheet is read as a Pages
+    // document and yields no sheets at all.
     if has(&mut archive, "Index/CalculationEngine.iwa") {
         return Some(IWORK_NUMBERS_MIME_TYPE);
     }
-    if has(&mut archive, "Index/Presentation.iwa") {
+    if has(&mut archive, "Index/Presentation.iwa")
+        || archive.file_names().any(|n| n.starts_with("Index/Slide-") || n.starts_with("Index/Slide_"))
+    {
         return Some(IWORK_KEYNOTE_MIME_TYPE);
+    }
+    if has(&mut archive, "Index/Document.iwa") {
+        return Some(IWORK_PAGES_MIME_TYPE);
     }
     None
 }
@@ -1596,15 +1606,19 @@ mod tests {
             std::io::Write::write_all(&mut writer, b"<p:presentation/>").unwrap();
             writer.finish().unwrap();
         }
-        let path = std::env::temp_dir().join("xberg_late_part_test.pptx");
+        // Name it `.zip` so the extension does not answer the question. That is
+        // the path a real deck takes: the header search fails, and only the
+        // archive directory can identify it.
+        let path = std::env::temp_dir().join("xberg_late_part_test.zip");
         std::fs::write(&path, &buffer).unwrap();
 
-        let detected = detect_mime_type(&path, true).unwrap();
+        let detected = detect_or_validate(path.to_str(), None).unwrap();
         let _ = std::fs::remove_file(&path);
 
         assert_eq!(
             detected,
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "the deck is identified by its parts, not by its name"
         );
     }
 
@@ -1642,6 +1656,32 @@ mod tests {
 </xsl:stylesheet>"#;
 
         assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "text/xml");
+    }
+
+    #[test]
+    fn should_keep_generic_xml_for_a_catalog_that_has_a_doctype_and_names_the_docbook_dtd() {
+        // The declaration ends at its own `>`. A `]` later in the body must not
+        // stretch it over the public identifier that follows.
+        let content = br#"<?xml version="1.0"?>
+<!DOCTYPE catalog PUBLIC "-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN" "catalog.dtd">
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <public publicId="-//OASIS//DTD DocBook XML V4.5//EN" uri="docbookx.dtd"/>
+  <note>index a[0] and b[1]</note>
+</catalog>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "text/xml");
+    }
+
+    #[test]
+    fn should_detect_docbook_when_the_body_holds_a_bracket() {
+        // A `]` in the body must not make the root element unreachable.
+        let content = br#"<?xml version="1.0"?>
+<!DOCTYPE book SYSTEM "docbook.dtd">
+<book xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <chapter><para>The value a[0] is first.</para></chapter>
+</book>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
     }
 
     #[test]

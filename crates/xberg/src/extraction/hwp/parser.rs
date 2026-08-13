@@ -278,6 +278,7 @@ fn parse_records_into_paragraphs_and_tables(
                             // Common case: fill the placeholder the inline "eqed" control
                             // reserved in this paragraph's own text. Computed before the
                             // branch because a pattern guard cannot borrow mutably.
+                            para.equations.push(latex.clone());
                             let filled = para
                                 .text
                                 .as_mut()

@@ -84,6 +84,12 @@ pub struct Paragraph {
     pub outline_level: u8,
     /// Mappings from character position to char_shape index.
     pub char_shape_runs: Vec<(u32, u16)>,
+    /// The LaTeX of every equation this paragraph holds, in document order.
+    ///
+    /// The parser knows each equation exactly, because it substitutes the text
+    /// itself. Reading it here is exact, where searching the finished text for
+    /// `$` would take a price for an equation and an equation for a price.
+    pub equations: Vec<String>,
 }
 
 /// Character formatting attributes from the HWP DocInfo CharShape table.

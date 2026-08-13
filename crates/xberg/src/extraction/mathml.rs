@@ -93,14 +93,12 @@ enum MmlNode {
 pub(crate) fn convert_mathml_str_to_latex(xml: &str, budget: &mut SecurityBudget) -> Result<String, SecurityError> {
     // An embedded formula object carries its own DOCTYPE: OpenOffice writes
     // `<!DOCTYPE math:math PUBLIC "-//OpenOffice.org//DTD Modified W3C MathML
-    // 1.01//EN">` into every one. `roxmltree` rejects a DTD by default, so the
-    // whole formula was dropped. The crate keeps its billion-laughs guard when
-    // the DTD is allowed, and it never fetches an external one.
-    let options = roxmltree::ParsingOptions {
-        allow_dtd: true,
-        ..Default::default()
-    };
-    let Ok(doc) = roxmltree::Document::parse_with_options(xml, options) else {
+    // 1.01//EN">` into every one, and `roxmltree` rejects a DTD outright, so the
+    // formula was dropped. The declaration is removed instead of allowed: a
+    // formula needs none of it, and the rejection still guards the entity
+    // expansion that a hostile document would declare inside one.
+    let xml = crate::utils::xml_utils::strip_doctype(xml);
+    let Ok(doc) = roxmltree::Document::parse(&xml) else {
         return Ok(String::new());
     };
 
@@ -598,10 +596,20 @@ fn collect_text(node: Node, budget: &mut SecurityBudget) -> Result<String, Secur
         if let Some(t) = child.text() {
             budget.check_entity(t)?;
             budget.account_text(t.len())?;
-            text.push_str(t);
+            text.extend(t.chars().filter(|c| !is_private_use(*c)));
         }
     }
     Ok(text)
+}
+
+/// Report whether `c` sits in a Unicode private use area.
+///
+/// A private use codepoint carries no meaning outside the font that defines it.
+/// OpenOffice writes its stretchy fences that way, and a renderer shows a
+/// missing glyph or rejects the formula, so the character is dropped rather
+/// than passed through as LaTeX.
+fn is_private_use(c: char) -> bool {
+    matches!(c, '\u{E000}'..='\u{F8FF}' | '\u{F0000}'..='\u{FFFFD}' | '\u{100000}'..='\u{10FFFD}')
 }
 
 /// Collect an `mfenced` element: `open`/`close`/`separators` attributes plus
@@ -1018,6 +1026,20 @@ mod tests {
 
     /// OpenOffice writes its formula objects with a prefixed namespace and its
     /// own DTD, which a real ODF document embeds verbatim.
+    /// OpenOffice writes its stretchy fences as private use codepoints, which
+    /// no renderer can display. One real document carried them into its LaTeX.
+    #[test]
+    fn test_private_use_characters_are_dropped() {
+        let xml = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>\
+<mi>F</mi><mo>\u{E09E}</mo><mn>1</mn><mo>\u{E09F}</mo></mrow></math>";
+
+        let mut budget = SecurityBudget::with_defaults();
+        let latex = convert_mathml_str_to_latex(xml, &mut budget).expect("converts");
+
+        assert!(!latex.chars().any(is_private_use), "no private use character survives: {latex:?}");
+        assert!(latex.contains('F') && latex.contains('1'), "the real content stays: {latex}");
+    }
+
     #[test]
     fn test_prefixed_mathml_with_the_openoffice_doctype() {
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
