@@ -1,3 +1,4 @@
+<!-- snippet:syntax-only reason="TOML validates at syntax level only" -->
 ```toml title="xberg.toml"
 [ner]
 backend = "llm"
