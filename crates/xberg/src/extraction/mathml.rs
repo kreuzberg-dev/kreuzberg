@@ -91,7 +91,16 @@ enum MmlNode {
 /// Used by callers (e.g. ODT's embedded-object formula extraction) that only
 /// have the raw XML text of a formula and have not already parsed it.
 pub(crate) fn convert_mathml_str_to_latex(xml: &str, budget: &mut SecurityBudget) -> Result<String, SecurityError> {
-    let Ok(doc) = roxmltree::Document::parse(xml) else {
+    // An embedded formula object carries its own DOCTYPE: OpenOffice writes
+    // `<!DOCTYPE math:math PUBLIC "-//OpenOffice.org//DTD Modified W3C MathML
+    // 1.01//EN">` into every one. `roxmltree` rejects a DTD by default, so the
+    // whole formula was dropped. The crate keeps its billion-laughs guard when
+    // the DTD is allowed, and it never fetches an external one.
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        ..Default::default()
+    };
+    let Ok(doc) = roxmltree::Document::parse_with_options(xml, options) else {
         return Ok(String::new());
     };
 
@@ -1005,6 +1014,28 @@ mod tests {
         let xml = format!(r#"<math xmlns="http://www.w3.org/1998/Math/MathML">{}</math>"#, inner);
         let mut budget = SecurityBudget::with_defaults();
         convert_mathml_str_to_latex(&xml, &mut budget).expect("conversion ok")
+    }
+
+    /// OpenOffice writes its formula objects with a prefixed namespace and its
+    /// own DTD, which a real ODF document embeds verbatim.
+    #[test]
+    fn test_prefixed_mathml_with_the_openoffice_doctype() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE math:math PUBLIC "-//OpenOffice.org//DTD Modified W3C MathML 1.01//EN" "math.dtd">
+<math:math xmlns:math="http://www.w3.org/1998/Math/MathML">
+ <math:semantics>
+  <math:mrow>
+   <math:mn>1</math:mn>
+   <math:mo math:stretchy="false">+</math:mo>
+   <math:mn>2</math:mn>
+  </math:mrow>
+ </math:semantics>
+</math:math>"#;
+
+        let mut budget = SecurityBudget::with_defaults();
+        let latex = convert_mathml_str_to_latex(xml, &mut budget).expect("converts");
+        assert!(!latex.trim().is_empty(), "a formula with a DOCTYPE must convert, got {latex:?}");
+        assert!(latex.contains('1') && latex.contains('2'), "operands survive: {latex}");
     }
 
     #[test]

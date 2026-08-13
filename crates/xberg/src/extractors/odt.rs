@@ -869,6 +869,15 @@ pub(crate) fn build_internal_elements(
                 }
             }
             "list" => {
+                // A list item holds its own paragraphs, and a formula or an
+                // image anchored in one of them is a `draw:frame` the list
+                // builder does not read. The `p` arm scans for those frames the
+                // same way.
+                for desc in node.descendants() {
+                    if desc.tag_name().name() == "frame" {
+                        handle_odt_frame(desc, image_data, formula_data, builder);
+                    }
+                }
                 build_internal_list(node, builder, list_style_map);
             }
             "section" => {

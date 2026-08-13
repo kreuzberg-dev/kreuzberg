@@ -68,6 +68,11 @@ fn split_href(href: &str) -> (&str, Option<&str>) {
 /// EPUB package root via leading `..` segments are rejected.
 pub(super) fn resolve_path(base_dir: &str, href: &str) -> Result<CanonicalHref> {
     let (relative_path, fragment) = split_href(href);
+    // An href is a URL, and a ZIP entry name is not. A real package writes a
+    // colon in a file name as `%3A`, so the two only match once the href is
+    // decoded.
+    let decoded = urlencoding::decode(relative_path).unwrap_or(std::borrow::Cow::Borrowed(relative_path));
+    let relative_path: &str = &decoded;
     let combined = if relative_path.starts_with('/') {
         relative_path.trim_start_matches('/').to_string()
     } else if base_dir.is_empty() || base_dir == "." {
@@ -109,6 +114,21 @@ pub(super) fn resolve_path(base_dir: &str, href: &str) -> Result<CanonicalHref> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A real package writes a colon in a file name as `%3A` in the manifest,
+    /// while the ZIP entry keeps the character itself.
+    #[test]
+    fn test_resolve_path_decodes_a_percent_encoded_href() {
+        let resolved = resolve_path("contents", "a7b196ae@d22925c%3Ab4e683fb.xhtml").expect("resolves");
+        assert_eq!(resolved.path, "contents/a7b196ae@d22925c:b4e683fb.xhtml");
+    }
+
+    /// A space is written `%20`, which must not stay literal either.
+    #[test]
+    fn test_resolve_path_decodes_a_space() {
+        let resolved = resolve_path("OEBPS", "chapter%201.xhtml").expect("resolves");
+        assert_eq!(resolved.path, "OEBPS/chapter 1.xhtml");
+    }
 
     #[test]
     fn test_resolve_path_with_base_dir() {
