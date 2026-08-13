@@ -17,9 +17,7 @@
       "description": "Body content nodes."
     }
   },
-  "required": [
-    "body"
-  ],
+  "required": ["body"],
   "additionalProperties": false,
   "$defs": {
     "node": {
@@ -76,12 +74,7 @@
           "description": "Child content nodes within this section."
         }
       },
-      "required": [
-        "type",
-        "heading",
-        "level",
-        "body"
-      ],
+      "required": ["type", "heading", "level", "body"],
       "additionalProperties": false
     },
     "paragraph": {
@@ -96,10 +89,7 @@
           "description": "The paragraph text content."
         }
       },
-      "required": [
-        "type",
-        "text"
-      ],
+      "required": ["type", "text"],
       "additionalProperties": false
     },
     "table": {
@@ -131,11 +121,7 @@
           "description": "Optional table caption."
         }
       },
-      "required": [
-        "type",
-        "headers",
-        "rows"
-      ],
+      "required": ["type", "headers", "rows"],
       "additionalProperties": false
     },
     "code": {
@@ -154,10 +140,7 @@
           "description": "Programming language identifier."
         }
       },
-      "required": [
-        "type",
-        "text"
-      ],
+      "required": ["type", "text"],
       "additionalProperties": false
     },
     "formula": {
@@ -172,10 +155,7 @@
           "description": "The formula text (e.g. LaTeX notation)."
         }
       },
-      "required": [
-        "type",
-        "text"
-      ],
+      "required": ["type", "text"],
       "additionalProperties": false
     },
     "list": {
@@ -197,11 +177,7 @@
           "description": "List item text content."
         }
       },
-      "required": [
-        "type",
-        "ordered",
-        "items"
-      ],
+      "required": ["type", "ordered", "items"],
       "additionalProperties": false
     },
     "image": {
@@ -220,9 +196,7 @@
           "description": "Image source path or generated filename."
         }
       },
-      "required": [
-        "type"
-      ],
+      "required": ["type"],
       "additionalProperties": false
     },
     "blockquote": {
@@ -240,10 +214,7 @@
           "description": "Child content nodes within this blockquote."
         }
       },
-      "required": [
-        "type",
-        "body"
-      ],
+      "required": ["type", "body"],
       "additionalProperties": false
     }
   }

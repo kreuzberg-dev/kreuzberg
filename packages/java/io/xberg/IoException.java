@@ -2,14 +2,15 @@
 package io.xberg;
 
 /**
- * A file system or I/O operation failed. These errors always bubble up
- * unchanged.
+ * A file system or I/O operation failed. These errors always bubble up unchanged.
  */
 public class IoException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new IoException with the given message. */
-  public IoException(final String message) { super(message); }
+  public IoException(final String message) {
+    super(message);
+  }
 
   /** Creates a new IoException with the given message and cause. */
   public IoException(final String message, final Throwable cause) {

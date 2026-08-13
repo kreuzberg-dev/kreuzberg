@@ -1,5 +1,5 @@
 [workspace]
-alef_version = "0.60.1"
+alef_version = "0.60.2"
 # -D warnings (emitted into every generated Rust binding as #![allow(...)]).
 extra_clippy_allows = ["redundant_field_names"]
 languages = [
@@ -138,9 +138,14 @@ manifest = "packages/kotlin-android/build.gradle.kts"
 # four nested dirnames each print "usage: dirname string [...]", ANDROID_HOME
 # ends up empty, and gradle aborts. That matters more than it looks: a `before`
 # hook failure aborts the ENTIRE configured snippet check, so every other
-# language goes unvalidated because Android tooling happens to be missing. ~keep
+# language goes unvalidated because Android tooling happens to be missing.
+# Second guard, for the same reason: gradle-wrapper.jar is gitignored (.gitignore
+# `*.jar`), so it is absent from every staged-tree copy a pre-commit hook builds.
+# Without this check `./gradlew` dies with ClassNotFoundException on
+# GradleWrapperMain and takes the whole snippet run down with it, on every
+# commit, no matter what the commit touches. ~keep
 before = [
-  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -n "${ANDROID_HOME:-}" ]; then ./gradlew assembleDebug; else echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; fi',
+  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug; fi',
 ]
 
 [workspace.docs.snippets.sessions.kotlin_android]
@@ -152,9 +157,14 @@ manifest = "packages/kotlin-android/build.gradle.kts"
 # four nested dirnames each print "usage: dirname string [...]", ANDROID_HOME
 # ends up empty, and gradle aborts. That matters more than it looks: a `before`
 # hook failure aborts the ENTIRE configured snippet check, so every other
-# language goes unvalidated because Android tooling happens to be missing. ~keep
+# language goes unvalidated because Android tooling happens to be missing.
+# Second guard, for the same reason: gradle-wrapper.jar is gitignored (.gitignore
+# `*.jar`), so it is absent from every staged-tree copy a pre-commit hook builds.
+# Without this check `./gradlew` dies with ClassNotFoundException on
+# GradleWrapperMain and takes the whole snippet run down with it, on every
+# commit, no matter what the commit touches. ~keep
 before = [
-  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -n "${ANDROID_HOME:-}" ]; then ./gradlew assembleDebug; else echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; fi',
+  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug; fi',
 ]
 
 [workspace.docs.snippets.sessions.swift]

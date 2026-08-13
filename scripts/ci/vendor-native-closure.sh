@@ -102,14 +102,12 @@ vendor_one() {
 
     # musl's `ldd` (unlike glibc's) exits non-zero -- observed as a bare exit 127
     # -- when a transitive dependency can't be resolved, instead of exiting 0 and
-    # annotating that entry "=> not found". Piping straight into `sed | while`
     # under this script's `set -euo pipefail` (line 2) turned that into a silent,
     # unattributed script death partway through the closure walk: stderr was
     # discarded (`2>/dev/null`) so nothing said which binary or which library
     # broke, and pipefail killed the whole multi-wheel loop rather than just this
     # one branch of the walk. Capture ldd's output and exit status explicitly so
     # a resolution failure here is logged with the offending binary and ldd's raw
-    # output, then skipped -- exactly like the existing `[ -f "$lib" ] || continue`
     # policy for individually-missing libraries below. This does not weaken the
     # closure guarantee: `verify_local_closure` still runs ldd on the top-level
     # artifact afterward and `die`s loudly if anything is genuinely unresolved.

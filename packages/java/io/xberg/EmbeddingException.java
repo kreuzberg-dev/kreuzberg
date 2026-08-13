@@ -8,7 +8,9 @@ public class EmbeddingException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new EmbeddingException with the given message. */
-  public EmbeddingException(final String message) { super(message); }
+  public EmbeddingException(final String message) {
+    super(message);
+  }
 
   /** Creates a new EmbeddingException with the given message and cause. */
   public EmbeddingException(final String message, final Throwable cause) {

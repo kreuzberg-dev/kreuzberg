@@ -27285,7 +27285,7 @@ pub enum DiffLine {
 
 impl Default for DiffLine {
     fn default() -> Self {
-        Self::Context { _0: Default::default() }
+        Self::Context(Default::default())
     }
 }
 
@@ -27335,19 +27335,19 @@ unsafe impl TryConvertOwned for DiffLine {}
 impl DiffLine {
     pub fn context(&self) -> Option<&String> {
         match self {
-            Self::Context { _0 } => Some(_0),
+            Self::Context(_0) => Some(_0),
             _ => None,
         }
     }
     pub fn added(&self) -> Option<&String> {
         match self {
-            Self::Added { _0 } => Some(_0),
+            Self::Added(_0) => Some(_0),
             _ => None,
         }
     }
     pub fn removed(&self) -> Option<&String> {
         match self {
-            Self::Removed { _0 } => Some(_0),
+            Self::Removed(_0) => Some(_0),
             _ => None,
         }
     }

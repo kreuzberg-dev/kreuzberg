@@ -142,6 +142,17 @@
         <version>${maven-compiler-plugin.version}</version>
         <configuration>
           <release>25</release>
+          <!-- sourceDirectory is the project basedir (alef emits a flat layout),
+                       so javac also picks up alef's gitignored snippet scratch under
+                       `.alef/snippets/sessions/<hash>/`. Each session directory holds
+                       the same example class names, so as soon as a second session
+                       exists the build dies with "duplicate class" — which also breaks
+                       the `mvn compile` that the Java snippet session runs as its
+                       before-hook. Restrict to the alef-emitted subtree. -->
+          <includes>
+            <include>io/**/*.java</include>
+            <include>src/main/java/**/*.java</include>
+          </includes>
           <compilerArgs>
             <arg>--enable-preview</arg>
           </compilerArgs>
@@ -256,6 +267,14 @@
           </dependency>
         </dependencies>
         <configuration>
+          <!-- sourceDirectory is the project basedir, so the default include of
+                         every .java under it also picks up alef's gitignored snippet
+                         scratch (`.alef/snippets/sessions/<hash>/*.java`). Those are
+                         transient, not ours to lint, and their hashed paths change
+                         between runs — so they made checkstyle fail nondeterministically
+                         on code that is never committed. Mirror the allow-list the
+                         source plugin uses above. -->
+          <includes>io/**/*.java,src/main/java/**/*.java</includes>
           <configLocation>${project.basedir}/checkstyle.xml</configLocation>
           <propertiesLocation>${project.basedir}/checkstyle.properties</propertiesLocation>
           <consoleOutput>true</consoleOutput>

@@ -8,7 +8,9 @@ public class SecurityException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new SecurityException with the given message. */
-  public SecurityException(final String message) { super(message); }
+  public SecurityException(final String message) {
+    super(message);
+  }
 
   /** Creates a new SecurityException with the given message and cause. */
   public SecurityException(final String message, final Throwable cause) {

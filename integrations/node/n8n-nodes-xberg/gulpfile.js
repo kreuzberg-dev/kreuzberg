@@ -1,5 +1,5 @@
 const path = require("path");
-const {task, src, dest} = require("gulp");
+const { task, src, dest } = require("gulp");
 
 // Copy node icons (svg/png) into dist so n8n can serve them alongside the
 // compiled node. n8n resolves `icon: 'file:xberg.svg'` relative to the node's

@@ -8,7 +8,9 @@ public class ParseException extends LoadErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new ParseException with the given message. */
-  public ParseException(final String message) { super(message); }
+  public ParseException(final String message) {
+    super(message);
+  }
 
   /** Creates a new ParseException with the given message and cause. */
   public ParseException(final String message, final Throwable cause) {

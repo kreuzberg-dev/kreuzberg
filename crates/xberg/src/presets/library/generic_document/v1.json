@@ -17,10 +17,7 @@
         "description": "A single sentence capturing the main point of the document."
       }
     },
-    "required": [
-      "title",
-      "summary"
-    ]
+    "required": ["title", "summary"]
   },
   "system_prompt": "Extract a title and one-sentence summary from the document.",
   "merge_mode": "object_merge",

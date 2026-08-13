@@ -8,7 +8,9 @@ public class PluginException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new PluginException with the given message. */
-  public PluginException(final String message) { super(message); }
+  public PluginException(final String message) {
+    super(message);
+  }
 
   /** Creates a new PluginException with the given message and cause. */
   public PluginException(final String message, final Throwable cause) {

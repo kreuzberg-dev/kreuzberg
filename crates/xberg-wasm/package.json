@@ -13,10 +13,7 @@
     "access": "public"
   },
   "type": "module",
-  "files": [
-    "pkg/web",
-    "README.md"
-  ],
+  "files": ["pkg/web", "README.md"],
   "main": "pkg/web/xberg_wasm.js",
   "module": "pkg/web/xberg_wasm.js",
   "types": "pkg/web/xberg_wasm.d.ts",

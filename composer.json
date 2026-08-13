@@ -27,13 +27,7 @@
     "support-nts": true,
     "download-url-method": "pre-packaged-binary"
   },
-  "keywords": [
-    "document",
-    "extraction",
-    "ocr",
-    "pdf",
-    "text"
-  ],
+  "keywords": ["document", "extraction", "ocr", "pdf", "text"],
   "extra": {
     "pie": {
       "binary": {

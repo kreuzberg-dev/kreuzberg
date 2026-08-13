@@ -8,7 +8,9 @@ public class TranscriptionException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new TranscriptionException with the given message. */
-  public TranscriptionException(final String message) { super(message); }
+  public TranscriptionException(final String message) {
+    super(message);
+  }
 
   /** Creates a new TranscriptionException with the given message and cause. */
   public TranscriptionException(final String message, final Throwable cause) {

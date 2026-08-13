@@ -8,7 +8,9 @@ public class BadMetaSchemaException extends LoadErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new BadMetaSchemaException with the given message. */
-  public BadMetaSchemaException(final String message) { super(message); }
+  public BadMetaSchemaException(final String message) {
+    super(message);
+  }
 
   /** Creates a new BadMetaSchemaException with the given message and cause. */
   public BadMetaSchemaException(final String message, final Throwable cause) {

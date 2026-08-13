@@ -103,12 +103,57 @@ class CustomBuildHook(BuildHookInterface):
         force_include = build_data.setdefault("force_include", {})
         force_include[str(binary)] = relative
 
-        for lib in sorted(binary.parent.glob("*.dylib")):
-            force_include[str(lib)] = f"xberg_cli/bin/{target}/{lib.name}"
+        self._include_staged_payload(force_include, binary, target)
 
         build_data["pure_python"] = False
         build_data["infer_tag"] = False
         build_data["tag"] = f"py3-none-{wheel_tag}"
+
+    def _include_staged_payload(self, force_include: dict[str, str], binary: Path, target: str) -> None:
+        """Force-include every file the release archive staged beside the binary.
+
+        The released tarballs already ship the binary's complete native dependency
+        closure next to it: ``libheif.so*`` and friends on linux-gnu (found via an
+        ``$ORIGIN`` rpath), ``*.dylib`` on macOS (``@loader_path``), and on musl an
+        ``xberg.bin`` plus a ``lib/`` tree that the ``xberg`` launcher script execs
+        by relative path. Copying the staged tree wholesale, rather than globbing a
+        single suffix, is what stops a newly added dependency from being dropped
+        from the wheel without anyone noticing.
+        """
+        stage_dir = binary.parent
+        for path in sorted(stage_dir.rglob("*")):
+            if not path.is_file() or path == binary:
+                continue
+            relative_path = path.relative_to(stage_dir).as_posix()
+            force_include[str(path)] = f"xberg_cli/bin/{target}/{relative_path}"
+
+        self._verify_staged_payload(stage_dir, target)
+
+    def _verify_staged_payload(self, stage_dir: Path, target: str) -> None:
+        """Refuse to build a wheel whose platform payload is incomplete.
+
+        A wheel missing these files still builds, installs, and only then fails at
+        run time by resolving against whatever the host happens to have installed —
+        the failure reported in GH#1407. These checks mirror the tarball guards in
+        ``.github/workflows/publish.yaml`` so the wheel cannot drift away from the
+        artifact it repackages.
+        """
+        if target.endswith("-unknown-linux-gnu") and not list(stage_dir.glob("libheif.so*")):
+            raise RuntimeError(
+                f"no libheif.so* staged beside the binary for {target}; the wheel would "
+                f"fall through to the system libheif at run time. Contents: "
+                f"{sorted(path.name for path in stage_dir.iterdir())}"
+            )
+
+        if target.endswith("-unknown-linux-musl"):
+            missing = [name for name in ("xberg.bin", "lib") if not (stage_dir / name).exists()]
+            if missing:
+                raise RuntimeError(
+                    f"musl payload incomplete for {target}, missing {missing}; the staged "
+                    f"'xberg' is only a launcher script that execs lib/ld-musl-*.so.1 and "
+                    f"xberg.bin, so a wheel without them cannot run. Contents: "
+                    f"{sorted(path.name for path in stage_dir.iterdir())}"
+                )
 
     def _find_archive(self, target: str) -> Path | None:
         root = Path(self.root)

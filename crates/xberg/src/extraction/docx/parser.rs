@@ -2305,7 +2305,6 @@ impl<R: Read + Seek> DocxParser<R> {
                                     out.elements.push(DocumentElement::Table(idx));
                                     // The outermost table close is the only point that flushes
                                     // page breaks deferred while inside a table (#1419); a nested
-                                    // `</w:tbl>` takes the `if let Some(parent_ctx)` branch above
                                     // instead, so breaks in an inner table stay pending until the
                                     // outer one closes and only ever flush once.
                                     text_since_page_break = true;

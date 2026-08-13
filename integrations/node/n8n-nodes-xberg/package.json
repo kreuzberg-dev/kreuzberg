@@ -33,15 +33,11 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [],
-    "nodes": [
-      "dist/nodes/Xberg/Xberg.node.js"
-    ]
+    "nodes": ["dist/nodes/Xberg/Xberg.node.js"]
   },
   "dependencies": {
     "@xberg-io/xberg": "1.1.0"

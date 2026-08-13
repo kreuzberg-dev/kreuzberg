@@ -4,9 +4,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "target": "es2022",
-    "lib": [
-      "es2022"
-    ],
+    "lib": ["es2022"],
     "removeComments": true,
     "useUnknownInCatchVariables": false,
     "forceConsistentCasingInFileNames": true,
@@ -22,13 +20,6 @@
     "skipLibCheck": true,
     "outDir": "./dist/"
   },
-  "include": [
-    "nodes/**/*",
-    "nodes/**/*.json",
-    "package.json"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["nodes/**/*", "nodes/**/*.json", "package.json"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -8,7 +8,9 @@ public class ValidationException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new ValidationException with the given message. */
-  public ValidationException(final String message) { super(message); }
+  public ValidationException(final String message) {
+    super(message);
+  }
 
   /** Creates a new ValidationException with the given message and cause. */
   public ValidationException(final String message, final Throwable cause) {

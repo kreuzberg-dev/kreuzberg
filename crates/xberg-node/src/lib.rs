@@ -10487,7 +10487,6 @@ pub fn diff_line_context(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "context".to_string(),
         text: Some(text),
-        ..Default::default()
     }
 }
 #[napi(namespace = "DiffLine", js_name = "Added")]
@@ -10495,7 +10494,6 @@ pub fn diff_line_added(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "added".to_string(),
         text: Some(text),
-        ..Default::default()
     }
 }
 #[napi(namespace = "DiffLine", js_name = "Removed")]
@@ -10503,7 +10501,6 @@ pub fn diff_line_removed(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "removed".to_string(),
         text: Some(text),
-        ..Default::default()
     }
 }
 

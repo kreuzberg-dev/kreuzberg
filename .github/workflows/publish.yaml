@@ -1209,6 +1209,41 @@ jobs:
           cp LICENSE THIRD_PARTY_LICENSES.md "$STAGE/"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cp "$BINARY_PATH" "$STAGE/xberg.exe"
+            # Smoke-test the staged tree exactly as a user would unzip it, the
+            # Windows counterpart of the `--version` runs on the macOS and
+            # linux-gnu branches below. The `Setup ONNX Runtime` step above runs
+            # with its default `system` strategy, which exports ORT_STRATEGY=system
+            # and links ONNX Runtime dynamically, while this branch vendors no DLL
+            # into the zip (contrast the Intel-macOS dylib vendoring below). So
+            # this is what decides whether the shipped zip can start at all.
+            # The `Setup ONNX Runtime` step prepends its staged DLL directory
+            # (under the workspace) to PATH; leaving it there would let the
+            # loader satisfy the import from the build tree and pass no matter
+            # what the zip contains, so strip it first — the analogue of
+            # `env -u LD_LIBRARY_PATH` on the linux-gnu branch.
+            WORKSPACE_POSIX="$(pwd)"
+            CLEAN_PATH=""
+            while IFS= read -r path_entry; do
+              [ -n "$path_entry" ] || continue
+              case "$path_entry" in
+                "$WORKSPACE_POSIX" | "$WORKSPACE_POSIX"/*)
+                  continue
+                  ;;
+              esac
+              if [ -e "$path_entry/onnxruntime.dll" ]; then
+                echo "Dropping PATH entry providing onnxruntime.dll: $path_entry"
+                continue
+              fi
+              CLEAN_PATH="${CLEAN_PATH:+$CLEAN_PATH:}$path_entry"
+            done <<<"${PATH//:/$'\n'}"
+            # The loader always searches System32 ahead of PATH, so a DLL there
+            # can still mask a missing vendored copy. Say so in the log rather
+            # than let a green step imply more than it proves.
+            if [ -e "/c/Windows/System32/onnxruntime.dll" ]; then
+              echo "::warning title=Windows CLI smoke test is weakened::C:\\Windows\\System32\\onnxruntime.dll exists on this runner and is searched before PATH, so xberg.exe --version may succeed here on a host DLL that end users do not have"
+            fi
+            PATH="$CLEAN_PATH" "$STAGE/xberg.exe" --version
+            echo "Windows CLI smoke test passed: $STAGE/xberg.exe --version ran without a workspace-provided onnxruntime.dll"
             7z a "${STAGE}.zip" "$STAGE" >/dev/null
           else
             cp "$BINARY_PATH" "$STAGE/xberg"
@@ -2330,6 +2365,63 @@ jobs:
         run: |
           pip install hatchling build
           python -m build --wheel
+
+      # Runtime half of the wheel payload guard. `hatch_build.py` refuses to
+      # build a wheel whose staged payload is incomplete, but a build-time file
+      # check cannot prove the packaged binary actually starts: `xberg_cli-1.0.14`
+      # musllinux reached PyPI as a 257-byte launcher script with neither
+      # `xberg.bin` nor the `lib/` tree it execs (GH#1407). Unzip the wheel and
+      # run the binary it ships, mirroring the tarball smoke tests in the
+      # `cli-binaries` job (`compgen -G` + `env -u LD_LIBRARY_PATH ... --version`)
+      # so a wheel cannot pass on a library the runner happens to have.
+      - name: Smoke-test wheel payload
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            x86_64-unknown-linux-gnu | x86_64-unknown-linux-musl) ;;
+            *)
+              echo "::notice title=Wheel smoke test not run::${TARGET} binaries cannot execute on this x86_64 linux runner; the ${TARGET} wheel payload is covered only by the build-time checks in cli-proxy/pypi/hatch_build.py"
+              exit 0
+              ;;
+          esac
+
+          shopt -s nullglob
+          wheels=(cli-proxy/pypi/dist/*.whl)
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "::error::expected exactly one wheel in cli-proxy/pypi/dist, found ${#wheels[@]}"
+            exit 1
+          fi
+
+          UNPACK="${RUNNER_TEMP}/wheel-smoke/${TARGET}"
+          rm -rf "$UNPACK"
+          mkdir -p "$UNPACK"
+          unzip -q "${wheels[0]}" -d "$UNPACK"
+
+          STAGE="${UNPACK}/xberg_cli/bin/${TARGET}"
+          if [ ! -d "$STAGE" ]; then
+            echo "::error::wheel ships no payload directory xberg_cli/bin/${TARGET}"
+            find "$UNPACK" -maxdepth 4
+            exit 1
+          fi
+          # Wheels do not reliably carry the execute bit through force_include.
+          find "$STAGE" -type f -exec chmod u+rx {} +
+          case "$TARGET" in
+            *-unknown-linux-gnu)
+              compgen -G "$STAGE/libheif.so*" >/dev/null \
+                || { echo "::error::wheel payload for ${TARGET} has no libheif.so* beside the binary"; ls -la "$STAGE"; exit 1; }
+              ;;
+            *-unknown-linux-musl)
+              test -f "$STAGE/xberg.bin" \
+                || { echo "::error::wheel payload for ${TARGET} has no xberg.bin; 'xberg' is only a launcher script"; ls -la "$STAGE"; exit 1; }
+              compgen -G "$STAGE/lib/ld-musl-*.so.1" >/dev/null \
+                || { echo "::error::wheel payload for ${TARGET} has no lib/ld-musl-*.so.1 for the launcher to exec"; ls -la "$STAGE"; exit 1; }
+              ;;
+          esac
+          env -u LD_LIBRARY_PATH "$STAGE/xberg" --version
+          echo "Wheel smoke test passed for ${TARGET}: $(basename "${wheels[0]}")"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v7

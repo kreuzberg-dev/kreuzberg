@@ -14,10 +14,7 @@
         },
         "error_type": {
           "description": "Error type name",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "gil_release": {
           "default": false,
@@ -26,20 +23,14 @@
         },
         "item_type": {
           "description": "For streaming: the item type",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "name": {
           "type": "string"
         },
         "owner_type": {
           "description": "For async_method/streaming: the owning type name",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "params": {
           "default": [],
@@ -55,17 +46,11 @@
         "request_type": {
           "default": null,
           "description": "For streaming (FFI backend): full Rust type path of the request payload\ndeserialised from JSON (e.g. `\"my_crate::ChatCompletionRequest\"`).\nRequired when generating FFI streaming bodies — codegen will hard-fail\nwith a clear error if this field is absent on a streaming adapter.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "returns": {
           "description": "Return type name",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "skip_languages": {
           "default": [],
@@ -78,25 +63,15 @@
         "trait_method": {
           "default": null,
           "description": "For callback_bridge: the trait method name (e.g., \"handle\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "trait_name": {
           "default": null,
           "description": "For callback_bridge: the Rust trait to implement (e.g., \"MyHandler\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "name",
-        "pattern",
-        "core_path"
-      ],
+      "required": ["name", "pattern", "core_path"],
       "type": "object"
     },
     "AdapterParam": {
@@ -113,20 +88,12 @@
           "type": "string"
         }
       },
-      "required": [
-        "name",
-        "type"
-      ],
+      "required": ["name", "type"],
       "type": "object"
     },
     "AdapterPattern": {
       "description": "The kind of adapter pattern.",
-      "enum": [
-        "sync_function",
-        "async_method",
-        "callback_bridge",
-        "streaming"
-      ],
+      "enum": ["sync_function", "async_method", "callback_bridge", "streaming"],
       "type": "string"
     },
     "ArgMapping": {
@@ -135,10 +102,7 @@
         "element_type": {
           "default": null,
           "description": "For `json_object` args targeting `&[T]` Rust parameters, set to the element type\n(e.g. `\"f32\"`, `\"String\"`) so the codegen emits `Vec<element_type>` annotation.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "field": {
           "description": "JSON field path in the fixture's `input` object.",
@@ -147,10 +111,7 @@
         "go_type": {
           "default": null,
           "description": "Override the Go slice element type for `json_object` array args.\n\nWhen set, the Go e2e codegen uses this as the element type instead of the default\nderived from `element_type`. Use Go-idiomatic type names including the import alias\nprefix where needed, e.g. `\"sample_core.BatchBytesItem\"` or `\"string\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "name": {
           "description": "Argument name in the function signature.",
@@ -169,10 +130,7 @@
         "trait_name": {
           "default": null,
           "description": "Trait name for `test_backend` arg type (e.g., `\"DocumentExtractor\"`, `\"OcrBackend\"`).\n\nWhen `arg_type = \"test_backend\"`, this field specifies which trait's bridge\ncodegen should be used to create the test stub instance. Only used when\n`arg_type = \"test_backend\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "type": {
           "default": "string",
@@ -185,10 +143,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "name",
-        "field"
-      ],
+      "required": ["name", "field"],
       "type": "object"
     },
     "BridgeBinding": {
@@ -243,10 +198,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for build to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -290,32 +242,20 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "namespace": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package_id": {
           "default": null,
           "description": "NuGet `<PackageId>` to publish under. When unset, falls back to `namespace`.\nUse this when the published artifact id must differ from the C# `RootNamespace` —\ne.g. when the unprefixed name is owned by a third party on nuget.org and\nyou publish under a vendor-prefixed id like `SampleCrateDev.<Lib>`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "project_file": {
           "default": null,
           "description": "Project file for C# (e.g., \"MyProject.csproj\", \"MySolution.sln\"). When set, default\nlint/build/test commands target this file instead of the output directory.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -328,24 +268,15 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_framework": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -444,10 +375,7 @@
         "method": {
           "default": null,
           "description": "HTTP method for mock server routing (default: `\"POST\"`).\n\nUsed together with `path` when building `MockRoute` entries.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "module": {
           "default": "",
@@ -457,10 +385,7 @@
         "options_type": {
           "default": null,
           "description": "Call-level constructor type for `json_object` config args.\n\nThis is the type of the function's config parameter (e.g. `EmbeddingConfig`\nvs `ExtractionConfig`) and is therefore identical across every binding — set\nit on the call, not in per-language overrides. Per-language overrides\n(`[e2e.calls.<name>.overrides.<lang>].options_type`) still take precedence\nwhen a binding exposes a language-specific wrapper type (e.g. `JsExtractionConfig`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "overrides": {
           "additionalProperties": {
@@ -473,10 +398,7 @@
         "path": {
           "default": null,
           "description": "HTTP endpoint path for mock server routing (e.g., `\"/v1/chat/completions\"`).\n\nRequired when fixtures use `mock_response`. The Rust e2e generator uses\nthis to build the `MockRoute` that the mock server matches against.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "result_element_is_string": {
           "default": false,
@@ -581,10 +503,7 @@
         "alias": {
           "default": null,
           "description": "Import alias (Go only, e.g., `htmd`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "arg_name_map": {
           "additionalProperties": {
@@ -622,10 +541,7 @@
         "async": {
           "default": null,
           "description": "Override whether the call is async for this language.\n\nWhen set, takes precedence over the call-level `async` flag.\nUseful when a language binding uses a different async model — for example,\na Python binding that returns a sync iterator from a function marked\n`async = true` at the call level.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "bigint_fields": {
           "default": [],
@@ -638,26 +554,17 @@
         "c_engine_factory": {
           "default": null,
           "description": "C FFI engine factory pattern (C only).\n\nWhen set, the C generator wraps each test call in a\n`{prefix}_create_engine(config)` / `{prefix}_crawl_engine_handle_free(engine)`\nprologue/epilogue using the named config type as the \"arg 0\" handle type.\n\nThe value is the PascalCase config type name (without prefix), e.g.\n`\"CrawlConfig\"`. The generator will emit:\n```c\nKCRAWLCrawlConfig* config_handle = kcrawl_crawl_config_from_json(\"{json}\");\nKCRAWLCrawlEngineHandle* engine = kcrawl_create_engine(config_handle);\nkcrawl_crawl_config_free(config_handle);\nKCRAWLScrapeResult* result = kcrawl_scrape(engine, url);\n// ... assertions ...\nkcrawl_scrape_result_free(result);\nkcrawl_crawl_engine_handle_free(engine);\n```",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "c_free_fn": {
           "default": null,
           "description": "Free function for raw `char*` C results (C only).\n\nDefaults to `{prefix}_free_string` when unset and `raw_c_result_type == \"char*\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "class": {
           "default": null,
           "description": "Override the class name (Java/C# only).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "cli_args": {
           "default": [],
@@ -678,10 +585,7 @@
         "client_factory": {
           "default": null,
           "description": "Client factory function name for instance-method languages (WASM, etc.).\n\nWhen set, the generated test imports this function, creates a client,\nand calls API methods on the instance instead of as top-level functions.\n\nE.g., `\"createClient\"` generates:\n```typescript\nimport { createClient } from 'pkg';\nconst client = createClient('test-key');\nconst result = await client.chat(request);\n```",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "client_factory_trailing_args": {
           "default": [],
@@ -694,10 +598,7 @@
         "crate_name": {
           "default": null,
           "description": "Override the crate name (Rust only).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "enum_fields": {
           "additionalProperties": {
@@ -710,10 +611,7 @@
         "enum_module": {
           "default": null,
           "description": "Module to import enum types from (if different from the main module).\nE.g., \"sample_markdown._sample_markdown\" for PyO3 native enums.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "extra_args": {
           "default": [],
@@ -726,18 +624,12 @@
         "from_json_module": {
           "default": null,
           "description": "Module to import `options_type` from when `options_via = \"from_json\"`.\n\nWhen set, a separate `from {from_json_module} import {options_type}` line\nis emitted instead of including the type in the main module import.\nE.g., `\"sample_llm._internal_bindings\"` for PyO3 native types.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "function": {
           "default": null,
           "description": "Override the function name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "handle_atom_list_fields": {
           "default": [],
@@ -751,10 +643,7 @@
         "handle_config_type": {
           "default": null,
           "description": "WASM config class name for handle args (WASM generator only).\n\nWhen set, handle args are constructed using `ConfigType.default()` + setters\ninstead of passing a plain JS object (which fails `_assertClass` validation).\n\nE.g., `\"WasmCrawlConfig\"` generates:\n```js\nconst engineConfig = WasmCrawlConfig.default();\nengineConfig.maxDepth = 1;\nconst engine = createEngine(engineConfig);\n```",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "handle_dict_types": {
           "default": [],
@@ -776,18 +665,12 @@
         "handle_struct_type": {
           "default": null,
           "description": "Elixir struct module name for the handle config argument.\n\nWhen set, the generated Elixir handle config uses struct literal syntax\n(`%Module.StructType{key: val}`) instead of a plain string-keyed map.\nRustler `NifStruct` requires a proper Elixir struct — plain maps are rejected.\n\nE.g., `\"CrawlConfig\"` generates `%SampleCrawler.CrawlConfig{download_assets: true}`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "header": {
           "default": null,
           "description": "C header file name (C only).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "keyword_args": {
           "default": false,
@@ -797,10 +680,7 @@
         "module": {
           "default": null,
           "description": "Override the module/import path.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "nested_types": {
           "additionalProperties": {
@@ -823,18 +703,12 @@
         "options_type": {
           "default": null,
           "description": "For json_object args: the constructor to use instead of raw dict/object.\nE.g., \"ConversionOptions\" — generates `ConversionOptions(**options)` in Python,\n`new ConversionOptions(options)` in TypeScript.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "options_via": {
           "default": null,
           "description": "How to pass json_object args: \"kwargs\" (default), \"dict\", \"json\", or \"from_json\".\n\n- `\"kwargs\"`: construct `OptionsType(key=val, ...)` (requires `options_type`).\n- `\"dict\"`: pass as a plain dict/object literal `{\"key\": \"val\"}`.\n- `\"json\"`: pass via `json.loads('...')` / `JSON.parse('...')`.\n- `\"from_json\"`: call `OptionsType.from_json('...')` (Python only, PyO3 native types).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "path_fields": {
           "default": [],
@@ -847,26 +721,17 @@
         "php_client_factory": {
           "default": null,
           "description": "PHP client factory method name (PHP generator only).\n\nWhen set, the generated PHP test instantiates a client via\n`ClassName::factory_method('test-key')` and calls methods on the instance\ninstead of using static facade calls.\n\nE.g., `\"createClient\"` generates:\n```php\n$client = SampleLlm::createClient('test-key');\n$result = $client->chat($request);\n```",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "prefix": {
           "default": null,
           "description": "FFI symbol prefix (C only).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "raw_c_result_type": {
           "default": null,
           "description": "Raw C return type, used verbatim instead of `{PREFIX}Type*` (C only).\n\nValid values: `\"char*\"`, `\"int32_t\"`, `\"uintptr_t\"`.\nWhen set, the C generator skips options handle construction and uses the\nraw type directly. Free logic is adjusted accordingly.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "result_element_is_string": {
           "default": false,
@@ -932,18 +797,12 @@
         "result_type": {
           "default": null,
           "description": "C FFI opaque result type name (C only).\n\nThe PascalCase name of the result struct, without the prefix.\nE.g., `\"ChatCompletionResponse\"` for `SamplellmChatCompletionResponse*`.\nIf not set, defaults to the function name in PascalCase.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "returns_result": {
           "default": null,
           "description": "Per-rust override of the call-level `returns_result`. When set, takes\nprecedence over `CallConfig.returns_result` for the Rust generator only.\nUseful when one binding is fallible while others are not.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "trait_imports": {
           "default": [],
@@ -966,18 +825,12 @@
         "visitor_function": {
           "default": null,
           "description": "Alternative function name to use when the fixture includes a `visitor`.\n\nSome bindings expose two entry points: `Convert(html, opts)` for the\nplain case and `ConvertWithVisitor(html, opts, visitor)` when a visitor\nis involved.  Set this to the visitor-accepting function name so the\ngenerator can pick the right symbol automatically.\n\nE.g., `\"ConvertWithVisitor\"` makes the Go generator emit:\n```go\nresult, err := htmd.ConvertWithVisitor(html, nil, visitor)\n```\ninstead of `htmd.Convert(html, nil, visitor)` (which would not compile).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "visitor_trait": {
           "default": null,
           "description": "Trait name for the visitor pattern (Rust e2e tests only).\n\nWhen a fixture declares a `visitor` block, the Rust e2e generator emits\n`impl <trait_name> for _TestVisitor { ... }` and imports the trait from\n`{module}::visitor`. When unset, no visitor block is emitted and fixtures\nthat declare a visitor will cause a codegen error.\n\nE.g., `\"HtmlVisitor\"` generates:\n```rust,ignore\nuse sample_markdown_rs::visitor::{HtmlVisitor, NodeContext, VisitResult};\n// ...\nimpl HtmlVisitor for _TestVisitor { ... }\n```",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wrap_options_in_some": {
           "default": false,
@@ -1005,10 +858,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "python_type",
-            "construct_from"
-          ],
+          "required": ["python_type", "construct_from"],
           "type": "object"
         }
       ],
@@ -1021,42 +871,27 @@
         "email": {
           "default": null,
           "description": "Optional contact email (applies to either person or entity).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "family_names": {
           "default": null,
           "description": "Person author: family name(s).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "given_names": {
           "default": null,
           "description": "Person author: given name(s).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "name": {
           "default": null,
           "description": "Entity author: organisation or legal-entity name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "orcid": {
           "default": null,
           "description": "Optional ORCID iD URL (`https://orcid.org/0000-0000-0000-0000`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -1079,26 +914,17 @@
         "date-released": {
           "default": null,
           "description": "Release date in `YYYY-MM-DD` form (`date-released:`). Optional override.\n\nWhen omitted (the recommended default), `alef sync-versions` stamps the\ncurrent system date on every regen so consumers do not need to hand-edit\nalef.toml per release. Set this explicitly only when you need to replay\na historical release date (e.g. backports, CFF reproducibility audits).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "doi": {
           "default": null,
           "description": "Persistent DOI for the cited release (`doi:`). Optional.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "license": {
           "default": null,
           "description": "SPDX license identifier (`license:`). When omitted, the renderer falls\nback to `Cargo.toml [workspace.package].license`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "message": {
           "default": "If you use this software, please cite it using the metadata below.",
@@ -1116,18 +942,10 @@
         "url": {
           "default": null,
           "description": "Project landing-page URL (`url:`). Optional.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "title",
-        "abstract",
-        "authors",
-        "repository-code"
-      ],
+      "required": ["title", "abstract", "authors", "repository-code"],
       "type": "object"
     },
     "CleanConfig": {
@@ -1156,10 +974,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for clean to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -1174,10 +989,7 @@
         "error_type": {
           "default": null,
           "description": "Error type returned by the constructor (`Result<Self, ErrType>`).\nDefaults to `String` when absent.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "params": {
           "default": [],
@@ -1188,9 +1000,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "body"
-      ],
+      "required": ["body"],
       "type": "object"
     },
     "ConstructorParam": {
@@ -1205,16 +1015,11 @@
           "type": "string"
         }
       },
-      "required": [
-        "name",
-        "type"
-      ],
+      "required": ["name", "type"],
       "type": "object"
     },
     "CsharpDtoStyle": {
-      "enum": [
-        "record"
-      ],
+      "enum": ["record"],
       "type": "string"
     },
     "CustomModulesConfig": {
@@ -1412,10 +1217,7 @@
         "core_crate_override": {
           "default": null,
           "description": "Override the core Cargo dependency name and path for the Dart binding crate.\nWhen set, the binding `Cargo.toml` depends on this crate (resolved as\n`../../../crates/<override>`) instead of the umbrella `[crate.name]`.\nDefaults to unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude_extra_dependencies": {
           "default": [],
@@ -1469,42 +1271,27 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "frb_version": {
           "default": null,
           "description": "flutter_rust_bridge version to pin in generated pubspec.yaml.\nDefaults to `template_versions::cargo::FLUTTER_RUST_BRIDGE` when unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "lib_name": {
           "default": null,
           "description": "Dart library name (the `library` declaration). Defaults to the pubspec name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package_name": {
           "default": null,
           "description": "Dart package name override (e.g. for pub.dev scoped packages).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "pubspec_name": {
           "default": null,
           "description": "Dart pub.dev package name (e.g. `\"my_package\"`). Used as the `name` in\n`pubspec.yaml`. Defaults to a snake_case derivation of the crate name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -1517,18 +1304,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "skip_frb": {
           "default": false,
@@ -1594,9 +1375,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "cfg"
-      ],
+      "required": ["cfg"],
       "type": "object"
     },
     "DocsConfig": {
@@ -1640,10 +1419,7 @@
         "reference_output": {
           "default": null,
           "description": "Directory for generated API/CLI/MCP reference markdown. Defaults to\n`docs/reference` when unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "skills": {
           "anyOf": [
@@ -1682,18 +1458,12 @@
         "output": {
           "default": null,
           "description": "Output path. Defaults to `docs/llms.txt`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "template": {
           "default": null,
           "description": "Minijinja template path for llms.txt. Required when this table is present.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -1703,18 +1473,12 @@
         "output": {
           "default": null,
           "description": "Output path below every configured `skills.outputs` root. Defaults to\n`{group}/SKILL.md`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "template": {
           "default": null,
           "description": "Template path. Relative paths are resolved against `skills.template_dir`\nwhen set, otherwise the repository root.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -1737,10 +1501,7 @@
         "template_dir": {
           "default": null,
           "description": "Base directory for skill templates. When `templates` is empty, Alef expects\n`api/SKILL.md.jinja`, `cli/SKILL.md.jinja`, and `mcp/SKILL.md.jinja`\nbelow this directory.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "templates": {
           "additionalProperties": {
@@ -1802,18 +1563,12 @@
           "description": "Snippet validation timeout in seconds. Defaults to the snippet runner default.",
           "format": "uint64",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "validation_level": {
           "default": null,
           "description": "Optional validation level: `syntax`, `compile`, `typecheck`, or `run`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -1828,18 +1583,12 @@
         "enabled": {
           "default": null,
           "description": "Enable this reference extractor. Defaults to true when the table exists.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "output": {
           "default": null,
           "description": "Output markdown file. Relative paths are resolved from the repository root.\nWhen unset, Alef writes into `reference_output`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "sources": {
           "default": [],
@@ -2104,18 +1853,13 @@
           "type": "string"
         }
       },
-      "required": [
-        "call"
-      ],
+      "required": ["call"],
       "type": "object"
     },
     "ElixirConfig": {
       "properties": {
         "app_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "cpu_bound_functions": {
           "default": [],
@@ -2160,10 +1904,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "nif_features": {
           "default": null,
@@ -2171,10 +1912,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "nif_targets": {
           "default": [],
@@ -2195,26 +1933,17 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scaffold_output": {
           "default": null,
           "description": "Override the scaffold output directory for this language's Cargo.toml and package files.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_dep_overrides": {
           "default": [],
@@ -2228,10 +1957,7 @@
       "type": "object"
     },
     "ElixirDtoStyle": {
-      "enum": [
-        "struct",
-        "typed-struct"
-      ],
+      "enum": ["struct", "typed-struct"],
       "type": "string"
     },
     "EntrypointSpec": {
@@ -2246,10 +1972,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "method",
-        "kind"
-      ],
+      "required": ["method", "kind"],
       "type": "object"
     },
     "ExcludeConfig": {
@@ -2315,24 +2038,15 @@
         "package": {
           "default": null,
           "description": "Cargo crate that provides `into_raw_type`. When set, `scaffold_ffi`\ninjects it as a direct dependency of the FFI crate so the capsule shim\ncan name the pointee type. `None` skips injection (e.g. when the pointee\ntype is already reachable via transitive deps).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package_version": {
           "default": null,
           "description": "Version requirement for [`Self::package`]. Ignored when `package` is `None`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "into_raw_type",
-        "c_return_type"
-      ],
+      "required": ["into_raw_type", "c_return_type"],
       "type": "object"
     },
     "FfiConfig": {
@@ -2378,38 +2092,23 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "header_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "lib_name": {
           "default": null,
           "description": "Native library name for Go cgo/Java Panama/C# P/Invoke (e.g., \"sample_pack_ffi\").\nDefaults to `{prefix}_ffi`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "plugin_error_constructor": {
           "default": null,
           "description": "Rust expression used to construct an error value of this crate's\n`error_type` from a runtime `String` message inside generated FFI\ntrait-bridge plugin shims (`plugin_impl_initialize`, `plugin_impl_shutdown`).\n\nThe expression has access to a local variable `msg: String` containing\nthe underlying error message and is interpolated verbatim. Example\nvalues:\n\n```toml\n# downstream whose error type has a struct variant with two fields:\nplugin_error_constructor = \"\"\"\nsample_core::SampleCrateError::Plugin { message: msg, plugin_name: String::new() }\n\"\"\"\n\n# downstream whose error type implements `From<String>`:\nplugin_error_constructor = \"MyError::from(msg)\"\n```\n\nDefaults to `None`. When unset, the plugin shim still emits — backends\nfall back to a `format!(\"{}: {}\", prefix, msg)`-style construction via\nthe configured `error_constructor`. Downstreams that don't expose\ntrait-bridged plugins can ignore this knob entirely.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "prefix": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -2422,10 +2121,7 @@
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_dep_overrides": {
           "default": [],
@@ -2459,9 +2155,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "cfg"
-      ],
+      "required": ["cfg"],
       "type": "object"
     },
     "GenerateConfig": {
@@ -2515,26 +2209,17 @@
         "issues_url": {
           "default": null,
           "description": "URL shown in generated-file headers for issue reporting and docs.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "regenerate_command": {
           "default": null,
           "description": "Regeneration command shown in generated-file headers.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "verify_command": {
           "default": null,
           "description": "Freshness verification command shown in generated-file headers.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -2542,10 +2227,7 @@
     "GleamConfig": {
       "properties": {
         "app_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "element_constructors": {
           "default": [],
@@ -2584,26 +2266,17 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "json_object_wrapper": {
           "default": null,
           "description": "Optional Gleam expression template used to wrap `json_object` arg\nvalues when no `element_type` recipe matches. The placeholder\n`{json}` is replaced with a Gleam string literal containing the JSON\nform of the arg value, allowing the downstream's Gleam binding to do\nits own parsing.\n\nExample:\n\n```toml\n[crates.gleam]\njson_object_wrapper = \"sample_core.config_from_json_string({json})\"\n```\n\nWhen `None`, the codegen emits `{json}` verbatim (a plain Gleam\nstring), matching the iter15 default.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "nif_module": {
           "default": null,
           "description": "Erlang atom name for `@external(erlang, \"<nif>\", ...)` lookups (e.g., \"my_app_nif\").\nDefaults to the app_name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -2616,18 +2289,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -2651,11 +2318,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "element_type",
-        "constructor",
-        "fields"
-      ],
+      "required": ["element_type", "constructor", "fields"],
       "type": "object"
     },
     "GleamElementField": {
@@ -2664,10 +2327,7 @@
         "default": {
           "default": null,
           "description": "Default Gleam expression when `json_field` is missing/null. Only\nhonoured by the `\"string\"` strategy today.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "gleam_field": {
           "description": "Gleam record field name (e.g. `\"path\"`, `\"config\"`).",
@@ -2676,10 +2336,7 @@
         "json_field": {
           "default": null,
           "description": "JSON object key to read, when `kind` is one of the JSON-driven\nstrategies. Required for `\"file_path\"`, `\"byte_array\"`, `\"string\"`;\nignored for `\"literal\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "kind": {
           "description": "Source/encoding strategy. See struct doc.",
@@ -2688,16 +2345,10 @@
         "value": {
           "default": null,
           "description": "Verbatim Gleam expression to emit when `kind = \"literal\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "gleam_field",
-        "kind"
-      ],
+      "required": ["gleam_field", "kind"],
       "type": "object"
     },
     "GoConfig": {
@@ -2731,10 +2382,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "functional_options": {
           "default": [],
@@ -2745,27 +2393,18 @@
           "type": "array"
         },
         "module": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "module_major": {
           "default": null,
           "description": "Go module major version segment (`/vN`). Required for any v2+ Go module.\nDefaults to no segment when `None` and the Go module path has no version suffix;\nwhen set, emits `packages/go/v<N>/`.",
           "format": "uint32",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "package_name": {
           "description": "Override the Go package name (default: derived from module path)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -2778,26 +2417,18 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
     },
     "GoDtoStyle": {
-      "enum": [
-        "struct"
-      ],
+      "enum": ["struct"],
       "type": "string"
     },
     "HandlerContractConfig": {
@@ -2818,10 +2449,7 @@
         "dispatch_return_type": {
           "default": null,
           "description": "Verbatim return type for the generated dispatch future's `Output`. When absent,\nthe bridge synthesizes `Result<{wire_response}, Box<dyn Error + Send + Sync>>`.\nSet this when the trait's dispatch returns a library-specific type the bridge\nmust produce via [`Self::response_adapter`].",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "is_async": {
           "default": true,
@@ -2839,10 +2467,7 @@
         "response_adapter": {
           "default": null,
           "description": "Path to a library function that converts the bridge's\n`Result<{wire_response}, Box<dyn Error + Send + Sync>>` outcome into the\n[`Self::dispatch_return_type`]. When absent, the bridge returns the wire response\ndirectly. The function is opaque to the generator — it simply emits a call to it.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "trait_name": {
           "description": "Name of the Rust trait in the surface (e.g. `\"Handler\"`).",
@@ -2851,32 +2476,20 @@
         "wire_param_name": {
           "default": null,
           "description": "Name of the wire request parameter in the generated dispatch signature.\nWhen absent, defaults to `\"request\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wire_request_type": {
           "default": null,
           "description": "Name of the wire request DTO (e.g. `\"RequestData\"`).\nWhen absent, the dispatch method's signature is used verbatim.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wire_response_type": {
           "default": null,
           "description": "Name of the wire response DTO (e.g. `\"ResponseData\"`).\nWhen absent, the dispatch method's return type is used verbatim.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "trait_name",
-        "dispatch_method"
-      ],
+      "required": ["trait_name", "dispatch_method"],
       "type": "object"
     },
     "HarnessConfig": {
@@ -2885,18 +2498,12 @@
         "app_class": {
           "default": null,
           "description": "SUT app class name (e.g., \"App\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "body_schema_setter": {
           "default": null,
           "description": "Method/field on RouteBuilder to set request body schema (e.g., \"request_schema_json\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "host": {
           "default": "127.0.0.1",
@@ -2914,10 +2521,7 @@
         "method_enum": {
           "default": null,
           "description": "HTTP method enum/type name (e.g., \"Method\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "overrides": {
           "additionalProperties": {
@@ -2938,10 +2542,7 @@
         "register_method": {
           "default": null,
           "description": "Method to register handlers on the app (e.g., \"route\" or \"get\"/\"post\"/etc.)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "response_body_field": {
           "default": "body",
@@ -2951,18 +2552,12 @@
         "route_builder": {
           "default": null,
           "description": "RouteBuilder class name (if distinct from return type of register_method)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "run_method": {
           "default": null,
           "description": "Serve entrypoint method name (e.g., \"run\")",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -2973,18 +2568,12 @@
         "app_class": {
           "default": null,
           "description": "SUT app class name (overrides HarnessConfig.app_class)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "body_schema_setter": {
           "default": null,
           "description": "Method/field on RouteBuilder to set request body schema",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "imports": {
           "default": null,
@@ -2992,42 +2581,27 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "method_enum": {
           "default": null,
           "description": "HTTP method enum/type name",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "register_method": {
           "default": null,
           "description": "Method to register handlers (overrides HarnessConfig.register_method)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "run_method": {
           "default": null,
           "description": "Serve entrypoint method name (overrides HarnessConfig.run_method)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "server_config_factory": {
           "default": null,
           "description": "Expression to instantiate the default ServerConfig (overrides HarnessConfig.server_config_factory)",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -3042,20 +2616,14 @@
         "expect_contains": {
           "default": null,
           "description": "Substring that must appear in the combined stdout+stderr output.\nWhen `None` a zero exit code is sufficient.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "name": {
           "description": "Short identifier used in `PASS:` / `FAIL:` reporting.",
           "type": "string"
         }
       },
-      "required": [
-        "name",
-        "command"
-      ],
+      "required": ["name", "command"],
       "type": "object"
     },
     "HookSource": {
@@ -3083,11 +2651,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "id",
-        "git",
-        "revision"
-      ],
+      "required": ["id", "git", "revision"],
       "type": "object"
     },
     "HostCapsuleTypeConfig": {
@@ -3113,9 +2677,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "host_type"
-      ],
+      "required": ["host_type"],
       "type": "object"
     },
     "IncludeConfig": {
@@ -3161,10 +2723,7 @@
         "artifact_id": {
           "default": null,
           "description": "Override the Maven `<artifactId>` emitted by alef-scaffold and alef-e2e. When\nunset, defaults to the crate name (the `[[crates]] name = \"...\"`). Set this when\nthe published artifactId differs from the source crate name (e.g. crate\n`sample-markdown-rs` published as `sample-markdown`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "capsule_types": {
           "additionalProperties": {
@@ -3202,10 +2761,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "ffi_style": {
           "default": "panama",
@@ -3214,24 +2770,15 @@
         "group_id": {
           "default": null,
           "description": "Override the Maven `<groupId>` emitted by alef-scaffold and alef-e2e. When unset,\n`java_group_id()` falls back to the Java `package` value. Set this when the\npublished Maven coords differ from the Java package path (e.g. group\n`dev.sample_core`, package `dev.sample_core.samplemarkdown`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "project_file": {
           "default": null,
           "description": "Project file for Maven/Gradle (e.g., \"pom.xml\", \"build.gradle\"). When set, default\nlint/build/test commands target this file instead of the output directory.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -3244,18 +2791,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -3272,9 +2813,7 @@
       "type": "object"
     },
     "JavaDtoStyle": {
-      "enum": [
-        "record"
-      ],
+      "enum": ["record"],
       "type": "string"
     },
     "JniConfig": {
@@ -3283,10 +2822,7 @@
         "crate_dir": {
           "default": null,
           "description": "Override the JNI crate directory name.\n\nWhen set, the JNI crate is placed at `crates/<crate_dir>-jni/` and the\n`[package] name` in the generated `Cargo.toml` is `<crate_dir>-jni`.\nWhen unset, both derive from `config.name` (the default, which matches\nthe behavior used by `alef-backend-jni::gen_shims::jni_output_path`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_dep_overrides": {
           "default": [],
@@ -3308,18 +2844,12 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "artifact_id": {
           "default": null,
           "description": "Maven `artifactId` for the generated AAR. Defaults to `{crate}-android`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "capsule_types": {
           "additionalProperties": {
@@ -3334,10 +2864,7 @@
           "description": "Android compile SDK level. Defaults to `template_versions::toolchain::ANDROID_COMPILE_SDK`.",
           "format": "uint32",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "exclude_functions": {
           "default": [],
@@ -3369,52 +2896,34 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "group_id": {
           "default": null,
           "description": "Maven `groupId` for the generated AAR. No default — when unset the\nemitter falls back to `package`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "jvm_target": {
           "default": null,
           "description": "JVM bytecode target for Kotlin and Java compilation\n(e.g. `\"17\"`). Defaults to `template_versions::toolchain::ANDROID_JVM_TARGET`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "min_sdk": {
           "default": null,
           "description": "Android min SDK level. Defaults to `template_versions::toolchain::ANDROID_MIN_SDK`.",
           "format": "uint32",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "namespace": {
           "default": null,
           "description": "Android library manifest `namespace`. Defaults to `package`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package": {
           "default": null,
           "description": "JVM-style package for Kotlin bindings (e.g. `dev.sample_core`).\nDefaults to the crate name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -3427,18 +2936,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -3474,10 +2977,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "ffi_style": {
           "$ref": "#/$defs/KotlinFfiStyle",
@@ -3487,16 +2987,10 @@
         "mode": {
           "default": null,
           "description": "Emission mode controlling which Kotlin project layout is generated.\n\nAccepted values:\n- `\"jvm\"` (default) — standard JVM-only project under `packages/kotlin/`\n- `\"kmp\"` — Kotlin Multiplatform project under `packages/kotlin-mpp/`\n- `\"android\"` — Android library project under `packages/kotlin-android/`\n\nWhen `None`, defaults to `\"jvm\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -3509,18 +3003,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target": {
           "$ref": "#/$defs/KotlinTarget",
@@ -3532,19 +3020,12 @@
     },
     "KotlinFfiStyle": {
       "description": "FFI strategy for Kotlin JVM / Android binding emission.\n\n- `\"panama\"` (default): consumes the Java/Panama FFM facade emitted by\n  `alef-backend-java`. Requires JDK 22+ at runtime. Not supported on\n  Android Runtime.\n- `\"jni\"`: emits a `object <Module>Bridge { external fun native<...>(...) }`\n  object with JNI declarations and a `DefaultClient` class holding a `Long`\n  handle. Compatible with Android Runtime (JDK 11). Consumers must ship a\n  `<crate>-jni` Rust crate exporting matching `Java_*` JNI symbols.",
-      "enum": [
-        "panama",
-        "jni"
-      ],
+      "enum": ["panama", "jni"],
       "type": "string"
     },
     "KotlinTarget": {
       "description": "Target platform for Kotlin code generation.\n\n- `\"jvm\"` (default): emits source consuming the Java/Panama FFM facade.\n- `\"native\"`: emits Kotlin/Native source consuming the cbindgen C FFI library.\n- `\"multiplatform\"`: emits Kotlin Multiplatform project scaffolding.",
-      "enum": [
-        "jvm",
-        "native",
-        "multiplatform"
-      ],
+      "enum": ["jvm", "native", "multiplatform"],
       "type": "string"
     },
     "Language": {
@@ -3619,10 +3100,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for lint to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "typecheck": {
           "anyOf": [
@@ -3671,10 +3149,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "lower",
-        "upper"
-      ],
+      "required": ["lower", "upper"],
       "type": "object"
     },
     "NodeCapsuleTypeConfig": {
@@ -3711,10 +3186,7 @@
           "description": "Optional N-API type tag to apply via `napi_type_tag_object`. Required\nwhen the consumer library (e.g. `node-sample_language`) calls\n`napi_check_object_type_tag` to validate the External before using it."
         }
       },
-      "required": [
-        "type",
-        "from_module"
-      ],
+      "required": ["type", "from_module"],
       "type": "object"
     },
     "NodeConfig": {
@@ -3730,10 +3202,7 @@
         "crate_dir": {
           "default": null,
           "description": "Overrides the default `crates/{name}-node` formula for the crate directory.\nUseful when the Rust crate directory does not follow the alef convention\n(e.g., consumer strips a `-rs` suffix so actual crate dir is `crates/sample-markdown-node`\ninstead of `crates/sample-markdown-rs-node`). Used by setup, test, clean, and format tasks.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude_functions": {
           "default": [],
@@ -3779,16 +3248,10 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "package_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -3801,26 +3264,17 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scaffold_output": {
           "default": null,
           "description": "Override the scaffold output directory for this language's Cargo.toml and package files.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_dep_overrides": {
           "default": [],
@@ -3836,132 +3290,72 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "type_prefix": {
           "default": null,
           "description": "Prefix for generated type names (e.g. \"Js\" produces `JsConversionOptions`).\nDefaults to `\"Js\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
     },
     "NodeDtoStyle": {
-      "enum": [
-        "interface",
-        "zod"
-      ],
+      "enum": ["interface", "zod"],
       "type": "string"
     },
     "OutputConfig": {
       "properties": {
         "csharp": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "dart": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "elixir": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ffi": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "gleam": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "go": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "java": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "kotlin": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "kotlin_android": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "node": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "php": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "python": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "r": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ruby": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "swift": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wasm": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "zig": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -3970,106 +3364,55 @@
       "description": "Per-language output path templates for multi-crate workspaces.\n\nEach entry is a path string that may contain `{crate}` and `{lang}` placeholders.\nResolved by [`OutputTemplate::resolve`] to produce a concrete path for one\n`(crate, language)` pair.\n\nDefaults (when a language entry is absent and no per-crate explicit override is set):\n- Single-crate workspaces resolve to `packages/{lang}/`.\n- Multi-crate workspaces resolve to `packages/{lang}/{crate}/`.\n\nPer-crate explicit paths in [`OutputConfig`] always win over a workspace template.",
       "properties": {
         "csharp": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "dart": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "elixir": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ffi": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "gleam": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "go": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "java": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "kotlin": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "kotlin_android": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "node": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "php": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "python": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "r": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "ruby": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "swift": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wasm": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "zig": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -4094,38 +3437,23 @@
         },
         "description": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "documentation": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "funding": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "homepage": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "issues": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "keywords": {
           "default": [],
@@ -4136,17 +3464,11 @@
         },
         "license": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "repository": {
           "default": null,
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "truncate_registry_lists": {
           "default": false,
@@ -4162,10 +3484,7 @@
         "cli_formula": {
           "default": null,
           "description": "Homebrew CLI formula name (e.g., `\"sample-markdown\"`).\n\nUsed by the `homebrew` test_app generator.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "cli_tests": {
           "default": [],
@@ -4178,42 +3497,27 @@
         "ffi_formula": {
           "default": null,
           "description": "Homebrew FFI shared-library formula name (e.g., `\"libsample-markdown\"`).\n\nWhen not set, FFI-related sections (Brewfile entry, compile/run block,\n`ffi_smoke.c`) are omitted from the generated test_app.\n\nUsed by the `homebrew` test_app generator.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "hash": {
           "default": null,
           "description": "SHA-256 hash of the published tarball (Zig registry mode).\n\nWhen present without `platform_hashes`, emitted for the generic package tarball.\nMulti-platform Zig release assets must use `platform_hashes` because Zig hashes are\ncontent-specific.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "module": {
           "default": null,
           "description": "Go module path.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "name": {
           "default": null,
           "description": "Package/crate/gem/module name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "path": {
           "default": null,
           "description": "Relative path from e2e/{lang}/ to the package.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "platform_hashes": {
           "additionalProperties": {
@@ -4226,18 +3530,12 @@
         "tap": {
           "default": null,
           "description": "Homebrew tap name (e.g., `\"sample_core-dev/tap\"`).\n\nUsed by the `homebrew` test_app generator.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "version": {
           "default": null,
           "description": "Package version (e.g., for go.mod require directives).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -4247,18 +3545,12 @@
         "cargo_crate_name": {
           "default": null,
           "description": "Cargo crate name for the PHP binding (e.g. `\"parser-core-core-php\"`).\nUsed to derive the shared library filename in the e2e test runner.\nWhen absent, the lib name is derived from `extension_name` by appending `_php`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "composer_package": {
           "default": null,
           "description": "Override composer package name (vendor/package-name) for composer.json generation.\nWhen absent, vendor/package is derived from the repository URL.\nFormat: \"vendor/package-name\" (e.g., \"example/sample-lib\").",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude_functions": {
           "default": [],
@@ -4277,10 +3569,7 @@
           "type": "array"
         },
         "extension_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "extra_dependencies": {
           "additionalProperties": true,
@@ -4299,28 +3588,19 @@
         "feature_gate": {
           "default": null,
           "description": "Feature gate for ext-php-rs (default: \"extension-module\").\nAll generated code is wrapped in `#[cfg(feature = \"...\")]`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "features": {
           "default": null,
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "namespace": {
           "default": null,
           "description": "Override the PHP namespace used for class registration and PSR-4 autoloading.\n\nWhen set, this value is used verbatim as the PHP namespace (e.g. `\"SampleMarkdown\"`).\nWhen absent, the namespace is derived from `extension_name` by splitting on `_` and\nconverting each segment to PascalCase (e.g. `sample_markup` → `Sample\\Markup`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -4333,26 +3613,17 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scaffold_output": {
           "default": null,
           "description": "Override the scaffold output directory for this language's Cargo.toml and package files.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "stubs": {
           "anyOf": [
@@ -4378,10 +3649,7 @@
       "type": "object"
     },
     "PhpDtoStyle": {
-      "enum": [
-        "readonly-class",
-        "array"
-      ],
+      "enum": ["readonly-class", "array"],
       "type": "string"
     },
     "PolyConfig": {
@@ -4462,10 +3730,7 @@
       "properties": {
         "core_crate": {
           "description": "Path to the core Rust crate directory to vendor.\nAuto-detected from `[crate].sources` if absent.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "languages": {
           "additionalProperties": {
@@ -4494,10 +3759,7 @@
         },
         "archive_format": {
           "description": "Archive format override (`\"tar.gz\"` or `\"zip\"`).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "before": {
           "anyOf": [
@@ -4526,51 +3788,33 @@
             "type": "string"
           },
           "description": "Forward-looking: environment variables passed through to cibuildwheel\nwhen orchestrating Python cross-compilation builds.",
-          "type": [
-            "object",
-            "null"
-          ]
+          "type": ["object", "null"]
         },
         "cmake_config": {
           "description": "Generate a CMake find module (C FFI only).",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "csharp_rid": {
           "description": "NuGet RID override for C# packaging (e.g. `\"linux-x64\"`).\nDerived from the target triple when absent.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "jni_classifier": {
           "description": "JNI classifier override for Java packaging (e.g. `\"linux-x86_64\"`).\nDerived from the target triple when absent.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "nif_versions": {
           "description": "Elixir NIF versions to build for (e.g. `[\"2.16\", \"2.17\"]`).",
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "npm_subpackage_platforms": {
           "description": "npm sub-package platform identifiers for Node.js NAPI builds.\nEach entry is a napi-rs platform string like `\"linux-x64-gnu\"`.\nDefaults to a standard set when absent.",
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "package_command": {
           "anyOf": [
@@ -4585,24 +3829,15 @@
         },
         "pkg_config": {
           "description": "Generate a pkg-config `.pc` file (C FFI only).",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "precondition": {
           "description": "Shell command that must exit 0 for publish steps to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "sdist": {
           "description": "Build and include a Python sdist (default: `true`).",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "vendor_mode": {
           "anyOf": [
@@ -4617,10 +3852,7 @@
         },
         "wheel": {
           "description": "Build and include a Python wheel for this target (default: `true`).",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         }
       },
       "type": "object"
@@ -4628,10 +3860,7 @@
     "PythonConfig": {
       "properties": {
         "async_runtime": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "capsule_types": {
           "additionalProperties": {
@@ -4688,16 +3917,10 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "module_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "pip_dependencies": {
           "default": [],
@@ -4710,10 +3933,7 @@
         "pip_name": {
           "default": null,
           "description": "PyPI package name (e.g. `\"sample-markdown\"`). Used as the `[project] name` in\n`pyproject.toml` and to derive the `python-packages` list for maturin.\nDefaults to the crate name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "reexported_types": {
           "default": [],
@@ -4739,18 +3959,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).\nE.g., `run_wrapper = \"uv run --no-sync\"` turns `ruff format packages/python` into\n`uv run --no-sync ruff format packages/python`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scaffold_output": {
           "default": null,
           "description": "Override the scaffold output directory for this language's Cargo.toml and package files.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "sdist_include": {
           "description": "Extra paths to include in the maturin source distribution (sdist), emitted\nas `sdist-include` under `[tool.maturin]` in the scaffold-generated\n`pyproject.toml`. Entries are workspace-relative glob patterns such as\n`\"../../crates/sample-markdown/**/*\"` and pass through verbatim. Use this\nto bundle path-dependent workspace crates into the sdist so source builds\n(e.g. Alpine/musl PyPI installs) can compile from the published archive.\nEmpty by default.",
@@ -4762,10 +3976,7 @@
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "stubs": {
           "anyOf": [
@@ -4789,12 +4000,7 @@
       "type": "object"
     },
     "PythonDtoStyle": {
-      "enum": [
-        "dataclass",
-        "typed-dict",
-        "pydantic",
-        "msgspec"
-      ],
+      "enum": ["dataclass", "typed-dict", "pydantic", "msgspec"],
       "type": "string"
     },
     "RConfig": {
@@ -4802,10 +4008,7 @@
         "default_features": {
           "default": null,
           "description": "Whether the generated R Rust crate should enable the core crate's default features.\nDefaults to true. Set to false with an explicit `features` list for curated targets\nsuch as `wasm-target`.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "exclude_functions": {
           "default": [],
@@ -4852,16 +4055,10 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "package_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -4874,27 +4071,18 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
     },
     "RDtoStyle": {
-      "enum": [
-        "list",
-        "r6"
-      ],
+      "enum": ["list", "r6"],
       "type": "string"
     },
     "RawCrateConfig": {
@@ -4911,10 +4099,7 @@
         "auto_path_mappings": {
           "default": null,
           "description": "Automatically derive path mappings from source file locations.\nDefault: `true`.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "build_commands": {
           "additionalProperties": {
@@ -4933,10 +4118,7 @@
         "core_import": {
           "default": null,
           "description": "Rust import path for the core crate referenced from generated bindings.\nDefaults to the crate name with hyphens replaced by underscores.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "csharp": {
           "anyOf": [
@@ -5045,18 +4227,12 @@
         "error_constructor": {
           "default": null,
           "description": "Pattern for constructing error values from a String in trait bridges.\n`{msg}` is replaced with the format!(...) expression.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "error_type": {
           "default": null,
           "description": "Crate error type name (e.g. `\"SampleCrateError\"`). Used by trait-bridge\ngeneration. Defaults to `\"Error\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude": {
           "$ref": "#/$defs/ExcludeConfig",
@@ -5198,10 +4374,7 @@
           "items": {
             "$ref": "#/$defs/Language"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "lint": {
           "additionalProperties": {
@@ -5438,10 +4611,7 @@
         "version_from": {
           "default": null,
           "description": "File whose `[package] version` is the source of truth for this crate.\nDefaults to `\"Cargo.toml\"` (resolved relative to the alef.toml).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wasm": {
           "anyOf": [
@@ -5457,10 +4627,7 @@
         "workspace_root": {
           "default": null,
           "description": "Optional workspace root path for resolving `pub use` re-exports from\nsibling crates.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "zig": {
           "anyOf": [
@@ -5474,33 +4641,22 @@
           "default": null
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "ReadmeConfig": {
       "properties": {
         "banner_url": {
           "description": "Banner image URL used in README templates.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "config": {
           "description": "Deprecated: path to an external YAML config file. Prefer inline fields below.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "discord_url": {
           "description": "Discord invite URL used in README templates.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "languages": {
           "additionalProperties": true,
@@ -5509,16 +4665,10 @@
           "type": "object"
         },
         "output_pattern": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "snippets_dir": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "targets": {
           "additionalProperties": true,
@@ -5527,10 +4677,7 @@
           "type": "object"
         },
         "template_dir": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -5563,12 +4710,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "method",
-        "callback_param",
-        "callback_bound",
-        "callback_contract"
-      ],
+      "required": ["method", "callback_param", "callback_bound", "callback_contract"],
       "type": "object"
     },
     "RegistrationVariantSpec": {
@@ -5577,10 +4719,7 @@
         "doc": {
           "default": null,
           "description": "Optional documentation for the variant. When absent, backends emit a\ngeneric docstring referencing the base registration.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "fixed": {
           "additionalProperties": {
@@ -5597,15 +4736,10 @@
         "style": {
           "default": null,
           "description": "How backends should expose this variant's host-language surface.\n\nValid values (case-insensitive): `\"builder\"`, `\"verb_decorator\"`, `\"hybrid\"`.\nWhen absent, defaults to `\"hybrid\"` (both forms emitted), preserving\nbackward compatibility for consumers that have not yet migrated.\n\n- `\"builder\"` — emit only the decorator-factory form (`app.get(path)` returns a callable).\n- `\"verb_decorator\"` — emit only the direct method form (`app.get(path, handler)`).\n- `\"hybrid\"` — emit both forms (default).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "type": "object"
     },
     "RegistryConfig": {
@@ -5622,10 +4756,7 @@
         "github_repo": {
           "default": null,
           "description": "GitHub repository URL for downloading prebuilt artifacts (e.g., FFI\nshared libraries) from GitHub Releases.\n\nFalls back to `[scaffold] repository` when not set. Registry generators\nthat need a concrete release host should fail when no repository is\nconfigured instead of inventing publishable metadata.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "output": {
           "default": "test_apps",
@@ -5689,16 +4820,10 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "gem_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -5711,34 +4836,22 @@
         "required_ruby_version": {
           "default": null,
           "description": "Override the `required_ruby_version` constraint emitted into the gemspec. A single\nRubyGems requirement string (e.g. `\">= 3.2.0\"`). When unset, defaults to `\">= 3.2.0\"`\n(no upper bound, so the gem installs on Ruby 4.x).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "scaffold_output": {
           "default": null,
           "description": "Override the scaffold output directory for this language's Cargo.toml and package files.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "stubs": {
           "anyOf": [
@@ -5762,11 +4875,7 @@
       "type": "object"
     },
     "RubyDtoStyle": {
-      "enum": [
-        "struct",
-        "dry-struct",
-        "data"
-      ],
+      "enum": ["struct", "dry-struct", "data"],
       "type": "string"
     },
     "ScaffoldCargo": {
@@ -5790,10 +4899,7 @@
         "rustc_wrapper": {
           "default": null,
           "description": "Optional cargo rustc wrapper command, for example `.cargo/rustc-wrapper.sh`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "targets": {
           "$ref": "#/$defs/ScaffoldCargoTargets",
@@ -5825,9 +4931,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "value"
-          ],
+          "required": ["value"],
           "type": "object"
         }
       ],
@@ -5884,10 +4988,7 @@
           "description": "Opt-in workspace `.cargo/config.toml` management. When present, alef writes\nthe full file with hash-based drift detection. Absent = legacy behavior\n(wasm32 block only, create-if-missing, unmanaged)."
         },
         "description": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "generated_header": {
           "anyOf": [
@@ -5902,10 +5003,7 @@
           "description": "Generated-file header text overrides."
         },
         "homepage": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "keywords": {
           "default": [],
@@ -5915,16 +5013,10 @@
           "type": "array"
         },
         "license": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "repository": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -5935,42 +5027,27 @@
         "category": {
           "default": null,
           "description": "Match when the fixture's resolved category equals this string.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "id_glob": {
           "default": null,
           "description": "Match when the fixture's id matches this simple glob.\n\nOnly `*` (matches any run of characters) is supported. Use `id_prefix`\nfor plain prefix matches.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "id_prefix": {
           "default": null,
           "description": "Match when the fixture's id starts with this prefix.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "input_has": {
           "default": null,
           "description": "Match when the fixture's input object contains this key with a non-null value.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "tag": {
           "default": null,
           "description": "Match when the fixture's tags include this tag.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -5989,10 +5066,7 @@
         "constructor": {
           "default": null,
           "description": "Name of the constructor method (defaults to `\"new\"` when absent).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "entrypoints": {
           "default": [],
@@ -6005,10 +5079,7 @@
         "host_app_inner_accessor": {
           "default": null,
           "description": "Verbatim Rust expression that accesses the inner host-app value from the\ngenerated wrapper type's `self` receiver in verb-method emission.\n\nWhen the host-app wrapper type (e.g. the napi or wasm binding's `App` struct)\nwraps the real service owner behind a field (e.g. `Arc<Mutex<Owner>>`), set\nthis to the expression that unlocks or dereferences it so the generated\nverb methods can call `owner.{base_method}(...)` on the real type.\n\nExample:\n```toml\nhost_app_inner_accessor = \"self.inner.lock().expect(\\\"app mutex poisoned\\\")\"\n```\n\nWhen absent (the default), verb methods emit `self.{base_method}(...)` directly,\nwhich is correct when the generated wrapper IS the owner type.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "owner_type": {
           "description": "Name of the owner/builder type in the extracted surface (e.g. `\"App\"`).",
@@ -6031,9 +5102,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "owner_type"
-      ],
+      "required": ["owner_type"],
       "type": "object"
     },
     "SetupConfig": {
@@ -6062,10 +5131,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for setup to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "timeout_seconds": {
           "default": 1800,
@@ -6077,10 +5143,7 @@
         "workdir": {
           "default": null,
           "description": "Optional working directory (relative to repo root) for setup commands.\n\nWhen set, install commands run from `base_dir.join(workdir)` instead of\n`base_dir`. Required for languages whose manifest does not live at the\nworkspace root (Swift's `Package.swift`, Kotlin-Android's `gradlew`,\nDart's `pubspec.yaml`, Zig's `build.zig`). Defaults to `None` (run from\nrepo root).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -6113,10 +5176,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "name",
-        "sources"
-      ],
+      "required": ["name", "sources"],
       "type": "object"
     },
     "StreamingConfig": {
@@ -6138,18 +5198,12 @@
         "enabled": {
           "default": null,
           "description": "Optional opt-in/out equivalent to the legacy boolean form.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "item_type": {
           "default": null,
           "description": "Concrete tagged-union stream item type used by event assertions.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -6179,9 +5233,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "output"
-      ],
+      "required": ["output"],
       "type": "object"
     },
     "SwiftConfig": {
@@ -6205,10 +5257,7 @@
         "core_crate_override": {
           "default": null,
           "description": "Override the core Cargo dependency name and path for the Swift binding crate.\nWhen set, the binding `Cargo.toml` depends on this crate (resolved as\n`../../../crates/<override>`) instead of the umbrella `[crate.name]`.\nDefaults to unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude_extra_dependencies": {
           "default": [],
@@ -6270,42 +5319,27 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "min_ios_version": {
           "default": null,
           "description": "Minimum iOS deployment target. Defaults to `template_versions::toolchain::SWIFT_MIN_IOS` when unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "min_macos_version": {
           "default": null,
           "description": "Minimum macOS deployment target. Defaults to `template_versions::toolchain::SWIFT_MIN_MACOS` when unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "module_name": {
           "default": null,
           "description": "Swift module name (e.g. `\"MyLibrary\"`). Defaults to PascalCase of the crate name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "package_name": {
           "default": null,
           "description": "Swift package name. Defaults to the module name.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -6318,26 +5352,17 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "swift_bridge_version": {
           "default": null,
           "description": "swift-bridge version. Defaults to `template_versions::cargo::SWIFT_BRIDGE` when unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "target_dep_overrides": {
           "default": [],
@@ -6370,9 +5395,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "cfg"
-      ],
+      "required": ["cfg"],
       "type": "object"
     },
     "SyncConfig": {
@@ -6412,10 +5435,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for the test-app run to proceed; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "run": {
           "anyOf": [
@@ -6479,10 +5499,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for test to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -6503,11 +5520,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "path",
-        "search",
-        "replace"
-      ],
+      "required": ["path", "search", "replace"],
       "type": "object"
     },
     "ToolsConfig": {
@@ -6516,18 +5529,12 @@
         "node_package_manager": {
           "default": null,
           "description": "Node package manager. One of: `\"pnpm\"`, `\"npm\"`, `\"yarn\"`. Default: `\"pnpm\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "python_package_manager": {
           "default": null,
           "description": "Python package manager. One of: `\"uv\"`, `\"pip\"`, `\"poetry\"`. Default: `\"uv\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rust_dev_tools": {
           "default": null,
@@ -6535,10 +5542,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         }
       },
       "type": "object"
@@ -6554,18 +5558,12 @@
         "clear_fn": {
           "default": null,
           "description": "Name of the clear function to generate\n(e.g., `\"clear_ocr_backends\"`).\nOptional — when set, a host-language wrapper that removes ALL registered\nplugins of this type is emitted alongside `register_fn`. The function\ntakes no arguments and is typically used in test teardown.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "context_type": {
           "default": null,
           "description": "IR type name of the trait's context associated type (e.g., `\"NodeContext\"`).\n\nWhen set, backends skip generic record/enum codegen for this type and instead\nemit the richer visitor-specific version. Replaces the former literal\n`\"NodeContext\"` string comparisons scattered across backends.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "exclude_languages": {
           "default": [],
@@ -6586,66 +5584,42 @@
         "options_field": {
           "default": null,
           "description": "Field name on `options_type` that holds the bridge handle when\n`bind_via = \"options_field\"` (e.g., `\"visitor\"`). When omitted, defaults to\n`param_name`. Ignored when `bind_via = \"function_param\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "options_type": {
           "default": null,
           "description": "IR type name that owns the bridge field when `bind_via = \"options_field\"` (e.g.,\n`\"ConversionOptions\"`). Required in that mode; ignored otherwise.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "param_name": {
           "default": null,
           "description": "Parameter name override — when the extractor sanitizes the type (e.g., `VisitorHandle`\nbecomes `String` because it is a type alias over `Rc<RefCell<dyn Trait>>`), use the\nparameter name instead of the IR type to detect which parameter to bridge.\n\nFor example, `param_name = \"visitor\"` ensures that a sanitized `visitor: Option<String>`\nparameter is still treated as a bridge param for this trait.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "register_extra_args": {
           "default": null,
           "description": "Extra arguments to append to the `registry.register(arc, ...)` call.\nExample: `\"0\"` produces `registry.register(arc, 0)`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "register_fn": {
           "default": null,
           "description": "Name of the registration function to generate\n(e.g., `\"register_ocr_backend\"`).\nOptional — when set, a `#[pyfunction]` registration function is generated.\nWhen absent, only the wrapper struct and trait impl are emitted (per-call bridge pattern).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "registry_getter": {
           "default": null,
           "description": "Rust path to the registry getter function\n(e.g., `\"sample_core::plugins::registry::get_ocr_backend_registry\"`).\nOptional — when set, the generated registration function inserts the bridge into a registry.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "result_type": {
           "default": null,
           "description": "IR type name of the trait's result associated type (e.g., `\"VisitResult\"`).\n\nWhen set, backends skip generic record/enum codegen for this type and instead\nemit the richer visitor-specific version. Replaces the former literal\n`\"VisitResult\"` string comparisons scattered across backends.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "super_trait": {
           "default": null,
           "description": "Super-trait that requires forwarding (e.g., `\"Plugin\"`).\nWhen set, the bridge generates an `impl SuperTrait for Wrapper` block.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "trait_name": {
           "description": "Name of the Rust trait to bridge (e.g., `\"OcrBackend\"`).",
@@ -6654,23 +5628,15 @@
         "type_alias": {
           "default": null,
           "description": "Named type alias in the IR that maps to this bridge (e.g., `\"VisitorHandle\"`).\n\nWhen a function parameter has a `TypeRef::Named` matching this alias, code\ngenerators replace the parameter type with the language-native callback object\n(e.g., `Py<PyAny>` for Python) and emit wrapping code to construct the bridge.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "unregister_fn": {
           "default": null,
           "description": "Name of the unregister function to generate\n(e.g., `\"unregister_ocr_backend\"`).\nOptional — when set, a host-language wrapper that removes a previously\nregistered plugin from the registry is emitted alongside `register_fn`.\nThe function takes the plugin name as a string.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
-      "required": [
-        "trait_name"
-      ],
+      "required": ["trait_name"],
       "type": "object"
     },
     "TyposConfig": {
@@ -6751,10 +5717,7 @@
         },
         "precondition": {
           "description": "Shell command that must exit 0 for update to run; skip with warning on failure.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "update": {
           "anyOf": [
@@ -6811,18 +5774,12 @@
         "core_crate_override": {
           "default": null,
           "description": "Override the core Cargo dependency name and path for the WASM binding crate.\nWhen set, the binding `Cargo.toml` depends on this crate (resolved as\n`../<override>`) instead of the umbrella `[crate.name]`. Use this to point\nthe WASM binding at a wasm-safe sub-crate while other languages keep the\nfacade. Defaults to unset.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "crate_dir": {
           "default": null,
           "description": "Overrides the default `crates/{name}-wasm` formula for the crate directory.\nUseful when the Rust crate directory does not follow the alef convention\n(e.g., consumer strips a `-rs` suffix so actual crate dir is `crates/sample-markdown-wasm`\ninstead of `crates/sample-markdown-rs-wasm`). Used by setup, test, clean, and format tasks.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "custom_rust_modules": {
           "default": [],
@@ -6898,10 +5855,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "languages": {
           "default": [],
@@ -6914,10 +5868,7 @@
         "package_name": {
           "default": null,
           "description": "npm package name for the WASM package. Defaults to the Node package\nname with a trailing `-node` removed, plus `-wasm`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -6930,18 +5881,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations. When set, prepends this string to default\ncommands across all pipelines (lint, test, build, etc.).",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "source_crate_remaps": {
           "default": [],
@@ -6952,12 +5897,7 @@
           "type": "array"
         },
         "targets": {
-          "default": [
-            "web",
-            "bundler",
-            "nodejs",
-            "deno"
-          ],
+          "default": ["web", "bundler", "nodejs", "deno"],
           "description": "wasm-pack build targets to generate and publish. Each entry produces a\n`pkg/<target>` build plus a `build:wasm:<target>` script; `build:all`\nbuilds exactly this set, and `files`/`main`/`module`/`types` are derived\nfrom it. Every target embeds its own full copy of the wasm binary, so\nrestricting this to a single target (e.g. `[\"web\"]`) keeps the published\nnpm package small — the `web` ES module is consumed by browsers, CDNs,\nbundlers, Deno (`npm:`), and Node 22+. Valid entries: `web`, `bundler`,\n`nodejs`, `deno`. Defaults to all four for backward compatibility.",
           "items": {
             "type": "string"
@@ -6974,10 +5914,7 @@
         "type_prefix": {
           "default": null,
           "description": "Prefix for generated type names (e.g. \"Wasm\" produces `WasmConversionOptions`).\nDefaults to `\"Wasm\"`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "wasm_opt": {
           "default": [],
@@ -6997,10 +5934,7 @@
         "alef_version": {
           "default": null,
           "description": "Pinned alef CLI version (e.g. `\"0.13.0\"`). Used by the `install-alef`\nhelper to install the exact version this workspace expects.\n\nIn the legacy single-crate schema this lived at `version` at the top\nlevel. The new schema renames it to `[workspace] alef_version` so it\ncan never collide with any per-crate version field.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "build_commands": {
           "additionalProperties": {
@@ -7506,10 +6440,7 @@
           "items": {
             "type": "string"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "type": ["array", "null"]
         },
         "languages": {
           "default": [],
@@ -7520,10 +6451,7 @@
           "type": "array"
         },
         "module_name": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "rename_fields": {
           "additionalProperties": {
@@ -7536,18 +6464,12 @@
         "run_wrapper": {
           "default": null,
           "description": "Prefix wrapper for default tool invocations.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "serde_rename_all": {
           "default": null,
           "description": "Override the serde rename_all strategy for JSON field names (e.g. \"camelCase\", \"snake_case\").\nWhen set, this takes priority over the IR type-level serde_rename_all.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         }
       },
       "type": "object"
@@ -7667,9 +6589,7 @@
       "description": "Workspace-level shared defaults."
     }
   },
-  "required": [
-    "crates"
-  ],
+  "required": ["crates"],
   "title": "Alef configuration",
   "type": "object",
   "version": "0.40.0",

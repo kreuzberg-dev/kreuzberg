@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import {test} from "node:test";
+import { test } from "node:test";
 
-import {isNonCliArtifact, selectArchiveName} from "./install.js";
+import { isNonCliArtifact, selectArchiveName } from "./install.js";
 
 const TRIPLE = "aarch64-apple-darwin";
 
@@ -24,9 +24,10 @@ test("isNonCliArtifact rejects bindings/native-lib/bottle artifacts", () => {
 });
 
 test("isNonCliArtifact accepts standalone CLI archives", () => {
-  for (const name of ["xberg-cli-aarch64-apple-darwin.tar.gz",
-                      "cli-aarch64-apple-darwin.tar.gz",
-                      "liter-llm-1.7.4-aarch64-apple-darwin.tar.gz",
+  for (const name of [
+    "xberg-cli-aarch64-apple-darwin.tar.gz",
+    "cli-aarch64-apple-darwin.tar.gz",
+    "liter-llm-1.7.4-aarch64-apple-darwin.tar.gz",
   ]) {
     assert.equal(isNonCliArtifact(name), false, `should accept ${name}`);
   }
@@ -38,23 +39,15 @@ test("selectArchiveName picks the cli archive over an ffi archive", () => {
     "cli-aarch64-apple-darwin.tar.gz",
     "cli-x86_64-apple-darwin.tar.gz",
   ];
-  assert.equal(selectArchiveName(names, TRIPLE),
-               "cli-aarch64-apple-darwin.tar.gz");
+  assert.equal(selectArchiveName(names, TRIPLE), "cli-aarch64-apple-darwin.tar.gz");
 });
 
 test("selectArchiveName prefers a bin-name/cli archive among survivors", () => {
-  const names = [
-    "xberg-1.0.0-aarch64-apple-darwin.tar.gz",
-    "xberg-cli-aarch64-apple-darwin.tar.gz"
-  ];
-  assert.equal(selectArchiveName(names, TRIPLE),
-               "xberg-cli-aarch64-apple-darwin.tar.gz");
+  const names = ["xberg-1.0.0-aarch64-apple-darwin.tar.gz", "xberg-cli-aarch64-apple-darwin.tar.gz"];
+  assert.equal(selectArchiveName(names, TRIPLE), "xberg-cli-aarch64-apple-darwin.tar.gz");
 });
 
 test("selectArchiveName returns null when only non-CLI artifacts exist", () => {
-  const names = [
-    "crawlberg-ffi-v0.3.0-aarch64-apple-darwin.tar.gz",
-    "libfoo-nif-2.17-aarch64-apple-darwin.so.tar.gz"
-  ];
+  const names = ["crawlberg-ffi-v0.3.0-aarch64-apple-darwin.tar.gz", "libfoo-nif-2.17-aarch64-apple-darwin.so.tar.gz"];
   assert.equal(selectArchiveName(names, TRIPLE), null);
 });

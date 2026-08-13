@@ -8,7 +8,9 @@ public class ParsingException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new ParsingException with the given message. */
-  public ParsingException(final String message) { super(message); }
+  public ParsingException(final String message) {
+    super(message);
+  }
 
   /** Creates a new ParsingException with the given message and cause. */
   public ParsingException(final String message, final Throwable cause) {

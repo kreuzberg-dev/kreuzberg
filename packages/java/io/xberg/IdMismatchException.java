@@ -8,7 +8,9 @@ public class IdMismatchException extends LoadErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new IdMismatchException with the given message. */
-  public IdMismatchException(final String message) { super(message); }
+  public IdMismatchException(final String message) {
+    super(message);
+  }
 
   /** Creates a new IdMismatchException with the given message and cause. */
   public IdMismatchException(final String message, final Throwable cause) {

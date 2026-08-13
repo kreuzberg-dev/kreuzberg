@@ -3,10 +3,5 @@
   "name": "ocr-pdf-fast-b4-v1",
   "batch_size": 4,
   "ocr_enabled": true,
-  "fixtures": [
-    "pdf_non_searchable.json",
-    "pdf_ocr_test.json",
-    "pdf_scanned_ocr.json",
-    "pdf_image_only_german.json"
-  ]
+  "fixtures": ["pdf_non_searchable.json", "pdf_ocr_test.json", "pdf_scanned_ocr.json", "pdf_image_only_german.json"]
 }

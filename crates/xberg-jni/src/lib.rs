@@ -80,9 +80,9 @@ fn throw_jni_error(env: &mut Env<'_>, msg: &str) {
 
 fn run_or_throw<T, F>(env: &mut Env<'_>, f: F) -> Option<T>
 where
-    F: FnOnce() -> T + std::panic::UnwindSafe,
+    F: FnOnce(&mut Env<'_>) -> T,
 {
-    match std::panic::catch_unwind(f) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(env))) {
         Ok(v) => Some(v),
         Err(payload) => {
             let msg = payload
@@ -152,56 +152,56 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtract(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let input_str = match jstring_to_string(env, input) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let input_str = match jstring_to_string(env, input) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let input: core_crate::ExtractInput = match serde_json::from_str(&input_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config_str = match jstring_to_string(env, config) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let result = runtime().block_on(core_crate::extract(input, &config));
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-    };
-    let input: core_crate::ExtractInput = match serde_json::from_str(&input_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let config_str = match jstring_to_string(env, config) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| runtime().block_on(core_crate::extract(input, &config))),
-    ) else {
+    }) else {
         return std::ptr::null_mut();
     };
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
-        }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractBatch(
@@ -213,57 +213,63 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractBatch(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let inputs_str = match jstring_to_string(env, inputs) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let inputs_str = match jstring_to_string(env, inputs) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let inputs: Vec<core_crate::ExtractInput> = match serde_json::from_str(&inputs_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config_str = match jstring_to_string(env, config) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let result = runtime().block_on(core_crate::extract_batch(inputs, &config));
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-    };
-    let inputs: Vec<core_crate::ExtractInput> = match serde_json::from_str(&inputs_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let config_str = match jstring_to_string(env, config) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| runtime().block_on(core_crate::extract_batch(inputs, &config))),
-    ) else {
+    }) else {
         return std::ptr::null_mut();
     };
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
-        }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMapUrl(
     mut env: EnvUnowned,
@@ -274,49 +280,49 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMapUrl(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let uri = match jstring_to_string(env, uri) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let uri = match jstring_to_string(env, uri) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config_str = match jstring_to_string(env, config) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config: core_crate::UrlExtractionConfig = match serde_json::from_str(&config_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let result = runtime().block_on(core_crate::map_url(&uri, &config));
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-    };
-    let config_str = match jstring_to_string(env, config) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let config: core_crate::UrlExtractionConfig = match serde_json::from_str(&config_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| runtime().block_on(core_crate::map_url(&uri, &config))),
-    ) else {
+    }) else {
         return std::ptr::null_mut();
     };
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
-        }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListSupportedFormats(
@@ -326,29 +332,39 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListSupportedForma
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let v = core_crate::list_supported_formats();
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let v = core_crate::list_supported_formats();
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeEnsureInitialized(mut env: EnvUnowned, _class: JClass) {
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::extractors::ensure_initialized();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            ()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::extractors::ensure_initialized();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                ()
+            }
+            Ok(v) => {}
         }
-        Ok(v) => {}
-    }
+    }) else {
+        return ();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListEmbeddingBackends(
@@ -358,23 +374,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListEmbeddingBacke
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_embedding_backends();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_embedding_backends();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListDocumentExtractors(
@@ -384,23 +405,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListDocumentExtrac
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_document_extractors();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_document_extractors();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListOcrBackends(
@@ -410,23 +436,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListOcrBackends(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_ocr_backends();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_ocr_backends();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListPostProcessors(
@@ -436,23 +467,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListPostProcessors
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_post_processors();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_post_processors();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListRenderers(
@@ -462,23 +498,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListRenderers(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_renderers();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_renderers();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListRerankerBackends(
@@ -488,23 +529,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListRerankerBacken
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_reranker_backends();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_reranker_backends();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListTokenizerBackends(
@@ -514,23 +560,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListTokenizerBacke
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_tokenizer_backends();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_tokenizer_backends();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListValidators(
@@ -540,23 +591,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeListValidators(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result = core_crate::list_validators();
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result = core_crate::list_validators();
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClassifyChunks(
@@ -568,51 +624,55 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClassifyChunks(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let result_str = match jstring_to_string(env, result) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return ();
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let result_str = match jstring_to_string(env, result) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return ();
+            }
+        };
+        let result: core_crate::ExtractedDocument = match serde_json::from_str(&result_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return ();
+            }
+        };
+        let mut result = result;
+        let config_str = match jstring_to_string(env, config) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return ();
+            }
+        };
+        let config: core_crate::ChunkClassificationConfig = match serde_json::from_str(&config_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return ();
+            }
+        };
+        let result = runtime().block_on(core_crate::text::classification::classify_chunks(&mut result, &config));
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                ()
+            }
+            Ok(v) => {}
         }
-    };
-    let result: core_crate::ExtractedDocument = match serde_json::from_str(&result_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return ();
-        }
-    };
-    let mut result = result;
-    let config_str = match jstring_to_string(env, config) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return ();
-        }
-    };
-    let config: core_crate::ChunkClassificationConfig = match serde_json::from_str(&config_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return ();
-        }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| {
-            runtime().block_on(core_crate::text::classification::classify_chunks(&mut result, &config))
-        }),
-    ) else {
+    }) else {
         return ();
     };
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            ()
-        }
-        Ok(v) => {}
-    }
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFindUnmarkedClaims(
     mut env: EnvUnowned,
@@ -622,23 +682,34 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFindUnmarkedClaims
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let markdown = match jstring_to_string(env, markdown) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let markdown = match jstring_to_string(env, markdown) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let v = core_crate::find_unmarked_claims(&markdown);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let v = core_crate::find_unmarked_claims(&markdown);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeVerifyExcerpt(
     mut env: EnvUnowned,
@@ -649,23 +720,34 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeVerifyExcerpt(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let excerpt = match jstring_to_string(env, excerpt) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let excerpt = match jstring_to_string(env, excerpt) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return false;
+            }
+        };
+        let source_text = match jstring_to_string(env, source_text) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return false;
+            }
+        };
+        let v = core_crate::verify_excerpt(&excerpt, &source_text);
+        v
+    }) else {
+        return false;
     };
-    let source_text = match jstring_to_string(env, source_text) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return false;
-        }
-    };
-    let v = core_crate::verify_excerpt(&excerpt, &source_text);
-    v
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMaxSimScore(
     mut env: EnvUnowned,
@@ -676,37 +758,48 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMaxSimScore(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let query_str = match jstring_to_string(env, query) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return 0.0f64;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let query_str = match jstring_to_string(env, query) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return 0.0f64;
+            }
+        };
+        let query: core_crate::MultiVectorEmbedding = match serde_json::from_str(&query_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return 0.0f64;
+            }
+        };
+        let doc_str = match jstring_to_string(env, doc) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return 0.0f64;
+            }
+        };
+        let doc: core_crate::MultiVectorEmbedding = match serde_json::from_str(&doc_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return 0.0f64;
+            }
+        };
+        let v = core_crate::max_sim_score(&query, &doc);
+        v as jni::sys::jdouble
+    }) else {
+        return 0.0f64;
     };
-    let query: core_crate::MultiVectorEmbedding = match serde_json::from_str(&query_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return 0.0f64;
-        }
-    };
-    let doc_str = match jstring_to_string(env, doc) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return 0.0f64;
-        }
-    };
-    let doc: core_crate::MultiVectorEmbedding = match serde_json::from_str(&doc_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return 0.0f64;
-        }
-    };
-    let v = core_crate::max_sim_score(&query, &doc);
-    v as jni::sys::jdouble
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMaxSimRank(
     mut env: EnvUnowned,
@@ -717,43 +810,48 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMaxSimRank(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let query_str = match jstring_to_string(env, query) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let query_str = match jstring_to_string(env, query) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let query: core_crate::MultiVectorEmbedding = match serde_json::from_str(&query_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let docs_str = match jstring_to_string(env, docs) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let docs: Vec<core_crate::MultiVectorEmbedding> = match serde_json::from_str(&docs_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let v = core_crate::max_sim_rank(&query, &docs);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let query: core_crate::MultiVectorEmbedding = match serde_json::from_str(&query_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let docs_str = match jstring_to_string(env, docs) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let docs: Vec<core_crate::MultiVectorEmbedding> = match serde_json::from_str(&docs_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let v = core_crate::max_sim_rank(&query, &docs);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDoctor(
@@ -764,30 +862,41 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDoctor(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let config_str = match jstring_to_string(env, config) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let config_str = match jstring_to_string(env, config) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let v = core_crate::doctor(&config);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let config: core_crate::ExtractionConfig = match serde_json::from_str(&config_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let v = core_crate::doctor(&config);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeInstallPdfRenderDiagnostics(
     mut env: EnvUnowned,
@@ -796,9 +905,20 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeInstallPdfRenderDi
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let v = core_crate::pdf::render::install_pdf_render_diagnostics();
-    v
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let v = core_crate::pdf::render::install_pdf_render_diagnostics();
+        v
+    }) else {
+        return false;
+    };
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeTakePdfOxideRenderWarnings(
     mut env: EnvUnowned,
@@ -807,16 +927,27 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeTakePdfOxideRender
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let v = core_crate::pdf::render::take_pdf_oxide_render_warnings();
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let v = core_crate::pdf::render::take_pdf_oxide_render_warnings();
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    string_to_jstring(env, s)
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeBuildDecoderPromptTokens(
     mut env: EnvUnowned,
@@ -830,22 +961,33 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeBuildDecoderPrompt
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let v = core_crate::transcription::engine::build_decoder_prompt_tokens(
-        start_of_transcript as u32,
-        lang_id as u32,
-        transcribe as u32,
-        no_timestamps as u32,
-        timestamps,
-    );
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let v = core_crate::transcription::engine::build_decoder_prompt_tokens(
+            start_of_transcript as u32,
+            lang_id as u32,
+            transcribe as u32,
+            no_timestamps as u32,
+            timestamps,
+        );
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    string_to_jstring(env, s)
+    __jni_result
 }
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "windows",
+    all(target_os = "macos", target_arch = "x86_64")
+)))]
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeTimestampTokenToMs(
     mut env: EnvUnowned,
@@ -856,8 +998,13 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeTimestampTokenToMs
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let v = core_crate::transcription::engine::timestamp_token_to_ms(token_id as u32, timestamp_begin_id as u32);
-    v as jni::sys::jint
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        let v = core_crate::transcription::engine::timestamp_token_to_ms(token_id as u32, timestamp_begin_id as u32);
+        v as jni::sys::jint
+    }) else {
+        return 0;
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMetaSchemaParsePreset(
@@ -869,63 +1016,75 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMetaSchemaParsePre
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::MetaSchema = unsafe { &*(handle as *const core_crate::MetaSchema) };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
             return std::ptr::null_mut();
         }
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::MetaSchema = unsafe { &*(handle as *const core_crate::MetaSchema) };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let path: String = match req_map.get("path").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: path");
+                return std::ptr::null_mut();
+            }
+        };
+        let raw: Vec<u8> = match req_map.get("raw").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: raw");
+                return std::ptr::null_mut();
+            }
+        };
+        let result = client.parse_preset(&path, &raw);
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                std::ptr::null_mut()
+            }
+            Ok(v) => {
+                let s = match serde_json::to_string(&v) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
+        }
+    }) else {
+        return std::ptr::null_mut();
     };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let path: String = match req_map.get("path").and_then(|v| serde_json::from_value(v.clone()).ok()) {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: path");
-            return std::ptr::null_mut();
-        }
-    };
-    let raw: Vec<u8> = match req_map.get("raw").and_then(|v| serde_json::from_value(v.clone()).ok()) {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: raw");
-            return std::ptr::null_mut();
-        }
-    };
-    let result = client.parse_preset(&path, &raw);
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            std::ptr::null_mut()
-        }
-        Ok(v) => {
-            let s = match serde_json::to_string(&v) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
-        }
-    }
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFreeMetaSchema(
-    _env: EnvUnowned,
+    mut env: EnvUnowned,
     _class: JClass,
     handle: jlong,
 ) {
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
+    let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
+    let env = __jni_attach_guard.borrow_env_mut();
+    let Some(()) = run_or_throw(env, |_env| {
         if handle == 0 {
             return;
         }
@@ -934,7 +1093,9 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFreeMetaSchema(
         unsafe {
             let _ = Box::from_raw(handle as *mut core_crate::MetaSchema);
         }
-    }));
+    }) else {
+        return;
+    };
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryGet(
@@ -946,35 +1107,44 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryGet(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
             return std::ptr::null_mut();
         }
-    };
-    let id: String = match serde_json::from_str(&req_str) {
-        Ok(s) => s,
-        Err(_) => req_str,
-    };
-    let v = client.get(&id);
-    match v {
-        None => std::ptr::null_mut(),
-        Some(inner) => {
-            let s = match serde_json::to_string(&inner) {
-                Ok(s) => s,
-                Err(e) => {
-                    throw_jni_error(env, &format!("serialize: {e}"));
-                    return std::ptr::null_mut();
-                }
-            };
-            string_to_jstring(env, s)
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let id: String = match serde_json::from_str(&req_str) {
+            Ok(s) => s,
+            Err(_) => req_str,
+        };
+        let v = client.get(&id);
+        match v {
+            None => std::ptr::null_mut(),
+            Some(inner) => {
+                let s = match serde_json::to_string(&inner) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        throw_jni_error(env, &format!("serialize: {e}"));
+                        return std::ptr::null_mut();
+                    }
+                };
+                string_to_jstring(env, s)
+            }
         }
-    }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistrySummaries(
@@ -985,19 +1155,28 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistrySummaries(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
-    let v = client.summaries();
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
             return std::ptr::null_mut();
         }
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
+        let v = client.summaries();
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryLen(
@@ -1008,12 +1187,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryLen(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
-    let v = client.len();
-    v as jlong
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
+            return 0;
+        }
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
+        let v = client.len();
+        v as jlong
+    }) else {
+        return 0;
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryIsEmpty(
@@ -1024,12 +1212,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryIsEmpty(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
-    let v = client.is_empty();
-    v
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
+            return false;
+        }
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
+        let v = client.is_empty();
+        v
+    }) else {
+        return false;
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistrySampleBytes(
@@ -1041,52 +1238,61 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistrySampleByte
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
             return std::ptr::null_mut();
         }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let preset_id: String = match req_map
-        .get("preset_id")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: preset_id");
-            return std::ptr::null_mut();
-        }
-    };
-    let name: String = match req_map.get("name").and_then(|v| serde_json::from_value(v.clone()).ok()) {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: name");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.sample_bytes(&preset_id, &name);
-    match v {
-        None => std::ptr::null_mut(),
-        Some(bytes) => match env.byte_array_from_slice(bytes.as_ref()) {
-            Ok(arr) => {
-                use jni::objects::JObject;
-                JObject::from(arr).into_raw() as jbyteArray
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &core_crate::Registry = unsafe { &*(handle as *const core_crate::Registry) };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
             }
-            Err(_) => std::ptr::null_mut(),
-        },
-    }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let preset_id: String = match req_map
+            .get("preset_id")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: preset_id");
+                return std::ptr::null_mut();
+            }
+        };
+        let name: String = match req_map.get("name").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: name");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.sample_bytes(&preset_id, &name);
+        match v {
+            None => std::ptr::null_mut(),
+            Some(bytes) => match env.byte_array_from_slice(bytes.as_ref()) {
+                Ok(arr) => {
+                    use jni::objects::JObject;
+                    JObject::from(arr).into_raw() as jbyteArray
+                }
+                Err(_) => std::ptr::null_mut(),
+            },
+        }
+    }) else {
+        return std::ptr::null_mut();
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryExtendFromDir(
@@ -1098,34 +1304,46 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegistryExtendFrom
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // SAFETY: handle was allocated by the matching constructor shim and remains
-    // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
-    // ensures the handle outlives this call.
-    let client: &mut core_crate::Registry = unsafe { &mut *(handle as *mut core_crate::Registry) };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        if handle == 0 {
+            throw_jni_error(env, "native handle must not be zero");
             return 0;
         }
-    };
-    let dir = std::path::PathBuf::from(req_str);
-    let result = client.extend_from_dir(&dir);
-    match result {
-        Err(e) => {
-            throw_jni_error(env, &format!("{e}"));
-            0
+        // SAFETY: handle was allocated by the matching constructor shim and remains
+        // valid until nativeFree is called. The Kotlin AutoCloseable.close() guarantee
+        // ensures the handle outlives this call.
+        let client: &mut core_crate::Registry = unsafe { &mut *(handle as *mut core_crate::Registry) };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return 0;
+            }
+        };
+        let dir = std::path::PathBuf::from(req_str);
+        let result = client.extend_from_dir(&dir);
+        match result {
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                0
+            }
+            Ok(v) => v as jlong,
         }
-        Ok(v) => v as jlong,
-    }
+    }) else {
+        return 0;
+    };
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFreeRegistry(
-    _env: EnvUnowned,
+    mut env: EnvUnowned,
     _class: JClass,
     handle: jlong,
 ) {
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
+    let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
+    let env = __jni_attach_guard.borrow_env_mut();
+    let Some(()) = run_or_throw(env, |_env| {
         if handle == 0 {
             return;
         }
@@ -1134,7 +1352,9 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFreeRegistry(
         unsafe {
             let _ = Box::from_raw(handle as *mut core_crate::Registry);
         }
-    }));
+    }) else {
+        return;
+    };
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractionConfigNeedsImageData(
@@ -1145,24 +1365,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractionConfigNe
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::ExtractionConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ExtractionConfig deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.needs_image_data();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::ExtractionConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ExtractionConfig deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.needs_image_data();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractionConfigNeedsImageProcessing(
@@ -1173,24 +1398,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeExtractionConfigNe
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::ExtractionConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ExtractionConfig deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.needs_image_processing();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::ExtractionConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ExtractionConfig deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.needs_image_processing();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigListenAddr(
@@ -1201,24 +1431,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigListen
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.listen_addr();
+        string_to_jstring(env, v)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.listen_addr();
-    string_to_jstring(env, v)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigCorsAllowsAll(
@@ -1229,24 +1464,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigCorsAl
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.cors_allows_all();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.cors_allows_all();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigIsOriginAllowed(
@@ -1258,48 +1498,53 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigIsOrig
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
+                return false;
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return false;
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return false;
+            }
+        };
+        let origin: String = match req_map
+            .get("origin")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: origin");
+                return false;
+            }
+        };
+        let v = client.is_origin_allowed(&origin);
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
-            return false;
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return false;
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return false;
-        }
-    };
-    let origin: String = match req_map
-        .get("origin")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: origin");
-            return false;
-        }
-    };
-    let v = client.is_origin_allowed(&origin);
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigMaxRequestBodyMb(
@@ -1310,24 +1555,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigMaxReq
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return 0;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return 0;
+            }
+        };
+        let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
+                return 0;
+            }
+        };
+        let v = client.max_request_body_mb();
+        v as jlong
+    }) else {
+        return 0;
     };
-    let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
-            return 0;
-        }
-    };
-    let v = client.max_request_body_mb();
-    v as jlong
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigMaxMultipartFieldMb(
@@ -1338,24 +1588,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeServerConfigMaxMul
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return 0;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return 0;
+            }
+        };
+        let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
+                return 0;
+            }
+        };
+        let v = client.max_multipart_field_mb();
+        v as jlong
+    }) else {
+        return 0;
     };
-    let mut client: core_crate::ServerConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("ServerConfig deserialize: {e}"));
-            return 0;
-        }
-    };
-    let v = client.max_multipart_field_mb();
-    v as jlong
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFootnoteConfigWithParseCitations(
@@ -1367,55 +1622,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeFootnoteConfigWith
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::FootnoteConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("FootnoteConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let enabled: bool = match req_map
+            .get("enabled")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: enabled");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_parse_citations(enabled);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::FootnoteConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("FootnoteConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let enabled: bool = match req_map
-        .get("enabled")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: enabled");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_parse_citations(enabled);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDocumentStructureFinalizeNodeTypes(
@@ -1426,34 +1686,39 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDocumentStructureF
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::DocumentStructure = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("DocumentStructure deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let v = {
+            client.finalize_node_types();
+            client
+        };
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::DocumentStructure = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("DocumentStructure deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let v = {
-        client.finalize_node_types();
-        client
-    };
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDocumentStructureIsEmpty(
@@ -1464,24 +1729,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDocumentStructureI
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::DocumentStructure = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("DocumentStructure deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.is_empty();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::DocumentStructure = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("DocumentStructure deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.is_empty();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMetadataIsEmpty(
@@ -1492,24 +1762,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMetadataIsEmpty(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::Metadata = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("Metadata deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.is_empty();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::Metadata = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("Metadata deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.is_empty();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMultiVectorEmbeddingIsWellFormed(
@@ -1520,24 +1795,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeMultiVectorEmbeddi
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::MultiVectorEmbedding = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("MultiVectorEmbedding deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.is_well_formed();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::MultiVectorEmbedding = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("MultiVectorEmbedding deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.is_well_formed();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePageRangePageCount(
@@ -1548,24 +1828,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePageRangePageCount
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return 0;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return 0;
+            }
+        };
+        let mut client: core_crate::PageRange = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PageRange deserialize: {e}"));
+                return 0;
+            }
+        };
+        let v = client.page_count();
+        v as jni::sys::jint
+    }) else {
+        return 0;
     };
-    let mut client: core_crate::PageRange = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PageRange deserialize: {e}"));
-            return 0;
-        }
-    };
-    let v = client.page_count();
-    v as jni::sys::jint
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDoctorReportIsOk(
@@ -1576,24 +1861,29 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeDoctorReportIsOk(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return false;
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return false;
+            }
+        };
+        let mut client: core_crate::DoctorReport = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("DoctorReport deserialize: {e}"));
+                return false;
+            }
+        };
+        let v = client.is_ok();
+        v
+    }) else {
+        return false;
     };
-    let mut client: core_crate::DoctorReport = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("DoctorReport deserialize: {e}"));
-            return false;
-        }
-    };
-    let v = client.is_ok();
-    v
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithCacheDir(
@@ -1605,53 +1895,58 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let path: String = match req_map.get("path").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: path");
+                return std::ptr::null_mut();
+            }
+        };
+        let path = std::path::PathBuf::from(path);
+        let v = client.with_cache_dir(path);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let path: String = match req_map.get("path").and_then(|v| serde_json::from_value(v.clone()).ok()) {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: path");
-            return std::ptr::null_mut();
-        }
-    };
-    let path = std::path::PathBuf::from(path);
-    let v = client.with_cache_dir(path);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithTableDetection(
@@ -1663,55 +1958,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let enable: bool = match req_map
+            .get("enable")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: enable");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_table_detection(enable);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let enable: bool = match req_map
-        .get("enable")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: enable");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_table_detection(enable);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithAngleCls(
@@ -1723,55 +2023,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let enable: bool = match req_map
+            .get("enable")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: enable");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_angle_cls(enable);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let enable: bool = match req_map
-        .get("enable")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: enable");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_angle_cls(enable);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithDetDbThresh(
@@ -1783,55 +2088,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let threshold: f32 = match req_map
+            .get("threshold")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: threshold");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_det_db_thresh(threshold);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let threshold: f32 = match req_map
-        .get("threshold")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: threshold");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_det_db_thresh(threshold);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithDetDbBoxThresh(
@@ -1843,55 +2153,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let threshold: f32 = match req_map
+            .get("threshold")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: threshold");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_det_db_box_thresh(threshold);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let threshold: f32 = match req_map
-        .get("threshold")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: threshold");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_det_db_box_thresh(threshold);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithDetDbUnclipRatio(
@@ -1903,55 +2218,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let ratio: f32 = match req_map
+            .get("ratio")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: ratio");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_det_db_unclip_ratio(ratio);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let ratio: f32 = match req_map
-        .get("ratio")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: ratio");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_det_db_unclip_ratio(ratio);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithDetLimitSideLen(
@@ -1963,55 +2283,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let length: u32 = match req_map
+            .get("length")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: length");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_det_limit_side_len(length);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let length: u32 = match req_map
-        .get("length")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: length");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_det_limit_side_len(length);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithRecBatchNum(
@@ -2023,55 +2348,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let batch_size: u32 = match req_map
+            .get("batch_size")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: batch_size");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_rec_batch_num(batch_size);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let batch_size: u32 = match req_map
-        .get("batch_size")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: batch_size");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_rec_batch_num(batch_size);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithDropScore(
@@ -2083,55 +2413,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let score: f32 = match req_map
+            .get("score")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: score");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_drop_score(score);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let score: f32 = match req_map
-        .get("score")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: score");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_drop_score(score);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithPadding(
@@ -2143,55 +2478,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let padding: u32 = match req_map
+            .get("padding")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: padding");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_padding(padding);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let padding: u32 = match req_map
-        .get("padding")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: padding");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_padding(padding);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithModelTier(
@@ -2203,52 +2543,57 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let tier: String = match req_map.get("tier").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: tier");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_model_tier(tier);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let tier: String = match req_map.get("tier").and_then(|v| serde_json::from_value(v.clone()).ok()) {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: tier");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_model_tier(tier);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWithModelVersion(
@@ -2260,55 +2605,60 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativePaddleOcrConfigWit
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    // Value types have no native handle: the Kotlin data class owns its fields, so the
-    // receiver is rebuilt here from the JSON the caller serialised out of `this`.
-    let self_str = match jstring_to_string(env, self_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid self_json: {e}"));
-            return std::ptr::null_mut();
-        }
+    let Some(__jni_result) = run_or_throw(env, |env| {
+        // Value types have no native handle: the Kotlin data class owns its fields, so the
+        // receiver is rebuilt here from the JSON the caller serialised out of `this`.
+        let self_str = match jstring_to_string(env, self_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid self_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
+            Ok(v) => v,
+            Err(e) => {
+                throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_str = match jstring_to_string(env, request_json) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("invalid request_json: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
+            Ok(m) => m,
+            Err(e) => {
+                throw_jni_error(env, &format!("param deserialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        let version: String = match req_map
+            .get("version")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Some(v) => v,
+            None => {
+                throw_jni_error(env, "missing param: version");
+                return std::ptr::null_mut();
+            }
+        };
+        let v = client.with_model_version(version);
+        let s = match serde_json::to_string(&v) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("serialize: {e}"));
+                return std::ptr::null_mut();
+            }
+        };
+        string_to_jstring(env, s)
+    }) else {
+        return std::ptr::null_mut();
     };
-    let mut client: core_crate::PaddleOcrConfig = match serde_json::from_str(&self_str) {
-        Ok(v) => v,
-        Err(e) => {
-            throw_jni_error(env, &format!("PaddleOcrConfig deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_str = match jstring_to_string(env, request_json) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("invalid request_json: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let req_map: serde_json::Map<String, serde_json::Value> = match serde_json::from_str(&req_str) {
-        Ok(m) => m,
-        Err(e) => {
-            throw_jni_error(env, &format!("param deserialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    let version: String = match req_map
-        .get("version")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        Some(v) => v,
-        None => {
-            throw_jni_error(env, "missing param: version");
-            return std::ptr::null_mut();
-        }
-    };
-    let v = client.with_model_version(version);
-    let s = match serde_json::to_string(&v) {
-        Ok(s) => s,
-        Err(e) => {
-            throw_jni_error(env, &format!("serialize: {e}"));
-            return std::ptr::null_mut();
-        }
-    };
-    string_to_jstring(env, s)
+    __jni_result
 }
 
 // ---------------------------------------------------------------------------
@@ -3199,18 +3549,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterOcrBackend
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniOcrBackendBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniOcrBackendBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register OcrBackend: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::OcrBackend> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_ocr_backend(backend) {
             throw_jni_error(env, &format!("register OcrBackend: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::OcrBackend> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_ocr_backend(backend) {
-        throw_jni_error(env, &format!("register OcrBackend: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -3222,34 +3575,35 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterOcrBacke
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_ocr_backend(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_ocr_backend(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearOcrBackends(mut env: EnvUnowned, _class: JClass) {
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_ocr_backends)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_ocr_backends();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `PostProcessor` trait.
 pub struct JniPostProcessorBridge {
@@ -3731,18 +4085,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterPostProces
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniPostProcessorBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniPostProcessorBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register PostProcessor: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::PostProcessor> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_post_processor(backend) {
             throw_jni_error(env, &format!("register PostProcessor: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::PostProcessor> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_post_processor(backend) {
-        throw_jni_error(env, &format!("register PostProcessor: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -3754,34 +4111,35 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterPostProc
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_post_processor(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_post_processor(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearPostProcessors(mut env: EnvUnowned, _class: JClass) {
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_post_processors)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_post_processors();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `Validator` trait.
 pub struct JniValidatorBridge {
@@ -4137,18 +4495,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterValidator(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniValidatorBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniValidatorBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register Validator: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::Validator> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_validator(backend) {
             throw_jni_error(env, &format!("register Validator: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::Validator> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_validator(backend) {
-        throw_jni_error(env, &format!("register Validator: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -4160,34 +4521,35 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterValidato
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_validator(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_validator(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearValidators(mut env: EnvUnowned, _class: JClass) {
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_validators)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_validators();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `DocumentExtractor` trait.
 pub struct JniDocumentExtractorBridge {
@@ -4598,18 +4960,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterDocumentEx
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniDocumentExtractorBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniDocumentExtractorBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register DocumentExtractor: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::DocumentExtractor> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_document_extractor(backend) {
             throw_jni_error(env, &format!("register DocumentExtractor: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::DocumentExtractor> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_document_extractor(backend) {
-        throw_jni_error(env, &format!("register DocumentExtractor: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -4621,22 +4986,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterDocument
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_document_extractor(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_document_extractor(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearDocumentExtractors(
@@ -4646,12 +5010,14 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearDocumentExtra
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_document_extractors)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_document_extractors();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `EmbeddingBackend` trait.
 pub struct JniEmbeddingBackendBridge {
@@ -4896,18 +5262,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterEmbeddingB
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniEmbeddingBackendBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniEmbeddingBackendBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register EmbeddingBackend: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::EmbeddingBackend> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_embedding_backend(backend) {
             throw_jni_error(env, &format!("register EmbeddingBackend: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::EmbeddingBackend> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_embedding_backend(backend) {
-        throw_jni_error(env, &format!("register EmbeddingBackend: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -4919,22 +5288,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterEmbeddin
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_embedding_backend(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_embedding_backend(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearEmbeddingBackends(
@@ -4944,12 +5312,14 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearEmbeddingBack
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_embedding_backends)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_embedding_backends();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `Renderer` trait.
 pub struct JniRendererBridge {
@@ -5187,18 +5557,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterRenderer(
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniRendererBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniRendererBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register Renderer: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::Renderer> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_renderer(backend) {
             throw_jni_error(env, &format!("register Renderer: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::Renderer> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_renderer(backend) {
-        throw_jni_error(env, &format!("register Renderer: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -5210,34 +5583,35 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterRenderer
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_renderer(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_renderer(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearRenderers(mut env: EnvUnowned, _class: JClass) {
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_renderers)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_renderers();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `RerankerBackend` trait.
 pub struct JniRerankerBackendBridge {
@@ -5454,18 +5828,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterRerankerBa
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniRerankerBackendBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniRerankerBackendBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register RerankerBackend: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::RerankerBackend> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_reranker_backend(backend) {
             throw_jni_error(env, &format!("register RerankerBackend: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::RerankerBackend> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_reranker_backend(backend) {
-        throw_jni_error(env, &format!("register RerankerBackend: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -5477,22 +5854,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterReranker
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_reranker_backend(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_reranker_backend(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearRerankerBackends(
@@ -5502,12 +5878,14 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearRerankerBacke
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_reranker_backends)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_reranker_backends();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 /// Wrapper that bridges a foreign Jni object to the `TokenizerBackend` trait.
 pub struct JniTokenizerBackendBridge {
@@ -5713,18 +6091,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeRegisterTokenizerB
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-
-    let bridge = match JniTokenizerBackendBridge::new(env, impl_obj) {
-        Ok(b) => b,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let bridge = match JniTokenizerBackendBridge::new(env, impl_obj) {
+            Ok(b) => b,
+            Err(e) => {
+                throw_jni_error(env, &format!("register TokenizerBackend: {e}"));
+                return;
+            }
+        };
+        let backend: std::sync::Arc<dyn xberg::TokenizerBackend> = std::sync::Arc::new(bridge);
+        if let Err(e) = core_crate::register_tokenizer_backend(backend) {
             throw_jni_error(env, &format!("register TokenizerBackend: {e}"));
-            return;
         }
+    }) else {
+        return;
     };
-    let backend: std::sync::Arc<dyn xberg::TokenizerBackend> = std::sync::Arc::new(bridge);
-    if let Err(e) = core_crate::register_tokenizer_backend(backend) {
-        throw_jni_error(env, &format!("register TokenizerBackend: {e}"));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -5736,22 +6117,21 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeUnregisterTokenize
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let name = match jstring_to_string(env, name) {
-        Ok(s) => s,
-        Err(e) => {
+    let Some(()) = run_or_throw(env, |env| {
+        let name = match jstring_to_string(env, name) {
+            Ok(s) => s,
+            Err(e) => {
+                throw_jni_error(env, &format!("{e}"));
+                return;
+            }
+        };
+        let result = core_crate::unregister_tokenizer_backend(&name);
+        if let Err(e) = result {
             throw_jni_error(env, &format!("{e}"));
-            return;
         }
-    };
-    let Some(result) = run_or_throw(
-        env,
-        std::panic::AssertUnwindSafe(|| core_crate::unregister_tokenizer_backend(&name)),
-    ) else {
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearTokenizerBackends(
@@ -5761,10 +6141,12 @@ pub unsafe extern "system" fn Java_io_xberg_XbergBridge_nativeClearTokenizerBack
     // SAFETY: env is a valid EnvUnowned passed by the JVM for this native call frame.
     let mut __jni_attach_guard = unsafe { jni::AttachGuard::from_unowned(env.as_raw()) };
     let env = __jni_attach_guard.borrow_env_mut();
-    let Some(result) = run_or_throw(env, std::panic::AssertUnwindSafe(core_crate::clear_tokenizer_backends)) else {
+    let Some(()) = run_or_throw(env, |env| {
+        let result = core_crate::clear_tokenizer_backends();
+        if let Err(e) = result {
+            throw_jni_error(env, &format!("{e}"));
+        }
+    }) else {
         return;
     };
-    if let Err(e) = result {
-        throw_jni_error(env, &format!("{e}"));
-    }
 }

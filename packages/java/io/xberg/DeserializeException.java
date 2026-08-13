@@ -8,7 +8,9 @@ public class DeserializeException extends LoadErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new DeserializeException with the given message. */
-  public DeserializeException(final String message) { super(message); }
+  public DeserializeException(final String message) {
+    super(message);
+  }
 
   /** Creates a new DeserializeException with the given message and cause. */
   public DeserializeException(final String message, final Throwable cause) {

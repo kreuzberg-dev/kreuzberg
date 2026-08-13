@@ -10513,7 +10513,7 @@ pub const Registry = struct {
     pub fn is_empty(self: *Registry) error{HandleClosed}!bool {
     const handle = self._handle orelse return error.HandleClosed;
         const _result = c.xberg_registry_is_empty(@as(*c.XBERGRegistry, @ptrCast(handle)));
-        return _result;
+        return _result != 0;
     }
 
     /// Read raw sample bytes for `<preset_id>` from

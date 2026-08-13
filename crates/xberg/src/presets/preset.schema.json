@@ -43,15 +43,7 @@
     },
     "category": {
       "type": "string",
-      "enum": [
-        "finance",
-        "identity",
-        "legal",
-        "logistics",
-        "medical",
-        "hr",
-        "other"
-      ]
+      "enum": ["finance", "identity", "legal", "logistics", "medical", "hr", "other"]
     },
     "tags": {
       "type": "array",
@@ -66,10 +58,7 @@
     "schema": {
       "type": "object",
       "description": "JSON Schema (draft 2020-12) describing the structured output shape.",
-      "required": [
-        "type",
-        "properties"
-      ],
+      "required": ["type", "properties"],
       "properties": {
         "type": {
           "const": "object"
@@ -93,20 +82,12 @@
     },
     "merge_mode": {
       "type": "string",
-      "enum": [
-        "object_merge",
-        "array_concat",
-        "object_first"
-      ],
+      "enum": ["object_merge", "array_concat", "object_first"],
       "description": "Strategy for merging per-batch model outputs across paginated calls."
     },
     "preferred_call_mode": {
       "type": "string",
-      "enum": [
-        "text_only",
-        "vision_only",
-        "text_plus_vision"
-      ],
+      "enum": ["text_only", "vision_only", "text_plus_vision"],
       "description": "Default call mode suggested for this preset; heuristics may override."
     },
     "emit_citations": {
@@ -116,10 +97,7 @@
     "sample": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "input_path",
-        "output_path"
-      ],
+      "required": ["input_path", "output_path"],
       "properties": {
         "input_path": {
           "type": "string",

@@ -18,15 +18,16 @@ package io.xberg;
  * - `Serialization` - JSON/MessagePack serialization errors
  * - `MissingDependency` - Missing optional dependencies (tesseract, etc.)
  * - `Plugin` - Plugin-specific errors
- * - `LockPoisoned` - Mutex/RwLock poisoning (should not happen in normal
- * operation)
+ * - `LockPoisoned` - Mutex/RwLock poisoning (should not happen in normal operation)
  * - `UnsupportedFormat` - Unsupported MIME type or file format
  * - `Other` - Catch-all for uncommon errors
  */
 public class XbergErrorException extends Exception {
   private static final long serialVersionUID = 1L;
   /** Creates a new XbergErrorException with the given message. */
-  public XbergErrorException(final String message) { super(message); }
+  public XbergErrorException(final String message) {
+    super(message);
+  }
 
   /** Creates a new XbergErrorException with the given message and cause. */
   public XbergErrorException(final String message, final Throwable cause) {

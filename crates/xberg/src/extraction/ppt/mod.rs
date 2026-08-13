@@ -148,7 +148,6 @@ pub(crate) fn extract_ppt_text_with_options(
     // Defensive fallback for a stream with no `RT_SLIDE` containers at all
     // but with top-level text outside any slide/notes container: surface it
     // as a single synthetic slide rather than dropping it (matches the
-    // pre-existing `slide_count == 0` fallback).
     if slides.is_empty() && !loose_texts.is_empty() {
         slides.push(PptSlideText {
             number: 1,
@@ -845,8 +844,6 @@ mod tests {
     /// from a slide boundary.
     #[test]
     fn should_keep_one_slide_entry_when_slide_text_contains_internal_blank_line() {
-        // "Title\r\r" -> clean_ppt_text maps \r -> \n, giving "Title\n\n" ->
-        // .lines() folds the trailing terminator, leaving cleaned == "Title\n".
         let atom_with_trailing_blank_paragraph = text_chars_atom("Title\r\r");
         let atom_body = text_chars_atom("Body");
         let mut slide_children = Vec::new();

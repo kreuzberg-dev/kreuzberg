@@ -7,19 +7,9 @@
     "url": "git+https://github.com/xberg-io/xberg.git"
   },
   "main": "xberg-node.darwin-arm64.node",
-  "files": [
-    "xberg-node.darwin-arm64.node"
-  ],
-  "os": [
-    "darwin"
-  ],
-  "cpu": [
-    "arm64"
-  ],
-  "engines": {
-    "node": ">= 22"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "files": ["xberg-node.darwin-arm64.node"],
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "engines": { "node": ">= 22" },
+  "publishConfig": { "access": "public" }
 }

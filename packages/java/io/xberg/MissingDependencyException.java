@@ -8,13 +8,12 @@ public class MissingDependencyException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new MissingDependencyException with the given message. */
-  public MissingDependencyException(final String message) { super(message); }
+  public MissingDependencyException(final String message) {
+    super(message);
+  }
 
-  /**
-   * Creates a new MissingDependencyException with the given message and cause.
-   */
-  public MissingDependencyException(final String message,
-                                    final Throwable cause) {
+  /** Creates a new MissingDependencyException with the given message and cause. */
+  public MissingDependencyException(final String message, final Throwable cause) {
     super(message, cause);
   }
 }

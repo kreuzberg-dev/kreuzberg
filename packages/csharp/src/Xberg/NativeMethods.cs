@@ -10,52 +10,16 @@ internal static partial class NativeMethods {
   private const string LibName = "xberg_ffi";
 
   [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_document_extractor_free")]
-  internal static extern void DocumentExtractorFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_embedding_backend_free")]
-  internal static extern void EmbeddingBackendFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
              EntryPoint = "xberg_meta_schema_free")]
   internal static extern void MetaSchemaFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_ocr_backend_free")]
-  internal static extern void OcrBackendFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_plugin_free")]
-  internal static extern void PluginFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_post_processor_free")]
-  internal static extern void PostProcessorFree(IntPtr ptr);
 
   [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
              EntryPoint = "xberg_registry_free")]
   internal static extern void RegistryFree(IntPtr ptr);
 
   [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_renderer_free")]
-  internal static extern void RendererFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_reranker_backend_free")]
-  internal static extern void RerankerBackendFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
              EntryPoint = "xberg_token_counter_free")]
   internal static extern void TokenCounterFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_tokenizer_backend_free")]
-  internal static extern void TokenizerBackendFree(IntPtr ptr);
-
-  [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
-             EntryPoint = "xberg_validator_free")]
-  internal static extern void ValidatorFree(IntPtr ptr);
 
   [DllImport(LibName, CallingConvention = CallingConvention.Cdecl,
              EntryPoint = "xberg_chunk_classification_config_from_json")]

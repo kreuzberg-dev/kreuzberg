@@ -8,11 +8,11 @@ public class SchemaNotObjectException extends ResolveErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new SchemaNotObjectException with the given message. */
-  public SchemaNotObjectException(final String message) { super(message); }
+  public SchemaNotObjectException(final String message) {
+    super(message);
+  }
 
-  /**
-   * Creates a new SchemaNotObjectException with the given message and cause.
-   */
+  /** Creates a new SchemaNotObjectException with the given message and cause. */
   public SchemaNotObjectException(final String message, final Throwable cause) {
     super(message, cause);
   }

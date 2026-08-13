@@ -825,7 +825,6 @@ fn build_mixed_ocr_page_document(
     );
     attach_page_ocr_payload(&mut doc, backend_tables, Vec::new(), page_number);
     // `assemble_mixed_ocr_page_document`/`ocr_doc_to_paragraphs` still take the page
-    // height as a `u32` (see `crate::pdf::structure::adapters`); rounding to the
     // nearest point loses at most ~0.5pt, negligible next to the pixel-vs-point unit
     // bug this rescale fixes.
     let page_height_rounded_pt = page_height_pt.max(0.0).round() as u32;
@@ -855,6 +854,90 @@ fn formula_bbox_to_page_points(
         let (w_pt, h_pt) = crate::pdf::render::get_page_dimensions_pt(doc, page_idx);
         formula.bbox = Some(crate::pdf::render::pixel_bbox_to_pdf_points(bbox, px_w, px_h, w_pt, h_pt));
     }
+}
+
+/// Flip the bboxes of a document's table elements from a top-left to a bottom-left
+/// origin, in points.
+///
+/// `crate::pdf::structure::assembly::push_table_element` copies `Table::bounding_box`
+/// verbatim onto the table's element, so on the pipeline route that element inherits the
+/// table's raw top-left pixel rect while every paragraph element around it was already
+/// flipped (in pixel space) by `ocr_doc_to_paragraphs`. Once
+/// [`rescale_ocr_bboxes_to_page_points`] has put both in points, only the table elements
+/// still need the flip the single-backend route gives them before assembly.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn flip_table_element_bboxes_to_bottom_left(doc: &mut crate::types::internal::InternalDocument, page_height_pt: f32) {
+    let page_height_pt = f64::from(page_height_pt);
+    for element in &mut doc.elements {
+        if matches!(element.kind, crate::types::internal::ElementKind::Table { .. })
+            && let Some(bbox) = element.bbox.as_mut()
+        {
+            let (top, bottom) = (bbox.y0, bbox.y1);
+            bbox.y0 = page_height_pt - bottom;
+            bbox.y1 = page_height_pt - top;
+        }
+    }
+}
+
+/// Build the per-page structured document for the multi-stage pipeline / `vlm_fallback`
+/// route, converting its pixel-space bboxes into the PDF page's point space (#1423).
+///
+/// The single-backend route's [`build_mixed_ocr_page_document`] cannot be reused as a
+/// shared choke point: it takes the backend's *raw* OCR document and rescales it before
+/// running assembly, whereas `run_ocr_pipeline` returns a document `extract_with_ocr` has
+/// already assembled — its element bboxes carry the top-left -> bottom-left flip applied
+/// with the *raster's* pixel height, so re-assembling it here would flip them a second
+/// time. Only the pixel -> point scale is missing, which is exactly what
+/// [`rescale_ocr_bboxes_to_page_points`] applies to document elements (tables, whose
+/// bboxes are raw top-left pixel rects on this route too, still get the full
+/// scale-and-flip).
+///
+/// `raster_size_px` is the rendered page image this route OCR'd; `page_size_pt` is the
+/// page's own MediaBox size in points.
+#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+fn build_pipeline_ocr_page_document(
+    doc: Option<crate::types::internal::InternalDocument>,
+    mut tables: Vec<crate::types::Table>,
+    elements: Vec<crate::types::OcrElement>,
+    page_text: &str,
+    page_number: u32,
+    raster_size_px: (u32, u32),
+    page_size_pt: (f32, f32),
+) -> Option<crate::types::internal::InternalDocument> {
+    if doc.is_none() && tables.is_empty() && elements.is_empty() {
+        return None;
+    }
+    let mut doc = doc.unwrap_or_else(|| flat_ocr_page_document(page_text));
+    let (raster_width_px, raster_height_px) = raster_size_px;
+    let (page_width_pt, page_height_pt) = page_size_pt;
+
+    // Tables already folded into the assembled document are a separate allocation from
+    // the `tables` returned alongside it, so each is converted exactly once.
+    let mut assembled_tables = std::mem::take(&mut doc.tables);
+    rescale_ocr_bboxes_to_page_points(
+        Some(&mut doc),
+        &mut assembled_tables,
+        raster_width_px,
+        raster_height_px,
+        page_width_pt,
+        page_height_pt,
+    );
+    if raster_width_px != 0 && raster_height_px != 0 {
+        flip_table_element_bboxes_to_bottom_left(&mut doc, page_height_pt);
+    }
+    doc.tables = assembled_tables;
+    rescale_ocr_bboxes_to_page_points(
+        None,
+        &mut tables,
+        raster_width_px,
+        raster_height_px,
+        page_width_pt,
+        page_height_pt,
+    );
+
+    attach_page_ocr_payload(&mut doc, tables, elements, page_number);
+    normalize_mixed_ocr_document_page(&mut doc, page_number);
+    Some(doc)
 }
 
 /// Build mixed text from native extraction and per-page OCR results.
@@ -1042,18 +1125,26 @@ pub(crate) async fn extract_mixed_ocr_native(
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
                     // The pipeline's tables and OCR elements used to be dropped here (#60);
                     // they now ride along on the page's structured document. ~keep
-                    let page_doc = match doc {
-                        Some(doc) => Some(doc),
-                        None if tables.is_empty() && elements.is_empty() => None,
-                        None => Some(flat_ocr_page_document(&page_text)),
-                    };
-                    if let Some(mut d) = page_doc {
-                        attach_page_ocr_payload(&mut d, tables, elements, page_number);
+                    // This route also skipped the pixel -> point bbox conversion entirely,
+                    // so its bboxes stayed in raster pixels after #1423 fixed the
+                    // single-backend route; `build_pipeline_ocr_page_document` applies it.
+                    let raster_size_px = page_images
+                        .iter()
+                        .find(|(rendered_page, _)| *rendered_page == page_idx)
+                        .map_or((0, 0), |(_, image)| (image.width(), image.height()));
+                    if let Some(mut d) = build_pipeline_ocr_page_document(
+                        doc,
+                        tables,
+                        elements,
+                        &page_text,
+                        page_number,
+                        raster_size_px,
+                        page_dimensions_pt(&render_doc, page_idx),
+                    ) {
                         crate::core::diagnostics::dedup_extend_warnings(
                             &mut accumulated_warnings,
                             std::mem::take(&mut d.processing_warnings),
                         );
-                        normalize_mixed_ocr_document_page(&mut d, page_number);
                         structured_ocr_pages.insert(page_number, d);
                     }
                     ocr_results.insert(page_number, page_text);
@@ -1088,18 +1179,19 @@ pub(crate) async fn extract_mixed_ocr_native(
                         accumulated_formulas.push(formula);
                     }
                     let page_text = page_texts.into_iter().next().unwrap_or(text);
-                    let page_doc = match doc {
-                        Some(doc) => Some(doc),
-                        None if tables.is_empty() && elements.is_empty() => None,
-                        None => Some(flat_ocr_page_document(&page_text)),
-                    };
-                    if let Some(mut d) = page_doc {
-                        attach_page_ocr_payload(&mut d, tables, elements, page_number);
+                    if let Some(mut d) = build_pipeline_ocr_page_document(
+                        doc,
+                        tables,
+                        elements,
+                        &page_text,
+                        page_number,
+                        (image.width(), image.height()),
+                        page_dimensions_pt(&render_doc, *page_idx),
+                    ) {
                         crate::core::diagnostics::dedup_extend_warnings(
                             &mut accumulated_warnings,
                             std::mem::take(&mut d.processing_warnings),
                         );
-                        normalize_mixed_ocr_document_page(&mut d, page_number);
                         structured_ocr_pages.insert(page_number, d);
                     }
                     ocr_results.insert(page_number, page_text);
@@ -6666,7 +6758,6 @@ Name: ___
             .expect("the OCR paragraph must survive assembly");
         let bbox = hello_element.bbox.expect("assembled element must carry a bbox");
         // scale_x = scale_y = 0.36; top-left pixel (100, 200)-(300, 260) scales to
-        // points (36, 72)-(108, 93.6), then flips top-left -> bottom-left using the
         // page height in points (792, not the 2200px raster height):
         //   bottom = 792 - 93.6 = 698.4, top = 792 - 72 = 720.0
         // Tolerance of 1e-3 accounts for the f32 arithmetic `pdf_block_bbox`
@@ -6689,5 +6780,274 @@ Name: ___
             bbox.x1,
             bbox.y1
         );
+    }
+
+    /// An already-assembled pipeline page document: one paragraph whose bbox is in the
+    /// raster's *pixel* space with a bottom-left origin (`ocr_doc_to_paragraphs` has
+    /// already flipped it using the raster height), plus one table carrying the raw
+    /// top-left pixel rect that `push_table_element` copies onto its element.
+    ///
+    /// Raster is 1700x2200px; the paragraph sits 200-260px below the raster's top edge.
+    #[cfg(feature = "pdf")]
+    fn assembled_pipeline_page_document() -> crate::types::internal::InternalDocument {
+        use crate::types::extraction::BoundingBox;
+        use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
+
+        let mut doc = InternalDocument::new("pdf");
+        let mut paragraph = InternalElement::text(ElementKind::Paragraph, "hello", 0);
+        paragraph.bbox = Some(BoundingBox {
+            x0: 100.0,
+            y0: 1940.0,
+            x1: 300.0,
+            y1: 2000.0,
+        });
+        doc.push_element(paragraph);
+
+        let table_bbox = BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 400.0,
+        };
+        let mut table = ocr_table("| a | b |", 1);
+        table.bounding_box = Some(table_bbox);
+        let table_index = doc.push_table(table);
+        let mut table_element = InternalElement::text(ElementKind::Table { table_index }, "", 0);
+        table_element.bbox = Some(table_bbox);
+        doc.push_element(table_element);
+
+        doc
+    }
+
+    /// #529 (extends #1423) — the `vlm_fallback` / explicit-`pipeline` route builds its
+    /// page document without going through `build_mixed_ocr_page_document`, so it never
+    /// received the pixel -> point conversion at all and emitted raw raster pixels. The
+    /// paragraph bbox is scaled only (it is already bottom-left), the table bbox and its
+    /// element get the full scale-and-flip, and every box must fit on the page.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn should_emit_page_point_bboxes_when_ocr_runs_via_vlm_fallback_pipeline() {
+        const PAGE_WIDTH_PT: f64 = 612.0;
+        const PAGE_HEIGHT_PT: f64 = 792.0;
+
+        // 1700x2200px raster of a 612x792pt (US Letter) page: scale_x = scale_y = 0.36.
+        let page_doc = build_pipeline_ocr_page_document(
+            Some(assembled_pipeline_page_document()),
+            Vec::new(),
+            Vec::new(),
+            "hello",
+            4,
+            (1700, 2200),
+            (PAGE_WIDTH_PT as f32, PAGE_HEIGHT_PT as f32),
+        )
+        .expect("a pipeline document must produce a page document");
+
+        let paragraph = page_doc
+            .elements
+            .iter()
+            .find(|element| element.text == "hello")
+            .expect("the pipeline paragraph must survive");
+        let bbox = paragraph.bbox.expect("paragraph must keep its bbox");
+        assert_eq!(bbox.x0, 36.0);
+        assert_eq!(bbox.y0, 698.4);
+        assert_eq!(bbox.x1, 108.0);
+        assert_eq!(bbox.y1, 720.0);
+        // The defining symptom of #1423 is a box that cannot fit on the page: unconverted,
+        // this paragraph reports y1 = 2000 against a 792pt page.
+        assert!(
+            bbox.x1 <= PAGE_WIDTH_PT && bbox.y1 <= PAGE_HEIGHT_PT,
+            "paragraph bbox must fit within the page, got ({}, {})-({}, {})",
+            bbox.x0,
+            bbox.y0,
+            bbox.x1,
+            bbox.y1
+        );
+
+        let table_bbox = page_doc.tables[0]
+            .bounding_box
+            .expect("the table must keep its bounding box");
+        assert_eq!(table_bbox.x0, 36.0);
+        assert_eq!(table_bbox.y0, 648.0, "bottom = 792 - 400 * 0.36");
+        assert_eq!(table_bbox.x1, 108.0);
+        assert_eq!(table_bbox.y1, 720.0, "top = 792 - 200 * 0.36");
+        assert!(
+            table_bbox.x1 <= PAGE_WIDTH_PT && table_bbox.y1 <= PAGE_HEIGHT_PT,
+            "table bbox must fit within the page, got ({}, {})-({}, {})",
+            table_bbox.x0,
+            table_bbox.y0,
+            table_bbox.x1,
+            table_bbox.y1
+        );
+
+        let table_element_bbox = page_doc
+            .elements
+            .iter()
+            .find(|element| matches!(element.kind, crate::types::internal::ElementKind::Table { .. }))
+            .and_then(|element| element.bbox)
+            .expect("the table element must keep its bbox");
+        assert_eq!(
+            (
+                table_element_bbox.x0,
+                table_element_bbox.y0,
+                table_element_bbox.x1,
+                table_element_bbox.y1
+            ),
+            (36.0, 648.0, 108.0, 720.0),
+            "the table element must report the same bottom-left point rect as its table"
+        );
+    }
+
+    /// #529 — a pipeline stage that produced only a table (no structured document) must
+    /// still get a page document whose table bbox is in page points, and a stage that
+    /// produced nothing structured must still produce no document at all.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn should_convert_pipeline_table_bboxes_when_no_structured_document_is_returned() {
+        use crate::types::extraction::BoundingBox;
+
+        let mut table = ocr_table("| a | b |", 1);
+        table.bounding_box = Some(BoundingBox {
+            x0: 100.0,
+            y0: 200.0,
+            x1: 300.0,
+            y1: 400.0,
+        });
+
+        let page_doc = build_pipeline_ocr_page_document(
+            None,
+            vec![table],
+            Vec::new(),
+            "scanned prose",
+            2,
+            (1700, 2200),
+            (612.0, 792.0),
+        )
+        .expect("a pipeline result with a table must produce a page document");
+
+        assert_eq!(page_doc.tables.len(), 1);
+        assert_eq!(page_doc.tables[0].page_number, 2, "table renumbered onto its page");
+        let bbox = page_doc.tables[0].bounding_box.expect("table bbox must survive");
+        assert_eq!((bbox.x0, bbox.y0, bbox.x1, bbox.y1), (36.0, 648.0, 108.0, 720.0));
+
+        assert!(
+            build_pipeline_ocr_page_document(
+                None,
+                Vec::new(),
+                Vec::new(),
+                "text only",
+                2,
+                (1700, 2200),
+                (612.0, 792.0)
+            )
+            .is_none(),
+            "a text-only pipeline result must keep the raw-text replacement path"
+        );
+    }
+
+    /// A single-page PDF with a landscape 200x100pt MediaBox and the given `/Rotate`.
+    ///
+    /// Mirrors the fixture builder in `layout_runner`'s tests, which is where the
+    /// rotation convention exercised below is established.
+    #[cfg(feature = "pdf")]
+    fn rotated_landscape_pdf(rotation: i64) -> Vec<u8> {
+        use lopdf::{Document, Object, Stream, dictionary};
+
+        let mut document = Document::with_version("1.5");
+        let pages_id = document.new_object_id();
+        let page_id = document.new_object_id();
+        let content_id = document.add_object(Stream::new(dictionary! {}, Vec::new()));
+
+        let mut page = dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 200.into(), 100.into()],
+            "Resources" => dictionary! {},
+            "Contents" => content_id,
+        };
+        page.set("Rotate", rotation);
+        document.objects.insert(page_id, Object::Dictionary(page));
+
+        document.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![page_id.into()],
+                "Count" => 1,
+            }),
+        );
+
+        let catalog_id = document.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        document.trailer.set("Root", catalog_id);
+
+        let mut bytes = Vec::new();
+        document.save_to(&mut bytes).expect("fixture PDF must serialize");
+        bytes
+    }
+
+    /// #530 — on a page with `/Rotate` 90 or 270 the OCR bbox conversion must still land
+    /// inside the page. `pdf_oxide` renders such a page in *displayed* orientation (with
+    /// width and height swapped relative to the MediaBox), but every OCR route rasterizes
+    /// through `normalize_rendered_page_for_ocr`, which applies the inverse quarter turn
+    /// and hands OCR a raster back in raw MediaBox orientation — the same convention
+    /// `layout_runner::render_layout_chunk` encodes by using the raw MediaBox dimensions
+    /// whenever `normalize_for_ocr` is set. `page_dimensions_pt` also returns the raw
+    /// MediaBox, so the two agree and no axis swap belongs in the conversion.
+    ///
+    /// This test pins that agreement: it fails if the raster stops being MediaBox-oriented
+    /// or if a swap is introduced into the conversion, either of which puts rotated-page
+    /// boxes off the page.
+    #[cfg(feature = "pdf")]
+    #[test]
+    fn should_convert_ocr_bboxes_within_page_bounds_on_rotated_pages() {
+        for rotation in [90, 270] {
+            let bytes = rotated_landscape_pdf(rotation);
+            let rendered = render_selected_pages_for_ocr(&bytes, &[0]).expect("rotated page must render for OCR");
+            let (_, image) = rendered.first().expect("page 0 must be rendered");
+            let (raster_width_px, raster_height_px) = (image.width(), image.height());
+
+            let document = pdf_oxide::PdfDocument::from_bytes(bytes.clone()).expect("fixture PDF must open");
+            let (page_width_pt, page_height_pt) = page_dimensions_pt(&document, 0);
+            assert_eq!(
+                (page_width_pt, page_height_pt),
+                (200.0, 100.0),
+                "/Rotate {rotation}: page_dimensions_pt reports the raw MediaBox"
+            );
+            assert!(
+                raster_width_px > raster_height_px,
+                "/Rotate {rotation}: the OCR raster must keep the MediaBox's landscape \
+                 orientation, got {raster_width_px}x{raster_height_px}"
+            );
+
+            // A table box covering the whole raster must convert to exactly the whole page.
+            let mut tables = [ocr_table("| a | b |", 1)];
+            tables[0].bounding_box = Some(crate::types::extraction::BoundingBox {
+                x0: 0.0,
+                y0: 0.0,
+                x1: f64::from(raster_width_px),
+                y1: f64::from(raster_height_px),
+            });
+            rescale_ocr_bboxes_to_page_points(
+                None,
+                &mut tables,
+                raster_width_px,
+                raster_height_px,
+                page_width_pt,
+                page_height_pt,
+            );
+
+            let bbox = tables[0].bounding_box.expect("table bbox must survive rescale");
+            assert_eq!(
+                (bbox.x0, bbox.y0, bbox.x1, bbox.y1),
+                (0.0, 0.0, 200.0, 100.0),
+                "/Rotate {rotation}: a full-raster box must map onto the full page"
+            );
+            assert!(
+                bbox.x1 <= f64::from(page_width_pt) && bbox.y1 <= f64::from(page_height_pt),
+                "/Rotate {rotation}: converted bbox must fit within the page"
+            );
+        }
     }
 }

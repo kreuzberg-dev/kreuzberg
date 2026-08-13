@@ -7,22 +7,10 @@
     "url": "git+https://github.com/xberg-io/xberg.git"
   },
   "main": "xberg-node.linux-x64-musl.node",
-  "files": [
-    "xberg-node.linux-x64-musl.node"
-  ],
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "x64"
-  ],
-  "libc": [
-    "musl"
-  ],
-  "engines": {
-    "node": ">= 22"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "files": ["xberg-node.linux-x64-musl.node"],
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "libc": ["musl"],
+  "engines": { "node": ">= 22" },
+  "publishConfig": { "access": "public" }
 }

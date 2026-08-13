@@ -22,7 +22,7 @@ This will setup the dependencies, and pre-commit hooks via `poly`.
 - to compile the WASM bindings, you will need [WASI SDK](https://github.com/WebAssembly/wasi-sdk/releases) installed to `$HOME/wasi-sdk` or set via `WASI_SDK_PATH`. This is optional.
 - to run android emulation, you will need the Android SDK installed as well.
 
-- Install these on run the e2e tests for specific langauges - on a need basis:
+- Install these to run the e2e tests for specific languages - on a need basis:
 
 | Language | Version | Tool                                     |
 | -------- | ------- | ---------------------------------------- |

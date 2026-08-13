@@ -8,7 +8,9 @@ public class TimeoutException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new TimeoutException with the given message. */
-  public TimeoutException(final String message) { super(message); }
+  public TimeoutException(final String message) {
+    super(message);
+  }
 
   /** Creates a new TimeoutException with the given message and cause. */
   public TimeoutException(final String message, final Throwable cause) {

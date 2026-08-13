@@ -12,10 +12,7 @@
   "bin": {
     "xberg": "bin/xberg.js"
   },
-  "files": [
-    "bin/",
-    "install.js"
-  ],
+  "files": ["bin/", "install.js"],
   "type": "module",
   "publishConfig": {
     "access": "public"

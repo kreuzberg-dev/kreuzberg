@@ -7,7 +7,9 @@ package io.xberg;
 public class LoadErrorException extends Exception {
   private static final long serialVersionUID = 1L;
   /** Creates a new LoadErrorException with the given message. */
-  public LoadErrorException(final String message) { super(message); }
+  public LoadErrorException(final String message) {
+    super(message);
+  }
 
   /** Creates a new LoadErrorException with the given message and cause. */
   public LoadErrorException(final String message, final Throwable cause) {

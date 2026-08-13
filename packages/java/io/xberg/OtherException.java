@@ -8,7 +8,9 @@ public class OtherException extends XbergErrorException {
   private static final long serialVersionUID = 1L;
 
   /** Creates a new OtherException with the given message. */
-  public OtherException(final String message) { super(message); }
+  public OtherException(final String message) {
+    super(message);
+  }
 
   /** Creates a new OtherException with the given message and cause. */
   public OtherException(final String message, final Throwable cause) {

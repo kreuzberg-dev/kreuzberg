@@ -10,15 +10,14 @@
 // modules are supplied at require time instead, via NODE_PATH (see
 // `scripts/ci/wasm/run-crate-tests.sh`). ~keep
 module.exports = new Proxy(
-    {
-      system : () => -1,
-      mkstemp : () => -1,
+  {
+    system: () => -1,
+    mkstemp: () => -1,
+  },
+  {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      return () => {};
     },
-    {
-      get(target, prop) {
-        if (prop in target)
-          return target[prop];
-        return () => {};
-      },
-    },
+  },
 );

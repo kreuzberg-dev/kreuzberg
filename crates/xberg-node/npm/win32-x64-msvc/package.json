@@ -7,19 +7,9 @@
     "url": "git+https://github.com/xberg-io/xberg.git"
   },
   "main": "xberg-node.win32-x64-msvc.node",
-  "files": [
-    "xberg-node.win32-x64-msvc.node"
-  ],
-  "os": [
-    "win32"
-  ],
-  "cpu": [
-    "x64"
-  ],
-  "engines": {
-    "node": ">= 22"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "files": ["xberg-node.win32-x64-msvc.node"],
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "engines": { "node": ">= 22" },
+  "publishConfig": { "access": "public" }
 }
