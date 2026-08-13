@@ -876,9 +876,9 @@ fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
     let from_magic = detect_mime_type_from_bytes(&header).ok()?;
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
     if (from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument."))
-        && let Some(odf_mime) = detect_odf_mime_from_zip(std::fs::File::open(path).ok()?)
+        && let Some(package_mime) = detect_zip_mimetype_entry(std::fs::File::open(path).ok()?)
     {
-        return (odf_mime != extension_mime).then(|| odf_mime.to_string());
+        return (package_mime != extension_mime).then(|| package_mime.to_string());
     }
 
     if from_magic == PLAIN_TEXT_MIME_TYPE {
@@ -944,7 +944,7 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
 
         #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
         if mime_type.starts_with("application/vnd.oasis.opendocument.") {
-            return Ok(detect_odf_mime_from_zip(std::io::Cursor::new(content))
+            return Ok(detect_zip_mimetype_entry(std::io::Cursor::new(content))
                 .unwrap_or(ZIP_MIME_TYPE)
                 .to_string());
         }
@@ -1047,8 +1047,8 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
 
     const HWPX_MARKER: &[u8] = b"Contents/content.hpf";
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-    if let Some(odf_mime) = detect_odf_mime_from_zip(std::io::Cursor::new(content)) {
-        return Some(odf_mime);
+    if let Some(package_mime) = detect_zip_mimetype_entry(std::io::Cursor::new(content)) {
+        return Some(package_mime);
     }
 
     if contains_subsequence(content, HWPX_MARKER) {
@@ -1082,8 +1082,16 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
     None
 }
 
+/// Read the `mimetype` entry a ZIP-based document package declares.
+///
+/// OpenDocument and HWPX both store their own media type in an uncompressed
+/// `mimetype` entry, which is the format's authoritative identifier. An HWPX
+/// package that carries no `Contents/content.hpf` is still identified here.
+/// A package with two `mimetype` entries is rejected rather than guessed at.
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-fn detect_odf_mime_from_zip<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
+fn detect_zip_mimetype_entry<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
+    /// The value an HWPX package stores in its `mimetype` entry.
+    const HWPX_PACKAGE_MIMETYPE: &[u8] = b"application/hwp+zip";
     const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
 
     let limits = SecurityLimits::default();
@@ -1112,6 +1120,7 @@ fn detect_odf_mime_from_zip<R: Read + Seek>(mut reader: R) -> Option<&'static st
         value if value == ODT_MIME_TYPE.as_bytes() => Some(ODT_MIME_TYPE),
         value if value == ODP_MIME_TYPE.as_bytes() => Some(ODP_MIME_TYPE),
         value if value == ODS_MIME_TYPE.as_bytes() => Some(ODS_MIME_TYPE),
+        value if value == HWPX_PACKAGE_MIMETYPE => Some(HWPX_MIME_TYPE),
         _ => None,
     }
 }
@@ -1401,6 +1410,31 @@ mod tests {
             "FictionBook semantic text.",
         )
         .await;
+    }
+
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[test]
+    fn should_detect_hwpx_without_a_content_hpf_from_its_mimetype_entry() {
+        // Real Hangul packages carry `version.xml` and `Contents/section0.xml`
+        // but no `Contents/content.hpf`, so only the `mimetype` entry names them.
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+            let stored =
+                zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            writer.start_file("mimetype", stored).unwrap();
+            std::io::Write::write_all(&mut writer, b"application/hwp+zip").unwrap();
+            writer
+                .start_file("Contents/section0.xml", zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut writer, b"<hs:sec/>").unwrap();
+            writer.finish().unwrap();
+        }
+
+        assert_eq!(
+            detect_mime_type_from_bytes(&buffer).unwrap(),
+            "application/haansofthwpx"
+        );
     }
 
     #[test]

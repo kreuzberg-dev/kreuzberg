@@ -83,7 +83,79 @@ fn mime_to_format(mime: &str) -> Cow<'static, str> {
     }
 }
 
-fn build_hwpx_internal_document(doc: unhwp::model::Document, mime_type: &str) -> InternalDocument {
+/// Collect the LaTeX of every equation, one `Vec` per section, in document order.
+///
+/// `unhwp` reads an equation only when it sits in a paragraph-level `<hp:ctrl>`;
+/// its run reader drops `<hp:equation>`. Hangul writes the equation into the run,
+/// so a real document loses every formula. Reading the section XML through the
+/// crate's own container keeps the archive, the section order and the script
+/// conversion with `unhwp`, and adds only the search for one element.
+fn collect_section_formulas(content: &[u8]) -> Vec<Vec<String>> {
+    use quick_xml::events::Event;
+
+    let Ok(mut container) = unhwp::hwpx::HwpxContainer::from_bytes(content.to_vec()) else {
+        return Vec::new();
+    };
+    let Ok(section_paths) = container.list_sections() else {
+        return Vec::new();
+    };
+
+    let mut per_section = Vec::with_capacity(section_paths.len());
+    for path in &section_paths {
+        let Ok(xml) = container.read_file(path) else {
+            per_section.push(Vec::new());
+            continue;
+        };
+
+        let mut formulas = Vec::new();
+        let mut reader = quick_xml::Reader::from_str(&xml);
+        let mut in_equation = false;
+        let mut in_script = false;
+        let mut script = String::new();
+        loop {
+            match reader.read_event() {
+                Ok(Event::Start(e)) => match local_name(e.name().as_ref()) {
+                    "equation" | "eqEdit" => in_equation = true,
+                    "script" if in_equation => in_script = true,
+                    _ => {}
+                },
+                Ok(Event::Text(t)) if in_script => {
+                    script.push_str(&String::from_utf8_lossy(t.as_ref()));
+                }
+                Ok(Event::End(e)) => match local_name(e.name().as_ref()) {
+                    "script" => in_script = false,
+                    "equation" | "eqEdit" => {
+                        let latex = unhwp::equation::to_latex(std::mem::take(&mut script).trim());
+                        if !latex.trim().is_empty() {
+                            formulas.push(latex.trim().to_string());
+                        }
+                        in_equation = false;
+                    }
+                    _ => {}
+                },
+                Ok(Event::Eof) | Err(_) => break,
+                _ => {}
+            }
+        }
+        per_section.push(formulas);
+    }
+    per_section
+}
+
+/// Return the local part of a possibly prefixed XML qualified name.
+fn local_name(qname: &[u8]) -> &str {
+    let name = std::str::from_utf8(qname).unwrap_or("");
+    match name.rsplit_once(':') {
+        Some((_, local)) => local,
+        None => name,
+    }
+}
+
+fn build_hwpx_internal_document(
+    doc: unhwp::model::Document,
+    mime_type: &str,
+    section_formulas: &[Vec<String>],
+) -> InternalDocument {
     let mut builder = InternalDocumentBuilder::new("hwpx");
     builder.set_mime_type(Cow::Owned(mime_type.to_string()));
 
@@ -122,7 +194,7 @@ fn build_hwpx_internal_document(doc: unhwp::model::Document, mime_type: &str) ->
     let mut image_index: usize = 0;
     let mut footnote_counter: u32 = 0;
 
-    for section in &doc.sections {
+    for (section_index, section) in doc.sections.iter().enumerate() {
         // Section headers/footers (`unhwp::model::Section::header`/`footer`) previously
         // went unread entirely — only `section.content` was visited (#96). ~keep
         if let Some(header_paragraphs) = &section.header {
@@ -227,6 +299,12 @@ fn build_hwpx_internal_document(doc: unhwp::model::Document, mime_type: &str) ->
                 }
             }
         }
+
+        // The scan sees every equation, wherever it sits, so it is the only
+        // source of formula elements; the model path handles the text spacing.
+        for latex in section_formulas.get(section_index).into_iter().flatten() {
+            builder.push_formula(latex, None, None);
+        }
     }
 
     builder.build()
@@ -309,10 +387,9 @@ fn build_paragraph_content(
                     .clone()
                     .unwrap_or_else(|| unhwp::equation::to_latex(&eq.script));
                 // An HWP equation is an object rather than inline notation, so it
-                // becomes its own element and leaves the paragraph text, the shape
-                // DOCX and PPTX use for a math run.
+                // leaves the paragraph text, the shape DOCX and PPTX use for a math
+                // run. `collect_section_formulas` emits the element for it.
                 if !latex.trim().is_empty() {
-                    builder.push_formula(latex.trim(), None, None);
                     after_equation = true;
                 }
             }
@@ -441,7 +518,8 @@ impl InternalDocumentExtractor for HwpxExtractor {
 
         let doc = unhwp::parse_bytes(content)
             .map_err(|e| crate::XbergError::parsing(format!("Failed to parse HWPX: {e}")))?;
-        Ok(build_hwpx_internal_document(doc, mime_type))
+        let section_formulas = collect_section_formulas(content);
+        Ok(build_hwpx_internal_document(doc, mime_type, &section_formulas))
     }
 
     fn supported_mime_types(&self) -> &[&str] {
@@ -478,7 +556,7 @@ mod tests {
         section.footer = Some(vec![Paragraph::text("Page footer text")]);
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let header = internal
             .elements
@@ -506,7 +584,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let body = internal
             .elements
@@ -537,7 +615,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let elem = internal
             .elements
@@ -558,8 +636,8 @@ mod tests {
         );
     }
 
-    /// An equation is an object, so its LaTeX becomes a formula element ahead of
-    /// the paragraph and leaves the paragraph's own text.
+    /// An equation is an object, so its LaTeX becomes a formula element and
+    /// leaves the paragraph's own text.
     #[test]
     fn test_equation_becomes_a_formula_element() {
         let mut doc = Document::new();
@@ -570,7 +648,8 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let section_formulas = vec![vec!["\\frac{a}{b}".to_string()]];
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &section_formulas);
 
         let formulas: Vec<&str> = internal
             .elements
@@ -601,7 +680,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let para = internal
             .elements
@@ -622,7 +701,8 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let section_formulas = vec![vec!["\\frac{a}{b}".to_string()]];
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &section_formulas);
 
         let formulas: Vec<&str> = internal
             .elements
@@ -652,7 +732,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let table_elem = internal
             .elements
@@ -690,7 +770,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let table_elem = internal
             .elements
@@ -721,7 +801,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let definition = internal
             .elements
@@ -753,7 +833,7 @@ mod tests {
         doc.sections.push(section);
         // Deliberately leave `doc.resources` empty: "bin0" is never registered.
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let warnings = hwpx_warnings(&internal);
         assert_eq!(warnings.len(), 1, "expected exactly one hwpx warning, got {warnings:?}");
@@ -782,7 +862,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         assert!(
             hwpx_warnings(&internal).is_empty(),
@@ -819,7 +899,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         let warnings = hwpx_warnings(&internal);
         assert_eq!(warnings.len(), 1, "expected exactly one hwpx warning, got {warnings:?}");
@@ -848,7 +928,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx");
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
 
         assert!(
             hwpx_warnings(&internal).is_empty(),
