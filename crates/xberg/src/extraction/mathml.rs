@@ -615,10 +615,15 @@ fn is_private_use(c: char) -> bool {
 /// Collect an `mfenced` element: `open`/`close`/`separators` attributes plus
 /// one element per fenced argument.
 fn collect_fenced(node: Node, budget: &mut SecurityBudget) -> Result<MmlNode, SecurityError> {
-    let open = node.attribute("open").unwrap_or("(").to_string();
-    let close = node.attribute("close").unwrap_or(")").to_string();
+    // A fence may be a private use codepoint, which OpenOffice writes for the
+    // bracket shapes of its own font. It has no meaning to a renderer, so it is
+    // dropped the way it is in element text.
+    let strip = |value: &str| -> String { value.chars().filter(|c| !is_private_use(*c)).collect() };
+    let open = node.attribute("open").map(strip).unwrap_or_else(|| "(".to_string());
+    let close = node.attribute("close").map(strip).unwrap_or_else(|| ")".to_string());
     let sep = node
         .attribute("separators")
+        .map(strip)
         .and_then(|s| s.chars().next())
         .unwrap_or(',')
         .to_string();
@@ -1031,7 +1036,8 @@ mod tests {
     #[test]
     fn test_private_use_characters_are_dropped() {
         let xml = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>\
-<mi>F</mi><mo>\u{E09E}</mo><mn>1</mn><mo>\u{E09F}</mo></mrow></math>";
+<mi>F</mi><mo>\u{E09E}</mo><mn>1</mn><mo>\u{E09F}</mo>\
+<mfenced open=\"\u{E09E}\" close=\"\u{E09F}\"><mn>2</mn></mfenced></mrow></math>";
 
         let mut budget = SecurityBudget::with_defaults();
         let latex = convert_mathml_str_to_latex(xml, &mut budget).expect("converts");
