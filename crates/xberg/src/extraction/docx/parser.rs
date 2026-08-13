@@ -1443,6 +1443,16 @@ fn push_or_defer_page_break(
 
 /// Handle a `<w:br>` event (`Event::Start` or `Event::Empty`).
 ///
+/// The page-break counters a break event updates together.
+///
+/// They travel as one value because they describe one thing: how many breaks are
+/// waiting to be placed, and whether text has been seen since the last one.
+struct PageBreakState<'a> {
+    pending_table_page_breaks: &'a mut u32,
+    pending_paragraph_page_breaks: &'a mut u32,
+    text_since_page_break: &'a mut bool,
+}
+
 /// A `page`-type break outside a table records a `DocumentElement::PageBreak`; any
 /// other break type (`column`, `textWrapping`, or no `w:type` at all) inserts a
 /// newline into the current run instead (#224).
@@ -1459,10 +1469,13 @@ fn apply_break(
     current_run: &mut Option<Run>,
     current_paragraph: &Option<Paragraph>,
     elements: &mut Vec<DocumentElement>,
-    pending_table_page_breaks: &mut u32,
-    pending_paragraph_page_breaks: &mut u32,
-    text_since_page_break: &mut bool,
+    breaks: PageBreakState<'_>,
 ) {
+    let PageBreakState {
+        pending_table_page_breaks,
+        pending_paragraph_page_breaks,
+        text_since_page_break,
+    } = breaks;
     let mut is_page_break = false;
     for attr in e.attributes().flatten() {
         if attr.key.as_ref() == b"w:type" && attr.value.as_ref() == b"page" {
@@ -2064,9 +2077,11 @@ impl<R: Read + Seek> DocxParser<R> {
                                 &mut current_run,
                                 &current_paragraph,
                                 &mut out.elements,
-                                &mut pending_table_page_breaks,
-                                &mut pending_paragraph_page_breaks,
-                                &mut text_since_page_break,
+                                PageBreakState {
+                                    pending_table_page_breaks: &mut pending_table_page_breaks,
+                                    pending_paragraph_page_breaks: &mut pending_paragraph_page_breaks,
+                                    text_since_page_break: &mut text_since_page_break,
+                                },
                             );
                         }
                         b"w:lastRenderedPageBreak" => {
@@ -2139,9 +2154,11 @@ impl<R: Read + Seek> DocxParser<R> {
                                 &mut current_run,
                                 &current_paragraph,
                                 &mut out.elements,
-                                &mut pending_table_page_breaks,
-                                &mut pending_paragraph_page_breaks,
-                                &mut text_since_page_break,
+                                PageBreakState {
+                                    pending_table_page_breaks: &mut pending_table_page_breaks,
+                                    pending_paragraph_page_breaks: &mut pending_paragraph_page_breaks,
+                                    text_since_page_break: &mut text_since_page_break,
+                                },
                             );
                         }
                         b"w:tab" => {
