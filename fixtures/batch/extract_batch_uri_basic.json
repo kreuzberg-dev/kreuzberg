@@ -42,6 +42,11 @@
   "assertions": [
     {
       "type": "not_error"
+    },
+    {
+      "type": "count_min",
+      "value": 2,
+      "field": "results"
     }
   ]
 }
