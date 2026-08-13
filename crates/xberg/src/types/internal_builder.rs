@@ -180,6 +180,22 @@ impl InternalDocumentBuilder {
         page: Option<u32>,
         bbox: Option<BoundingBox>,
     ) -> u32 {
+        // A cell keeps its equation in the cell, so the equation cannot also be
+        // an element without emptying the cell or repeating it beside the table.
+        // The formula list is still expected to hold every formula in the
+        // document, so the cell's math is recorded in the side channel.
+        for row in cells {
+            for cell in row {
+                for latex in display_math_spans(cell) {
+                    self.doc.formulas.push(crate::types::Formula {
+                        latex,
+                        bbox: None,
+                        page,
+                    });
+                }
+            }
+        }
+
         let markdown = crate::rendering::common::render_table_markdown(cells);
         let table = Table {
             cells: cells.to_vec(),
@@ -664,6 +680,39 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use std::borrow::Cow;
+
+    /// A cell keeps its equation, and the equation still reaches the formula
+    /// list: a caller asking for the formulas of a document gets all of them.
+    #[test]
+    fn test_table_cell_math_reaches_the_formula_list_and_stays_in_the_cell() {
+        let mut b = InternalDocumentBuilder::new("docx");
+        let cells = vec![
+            vec!["Area".to_string(), "$$A=\\pi r^{2}$$".to_string()],
+            vec!["Roots".to_string(), "$$x=\\frac{-b}{2a}$$".to_string()],
+        ];
+        b.push_table_from_cells(&cells, None, None);
+        let doc = b.build();
+
+        let latex: Vec<&str> = doc.formulas.iter().map(|f| f.latex.as_str()).collect();
+        assert_eq!(latex, vec!["A=\\pi r^{2}", "x=\\frac{-b}{2a}"]);
+
+        let table = doc.tables.first().expect("the table survives");
+        assert!(
+            table.cells[0][1].contains("A=\\pi r^{2}"),
+            "the cell keeps its equation: {:?}",
+            table.cells[0][1]
+        );
+    }
+
+    /// A price is not mathematics, so a lone `$` must not open a formula.
+    #[test]
+    fn test_table_cell_currency_is_not_a_formula() {
+        let mut b = InternalDocumentBuilder::new("docx");
+        let cells = vec![vec!["Widget".to_string(), "$5 each, $7 boxed".to_string()]];
+        b.push_table_from_cells(&cells, None, None);
+
+        assert!(b.build().formulas.is_empty(), "currency must not become a formula");
+    }
 
     #[test]
     fn test_empty_builder() {
@@ -1219,4 +1268,25 @@ mod tests {
         );
         assert_eq!(doc.images.len(), 2, "both stored images retained");
     }
+}
+
+/// Return the LaTeX of every `$$...$$` span in a table cell.
+///
+/// A cell renders its math delimited, so the delimiters mark where each formula
+/// starts and ends. Inline `$...$` is left alone: a cell holding a price reads
+/// the same as a cell holding one-character math, and inline math stays in its
+/// sentence everywhere else.
+fn display_math_spans(cell: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = cell;
+    while let Some(start) = rest.find("$$") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("$$") else { break };
+        let latex = after[..end].trim();
+        if !latex.is_empty() {
+            out.push(latex.to_string());
+        }
+        rest = &after[end + 2..];
+    }
+    out
 }
