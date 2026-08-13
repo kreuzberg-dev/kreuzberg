@@ -14,7 +14,7 @@
 //! not depend on how any recogniser numbers its output.
 //!
 //! Usage:
-//!   cargo test -p xberg --features "xml,svg" --test diagram_dot_ground_truth -- --nocapture
+//!   cargo test -p xberg --features "xml,svg,pdf" --test diagram_dot_ground_truth -- --nocapture
 
 #![allow(clippy::print_stdout, clippy::print_stderr)] // ~keep: test binaries print by design
 #![cfg(all(feature = "xml", feature = "svg"))]
