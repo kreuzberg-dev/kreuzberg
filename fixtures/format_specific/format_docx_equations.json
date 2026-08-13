@@ -1,0 +1,49 @@
+{
+	"id": "format_docx_equations",
+	"category": "format_specific",
+	"description": "DOCX equations extract to LaTeX math in markdown output",
+	"docs": {
+		"topic": "format_specific",
+		"title": "DOCX equations extract to LaTeX math in markdown output",
+		"description": "DOCX equations extract to LaTeX math in markdown output",
+		"side_effects": "server"
+	},
+	"tags": ["format_specific", "docx", "formula", "math"],
+	"call": "extract",
+	"input": {
+		"mock_responses": [
+			{
+				"path": "/docx/equations.docx",
+				"status_code": 200,
+				"headers": {
+					"content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+				},
+				"body_file": "../test_documents/docx/equations.docx"
+			}
+		],
+		"extract_input": {
+			"kind": "uri",
+			"uri": "$mock_url/docx/equations.docx",
+			"mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			"filename": "equations.docx"
+		}
+	},
+	"config": {
+		"output_format": "markdown"
+	},
+	"assertions": [
+		{
+			"type": "not_error"
+		},
+		{
+			"type": "min_length",
+			"field": "results[0].content",
+			"value": 20
+		},
+		{
+			"type": "contains",
+			"field": "results[0].content",
+			"value": "$"
+		}
+	]
+}
