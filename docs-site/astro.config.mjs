@@ -290,6 +290,10 @@ export default defineConfig({
               },
               { label: "CLI Reference", slug: "reference/cli" },
               { label: "MCP Reference", slug: "reference/mcp" },
+              {
+                label: "Batch Examples (prototype)",
+                slug: "reference/examples/batch",
+              },
               { label: "Benchmarks", link: "https://xberg.io/benchmarks" },
             ],
           },

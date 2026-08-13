@@ -130,6 +130,85 @@ use utoipa::OpenApi;
             crate::api::types::OpenWebDocumentMetadata,
             crate::api::types::DoclingCompatResponse,
             crate::api::types::DoclingCompatDocument,
+            // Second-order nested schemas: reachable only through fields on the
+            // "transitive closure" types above (`Metadata::pages`/`::format`,
+            // `PageContent::layout_regions`/`::hierarchy`, `ExtractedImage::qr_codes`,
+            // the post-processor output fields on `ExtractedDocument` — redaction,
+            // revisions, classification, entities, summary, URIs, PDF
+            // annotations/forms — and `Chunk`'s sparse/late-interaction embeddings).
+            // Same rule as above: an unlisted type here leaves its `$ref` dangling
+            // (#1424). ~keep
+            crate::types::page::PageStructure,
+            crate::types::page::PageUnitType,
+            crate::types::page::PageBoundary,
+            crate::types::page::PageInfo,
+            crate::types::page::LayoutRegion,
+            crate::types::page::PageHierarchy,
+            crate::types::page::HierarchicalBlock,
+            crate::types::extraction::ChunkType,
+            crate::types::extraction::HeadingContext,
+            crate::types::extraction::HeadingLevel,
+            crate::types::extraction::PageSpan,
+            crate::types::extraction::ImageKind,
+            crate::types::qr::QrCode,
+            crate::types::qr::QrBoundingBox,
+            crate::types::classification::ClassificationLabel,
+            crate::types::entity::EntityCategory,
+            crate::types::form_field::FormFieldType,
+            crate::types::redaction::RedactionFinding,
+            crate::types::redaction::RedactionStrategy,
+            crate::types::redaction::PiiCategory,
+            crate::types::revisions::DiffLine,
+            crate::types::revisions::CellChange,
+            crate::types::revisions::PropertyChange,
+            crate::types::revisions::RevisionKind,
+            crate::types::revisions::RevisionAnchor,
+            crate::types::revisions::RevisionDelta,
+            crate::types::annotations::PdfAnnotationType,
+            crate::types::uri::UriKind,
+            crate::types::summary::SummaryStrategy,
+            crate::types::formats::ImagePreprocessingMetadata,
+            crate::SparseEmbedding,
+            crate::MultiVectorEmbedding,
+            // `Metadata::format`'s discriminated-union target and its format-specific
+            // variants. `PdfMetadata` (feature `pdf`), `DocxMetadata`/`BibtexMetadata`/
+            // `CitationMetadata`/`FictionBookMetadata`/`DbfMetadata`/`EpubMetadata`
+            // (feature `office`), `JatsMetadata` (feature `xml`), and `AudioMetadata`
+            // (feature `transcription-types`) are registered by the matching gated
+            // `OpenApi` document below since their struct definitions are themselves
+            // `#[cfg]`-gated; every other variant type here compiles unconditionally
+            // under `api` regardless of which format feature is enabled, since only the
+            // `FormatMetadata` *variant* — not the struct — is feature-gated. ~keep
+            crate::types::metadata::FormatMetadata,
+            crate::types::metadata::ExcelMetadata,
+            crate::types::metadata::EmailMetadata,
+            crate::types::metadata::PptxMetadata,
+            crate::types::metadata::ArchiveMetadata,
+            crate::types::metadata::ImageMetadata,
+            crate::types::metadata::XmlMetadata,
+            crate::types::metadata::TextMetadata,
+            crate::types::metadata::TextDirection,
+            crate::types::metadata::HeaderMetadata,
+            crate::types::metadata::LinkMetadata,
+            crate::types::metadata::LinkType,
+            crate::types::metadata::ImageMetadataType,
+            crate::types::metadata::ImageType,
+            crate::types::metadata::StructuredData,
+            crate::types::metadata::StructuredDataType,
+            crate::types::metadata::HtmlMetadata,
+            crate::types::metadata::OcrMetadata,
+            crate::types::metadata::CsvMetadata,
+            crate::types::metadata::PstMetadata,
+            crate::types::metadata::ErrorMetadata,
+            crate::types::metadata::BibtexMetadata,
+            crate::types::metadata::CitationMetadata,
+            crate::types::metadata::YearRange,
+            crate::types::metadata::FictionBookMetadata,
+            crate::types::metadata::DbfMetadata,
+            crate::types::metadata::DbfFieldInfo,
+            crate::types::metadata::JatsMetadata,
+            crate::types::metadata::ContributorRole,
+            crate::types::metadata::EpubMetadata,
         )
     ),
     tags(
@@ -156,21 +235,58 @@ pub struct ApiDoc;
 
 #[cfg(all(feature = "api", feature = "tree-sitter"))]
 #[derive(OpenApi)]
-#[openapi(components(schemas(crate::types::metadata::CodeDataAttribute, crate::types::metadata::CodeDataNodeKind)))]
+#[openapi(components(schemas(
+    crate::types::metadata::CodeDataAttribute,
+    crate::types::metadata::CodeDataNodeKind,
+    crate::types::metadata::CodeMetadata,
+    crate::types::metadata::CodeChunkInfo,
+    crate::types::metadata::CodeDataNode,
+)))]
 #[cfg_attr(alef, alef(skip))]
 struct TreeSitterSchemas;
 
 #[cfg(all(feature = "api", feature = "heuristics"))]
 #[derive(OpenApi)]
-#[openapi(components(schemas(crate::heuristics::confidence::ExtractionConfidence)))]
+#[openapi(components(schemas(
+    crate::heuristics::confidence::ExtractionConfidence,
+    crate::heuristics::confidence::SchemaCompliance,
+)))]
 #[cfg_attr(alef, alef(skip))]
 struct HeuristicsSchemas;
 
 #[cfg(all(feature = "api", any(feature = "keywords-yake", feature = "keywords-rake")))]
 #[derive(OpenApi)]
-#[openapi(components(schemas(crate::keywords::types::Keyword)))]
+#[openapi(components(schemas(crate::keywords::types::Keyword, crate::keywords::types::KeywordAlgorithm,)))]
 #[cfg_attr(alef, alef(skip))]
 struct KeywordSchemas;
+
+// `PdfMetadata` lives in `crate::pdf::metadata`, a module gated on the `pdf` feature
+// (unlike the `office`/`xml`/`transcription-types` format-metadata structs, which are
+// unconditional and registered directly on `ApiDoc` above — only their `FormatMetadata`
+// *variant* is feature-gated). Reachable via `Metadata::format` when `pdf` is enabled. ~keep
+#[cfg(all(feature = "api", feature = "pdf"))]
+#[derive(OpenApi)]
+#[openapi(components(schemas(crate::pdf::metadata::PdfMetadata)))]
+#[cfg_attr(alef, alef(skip))]
+struct PdfSchemas;
+
+// `DocxMetadata` (unlike its `office`-gated siblings `BibtexMetadata`/`CitationMetadata`/
+// `FictionBookMetadata`/`DbfMetadata`/`EpubMetadata`, which are unconditional structs
+// registered on `ApiDoc` above) is itself `#[cfg(feature = "office")]`, so it needs its
+// own gated document. Reachable via `Metadata::format` when `office` is enabled. ~keep
+#[cfg(all(feature = "api", feature = "office"))]
+#[derive(OpenApi)]
+#[openapi(components(schemas(crate::types::metadata::DocxMetadata)))]
+#[cfg_attr(alef, alef(skip))]
+struct OfficeSchemas;
+
+// `AudioMetadata` is `#[cfg(feature = "transcription-types")]`. Reachable via
+// `Metadata::format` when `transcription-types` is enabled. ~keep
+#[cfg(all(feature = "api", feature = "transcription-types"))]
+#[derive(OpenApi)]
+#[openapi(components(schemas(crate::types::metadata::AudioMetadata)))]
+#[cfg_attr(alef, alef(skip))]
+struct TranscriptionSchemas;
 
 // `/metrics` is only routed when the `prometheus` feature is enabled (it requires both
 // `api` and `otel`; see the `prometheus` feature definition), so — same as the schema
@@ -206,6 +322,12 @@ pub fn openapi_json() -> String {
     document.merge(HeuristicsSchemas::openapi());
     #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
     document.merge(KeywordSchemas::openapi());
+    #[cfg(feature = "pdf")]
+    document.merge(PdfSchemas::openapi());
+    #[cfg(feature = "office")]
+    document.merge(OfficeSchemas::openapi());
+    #[cfg(feature = "transcription-types")]
+    document.merge(TranscriptionSchemas::openapi());
     #[cfg(feature = "prometheus")]
     document.merge(PrometheusPaths::openapi());
 
@@ -410,6 +532,102 @@ mod tests {
             dangling,
             Vec::<String>::new(),
             "these $ref targets are missing from the OpenAPI document; add the type to components(schemas(..))"
+        );
+    }
+
+    /// Second-order nested types were reachable only through a field on an
+    /// already-registered type (e.g. `Metadata::pages` -> `PageStructure`,
+    /// `Metadata::format` -> `FormatMetadata` -> `ExcelMetadata`, `ExtractedDocument::
+    /// revisions` -> `DocumentRevision::delta` -> `RevisionDelta`, `Chunk::sparse_embedding`
+    /// -> `SparseEmbedding`), so their `$ref`s were emitted without a matching component
+    /// (#1424). `should_resolve_every_openapi_ref_to_a_defined_component` above already
+    /// catches this class of bug for every type in the document; this test additionally
+    /// names the concrete offenders so a future regression fails with a readable diff
+    /// instead of only a list of raw `$ref` strings.
+    #[test]
+    #[cfg(feature = "api")]
+    fn should_define_second_order_nested_schemas_from_issue_1424() {
+        let document: serde_json::Value =
+            serde_json::from_str(&openapi_json()).expect("OpenAPI document must be valid JSON");
+        let schemas = document["components"]["schemas"]
+            .as_object()
+            .expect("document must have component schemas");
+
+        let expected_components = [
+            "PageStructure",
+            "PageUnitType",
+            "PageBoundary",
+            "PageInfo",
+            "LayoutRegion",
+            "PageHierarchy",
+            "HierarchicalBlock",
+            "ChunkType",
+            "HeadingContext",
+            "HeadingLevel",
+            "PageSpan",
+            "ImageKind",
+            "QrCode",
+            "QrBoundingBox",
+            "ClassificationLabel",
+            "EntityCategory",
+            "FormFieldType",
+            "RedactionFinding",
+            "RedactionStrategy",
+            "PiiCategory",
+            "DiffLine",
+            "CellChange",
+            "PropertyChange",
+            "RevisionKind",
+            "RevisionAnchor",
+            "RevisionDelta",
+            "PdfAnnotationType",
+            "UriKind",
+            "SummaryStrategy",
+            "ImagePreprocessingMetadata",
+            "SparseEmbedding",
+            "MultiVectorEmbedding",
+            "FormatMetadata",
+            "ExcelMetadata",
+            "EmailMetadata",
+            "PptxMetadata",
+            "ArchiveMetadata",
+            "ImageMetadata",
+            "XmlMetadata",
+            "TextMetadata",
+            "TextDirection",
+            "HeaderMetadata",
+            "LinkMetadata",
+            "LinkType",
+            "ImageMetadataType",
+            "ImageType",
+            "StructuredData",
+            "StructuredDataType",
+            "HtmlMetadata",
+            "OcrMetadata",
+            "CsvMetadata",
+            "PstMetadata",
+            "ErrorMetadata",
+            "BibtexMetadata",
+            "CitationMetadata",
+            "YearRange",
+            "FictionBookMetadata",
+            "DbfMetadata",
+            "DbfFieldInfo",
+            "JatsMetadata",
+            "ContributorRole",
+            "EpubMetadata",
+        ];
+
+        let missing: Vec<&str> = expected_components
+            .into_iter()
+            .filter(|name| !schemas.contains_key(*name))
+            .collect();
+
+        assert_eq!(
+            missing,
+            Vec::<&str>::new(),
+            "these types are reachable from ExtractedDocument's response schema but missing \
+             from components.schemas — add them to ApiDoc's schemas(..) list"
         );
     }
 

@@ -1,0 +1,24 @@
+---
+title: "Batch Extraction Examples"
+description: "PROTOTYPE: alef-generated fixture examples for batch extraction, wired via the apiExamples content collection."
+---
+
+import ApiSnippetGroup from "../../../../components/ApiSnippetGroup.astro";
+
+:::caution[Prototype]
+This page demonstrates the proposed mechanism for surfacing alef-generated fixture snippets
+(`docs-site/src/snippets-generated/`) in the docs. Only the `batch` category is wired up here;
+the other ~10 categories are not yet built out. See the integration design notes for the
+full plan before extending this to all 89 topics.
+:::
+
+These examples are derived directly from alef's cross-language fixture corpus and are kept in
+sync with the generated snippet tree automatically — no per-language import list to maintain.
+
+## Batch-extract in-memory bytes
+
+<ApiSnippetGroup topic="batch/extract_batch_bytes_happy" />
+
+## Batch-extract with an unsupported MIME type
+
+<ApiSnippetGroup topic="batch/extract_batch_bytes_unsupported_mime" />

@@ -1,7 +1,7 @@
 {
 	"document": "../../../test_documents/xml/flowchart.svg",
 	"file_type": "svg",
-	"file_size": 2126,
+	"file_size": 2298,
 	"expected_frameworks": ["xberg", "tika"],
 	"metadata": {
 		"description": "SVG flowchart with labeled boxes and annotations",

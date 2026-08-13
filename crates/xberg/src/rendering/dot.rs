@@ -317,8 +317,17 @@ mod tests {
           <line x1="160" y1="80" x2="160" y2="200" stroke="#333"/>
         </svg>"##;
 
+        // Recovery is gated on the request actually resolving to `dot` output
+        // (#1410 review fixes: skip recovery entirely unless the request resolves to
+        // the `dot` renderer), so the config passed to the extractor has to carry the
+        // format, exactly as the API/CLI/binding entry points do before calling into
+        // the extractor. ~keep
+        let config = ExtractionConfig {
+            output_format: format.clone(),
+            ..Default::default()
+        };
         let extracted = crate::extractors::xml::XmlExtractor::new()
-            .extract_sync(svg, "image/svg+xml", &ExtractionConfig::default())
+            .extract_sync(svg, "image/svg+xml", &config)
             .expect("extraction");
         let result = crate::extraction::derive::derive_extraction_result(extracted, false, format);
 

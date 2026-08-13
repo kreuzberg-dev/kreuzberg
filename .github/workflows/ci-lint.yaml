@@ -212,6 +212,16 @@ jobs:
         uses: xberg-io/actions/install-task@v1
       - name: Install alef CLI
         uses: xberg-io/actions/install-alef@v1
+      # Unlike the alef-bindings-freshness job above, this one genuinely needs
+      # poly: `alef e2e generate` shells out to poly to format the output it
+      # just generated, and aborts with `ERROR poly not found on PATH;
+      # generated output cannot be formatted` when it is absent. That is why
+      # this job has never reached the diff it exists to perform -- it died in
+      # generation, so its red said nothing about e2e freshness either way.
+      # The bindings job deliberately omits poly (see its ~keep comment) because
+      # `alef verify` recomputes hashes without running the formatters. ~keep
+      - name: Install poly
+        uses: Goldziher/poly@v0
       # `task e2e:verify` (`alef e2e generate` then `git diff --exit-code e2e/`)
       # was previously invoked by nothing -- it was only named in a comment on
       # the alef-bindings-freshness job above as though it ran. Wiring it here

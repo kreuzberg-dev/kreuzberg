@@ -370,9 +370,10 @@ mod tests {
         fn should_not_force_one_frame_across_a_rotation_boundary() {
             // An upright footer line sandwiched between two rotated-body
             // fragments: the rotation boundary must isolate the footer from
-            // the rotated run's advance-axis sort, and the footer itself must
-            // take the exact legacy pass-through (no reordering, no inserted
-            // separators) regardless of position.
+            // the rotated run's advance-axis sort — the footer itself is
+            // untouched pass-through text (no reordering, no gap-based
+            // spacing within it) — while the boundary between the two runs
+            // still gets a separator so the frames are never glued together.
             let spans = vec![
                 rotated_word("oil", 39.0, 18.0),   // 0: rotated body, second word
                 rotated_word("Engine", 0.0, 36.0), // 1: rotated body, first word
@@ -393,8 +394,9 @@ mod tests {
 
             assert_eq!(
                 text, "Engine oil Page 264",
-                "the rotated run resolves to advance order internally; the upright run after it \
-                 is untouched pass-through text separated from the rotated frame"
+                "the rotated run resolves to advance order internally; a separator is inserted \
+                 at the rotation boundary so the upright run after it is never glued to the \
+                 rotated run, even though the upright run's own text is untouched pass-through"
             );
         }
 

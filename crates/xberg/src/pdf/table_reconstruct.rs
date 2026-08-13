@@ -48,12 +48,23 @@ use super::hierarchy::SegmentData;
 ///
 /// `SegmentData` uses PDF coordinates (y=0 at bottom, increases upward).
 /// `HocrWord` uses image coordinates (y=0 at top, increases downward).
+///
+/// For a segment drawn on a rotated text matrix (GH#1358: a sideways table),
+/// `seg.x`/`seg.y` are the run's *page-space* origin, but the run's own row
+/// axis and column axis are rotated relative to the page — using raw
+/// page-space x/y here would group a rotated table's cells into rows and
+/// columns along the wrong axes. [`SegmentData::upright_origin`] rotates the
+/// origin back into the segment's own reading frame (identity for the
+/// unrotated case, matching the plain x/y this replaced) so the row/column
+/// clustering downstream in `oxide::table::cluster_words_into_vertical_regions`
+/// operates on the table's actual advance/cross axes instead of the page's.
 #[cfg(feature = "pdf")]
 pub(crate) fn segment_to_hocr_word(seg: &SegmentData, page_height: f32) -> HocrWord {
-    let top_image = (page_height - (seg.y + seg.height)).round().max(0.0) as u32;
+    let (advance, cross) = seg.upright_origin();
+    let top_image = (page_height - (cross + seg.height)).round().max(0.0) as u32;
     HocrWord {
         text: seg.text.clone(),
-        left: seg.x.round().max(0.0) as u32,
+        left: advance.round().max(0.0) as u32,
         top: top_image,
         width: seg.width.round().max(0.0) as u32,
         height: seg.height.round().max(0.0) as u32,
@@ -87,7 +98,13 @@ pub(crate) fn split_segment_to_words(seg: &SegmentData, page_height: f32) -> Vec
         return Vec::new();
     }
 
-    let top_image = (page_height - (seg.y + seg.height)).round().max(0.0) as u32;
+    // See `segment_to_hocr_word` for why the segment's own upright frame
+    // (rather than raw page-space x/y) is used here: `advance` is the
+    // position along the run's reading axis, which per-word interpolation
+    // below advances along via `frac_start * seg.width` — consistent
+    // whether or not the run is rotated.
+    let (advance, cross) = seg.upright_origin();
+    let top_image = (page_height - (cross + seg.height)).round().max(0.0) as u32;
     let seg_height = seg.height.round().max(0.0) as u32;
 
     let mut words = Vec::new();
@@ -104,7 +121,7 @@ pub(crate) fn split_segment_to_words(seg: &SegmentData, page_height: f32) -> Vec
 
         words.push(HocrWord {
             text: word.to_string(),
-            left: (seg.x + frac_start * seg.width).round().max(0.0) as u32,
+            left: (advance + frac_start * seg.width).round().max(0.0) as u32,
             top: top_image,
             width: (frac_width * seg.width).round().max(1.0) as u32,
             height: seg_height,

@@ -1,7 +1,7 @@
 {
 	"document": "../../../test_documents/xml/org_chart.svg",
 	"file_type": "svg",
-	"file_size": 3935,
+	"file_size": 4074,
 	"expected_frameworks": ["xberg", "tika"],
 	"metadata": {
 		"description": "SVG organization chart with names, titles, departments, and headcount",

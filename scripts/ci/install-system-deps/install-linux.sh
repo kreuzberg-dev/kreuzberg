@@ -194,7 +194,12 @@ fi
 echo ""
 echo "Tesseract:"
 if command -v tesseract >/dev/null 2>&1; then
-  if tesseract --version 2>/dev/null | head -1; then
+  # Full output, not `head -1`: `tesseract --version` reports the engine
+  # version on line 1 but the *compiled* leptonica version plus the linked
+  # image-codec library versions (libpng/libjpeg/zlib/...) on the following
+  # lines. Truncating to line 1 was throwing away exactly the evidence needed
+  # to tell "same tesseract, different leptonica" apart from "same everything".
+  if tesseract --version 2>&1; then
     echo "✓ Tesseract CLI available"
   else
     echo "::warning::Tesseract CLI present but failed to run"
@@ -203,10 +208,32 @@ else
   echo "::warning::Tesseract CLI not found; continuing (OCR will rely on bundled Tesseract)"
 fi
 
+# --- diagnostics for task #494 (word_language_is_forwarded_per_ocr_element /
+# paragraph-metadata: an arch-dependent Tesseract FFI declination, observed on
+# x86_64-linux CI only, that production code already treats as legitimate --
+# see crates/xberg/tests/issue_177_180_189_ocr_metadata.rs). The install
+# script previously asserted only that the same *apt install command* ran on
+# every arch, never what it actually resolved to. apt mirrors serve
+# independent per-architecture package builds, so "same command" does not
+# imply "same tesseract-ocr/libtesseract/liblept build or even version" --
+# print the resolved package versions and binary checksums explicitly so two
+# runs (ubuntu-latest vs ubuntu-24.04-arm) can be diffed directly instead of
+# re-deriving this from a guess. ~keep
 echo ""
-echo "Available Tesseract languages:"
+echo "Runner identity (for cross-arch diffing):"
+uname -a
+[ -f /etc/os-release ] && cat /etc/os-release
+
+echo ""
+echo "Resolved package versions (tesseract/leptonica), this runner:"
+dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' \
+  'tesseract-ocr*' 'libtesseract*' 'liblept*' 2>/dev/null ||
+  echo "(dpkg-query found no matching packages)"
+
+echo ""
+echo "Available Tesseract languages (full list, not truncated):"
 if command -v tesseract >/dev/null 2>&1; then
-  tesseract --list-langs | head -10 || true
+  tesseract --list-langs || true
 else
   echo "(tesseract CLI not available)"
 fi
@@ -233,7 +260,14 @@ for tessdata_path in "/usr/share/tesseract-ocr/5/tessdata" "/usr/share/tesseract
     for lang in eng tur deu; do
       if [ -f "$tessdata_path/${lang}.traineddata" ]; then
         size=$(stat -c%s "$tessdata_path/${lang}.traineddata" 2>/dev/null || echo "unknown")
-        echo "  ✓ ${lang}.traineddata ($size bytes)"
+        # sha256, not just size: two traineddata files can happen to match in
+        # byte count while differing in content. A byte-identical hash across
+        # the x86_64 and aarch64 runner logs is the strongest available proof
+        # that "same language pack" is actually true rather than assumed --
+        # if the hashes differ, the model data itself is the divergence, not
+        # a Tesseract/leptonica code-version skew.
+        checksum=$(sha256sum "$tessdata_path/${lang}.traineddata" 2>/dev/null | awk '{print $1}')
+        echo "  ✓ ${lang}.traineddata ($size bytes, sha256 ${checksum:-unknown})"
       else
         echo "  ⚠ ${lang}.traineddata (missing)"
       fi

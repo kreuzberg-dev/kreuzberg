@@ -73,7 +73,15 @@ outputs = [".codex/skills", ".agents/skills", ".github/skills", ".claude/skills"
 [workspace.docs.snippets]
 dirs = ["docs-site/src/snippets", "docs-site/src/snippets-generated"]
 validation_level = "compile"
-timeout_secs = 600
+# 600s was sized for typecheck/compile-only validation of individual snippets.
+# It is also the ceiling for every session `before` hook (single global
+# knob, no per-session override -- see alef's SnippetSession/RunnerConfig).
+# The new swift `before` hook below runs `cargo build -p xberg-swift`, which
+# compiles xberg's heavy native dependency chain (onnxruntime, tesseract,
+# PDF/office parsers) from a cold target dir; a from-scratch build of that
+# graph routinely exceeds 10 minutes even before swift-bridge/staticlib
+# linking. Raised to bound that cold build without starving it. ~keep
+timeout_secs = 1800
 strict = true
 report_output = ".alef/snippet-validation-report.json"
 
@@ -91,6 +99,21 @@ cwd = "packages/python"
 manifest = "packages/python/pyproject.toml"
 
 [workspace.docs.snippets.sessions.node]
+cwd = "crates/xberg-node"
+manifest = "crates/xberg-node/package.json"
+
+# Sessions are keyed by BINDING-PACKAGE name, but alef's session lookup falls
+# back to the snippet's LANGUAGE name when a snippet carries no explicit
+# `target` metadata. TypeScript is the one language where those two names never
+# coincide: its packages are `node` and `wasm`, so `sessions.get("typescript")`
+# missed and the 48 hand-authored snippets under docs-site/src/snippets/
+# typescript/ were typechecked against a bare tsconfig with no path mapping to
+# `@xberg-io/xberg` -- 64 of their 69 failures were a single TS2307
+# "cannot find module". Generated snippets are unaffected either way: they
+# carry `target: node`/`target: wasm`, which takes priority over this fallback.
+# Aliased to the node package because every hand-authored TS snippet imports
+# `@xberg-io/xberg`; none import `@xberg-io/xberg-wasm`. ~keep
+[workspace.docs.snippets.sessions.typescript]
 cwd = "crates/xberg-node"
 manifest = "crates/xberg-node/package.json"
 
@@ -170,6 +193,33 @@ before = [
 [workspace.docs.snippets.sessions.swift]
 cwd = "packages/swift"
 manifest = "packages/swift/Package.swift"
+# Guarded so a machine with no Swift toolchain SKIPS the build instead of
+# failing it -- same reasoning as the Android guard above: a `before` hook
+# failure aborts the ENTIRE configured snippet check, so every other language
+# goes unvalidated because Swift tooling happens to be missing (xberg task
+# #521: all 95 Swift snippets failed because this session had no build step
+# at all and `import Xberg` could never resolve).
+# packages/swift/Sources/RustBridge{,C} are already-generated, committed
+# swift-bridge output (see Package.swift's own header comment) -- `alef
+# generate` does not need to run here. What's missing is the Rust side:
+# Package.swift's `resolvedStaticLib` links target/{release,debug}/lib
+# xberg_swift.a and libxberg_ffi.a explicitly, and neither exists until
+# `cargo build -p xberg-swift` has run at least once. Skip that build when
+# it is already satisfied (release preferred, matching resolvedStaticLib's
+# own preference) so repeat runs stay fast. If the build itself fails,
+# report it and move on instead of letting the `before` hook fail: a Swift
+# build failure should leave Swift's snippets failing typecheck (the
+# `Xberg` module still won't exist), not silently zero the other 14
+# languages. The trailing `; true` is load-bearing: with no `set -e`, a
+# `sh -c` one-liner's exit status is that of its LAST command, and an
+# `if/elif/.../fi` with no matching branch inherits the exit status of the
+# last condition it tested -- without `; true`, a chain that ends by
+# skipping every branch (e.g. no swift on PATH) could still exit non-zero
+# and take the whole snippet run down, exactly the failure mode this guard
+# exists to prevent. ~keep
+before = [
+  'if ! command -v swift >/dev/null 2>&1; then echo "alef: swift not on PATH; skipping cargo build -p xberg-swift (Swift snippets will fail typecheck)"; elif [ -f ../../target/release/libxberg_swift.a ] && [ -f ../../target/release/libxberg_ffi.a ]; then echo "alef: release staticlibs already built; skipping cargo build -p xberg-swift"; elif [ -f ../../target/debug/libxberg_swift.a ] && [ -f ../../target/debug/libxberg_ffi.a ]; then echo "alef: debug staticlibs already built; skipping cargo build -p xberg-swift"; else cargo build --manifest-path rust/Cargo.toml -p xberg-swift || echo "alef: cargo build -p xberg-swift failed; Swift snippets will fail typecheck (Xberg module unavailable), other languages unaffected"; fi; true',
+]
 
 [workspace.docs.snippets.sessions.zig]
 cwd = "packages/zig"
@@ -220,6 +270,13 @@ exclude = [
   "**/*.diff",
   "**/*.patch",
   "**/frb_generated.rs",
+  # The Dart half of the same flutter_rust_bridge output. Only the Rust half was
+  # excluded, so `poly fmt --check .` reports `would reformat` on all four Dart
+  # bridge files (frb_generated{,.io,.web}.dart and lib.dart) and fails the
+  # Validate (poly) job on every run. Reproduced against poly 0.20.1 locally and
+  # 0.19.7 in CI. Same reasoning as the sibling `**/*.freezed.dart` exclusion
+  # poly already applies: this is generator output nothing should reflow. ~keep
+  "packages/dart/lib/src/xberg_bridge_generated/**",
   "charts/**",
   # ai-rulez-generated coding-agent plugin outputs: owned by `ai-rulez generate
   # --plugin`, never reformatted by poly (would break BLAKE3 provenance). Sources
@@ -239,6 +296,14 @@ exclude = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
+  # Benchmark cohort manifests are BLAKE3-pinned by value in
+  # tools/benchmark-harness/src/bench_matrix.rs (*_MANIFEST_BLAKE3) and verified
+  # at runtime by validate_artifacts. Any reformat changes the digest and fails
+  # the contract, so these are data files poly must not rewrite -- same reasoning
+  # as the ai-rulez plugin outputs above. Without this, every regen that runs
+  # poly silently re-breaks the pin: it collapsed the `fixtures` array onto one
+  # line in 888023d75d, and 8a60458a7dd was an earlier re-pin for the same cause. ~keep
+  "tools/benchmark-harness/cohorts/**",
 ]
 
 # Opt-in comment-removal sweep. Preserve doc comments (rustdoc is required on

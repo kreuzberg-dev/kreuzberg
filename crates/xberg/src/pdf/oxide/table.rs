@@ -2913,6 +2913,82 @@ mod tests {
         assert!(regions.is_empty());
     }
 
+    /// GH#1358: a rotated (90-degree) table's row/column grid must survive
+    /// heuristic clustering.
+    ///
+    /// `segments_to_words` (`pdf::table_reconstruct`) is the boundary where
+    /// PDF segments become the `HocrWord`s that `cluster_words_into_vertical_regions`
+    /// groups into rows and columns by raw `left`/`top`. Unlike
+    /// `cell_text_in_reading_order` (which already corrects word order
+    /// *within* an already-assigned cell via `upright_origin`,
+    /// see `test_cell_text_in_reading_order_sorts_rotated_spans_by_advance_axis`
+    /// above), `segments_to_words` builds `HocrWord.left`/`.top` straight from
+    /// `SegmentData.x`/`.y` — the *page-space* coordinates — with no rotation
+    /// correction. For a 90-degree run the table's own row axis is page-x and
+    /// its own column axis is page-y, the opposite of the unrotated case, so
+    /// raw-page-space clustering groups words that share a row position
+    /// (`x`) into the same table *row* when they actually belong to three
+    /// different rows at the same column, and disperses one true row's cells
+    /// across bogus, single-row "regions" that `cluster_words_into_vertical_regions`'s
+    /// `row_ycs.len() >= 3` guard then rejects outright — the region is
+    /// dropped, not merely misordered.
+    ///
+    /// Three rows (`x` = 0.0, 12.0, 24.0) by two columns (`y` = 0.0, 120.0),
+    /// all spans sharing one 90-degree rotation, mirroring a small sideways
+    /// spec table. Row/column spacing is chosen to satisfy the clustering
+    /// tolerances once transformed into the upright frame (`row_tolerance` =
+    /// 5, `row_gap_split` = 18 for `height` = 10): a correct implementation
+    /// must find exactly one region containing all six words in row-major
+    /// reading order.
+    #[test]
+    fn should_preserve_cell_order_in_a_rotated_table() {
+        use crate::pdf::hierarchy::SegmentData;
+        use crate::pdf::table_reconstruct::segments_to_words;
+
+        fn rotated_seg(text: &str, x: f32, y: f32) -> SegmentData {
+            SegmentData {
+                text: text.to_string(),
+                x,
+                y,
+                width: 50.0,
+                height: 10.0,
+                font_size: 10.0,
+                is_bold: false,
+                is_italic: false,
+                is_monospace: false,
+                baseline_y: y,
+                rotation_degrees: 90.0,
+                assigned_role: None,
+            }
+        }
+
+        let segments = vec![
+            rotated_seg("A1", 0.0, 0.0),
+            rotated_seg("B1", 0.0, 120.0),
+            rotated_seg("A2", 12.0, 0.0),
+            rotated_seg("B2", 12.0, 120.0),
+            rotated_seg("A3", 24.0, 0.0),
+            rotated_seg("B3", 24.0, 120.0),
+        ];
+
+        let page_height = 800.0;
+        let words = segments_to_words(&segments, page_height);
+        let regions = cluster_words_into_vertical_regions(&words);
+
+        assert_eq!(
+            regions.len(),
+            1,
+            "the rotated table's six words must cluster into a single region; got {regions:?}"
+        );
+        let ordered: Vec<&str> = regions[0].iter().map(|w| w.text.as_str()).collect();
+        assert_eq!(
+            ordered,
+            vec!["A1", "B1", "A2", "B2", "A3", "B3"],
+            "rotated-table words must come out in row-major reading order (row0: A1,B1; \
+             row1: A2,B2; row2: A3,B3), not scrambled by raw page-space x/y; got: {ordered:?}"
+        );
+    }
+
     #[test]
     fn dense_numeric_region_caps_adaptive_column_gap() {
         let mut words = Vec::new();

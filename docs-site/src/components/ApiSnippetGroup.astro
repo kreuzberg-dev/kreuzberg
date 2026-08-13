@@ -1,0 +1,79 @@
+---
+// PROTOTYPE component demonstrating how to wire alef-generated fixture snippets
+// (docs-site/src/snippets-generated/<language>/<category>/<topic>.md) into a page without
+// hand-writing one import per language. See docs-site/src/content/docs/reference/examples/batch.mdx
+// for a real usage example.
+//
+// Renders a Tabs/TabItem group containing only the languages that actually have a snippet for
+// the given topic — never a static 15-tab strip with mostly-empty panels.
+import { getCollection, render } from "astro:content";
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+interface Props {
+  /** Category + fixture name, e.g. "batch/extract_batch_bytes_happy". Matches the path under
+   * src/snippets-generated/<language>/<topic>.md (without the language segment or extension). */
+  topic: string;
+}
+
+// Keyed on `target`, NOT `language`. Those are different fields and conflating them loses
+// snippets: the node and wasm bindings BOTH carry `language: typescript` (they are both
+// TypeScript source) and are distinguished only by `target: node` vs `target: wasm`, so keying
+// on language collapses two distinct bindings into one tab. Likewise `kotlin-android/` carries
+// `language: kotlin`, `target: kotlin_android`. `target` is exactly uniform across the tree --
+// 15 values x 89 topics -- which makes it the correct discriminator; `language` has 14 values
+// with typescript appearing twice. Display labels/order mirror astro.config.mjs's API_LANGUAGES
+// list so tab order stays consistent with the per-language API reference pages.
+const TARGET_LABELS: Record<string, string> = {
+  python: "Python",
+  node: "TypeScript / Node.js",
+  wasm: "WebAssembly",
+  rust: "Rust",
+  go: "Go",
+  java: "Java",
+  kotlin_android: "Kotlin (Android)",
+  csharp: "C#",
+  swift: "Swift",
+  ruby: "Ruby",
+  php: "PHP",
+  elixir: "Elixir",
+  dart: "Dart",
+  zig: "Zig",
+  c: "C",
+};
+
+const { topic } = Astro.props;
+
+const allEntries = await getCollection("apiExamples", (entry) => entry.id.endsWith(`/${topic}`));
+
+// Order deterministically by the canonical target order; unknown targets sort last.
+const targetOrder = Object.keys(TARGET_LABELS);
+const orderedEntries = [...allEntries].sort((a, b) => {
+  const indexA = targetOrder.indexOf(a.data.target);
+  const indexB = targetOrder.indexOf(b.data.target);
+  return (indexA === -1 ? targetOrder.length : indexA) - (indexB === -1 ? targetOrder.length : indexB);
+});
+
+const renderedEntries = await Promise.all(
+  orderedEntries.map(async (entry) => ({
+    target: entry.data.target,
+    label: TARGET_LABELS[entry.data.target] ?? entry.data.target,
+    rendered: await render(entry),
+  })),
+);
+---
+
+{
+  renderedEntries.length === 0 ? (
+    <p>
+      <em>No generated example available for `{topic}` yet.</em>
+    </p>
+  ) : (
+    <Tabs syncKey="lang">
+      {renderedEntries.map(({ language, label, rendered }) => (
+        <TabItem label={label} key={language}>
+          <rendered.Content />
+        </TabItem>
+      ))}
+    </Tabs>
+  )
+}

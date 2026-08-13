@@ -131,8 +131,12 @@ jobs:
         run: cargo test --locked --release -p benchmark-harness 'cohort::tests::'
 
       - name: Validate benchmark harness contracts
+        # --no-fail-fast: cargo stops after the first failing test BINARY, so a
+        # single broken contract hides the other targets entirely. Run 31632507453
+        # reported results for only two of these four because fixture_validation
+        # failed; whether the remaining two also failed was unknowable from the log.
         run: >-
-          cargo test --locked --release -p benchmark-harness
+          cargo test --locked --release -p benchmark-harness --no-fail-fast
           --test validate_artifacts --test lossless_aggregation
           --test fixture_validation --test aggregate_schema
 

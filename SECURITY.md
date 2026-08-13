@@ -76,7 +76,16 @@ let config = ExtractionConfig {
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Send a report to **<security@xberg.io>** with:
+Email both maintainers directly:
+
+- **Na'aman Hirschfeld** — <naaman@xberg.io>
+- **Tobias Silva** — <tobias@xberg.io>
+
+You may also use GitHub's [private vulnerability
+reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
+on this repository, which opens a private channel with the maintainers.
+
+Include:
 
 1. A description of the vulnerability and affected versions.
 2. A minimal reproducer (if possible, a file that triggers the issue).
@@ -89,3 +98,12 @@ for Medium/Low. We will coordinate disclosure timing with you.
 
 Researchers who follow responsible disclosure will be credited in the
 GitHub advisory unless they prefer to remain anonymous.
+
+## Safe Harbor
+
+We will not pursue legal action against researchers who:
+
+- Make a good-faith effort to comply with this policy.
+- Do not exfiltrate, modify, or destroy data beyond what is necessary to
+  demonstrate the issue.
+- Give us a reasonable window to remediate before public disclosure.

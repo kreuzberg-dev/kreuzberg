@@ -53,17 +53,69 @@ set_origin_rpath() {
 }
 
 verify_local_closure() {
-  local native="$1" dir report lib base resolved
+  local native="$1" dir report lib base resolved needed_report needed dlopen_report ldd_status
   dir="$(cd "$(dirname "$native")" && pwd)"
   report="$(mktemp)"
 
-  if ! env -u LD_LIBRARY_PATH ldd "$native" >"$report" 2>&1; then
-    cat "$report" >&2
+  # --- diagnostics for task #490 (musl wheel: "a required shared library is
+  # missing" with nothing naming it) ---
+  #
+  # `ldd`'s wording and exit-code semantics differ between glibc and musl (see
+  # the commit note above `vendor_one`), so it is not a reliable ground truth
+  # to key pass/fail decisions on by itself. `readelf -d` reads the ELF
+  # dynamic section directly -- the DT_NEEDED sonames the binary actually
+  # declares -- which is identical machinery on both libcs and does not go
+  # through either libc's ldd wrapper at all. Print it unconditionally (not
+  # only on failure) so a human can diff the declared closure of a passing run
+  # against a failing one instead of re-deriving it from a raw ldd dump. ~keep
+  log "declared NEEDED/RPATH/RUNPATH entries for $(basename "$native"):"
+  if command -v readelf >/dev/null 2>&1; then
+    # `|| true` guards `set -o pipefail`: a fully-static binary has no dynamic
+    # section, so `readelf -d` reports nothing and `grep` legitimately finds
+    # no match -- that is informative ("statically linked, no closure to
+    # verify"), not a script error.
+    readelf -d "$native" 2>&1 | { grep -E 'NEEDED|RPATH|RUNPATH' || true; } | while IFS= read -r entry; do
+      log "  $entry"
+    done
+  else
+    log "  (readelf not on PATH; skipping declared-closure listing)"
+  fi
+
+  # Explicit resolved/unresolved verdict per declared soname, independent of
+  # ldd. A soname either sits beside the artifact (bundled and resolvable), is
+  # a recognized base-libc/runtime entry we deliberately do not bundle, or is
+  # neither -- and that third case is exactly "a required shared library is
+  # missing", named directly instead of inferred from a die() message.
+  if command -v readelf >/dev/null 2>&1; then
+    needed_report="$(mktemp)"
+    { readelf -d "$native" 2>/dev/null || true; } | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' >"$needed_report"
+    log "per-soname resolution for $(basename "$native"):"
+    while IFS= read -r needed; do
+      [ -n "$needed" ] || continue
+      if [ -f "$dir/$needed" ]; then
+        log "  RESOLVED   $needed -> $dir/$needed (bundled)"
+      elif is_base_lib "$needed"; then
+        log "  ASSUMED    $needed -> expected on the target system (base libc/runtime, not bundled)"
+      else
+        log "  UNRESOLVED $needed -- not bundled beside $(basename "$native") and not a recognized base-libc entry"
+      fi
+    done <"$needed_report"
+    rm -f "$needed_report"
+  fi
+
+  # ldd still runs, and its full output is now always printed (not just on
+  # failure) so it can be diffed against a good run the same way the NEEDED
+  # listing above can.
+  ldd_status=0
+  env -u LD_LIBRARY_PATH ldd "$native" >"$report" 2>&1 || ldd_status=$?
+  log "ldd output for $(basename "$native") (exit $ldd_status):"
+  cat "$report" >&2
+
+  if [ "$ldd_status" -ne 0 ]; then
     rm -f "$report"
-    die "$(basename "$native") has unresolved dependencies after vendoring"
+    die "$(basename "$native") has unresolved dependencies after vendoring (ldd exited $ldd_status)"
   fi
   if grep -q 'not found' "$report"; then
-    cat "$report" >&2
     rm -f "$report"
     die "$(basename "$native") has unresolved dependencies after vendoring"
   fi
@@ -86,6 +138,44 @@ verify_local_closure() {
   )
 
   rm -f "$report"
+
+  # Loader-verbatim probe. ldd/readelf both describe the STATIC NEEDED graph;
+  # neither actually asks the runtime loader to resolve and load the file, so
+  # both can stay green on a binary that will still fail to start (e.g. a
+  # symbol-versioning mismatch, or a dependency ldd resolves against a system
+  # copy that will not exist on the target). Invoking the loader for real via
+  # `python3 -c "ctypes.CDLL(...)"` (for a shared object) or by executing the
+  # artifact directly (for a CLI binary) surfaces the loader's own error text
+  # verbatim -- on both glibc and musl that names the missing soname directly
+  # ("cannot open shared object file" / "Error loading shared library") --
+  # which is strictly more direct evidence than inferring it from ldd's
+  # differing wording. This is a hard failure, matching the existing
+  # unresolved-closure checks above: it re-checks the exact same
+  # already-fatal condition (an artifact that cannot load) more reliably, so
+  # it does not add a new way for a good build to be blocked -- it only
+  # catches real breakage the older checks could miss. python3 is present in
+  # every image that calls this script for a wheel (musl-python installs it
+  # to build the wheel itself); skip silently if absent rather than adding a
+  # new hard requirement for artifact types where it may not be. ~keep
+  case "$native" in
+  *.so | *.so.*)
+    if command -v python3 >/dev/null 2>&1; then
+      dlopen_report="$(mktemp)"
+      log "dlopen probe for $(basename "$native"):"
+      if python3 -c "import ctypes, sys; ctypes.CDLL(sys.argv[1])" "$native" >"$dlopen_report" 2>&1; then
+        log "  dlopen($(basename "$native")) succeeded"
+      else
+        cat "$dlopen_report" >&2
+        rm -f "$dlopen_report"
+        die "$(basename "$native") failed to dlopen after vendoring (see loader error above)"
+      fi
+      rm -f "$dlopen_report"
+    else
+      log "dlopen probe skipped for $(basename "$native"): python3 not on PATH"
+    fi
+    ;;
+  esac
+
   log "verified local dependency closure for $(basename "$native")"
 }
 
