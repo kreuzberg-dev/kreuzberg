@@ -427,11 +427,14 @@ mod tests {
             .count()
     }
 
+    /// The budget scales with the machine, so the cap is asserted against an
+    /// injected core count. Reading the host made this fail on any machine with
+    /// more than eight cores, and pass on a CI runner.
     #[test]
     fn test_resolve_thread_budget_none() {
+        assert_eq!(resolve_thread_budget_inner(None, 16, None), 8);
         let budget = resolve_thread_budget(None);
-        assert!(budget >= 1);
-        assert!(budget <= 8);
+        assert!(budget >= 1, "the host always gets at least one thread");
     }
 
     // -- Pure-function pinning: resolve_thread_budget_inner --------------------
@@ -574,12 +577,14 @@ mod tests {
         assert_eq!(resolve_thread_budget(Some(&config)), 1);
     }
 
+    /// A config that sets no maximum takes the same default cap, asserted
+    /// against an injected core count for the same reason.
     #[test]
     fn test_resolve_thread_budget_no_max() {
         let config = ConcurrencyConfig { max_threads: None };
+        assert_eq!(resolve_thread_budget_inner(Some(&config), 16, None), 8);
         let budget = resolve_thread_budget(Some(&config));
-        assert!(budget >= 1);
-        assert!(budget <= 8);
+        assert!(budget >= 1, "the host always gets at least one thread");
     }
 
     #[test]
