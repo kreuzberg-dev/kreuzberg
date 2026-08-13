@@ -1106,6 +1106,13 @@ mod tests {
         assert_eq!(formulas(source), vec!["\\sqrt{4}=2"]);
     }
 
+    /// An `[asciimath]` block names its notation, whatever `:stem:` says.
+    #[test]
+    fn should_convert_an_asciimath_block_whatever_the_stem_attribute_says() {
+        let source = "= Doc\n:stem: latexmath\n\n[asciimath]\n++++\nsqrt(4) = 2\n++++\n";
+        assert_eq!(formulas(source), vec!["\\sqrt{4}=2"]);
+    }
+
     /// `:stem: latexmath` makes `stem` mean LaTeX, which passes through.
     #[test]
     fn should_treat_a_stem_block_as_latex_when_the_document_says_so() {
