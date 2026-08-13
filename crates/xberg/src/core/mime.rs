@@ -941,10 +941,17 @@ fn magic_override(path: &Path, extension_mime: &str) -> Option<String> {
 
     let from_magic = detect_mime_type_from_bytes(&header).ok()?;
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
-    if (from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument."))
-        && let Some(package_mime) = detect_zip_mimetype_entry(std::fs::File::open(path).ok()?)
-    {
-        return (package_mime != extension_mime).then(|| package_mime.to_string());
+    if from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument.") {
+        if let Some(package_mime) = detect_zip_mimetype_entry(std::fs::File::open(path).ok()?) {
+            return (package_mime != extension_mime).then(|| package_mime.to_string());
+        }
+        // The header holds only the first entries of the archive, and a real
+        // document names its main part far later: `ppt/presentation.xml` sits
+        // 107 KB into a 27-slide deck. Reading the archive directory finds the
+        // part wherever it is, so the document is not mistaken for a plain ZIP.
+        if let Some(office_mime) = detect_office_format_from_archive(std::fs::File::open(path).ok()?) {
+            return (office_mime != extension_mime).then(|| office_mime.to_string());
+        }
     }
 
     if from_magic == PLAIN_TEXT_MIME_TYPE {
@@ -1158,6 +1165,46 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
 /// `mimetype` entry, which is the format's authoritative identifier. An HWPX
 /// package that carries no `Contents/content.hpf` is still identified here.
 /// A package with two `mimetype` entries is rejected rather than guessed at.
+/// Identify a ZIP-based office format from the names in the archive directory.
+///
+/// `detect_office_format_from_zip` searches raw bytes, so it only sees the part
+/// of the archive it was given. A caller that reads a fixed-size header misses
+/// every part written after it.
+#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+fn detect_office_format_from_archive<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
+    let limits = SecurityLimits::default();
+    if !zip_central_directory_within_limits(&mut reader, &limits) {
+        return None;
+    }
+    reader.seek(SeekFrom::Start(0)).ok()?;
+    let mut archive = zip::ZipArchive::new(reader).ok()?;
+
+    let has = |archive: &mut zip::ZipArchive<R>, name: &str| archive.index_for_name(name).is_some();
+    #[cfg(feature = "hwpx")]
+    if has(&mut archive, "Contents/content.hpf") {
+        return Some(HWPX_MIME_TYPE);
+    }
+    if has(&mut archive, "word/document.xml") {
+        return Some(DOCX_MIME_TYPE);
+    }
+    if has(&mut archive, "xl/workbook.xml") {
+        return Some(EXCEL_MIME_TYPE);
+    }
+    if has(&mut archive, "ppt/presentation.xml") {
+        return Some(POWER_POINT_MIME_TYPE);
+    }
+    if has(&mut archive, "Index/Document.iwa") {
+        return Some(IWORK_PAGES_MIME_TYPE);
+    }
+    if has(&mut archive, "Index/CalculationEngine.iwa") {
+        return Some(IWORK_NUMBERS_MIME_TYPE);
+    }
+    if has(&mut archive, "Index/Presentation.iwa") {
+        return Some(IWORK_KEYNOTE_MIME_TYPE);
+    }
+    None
+}
+
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
 fn detect_zip_mimetype_entry<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
     /// The value an HWPX package stores in its `mimetype` entry.
@@ -1529,6 +1576,36 @@ mod tests {
 </refentry>"#;
 
         assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
+    }
+
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[test]
+    fn should_detect_a_deck_whose_main_part_is_written_late_in_the_archive() {
+        // A real 27-slide deck names `ppt/presentation.xml` 107 KB in, so a
+        // detector that reads a fixed-size header sees a plain ZIP and the
+        // presentation extracts as a list of archive members.
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+            let options = zip::write::SimpleFileOptions::default();
+            for index in 0..12 {
+                writer.start_file(format!("ppt/media/image{index}.bin"), options).unwrap();
+                std::io::Write::write_all(&mut writer, &vec![index as u8; 8192]).unwrap();
+            }
+            writer.start_file("ppt/presentation.xml", options).unwrap();
+            std::io::Write::write_all(&mut writer, b"<p:presentation/>").unwrap();
+            writer.finish().unwrap();
+        }
+        let path = std::env::temp_dir().join("xberg_late_part_test.pptx");
+        std::fs::write(&path, &buffer).unwrap();
+
+        let detected = detect_mime_type(&path, true).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(
+            detected,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        );
     }
 
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
