@@ -121,6 +121,28 @@ fn looks_like_html(trimmed: &str) -> bool {
     let name = name.to_ascii_lowercase();
     HTML_FRAGMENT_ELEMENTS.contains(&name.as_str())
 }
+pub(crate) const DOCBOOK_MIME_TYPE: &str = "application/docbook+xml";
+pub(crate) const JATS_MIME_TYPE: &str = "application/x-jats+xml";
+
+/// Return the XML vocabulary that `trimmed` declares, if it declares one.
+///
+/// Real DocBook and JATS documents use the `.xml` extension, so the extension
+/// map alone routes them to the generic XML extractor and their structure and
+/// equations are lost. Only an explicit namespace or a DTD public identifier
+/// counts here: both are unambiguous, so no document changes its routing on a
+/// guess from an element name.
+fn xml_vocabulary(trimmed: &str) -> Option<&'static str> {
+    // The declaration sits in the prolog and the root start tag.
+    let prolog: String = trimmed.chars().take(2048).collect();
+    if prolog.contains("http://docbook.org/ns/docbook") || prolog.contains("//OASIS//DTD DocBook") {
+        return Some(DOCBOOK_MIME_TYPE);
+    }
+    if prolog.contains("//NLM//DTD JATS") || prolog.contains("//NLM//DTD Journal") {
+        return Some(JATS_MIME_TYPE);
+    }
+    None
+}
+
 pub(crate) const PDF_MIME_TYPE: &str = "application/pdf";
 pub(crate) const PLAIN_TEXT_MIME_TYPE: &str = "text/plain";
 pub(crate) const POWER_POINT_MIME_TYPE: &str =
@@ -934,6 +956,14 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
         }
 
         if SUPPORTED_MIME_TYPES.contains(mime_type) || mime_type.starts_with("image/") {
+            // `infer` reads the `<?xml` declaration and stops at generic XML, so
+            // the vocabulary check has to run before that result is returned.
+            if is_generic_xml_mime(mime_type)
+                && let Ok(text) = std::str::from_utf8(content)
+                && let Some(vocabulary) = xml_vocabulary(text.trim_start())
+            {
+                return Ok(vocabulary.to_string());
+            }
             return Ok(mime_type.to_string());
         }
     }
@@ -968,6 +998,9 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
         }
 
         if trimmed.starts_with("<?xml") || trimmed.starts_with('<') {
+            if let Some(vocabulary) = xml_vocabulary(trimmed) {
+                return Ok(vocabulary.to_string());
+            }
             return Ok(XML_MIME_TYPE.to_string());
         }
 
@@ -1368,6 +1401,43 @@ mod tests {
             "FictionBook semantic text.",
         )
         .await;
+    }
+
+    #[test]
+    fn should_detect_docbook_by_namespace_when_extension_is_plain_xml() {
+        // Real DocBook ships as `.xml`, so only the namespace identifies it.
+        let content = br#"<!DOCTYPE refentry [ <!ENTITY % mathent SYSTEM "math.ent"> %mathent; ]>
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="exp">
+  <refsect1><para>Text.</para></refsect1>
+</refentry>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
+    }
+
+    #[test]
+    fn should_detect_docbook_by_dtd_public_identifier() {
+        let content = br#"<?xml version="1.0"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN" "http://www.oasis-open.org/docbook/xml/4.4/docbookx.dtd">
+<article><para>Text.</para></article>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
+    }
+
+    #[test]
+    fn should_detect_jats_by_dtd_public_identifier() {
+        let content = br#"<?xml version="1.0"?>
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving DTD v1.0 20120330//EN" "JATS-archivearticle1.dtd">
+<article><body><p>Text.</p></body></article>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/x-jats+xml");
+    }
+
+    #[test]
+    fn should_keep_generic_xml_without_a_vocabulary_declaration() {
+        let content = br#"<?xml version="1.0"?><catalog><item>Text.</item></catalog>"#;
+
+        // `text/xml` is the registered alias `infer` returns for a declaration.
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "text/xml");
     }
 
     #[cfg(all(feature = "office", feature = "xml", feature = "tokio-runtime"))]

@@ -116,6 +116,7 @@ fn ensure_root_element(content: &str) -> std::borrow::Cow<'_, str> {
         || body.starts_with("<part")
         || body.starts_with("<set")
         || body.starts_with("<reference")
+        || body.starts_with("<refentry")
         || body.starts_with("<preface")
         || body.starts_with("<appendix")
         || body.starts_with("<glossary")
@@ -307,7 +308,11 @@ fn build_docbook_internal_document(
                         }
                     }
                     "para" | "simpara" => {
-                        let (text, annotations) = extract_para_with_annotations(&mut reader, budget, &xref_titles)?;
+                        let (text, annotations, formulas) =
+                            extract_para_with_annotations(&mut reader, budget, &xref_titles)?;
+                        for latex in &formulas {
+                            builder.push_formula(latex, None, None);
+                        }
                         if !text.is_empty() {
                             for ann in &annotations {
                                 if let crate::types::document_structure::AnnotationKind::Link { url, .. } = &ann.kind
@@ -1094,11 +1099,12 @@ fn extract_para_with_annotations(
     reader: &mut EntityReader<'_>,
     budget: &mut SecurityBudget,
     xref_titles: &HashMap<String, String>,
-) -> Result<(String, Vec<crate::types::document_structure::TextAnnotation>)> {
+) -> Result<(String, Vec<crate::types::document_structure::TextAnnotation>, Vec<String>)> {
     use crate::types::builder;
 
     let mut text = String::new();
     let mut annotations = Vec::new();
+    let mut formulas: Vec<String> = Vec::new();
     let mut depth: u32 = 0;
 
     let mut inline_stack: Vec<(&'static str, u32, u32, Option<String>)> = Vec::new();
@@ -1115,6 +1121,24 @@ fn extract_para_with_annotations(
                 let tag = strip_namespace(&tag_cow);
 
                 match tag {
+                    // A paragraph carries its equations inline. The formula
+                    // belongs in the formula list, so it is captured here rather
+                    // than flattened into the sentence.
+                    "equation" | "informalequation" | "inlineequation" => {
+                        let latex = crate::extraction::formula_xml::extract_formula_latex(
+                            reader,
+                            budget,
+                            &crate::extraction::formula_xml::FormulaElements {
+                                tex: "alt",
+                                label: None,
+                            },
+                        )?;
+                        depth = depth.saturating_sub(1);
+                        budget.leave();
+                        if !latex.trim().is_empty() {
+                            formulas.push(latex.trim().to_string());
+                        }
+                    }
                     "emphasis" => {
                         let mut role = String::new();
                         for attr in e.attributes().flatten() {
@@ -1288,7 +1312,7 @@ fn extract_para_with_annotations(
         }
     }
 
-    Ok((text.trim().to_string(), annotations))
+    Ok((text.trim().to_string(), annotations, formulas))
 }
 
 /// Extract text content from a DocBook element and its children.
@@ -1671,6 +1695,23 @@ mod tests {
 </article>"#;
 
         assert_eq!(docbook_formulas(docbook), vec!["a+b", "x"]);
+    }
+
+    /// Real DocBook puts an inline equation inside the sentence that refers to
+    /// it, so the paragraph reader has to capture it (Khronos OpenGL refpages).
+    #[test]
+    fn test_docbook_inline_equation_inside_a_paragraph_becomes_a_formula() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="exp">
+  <refsect1><title>Description</title>
+    <para>
+      <function>exp</function> returns the natural exponentiation, i.e.
+      <inlineequation><mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML"><mml:msup><mml:mi>e</mml:mi><mml:mi>x</mml:mi></mml:msup></mml:math></inlineequation>.
+    </para>
+  </refsect1>
+</refentry>"#;
+
+        assert_eq!(docbook_formulas(docbook), vec!["e^{x}"]);
     }
 
     /// An `alt` child holds verbatim TeX, which beats reconstructing the MathML.
