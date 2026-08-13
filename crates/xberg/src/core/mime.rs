@@ -230,6 +230,7 @@ pub(crate) const ODS_MIME_TYPE: &str = "application/vnd.oasis.opendocument.sprea
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
 const ZIP_MIME_TYPE: &str = "application/zip";
 
+#[cfg(feature = "hwpx")]
 pub(crate) const HWPX_MIME_TYPE: &str = "application/haansofthwpx";
 pub(crate) const IWORK_PAGES_MIME_TYPE: &str = "application/x-iwork-pages-sffpages";
 pub(crate) const IWORK_NUMBERS_MIME_TYPE: &str = "application/x-iwork-numbers-sffnumbers";
@@ -1112,6 +1113,7 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
     const KEYNOTE_MARKER: &[u8] = b"Index/Presentation.iwa";
     const KEYNOTE_SLIDE_MARKERS: &[&[u8]] = &[b"Index/Slide-", b"Index/Slide_"];
 
+    #[cfg(feature = "hwpx")]
     const HWPX_MARKER: &[u8] = b"Contents/content.hpf";
     #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
     if let Some(package_mime) = detect_zip_mimetype_entry(std::io::Cursor::new(content)) {

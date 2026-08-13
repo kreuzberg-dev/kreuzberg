@@ -292,18 +292,21 @@ static MATH_TAG_RE: std::sync::LazyLock<regex::Regex> =
 
 /// Matches a `<script type="math/tex">` block, which MathJax v2 pages use to carry
 /// the LaTeX source. `math/tex; mode=display` marks display math.
+#[cfg(feature = "office")]
 static MATH_SCRIPT_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(r#"(?is)<script[^>]*\btype\s*=\s*["']?math/tex[^"'>]*["']?[^>]*>(.*?)</script>"#).unwrap()
 });
 
 /// Matches the `alt` text of an image whose class marks it as a rendered
 /// equation, the shape legacy MathJax and MediaWiki pages use.
+#[cfg(feature = "office")]
 static TEX_IMG_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
     regex::Regex::new(r#"(?is)<img\b[^>]*\bclass\s*=\s*["'][^"']*\b(?:tex|mwe-math-fallback-image-\w+|latex)\b[^"']*["'][^>]*>"#)
         .unwrap()
 });
 
 /// Matches an `alt` attribute's value.
+#[cfg(feature = "office")]
 static ALT_ATTR_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r#"(?is)\balt\s*=\s*["']([^"']*)["']"#).unwrap());
 
