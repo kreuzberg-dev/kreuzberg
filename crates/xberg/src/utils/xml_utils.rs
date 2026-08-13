@@ -1,8 +1,8 @@
-#[cfg(any(feature = "xml", feature = "office"))]
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 use std::borrow::Cow;
 
 /// Converts XML tag name bytes to a string, avoiding allocation when possible.
-#[cfg(any(feature = "xml", feature = "office"))]
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 #[inline]
 pub(crate) fn xml_tag_name(name: &[u8]) -> Cow<'_, str> {
     String::from_utf8_lossy(name)
@@ -21,13 +21,13 @@ pub(crate) fn xml_tag_name(name: &[u8]) -> Cow<'_, str> {
 ///
 /// Reader-level `trim_text` must stay off (the default) — trimming individual
 /// fragments before coalescing would destroy the whitespace around references.
-#[cfg(any(feature = "xml", feature = "office"))]
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 pub(crate) struct EntityReader<'x> {
     reader: quick_xml::Reader<&'x [u8]>,
     pending: Option<quick_xml::events::Event<'x>>,
 }
 
-#[cfg(any(feature = "xml", feature = "office"))]
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 // `from_str`, `config_mut`, and `buffer_position` are used only by some of the
 // xml/office/docx extractor paths; in feature combos that enable one of `xml`/`office`
 // but not the callers (e.g. the default `xberg-ffi` surface), they are unused. They are
@@ -98,7 +98,7 @@ impl<'x> EntityReader<'x> {
 /// entity that real-world FB2/DocBook files use without declaring) resolves to
 /// U+00A0, and undeclared DTD entities resolve to an empty string: extraction
 /// is best-effort, so an unresolvable reference must not fail the document.
-#[cfg(any(feature = "xml", feature = "office"))]
+#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
 pub(crate) fn resolve_general_ref(reference: &quick_xml::events::BytesRef<'_>) -> String {
     if let Ok(Some(ch)) = reference.resolve_char_ref() {
         return ch.to_string();

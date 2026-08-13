@@ -45,7 +45,12 @@ fn strip_namespace(tag: &str) -> &str {
     {
         return &tag[pos + 1..];
     }
-    tag
+    // DocBook 5 may bind its namespace to a prefix (`<db:para>`) instead of
+    // making it the default, so the prefix comes off here too.
+    match tag.split_once(':') {
+        Some((_, local)) => local,
+        None => tag,
+    }
 }
 
 /// State machine for tracking nested elements during extraction
@@ -108,6 +113,17 @@ fn ensure_root_element(content: &str) -> std::borrow::Cow<'_, str> {
         body.find('>').map(|pos| body[pos + 1..].trim_start()).unwrap_or(body)
     } else {
         body
+    };
+    // A prefixed root (`<db:book>`) names the same element, so compare on the
+    // local name rather than on the raw text.
+    let body = match body.strip_prefix('<') {
+        Some(rest) => match rest.split_once(':') {
+            Some((prefix, _)) if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_alphanumeric()) => {
+                &body[prefix.len() + 1..]
+            }
+            _ => body,
+        },
+        None => body,
     };
     let has_root = body.starts_with("<article")
         || body.starts_with("<book")
@@ -1133,8 +1149,9 @@ fn extract_para_with_annotations(
                                 label: None,
                             },
                         )?;
+                        // `extract_formula_latex` already emits the `leave` that
+                        // balances the `enter` for this start tag.
                         depth = depth.saturating_sub(1);
-                        budget.leave();
                         if !latex.trim().is_empty() {
                             formulas.push(latex.trim().to_string());
                         }
@@ -1699,6 +1716,24 @@ mod tests {
 
     /// Real DocBook puts an inline equation inside the sentence that refers to
     /// it, so the paragraph reader has to capture it (Khronos OpenGL refpages).
+    /// DocBook 5 may bind its namespace to a prefix, and the extractor has to
+    /// read those tags as the elements they name.
+    #[test]
+    fn test_docbook_reads_prefix_qualified_elements() {
+        let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>
+<db:book xmlns:db="http://docbook.org/ns/docbook" version="5.0">
+  <db:chapter><db:title>Chapter</db:title>
+    <db:para>Prefixed text.</db:para>
+  </db:chapter>
+</db:book>"#;
+
+        let mut budget = SecurityBudget::with_defaults();
+        let internal = build_docbook_internal_document(docbook, false, &mut budget).expect("prefixed DocBook parses");
+
+        let text = internal.content();
+        assert!(text.contains("Prefixed text."), "prefixed elements must reach the text: {text}");
+    }
+
     #[test]
     fn test_docbook_inline_equation_inside_a_paragraph_becomes_a_formula() {
         let docbook = r#"<?xml version="1.0" encoding="UTF-8"?>

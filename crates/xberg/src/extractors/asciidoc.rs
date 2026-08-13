@@ -357,10 +357,16 @@ impl<'a> AsciiDocParser<'a> {
                 let bare = crate::extraction::derive::strip_math_delimiters(source).trim();
                 if bare.is_empty() { None } else { Some(bare.to_string()) }
             }
+            // The AsciiMath converter needs `mathemascii`, which `office` brings
+            // in. A build without it keeps the block as its own notation rather
+            // than dropping the mathematics.
+            #[cfg(feature = "office")]
             MathNotation::AsciiMath => {
                 let mut budget = SecurityBudget::with_defaults();
                 crate::extraction::asciimath::convert_asciimath_to_latex(source, &mut budget)
             }
+            #[cfg(not(feature = "office"))]
+            MathNotation::AsciiMath => Some(source.to_string()),
         }
     }
 

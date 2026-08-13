@@ -128,19 +128,84 @@ pub(crate) const JATS_MIME_TYPE: &str = "application/x-jats+xml";
 ///
 /// Real DocBook and JATS documents use the `.xml` extension, so the extension
 /// map alone routes them to the generic XML extractor and their structure and
-/// equations are lost. Only an explicit namespace or a DTD public identifier
-/// counts here: both are unambiguous, so no document changes its routing on a
-/// guess from an element name.
+/// equations are lost.
+///
+/// The test is structural, not a search of the text. A public identifier counts
+/// only inside the DOCTYPE declaration, and a namespace counts only when the
+/// root element declares it. A stylesheet, a schema or a catalog that merely
+/// names DocBook keeps its generic XML routing.
 fn xml_vocabulary(trimmed: &str) -> Option<&'static str> {
-    // The declaration sits in the prolog and the root start tag.
-    let prolog: String = trimmed.chars().take(2048).collect();
-    if prolog.contains("http://docbook.org/ns/docbook") || prolog.contains("//OASIS//DTD DocBook") {
-        return Some(DOCBOOK_MIME_TYPE);
+    let doctype = declaration_of(trimmed, "<!DOCTYPE");
+    if let Some(doctype) = doctype {
+        if doctype.contains("//OASIS//DTD DocBook") {
+            return Some(DOCBOOK_MIME_TYPE);
+        }
+        if doctype.contains("//NLM//DTD JATS") || doctype.contains("//NLM//DTD Journal") {
+            return Some(JATS_MIME_TYPE);
+        }
     }
-    if prolog.contains("//NLM//DTD JATS") || prolog.contains("//NLM//DTD Journal") {
-        return Some(JATS_MIME_TYPE);
+    let root = root_start_tag(trimmed)?;
+    root_is_in_namespace(root, "http://docbook.org/ns/docbook").then_some(DOCBOOK_MIME_TYPE)
+}
+
+/// Report whether the root element itself belongs to `namespace`.
+///
+/// A declaration alone proves nothing: an XSL stylesheet that transforms
+/// DocBook binds the namespace on its own root. The element belongs to the
+/// namespace only when the binding it carries is the one its name uses.
+fn root_is_in_namespace(root: &str, namespace: &str) -> bool {
+    let name = root
+        .trim_start_matches('<')
+        .split([' ', '\t', '\n', '\r', '>', '/'])
+        .next()
+        .unwrap_or_default();
+    let binding = match name.split_once(':') {
+        Some((prefix, _)) => format!("xmlns:{prefix}="),
+        None => "xmlns=".to_string(),
+    };
+    let Some(start) = root.find(&binding) else {
+        return false;
+    };
+    let value = &root[start + binding.len()..];
+    let Some(quote) = value.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+        return false;
+    };
+    value[1..].split(quote).next().is_some_and(|uri| uri == namespace)
+}
+
+/// Return the text of the first declaration that opens with `opener`.
+fn declaration_of<'a>(trimmed: &'a str, opener: &str) -> Option<&'a str> {
+    let start = trimmed.find(opener)?;
+    // An internal subset ends with `]>`, a plain declaration with `>`.
+    let rest = &trimmed[start..];
+    let end = match rest.find(']') {
+        Some(bracket) => rest[bracket..].find('>').map(|offset| bracket + offset)?,
+        None => rest.find('>')?,
+    };
+    Some(&rest[..end])
+}
+
+/// Return the start tag of the root element, skipping the prolog.
+///
+/// The scan stops at the first element, so a namespace bound deeper in the
+/// document cannot claim the file.
+fn root_start_tag(trimmed: &str) -> Option<&str> {
+    let mut rest = trimmed;
+    loop {
+        let open = rest.find('<')?;
+        rest = &rest[open..];
+        if rest.starts_with("<?") || rest.starts_with("<!") {
+            let skip = if rest.starts_with("<!DOCTYPE") {
+                declaration_of(rest, "<!DOCTYPE").map(str::len)?
+            } else {
+                rest.find('>')?
+            };
+            rest = &rest[skip + 1..];
+            continue;
+        }
+        let end = rest.find('>')?;
+        return Some(&rest[..=end]);
     }
-    None
 }
 
 pub(crate) const PDF_MIME_TYPE: &str = "application/pdf";
@@ -958,9 +1023,11 @@ pub fn detect_mime_type_from_bytes(content: &[u8]) -> Result<String> {
         if SUPPORTED_MIME_TYPES.contains(mime_type) || mime_type.starts_with("image/") {
             // `infer` reads the `<?xml` declaration and stops at generic XML, so
             // the vocabulary check has to run before that result is returned.
+            // A caller may pass a truncated header, so decode lossily: a split
+            // multi-byte character must not suppress the check.
+            let prolog = String::from_utf8_lossy(&content[..content.len().min(8192)]);
             if is_generic_xml_mime(mime_type)
-                && let Ok(text) = std::str::from_utf8(content)
-                && let Some(vocabulary) = xml_vocabulary(text.trim_start())
+                && let Some(vocabulary) = xml_vocabulary(prolog.trim_start())
             {
                 return Ok(vocabulary.to_string());
             }
@@ -1051,6 +1118,7 @@ fn detect_office_format_from_zip(content: &[u8]) -> Option<&'static str> {
         return Some(package_mime);
     }
 
+    #[cfg(feature = "hwpx")]
     if contains_subsequence(content, HWPX_MARKER) {
         return Some(HWPX_MIME_TYPE);
     }
@@ -1109,6 +1177,9 @@ fn detect_zip_mimetype_entry<R: Read + Seek>(mut reader: R) -> Option<&'static s
         }
     }
 
+    #[cfg(feature = "hwpx")]
+    let has_hwpx_manifest = archive.index_for_name("Contents/content.hpf").is_some();
+
     let mimetype = archive.by_index(mimetype_index?).ok()?;
     if mimetype.size() > MAX_MIMETYPE_LENGTH {
         return None;
@@ -1120,7 +1191,12 @@ fn detect_zip_mimetype_entry<R: Read + Seek>(mut reader: R) -> Option<&'static s
         value if value == ODT_MIME_TYPE.as_bytes() => Some(ODT_MIME_TYPE),
         value if value == ODP_MIME_TYPE.as_bytes() => Some(ODP_MIME_TYPE),
         value if value == ODS_MIME_TYPE.as_bytes() => Some(ODS_MIME_TYPE),
-        value if value == HWPX_PACKAGE_MIMETYPE => Some(HWPX_MIME_TYPE),
+        // The HWPX reader needs the manifest, so a package without one keeps its
+        // ZIP routing and its members stay readable. The entry is looked up in
+        // the archive directory, because Hangul writes it near the end of the
+        // file, past any header a caller may have truncated to.
+        #[cfg(feature = "hwpx")]
+        value if value == HWPX_PACKAGE_MIMETYPE && has_hwpx_manifest => Some(HWPX_MIME_TYPE),
         _ => None,
     }
 }
@@ -1428,6 +1504,11 @@ mod tests {
                 .start_file("Contents/section0.xml", zip::write::SimpleFileOptions::default())
                 .unwrap();
             std::io::Write::write_all(&mut writer, b"<hs:sec/>").unwrap();
+            // Written last, as Hangul does, so a truncated header cannot see it.
+            writer
+                .start_file("Contents/content.hpf", zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut writer, b"<opf:package/>").unwrap();
             writer.finish().unwrap();
         }
 
@@ -1444,6 +1525,62 @@ mod tests {
 <refentry xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="exp">
   <refsect1><para>Text.</para></refsect1>
 </refentry>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
+    }
+
+    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[test]
+    fn should_keep_zip_routing_for_an_hwpx_package_without_its_manifest() {
+        // `unhwp` needs `Contents/content.hpf`. Without it the HWPX extractor
+        // fails outright, so the package stays on the ZIP route and its members
+        // remain readable.
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
+            let stored =
+                zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            writer.start_file("mimetype", stored).unwrap();
+            std::io::Write::write_all(&mut writer, b"application/hwp+zip").unwrap();
+            writer
+                .start_file("Contents/section0.xml", zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut writer, b"<hs:sec/>").unwrap();
+            writer.finish().unwrap();
+        }
+
+        assert_eq!(detect_mime_type_from_bytes(&buffer).unwrap(), "application/zip");
+    }
+
+    #[test]
+    fn should_keep_generic_xml_for_a_stylesheet_that_only_names_docbook() {
+        // A DocBook XSL customization layer binds the namespace on a foreign
+        // root. It is not a DocBook document, and the DocBook extractor drops
+        // every element it does not know.
+        let content = br#"<?xml version="1.0"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:d="http://docbook.org/ns/docbook" version="1.0">
+  <xsl:template match="d:para"><p><xsl:apply-templates/></p></xsl:template>
+</xsl:stylesheet>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "text/xml");
+    }
+
+    #[test]
+    fn should_keep_generic_xml_for_a_catalog_that_lists_the_docbook_dtd() {
+        let content = br#"<?xml version="1.0"?>
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <public publicId="-//OASIS//DTD DocBook XML V4.5//EN" uri="docbookx.dtd"/>
+</catalog>"#;
+
+        assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "text/xml");
+    }
+
+    #[test]
+    fn should_detect_docbook_when_the_namespace_is_bound_to_a_prefix() {
+        let content = br#"<?xml version="1.0"?>
+<db:book xmlns:db="http://docbook.org/ns/docbook" version="5.0">
+  <db:chapter><db:para>Text.</db:para></db:chapter>
+</db:book>"#;
 
         assert_eq!(detect_mime_type_from_bytes(content).unwrap(), "application/docbook+xml");
     }

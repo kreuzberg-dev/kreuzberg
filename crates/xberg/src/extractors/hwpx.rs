@@ -3,8 +3,9 @@
 //! Extracts text, headings, tables, and images from HWPX documents using the `unhwp` crate.
 
 use std::borrow::Cow;
-use std::io::Cursor;
+use std::io::{Cursor, Read, Seek};
 
+use ahash::AHashMap;
 use async_trait::async_trait;
 use bytes::Bytes;
 
@@ -90,31 +91,55 @@ fn mime_to_format(mime: &str) -> Cow<'static, str> {
 /// so a real document loses every formula. Reading the section XML through the
 /// crate's own container keeps the archive, the section order and the script
 /// conversion with `unhwp`, and adds only the search for one element.
-fn collect_section_formulas(content: &[u8]) -> Vec<Vec<String>> {
+/// Collect the LaTeX of every equation, keyed by section index and by the
+/// ordinal of the paragraph that holds it.
+///
+/// `unhwp` reads an equation only when it sits in a paragraph-level `<hp:ctrl>`;
+/// its run reader drops `<hp:equation>`. Hangul writes the equation into the run,
+/// so a real document loses every formula. This walks the section parts of the
+/// archive the caller already opened, so the file is neither copied nor
+/// decompressed a second time, and `unhwp` keeps the script conversion.
+///
+/// A paragraph inside a table is not counted: `unhwp` keeps those in the cell
+/// rather than in the section's block list, so counting them would shift every
+/// later ordinal.
+fn collect_section_formulas<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> AHashMap<usize, Vec<(usize, String)>> {
+    use crate::utils::xml_utils::EntityReader;
     use quick_xml::events::Event;
 
-    let Ok(mut container) = unhwp::hwpx::HwpxContainer::from_bytes(content.to_vec()) else {
-        return Vec::new();
-    };
-    let Ok(section_paths) = container.list_sections() else {
-        return Vec::new();
-    };
+    let section_parts: Vec<(usize, String)> = archive
+        .file_names()
+        .filter_map(|name| section_index_of(name).map(|index| (index, name.to_string())))
+        .collect();
 
-    let mut per_section = Vec::with_capacity(section_paths.len());
-    for path in &section_paths {
-        let Ok(xml) = container.read_file(path) else {
-            per_section.push(Vec::new());
+    let mut per_section: AHashMap<usize, Vec<(usize, String)>> = AHashMap::new();
+    for (section_index, name) in section_parts {
+        let mut xml = String::new();
+        if archive
+            .by_name(&name)
+            .ok()
+            .and_then(|mut part| part.read_to_string(&mut xml).ok())
+            .is_none()
+        {
             continue;
-        };
+        }
 
-        let mut formulas = Vec::new();
-        let mut reader = quick_xml::Reader::from_str(&xml);
+        let mut formulas: Vec<(usize, String)> = Vec::new();
+        // `EntityReader` resolves `&amp;` and friends into the text it returns. A
+        // bare reader emits them as separate events, and an equation script uses
+        // `&` as its matrix column separator.
+        let mut reader = EntityReader::from_str(&xml);
+        let mut paragraph_ordinal = 0usize;
+        let mut paragraph_depth = 0usize;
+        let mut table_depth = 0usize;
         let mut in_equation = false;
         let mut in_script = false;
         let mut script = String::new();
         loop {
             match reader.read_event() {
                 Ok(Event::Start(e)) => match local_name(e.name().as_ref()) {
+                    "tbl" => table_depth += 1,
+                    "p" if table_depth == 0 => paragraph_depth += 1,
                     "equation" | "eqEdit" => in_equation = true,
                     "script" if in_equation => in_script = true,
                     _ => {}
@@ -123,11 +148,18 @@ fn collect_section_formulas(content: &[u8]) -> Vec<Vec<String>> {
                     script.push_str(&String::from_utf8_lossy(t.as_ref()));
                 }
                 Ok(Event::End(e)) => match local_name(e.name().as_ref()) {
+                    "tbl" => table_depth = table_depth.saturating_sub(1),
+                    "p" if table_depth == 0 => {
+                        paragraph_depth = paragraph_depth.saturating_sub(1);
+                        if paragraph_depth == 0 {
+                            paragraph_ordinal += 1;
+                        }
+                    }
                     "script" => in_script = false,
                     "equation" | "eqEdit" => {
                         let latex = unhwp::equation::to_latex(std::mem::take(&mut script).trim());
                         if !latex.trim().is_empty() {
-                            formulas.push(latex.trim().to_string());
+                            formulas.push((paragraph_ordinal, latex.trim().to_string()));
                         }
                         in_equation = false;
                     }
@@ -137,9 +169,21 @@ fn collect_section_formulas(content: &[u8]) -> Vec<Vec<String>> {
                 _ => {}
             }
         }
-        per_section.push(formulas);
+        if !formulas.is_empty() {
+            per_section.insert(section_index, formulas);
+        }
     }
     per_section
+}
+
+/// Return the index of a section part, so `Contents/section3.xml` gives `3`.
+///
+/// `unhwp::model::Section::index` carries the same number, which keys the two
+/// sides together even when the crate drops a section it cannot read.
+fn section_index_of(name: &str) -> Option<usize> {
+    let file = name.rsplit('/').next()?;
+    let digits = file.strip_prefix("section")?.strip_suffix(".xml")?;
+    digits.parse().ok()
 }
 
 /// Return the local part of a possibly prefixed XML qualified name.
@@ -154,7 +198,7 @@ fn local_name(qname: &[u8]) -> &str {
 fn build_hwpx_internal_document(
     doc: unhwp::model::Document,
     mime_type: &str,
-    section_formulas: &[Vec<String>],
+    section_formulas: &AHashMap<usize, Vec<(usize, String)>>,
 ) -> InternalDocument {
     let mut builder = InternalDocumentBuilder::new("hwpx");
     builder.set_mime_type(Cow::Owned(mime_type.to_string()));
@@ -194,7 +238,12 @@ fn build_hwpx_internal_document(
     let mut image_index: usize = 0;
     let mut footnote_counter: u32 = 0;
 
-    for (section_index, section) in doc.sections.iter().enumerate() {
+    for section in &doc.sections {
+        // Key on the section's own index. `unhwp` drops a section it cannot
+        // read, so a position in the list does not identify the part.
+        let scanned = section_formulas.get(&section.index);
+        let mut next_formula = 0usize;
+        let mut paragraph_ordinal = 0usize;
         // Section headers/footers (`unhwp::model::Section::header`/`footer`) previously
         // went unread entirely — only `section.content` was visited (#96). ~keep
         if let Some(header_paragraphs) = &section.header {
@@ -298,11 +347,24 @@ fn build_hwpx_internal_document(
                     }
                 }
             }
+
+            if matches!(block, unhwp::model::Block::Paragraph(_)) {
+                // The scan is the only source of formula elements, because it
+                // sees an equation wherever it sits. Emitting here keeps the
+                // equation next to the paragraph that introduces it.
+                while let Some((ordinal, latex)) = scanned.and_then(|list| list.get(next_formula)) {
+                    if *ordinal != paragraph_ordinal {
+                        break;
+                    }
+                    builder.push_formula(latex, None, None);
+                    next_formula += 1;
+                }
+                paragraph_ordinal += 1;
+            }
         }
 
-        // The scan sees every equation, wherever it sits, so it is the only
-        // source of formula elements; the model path handles the text spacing.
-        for latex in section_formulas.get(section_index).into_iter().flatten() {
+        // An equation the block walk never reached still belongs to the output.
+        for (_, latex) in scanned.into_iter().flatten().skip(next_formula) {
             builder.push_formula(latex, None, None);
         }
     }
@@ -516,9 +578,10 @@ impl InternalDocumentExtractor for HwpxExtractor {
             .validate(&mut archive)
             .map_err(|e| crate::XbergError::validation(e.to_string()))?;
 
+        let section_formulas = collect_section_formulas(&mut archive);
+
         let doc = unhwp::parse_bytes(content)
             .map_err(|e| crate::XbergError::parsing(format!("Failed to parse HWPX: {e}")))?;
-        let section_formulas = collect_section_formulas(content);
         Ok(build_hwpx_internal_document(doc, mime_type, &section_formulas))
     }
 
@@ -539,6 +602,101 @@ mod tests {
         Block, Document, Equation, InlineContent, Paragraph, Section, Table, TableCell, TableRow, TextRun,
     };
 
+    /// Build a HWPX package in memory holding one section.
+    fn hwpx_package(sections: &[(&str, &str)]) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(Cursor::new(&mut buffer));
+            let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            writer.start_file("mimetype", stored).unwrap();
+            std::io::Write::write_all(&mut writer, b"application/hwp+zip").unwrap();
+            for (name, xml) in sections {
+                writer
+                    .start_file(*name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
+                std::io::Write::write_all(&mut writer, xml.as_bytes()).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+        buffer
+    }
+
+    fn scan(package: &[u8]) -> AHashMap<usize, Vec<(usize, String)>> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(package)).unwrap();
+        collect_section_formulas(&mut archive)
+    }
+
+    /// Hangul writes the equation into the run, which `unhwp` skips, so the scan
+    /// is the only thing that finds it.
+    #[test]
+    fn test_scan_reads_an_equation_inside_a_run() {
+        let xml = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:t>Prose.</hp:t></hp:run></hp:p>
+  <hp:p><hp:run><hp:equation><hp:script>a OVER b</hp:script></hp:equation></hp:run></hp:p>
+</hs:sec>"#;
+
+        let found = scan(&hwpx_package(&[("Contents/section0.xml", xml)]));
+
+        assert_eq!(found.get(&0).map(Vec::as_slice), Some(&[(1usize, "\\frac{a}{b}".to_string())][..]));
+    }
+
+    /// `&amp;` separates the columns of a matrix, so a reader that drops entity
+    /// references merges them silently.
+    #[test]
+    fn test_scan_resolves_entity_references_in_a_script() {
+        let xml = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:equation><hp:script>bmatrix { 1 &amp; 2 # 3 &amp; 4 }</hp:script></hp:equation></hp:run></hp:p>
+</hs:sec>"#;
+
+        let found = scan(&hwpx_package(&[("Contents/section0.xml", xml)]));
+
+        let latex = &found.get(&0).expect("section 0 has an equation")[0].1;
+        // Compare against the script with its references already resolved. A
+        // reader that drops them converts `1 &amp; 2` as `1 2`, which differs.
+        let expected = unhwp::equation::to_latex("bmatrix { 1 & 2 # 3 & 4 }");
+        assert_eq!(latex, expected.trim(), "the scan must resolve `&amp;` before conversion");
+        assert_ne!(
+            latex,
+            unhwp::equation::to_latex("bmatrix { 1  2 # 3  4 }").trim(),
+            "a dropped reference must not produce the same LaTeX"
+        );
+    }
+
+    /// A section keeps its own index, so a section the crate cannot read does
+    /// not shift the equations of the sections after it.
+    #[test]
+    fn test_scan_keys_each_section_by_its_own_index() {
+        let one = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:equation><hp:script>x OVER y</hp:script></hp:equation></hp:run></hp:p>
+</hs:sec>"#;
+        let two = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:equation><hp:script>p OVER q</hp:script></hp:equation></hp:run></hp:p>
+</hs:sec>"#;
+
+        let found = scan(&hwpx_package(&[
+            ("Contents/section0.xml", one),
+            ("Contents/section2.xml", two),
+        ]));
+
+        assert_eq!(found.get(&0).map(|f| f[0].1.as_str()), Some("\\frac{x}{y}"));
+        assert_eq!(found.get(&2).map(|f| f[0].1.as_str()), Some("\\frac{p}{q}"));
+        assert!(found.get(&1).is_none(), "no section 1 part exists");
+    }
+
+    /// A paragraph inside a table stays in the cell for `unhwp`, so counting it
+    /// would shift the ordinal of every paragraph after the table.
+    #[test]
+    fn test_scan_does_not_count_a_paragraph_inside_a_table() {
+        let xml = r#"<hs:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:tbl><hp:tr><hp:tc><hp:subList><hp:p><hp:run><hp:t>Cell.</hp:t></hp:run></hp:p></hp:subList></hp:tc></hp:tr></hp:tbl></hp:run></hp:p>
+  <hp:p><hp:run><hp:equation><hp:script>a OVER b</hp:script></hp:equation></hp:run></hp:p>
+</hs:sec>"#;
+
+        let found = scan(&hwpx_package(&[("Contents/section0.xml", xml)]));
+
+        assert_eq!(found.get(&0).map(|f| f[0].0), Some(1), "the equation is in the second paragraph");
+    }
+
     #[test]
     fn test_mime_to_format_maps_svg_wmf_emf() {
         assert_eq!(mime_to_format("image/svg+xml"), Cow::Borrowed("svg"));
@@ -556,7 +714,7 @@ mod tests {
         section.footer = Some(vec![Paragraph::text("Page footer text")]);
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let header = internal
             .elements
@@ -584,7 +742,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let body = internal
             .elements
@@ -615,7 +773,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let elem = internal
             .elements
@@ -648,7 +806,8 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let section_formulas = vec![vec!["\\frac{a}{b}".to_string()]];
+        let section_formulas: AHashMap<usize, Vec<(usize, String)>> =
+            [(0usize, vec![(0usize, "\\frac{a}{b}".to_string())])].into_iter().collect();
         let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &section_formulas);
 
         let formulas: Vec<&str> = internal
@@ -680,7 +839,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let para = internal
             .elements
@@ -701,7 +860,8 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let section_formulas = vec![vec!["\\frac{a}{b}".to_string()]];
+        let section_formulas: AHashMap<usize, Vec<(usize, String)>> =
+            [(0usize, vec![(0usize, "\\frac{a}{b}".to_string())])].into_iter().collect();
         let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &section_formulas);
 
         let formulas: Vec<&str> = internal
@@ -732,7 +892,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let table_elem = internal
             .elements
@@ -770,7 +930,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let table_elem = internal
             .elements
@@ -801,7 +961,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let definition = internal
             .elements
@@ -833,7 +993,7 @@ mod tests {
         doc.sections.push(section);
         // Deliberately leave `doc.resources` empty: "bin0" is never registered.
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let warnings = hwpx_warnings(&internal);
         assert_eq!(warnings.len(), 1, "expected exactly one hwpx warning, got {warnings:?}");
@@ -862,7 +1022,7 @@ mod tests {
         section.content.push(Block::Paragraph(p));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         assert!(
             hwpx_warnings(&internal).is_empty(),
@@ -899,7 +1059,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         let warnings = hwpx_warnings(&internal);
         assert_eq!(warnings.len(), 1, "expected exactly one hwpx warning, got {warnings:?}");
@@ -928,7 +1088,7 @@ mod tests {
         section.content.push(Block::Table(table));
         doc.sections.push(section);
 
-        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &[]);
+        let internal = build_hwpx_internal_document(doc, "application/haansofthwpx", &AHashMap::new());
 
         assert!(
             hwpx_warnings(&internal).is_empty(),

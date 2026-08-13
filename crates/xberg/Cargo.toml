@@ -90,7 +90,7 @@ office = [
 # can be built standalone; `office` re-includes it for backward compatibility.
 notebook = ["html"]
 hwp = ["dep:cfb", "dep:flate2"]
-hwpx = ["dep:unhwp", "dep:zip"]
+hwpx = ["dep:unhwp", "dep:zip", "dep:quick-xml"]
 iwork = ["dep:zip", "dep:snap"]
 email = [
     "dep:mail-parser",
