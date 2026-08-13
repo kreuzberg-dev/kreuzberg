@@ -174,12 +174,24 @@ fn render_children(node: &SyntaxNode) -> String {
 /// Typst writes `f_(n - 1)`, where the parentheses group the subscript rather
 /// than appearing in it.
 fn group(node: &SyntaxNode) -> String {
+    let inner = group_inner(node);
+    if inner.chars().count() == 1 { inner } else { format!("{{{inner}}}") }
+}
+
+/// Render a node as a braced LaTeX argument.
+///
+/// A single character may follow `_` or `^` bare, but never a command: `\frac`
+/// with bare arguments reads as the undefined control sequence `\fracab`.
+fn braced(node: &SyntaxNode) -> String {
+    format!("{{{}}}", group_inner(node))
+}
+
+fn group_inner(node: &SyntaxNode) -> String {
     let rendered = collapse_spaces(&render(node)).trim().to_string();
-    let inner = match rendered.strip_prefix('(').and_then(|r| r.strip_suffix(')')) {
+    match rendered.strip_prefix('(').and_then(|r| r.strip_suffix(')')) {
         Some(inner) => inner.trim().to_string(),
         None => rendered,
-    };
-    if inner.chars().count() == 1 { inner } else { format!("{{{inner}}}") }
+    }
 }
 
 fn render_attach(node: &SyntaxNode) -> String {
@@ -200,7 +212,13 @@ fn render_attach(node: &SyntaxNode) -> String {
             },
         }
     }
-    format!("{}{}", base.trim(), out)
+    let base = base.trim();
+    // A script with no base of its own still needs one, or two scripts in a row
+    // read as a double subscript.
+    if base.is_empty() && !out.is_empty() {
+        return format!("{{}}{out}");
+    }
+    format!("{base}{out}")
 }
 
 fn render_frac(node: &SyntaxNode) -> String {
@@ -209,7 +227,7 @@ fn render_frac(node: &SyntaxNode) -> String {
         .filter(|c| !matches!(c.kind(), SyntaxKind::Slash | SyntaxKind::Space))
         .collect();
     match parts.as_slice() {
-        [num, den] => format!("\\frac{}{}", group(num), group(den)),
+        [num, den] => format!("\\frac{}{}", braced(num), braced(den)),
         _ => render_children(node),
     }
 }
@@ -220,8 +238,8 @@ fn render_root(node: &SyntaxNode) -> String {
         .filter(|c| !matches!(c.kind(), SyntaxKind::Root | SyntaxKind::Space))
         .collect();
     match parts.as_slice() {
-        [radicand] => format!("\\sqrt{}", group(radicand)),
-        [degree, radicand] => format!("\\sqrt[{}]{}", collapse_spaces(&render(degree)).trim(), group(radicand)),
+        [radicand] => format!("\\sqrt{}", braced(radicand)),
+        [degree, radicand] => format!("\\sqrt[{}]{}", collapse_spaces(&render(degree)).trim(), braced(radicand)),
         _ => render_children(node),
     }
 }
@@ -358,7 +376,23 @@ fn shorthand(text: &str) -> String {
 
 /// Wrap prose in `\text{}`, escaping what LaTeX would otherwise read as markup.
 fn text_command(text: &str) -> String {
-    format!("\\text{{{}}}", escape_text(text))
+    let mut inner = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\\' => inner.push_str("\\textbackslash{}"),
+            '{' => inner.push_str("\\{"),
+            '}' => inner.push_str("\\}"),
+            '#' => inner.push_str("\\#"),
+            '%' => inner.push_str("\\%"),
+            '$' => inner.push_str("\\$"),
+            '&' => inner.push_str("\\&"),
+            '_' => inner.push_str("\\_"),
+            '^' => inner.push_str("\\textasciicircum{}"),
+            '~' => inner.push_str("\\textasciitilde{}"),
+            _ => inner.push(ch),
+        }
+    }
+    format!("\\text{{{inner}}}")
 }
 
 /// Escape the characters that would change the structure of the LaTeX.
