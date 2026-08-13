@@ -7,15 +7,15 @@ package e2e_test
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"testing"
-	"fmt"
-	"io"
-	"net/http"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -57,14 +57,18 @@ func TestMain(m *testing.M) {
 	cmd := exec.Command(mockBin, fixturesDir)
 	cmdEnv := os.Environ()
 	if v := os.Getenv("CRAWLBERG_ALLOW_PRIVATE_NETWORK"); v != "" {
-		cmdEnv = append(cmdEnv, "CRAWLBERG_ALLOW_PRIVATE_NETWORK=" + v)
+		cmdEnv = append(cmdEnv, "CRAWLBERG_ALLOW_PRIVATE_NETWORK="+v)
 	}
 	cmdEnv = append(cmdEnv, "MOCK_SERVER_NO_STDIN_WATCH=1")
 	cmd.Env = cmdEnv
 	stdout, err := cmd.StdoutPipe()
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil { panic(err) }
+	if err := cmd.Start(); err != nil {
+		panic(err)
+	}
 	// Defer cleanup to a helper to avoid 'exitAfterDefer' linter violation.
 	// The helper owns process cleanup via defer; TestMain calls os.Exit
 	// after the helper returns, so defer cleanup completes properly.
@@ -111,7 +115,10 @@ func runTests(m *testing.M, cmd *exec.Cmd, stdout io.ReadCloser) int {
 		panic("mock-server did not emit MOCK_SERVER_URL")
 	}
 	// Drain remaining stdout asynchronously so the pipe doesn't fill.
-	go func() { for scanner.Scan() { } }()
+	go func() {
+		for scanner.Scan() {
+		}
+	}()
 
 	// Poll the mock-server URL until it answers (axum::serve start race).
 	{

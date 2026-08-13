@@ -23,6 +23,7 @@ public record LayoutDetectionConfig(
     @Nullable @JsonProperty("confidence_threshold") Float confidenceThreshold,
     @Nullable @JsonProperty("apply_heuristics") Boolean applyHeuristics,
     @Nullable @JsonProperty("table_model") TableModel tableModel,
+    @Nullable @JsonProperty("formula_model") FormulaModel formulaModel,
     @Nullable @JsonProperty("table_overlap_preference") TableOverlapPreference tableOverlapPreference,
     @Nullable @JsonProperty("acceleration") AccelerationConfig acceleration,
     @Nullable @JsonProperty("enable_chart_understanding") Boolean enableChartUnderstanding
@@ -48,6 +49,8 @@ public record LayoutDetectionConfig(
         @Nullable private Boolean applyHeuristics;
         @JsonProperty("table_model")
         @Nullable private TableModel tableModel = TableModel.Tatr;
+        @JsonProperty("formula_model")
+        @Nullable private FormulaModel formulaModel;
         @JsonProperty("table_overlap_preference")
         @Nullable private TableOverlapPreference tableOverlapPreference = TableOverlapPreference.Content;
         @Nullable private AccelerationConfig acceleration;
@@ -82,6 +85,13 @@ public record LayoutDetectionConfig(
             return this;
         }
 
+        /** Sets the formulaModel field. */
+        @JsonProperty("formula_model")
+        public Builder withFormulaModel(final @Nullable FormulaModel value) {
+            this.formulaModel = value;
+            return this;
+        }
+
         /** Sets the tableOverlapPreference field. */
         @JsonProperty("table_overlap_preference")
         public Builder withTableOverlapPreference(final @Nullable TableOverlapPreference value) {
@@ -110,6 +120,7 @@ public record LayoutDetectionConfig(
                 confidenceThreshold,
                 applyHeuristics,
                 tableModel,
+                formulaModel,
                 tableOverlapPreference,
                 acceleration,
                 enableChartUnderstanding

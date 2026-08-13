@@ -16,475 +16,381 @@ namespace Xberg;
 /// `extract` and `extract_batch` return an `ExtractionResult` envelope whose
 /// `results` field contains these per-document payloads.
 /// </summary>
-public sealed record ExtractedDocument {
-  /// <summary>
-  /// Plain-text representation of the extracted document content.
-  /// </summary>
-  [JsonPropertyName("content")]
-  public string Content { get; init; } = "";
+public sealed record ExtractedDocument
+{
+    /// <summary>
+    /// Plain-text representation of the extracted document content.
+    /// </summary>
+    [JsonPropertyName("content")]
+    public string Content { get; init; } = "";
 
-  /// <summary>
-  /// MIME type of the source document (e.g. `"application/pdf"`).
-  /// </summary>
-  [JsonPropertyName("mime_type")]
-  public string MimeType {
-    get; init;
-  } = "";
+    /// <summary>
+    /// MIME type of the source document (e.g. `"application/pdf"`).
+    /// </summary>
+    [JsonPropertyName("mime_type")]
+    public string MimeType { get; init; } = "";
 
-  /// <summary>
-  /// Document-level metadata (author, title, dates, format-specific fields).
-  /// </summary>
-  [JsonPropertyName("metadata")]
-  public Metadata Metadata {
-    get; init;
-  } = default!;
+    /// <summary>
+    /// Document-level metadata (author, title, dates, format-specific fields).
+    /// </summary>
+    [JsonPropertyName("metadata")]
+    public Metadata Metadata { get; init; } = default!;
 
-  /// <summary>
-  /// Extraction strategy used to produce the returned text.
-  ///
-  /// Populated when the extractor can reliably distinguish native text
-  /// extraction, OCR-only extraction, or mixed native/OCR output.
-  /// </summary>
-  [JsonPropertyName("extraction_method")]
-  public ExtractionMethod
-      ? ExtractionMethod {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Extraction strategy used to produce the returned text.
+    ///
+    /// Populated when the extractor can reliably distinguish native text extraction,
+    /// OCR-only extraction, or mixed native/OCR output.
+    /// </summary>
+    [JsonPropertyName("extraction_method")]
+    public ExtractionMethod? ExtractionMethod { get; init; } = null;
 
-  /// <summary>
-  /// Tables extracted from the document, each with structured cell data.
-  /// </summary>
-  [JsonPropertyName("tables")]
-  public List<Table> Tables {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Tables extracted from the document, each with structured cell data.
+    /// </summary>
+    [JsonPropertyName("tables")]
+    public List<Table> Tables { get; init; } = [];
 
-  /// <summary>
-  /// Cheap structural counts (pages, tables, images).
-  ///
-  /// Always populated by the extraction pipeline, even when the `pages` /
-  /// `images` collections are `None`. See `DocumentCounts`.
-  /// </summary>
-  [JsonPropertyName("counts")]
-  public DocumentCounts Counts {
-    get; init;
-  } = default!;
+    /// <summary>
+    /// Cheap structural counts (pages, tables, images).
+    ///
+    /// Always populated by the extraction pipeline, even when the `pages` /
+    /// `images` collections are `None`. See `DocumentCounts`.
+    /// </summary>
+    [JsonPropertyName("counts")]
+    public DocumentCounts Counts { get; init; } = default!;
 
-  /// <summary>
-  /// ISO 639-1 language codes detected in the document content.
-  /// </summary>
-  [JsonPropertyName("detected_languages")]
-  public List<string>
-      ? DetectedLanguages {
-          get; init;
-        } = null;
+    /// <summary>
+    /// ISO 639-1 language codes detected in the document content.
+    /// </summary>
+    [JsonPropertyName("detected_languages")]
+    public List<string>? DetectedLanguages { get; init; } = null;
 
-  /// <summary>
-  /// Structured per-language detection results: confidence, document share,
-  /// script, and reliability, alongside the ISO-code-only `detected_languages`
-  /// (#261).
-  ///
-  /// One entry per language in `detected_languages`, in the same order. `None`
-  /// under the same conditions as `detected_languages`: detection disabled,
-  /// empty input text, or no language met the configured `min_confidence`.
-  /// </summary>
-  [JsonPropertyName("detected_language_confidences")]
-  public List<LanguageConfidence>
-      ? DetectedLanguageConfidences {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Structured per-language detection results: confidence, document share, script,
+    /// and reliability, alongside the ISO-code-only `detected_languages` (#261).
+    ///
+    /// One entry per language in `detected_languages`, in the same order. `None` under
+    /// the same conditions as `detected_languages`: detection disabled, empty input
+    /// text, or no language met the configured `min_confidence`.
+    /// </summary>
+    [JsonPropertyName("detected_language_confidences")]
+    public List<LanguageConfidence>? DetectedLanguageConfidences { get; init; } = null;
 
-  /// <summary>
-  /// Text chunks when chunking is enabled.
-  ///
-  /// When chunking configuration is provided, the content is split into
-  /// overlapping chunks for efficient processing. Each chunk contains the text,
-  /// optional embeddings (if enabled), and metadata about its position.
-  /// </summary>
-  [JsonPropertyName("chunks")]
-  public List<Chunk>
-      ? Chunks {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Text chunks when chunking is enabled.
+    ///
+    /// When chunking configuration is provided, the content is split into
+    /// overlapping chunks for efficient processing. Each chunk contains the text,
+    /// optional embeddings (if enabled), and metadata about its position.
+    /// </summary>
+    [JsonPropertyName("chunks")]
+    public List<Chunk>? Chunks { get; init; } = null;
 
-  /// <summary>
-  /// Extracted images from the document.
-  ///
-  /// When image extraction is enabled via `ImageExtractionConfig`, this field
-  /// contains all images found in the document with their raw data and
-  /// metadata. Each image may optionally contain a nested `ocr_result` if OCR
-  /// was performed.
-  /// </summary>
-  [JsonPropertyName("images")]
-  public List<ExtractedImage>
-      ? Images {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Extracted images from the document.
+    ///
+    /// When image extraction is enabled via `ImageExtractionConfig`, this field
+    /// contains all images found in the document with their raw data and metadata.
+    /// Each image may optionally contain a nested `ocr_result` if OCR was performed.
+    /// </summary>
+    [JsonPropertyName("images")]
+    public List<ExtractedImage>? Images { get; init; } = null;
 
-  /// <summary>
-  /// Per-page content when page extraction is enabled.
-  ///
-  /// When page extraction is configured, the document is split into per-page
-  /// content with tables and images mapped to their respective pages.
-  /// </summary>
-  [JsonPropertyName("pages")]
-  public List<PageContent>
-      ? Pages {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Per-page content when page extraction is enabled.
+    ///
+    /// When page extraction is configured, the document is split into per-page content
+    /// with tables and images mapped to their respective pages.
+    /// </summary>
+    [JsonPropertyName("pages")]
+    public List<PageContent>? Pages { get; init; } = null;
 
-  /// <summary>
-  /// Semantic elements when element-based result format is enabled.
-  ///
-  /// When result_format is set to ElementBased, this field contains semantic
-  /// elements with type classification, unique identifiers, and metadata for
-  /// Unstructured-compatible element-based processing.
-  /// </summary>
-  [JsonPropertyName("elements")]
-  public List<Element>
-      ? Elements {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Semantic elements when element-based result format is enabled.
+    ///
+    /// When result_format is set to ElementBased, this field contains semantic
+    /// elements with type classification, unique identifiers, and metadata for
+    /// Unstructured-compatible element-based processing.
+    /// </summary>
+    [JsonPropertyName("elements")]
+    public List<Element>? Elements { get; init; } = null;
 
-  /// <summary>
-  /// Rich Djot content structure (when extracting Djot documents).
-  ///
-  /// When extracting Djot documents with structured extraction enabled,
-  /// this field contains the full semantic structure including:
-  /// - Block-level elements with nesting
-  /// - Inline formatting with attributes
-  /// - Links, images, footnotes
-  /// - Math expressions
-  /// - Complete attribute information
-  ///
-  /// The `content` field still contains plain text for backward compatibility.
-  ///
-  /// Always `None` for non-Djot documents.
-  /// </summary>
-  [JsonPropertyName("djot_content")]
-  public DjotContent
-      ? DjotContent {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Rich Djot content structure (when extracting Djot documents).
+    ///
+    /// When extracting Djot documents with structured extraction enabled,
+    /// this field contains the full semantic structure including:
+    /// - Block-level elements with nesting
+    /// - Inline formatting with attributes
+    /// - Links, images, footnotes
+    /// - Math expressions
+    /// - Complete attribute information
+    ///
+    /// The `content` field still contains plain text for backward compatibility.
+    ///
+    /// Always `None` for non-Djot documents.
+    /// </summary>
+    [JsonPropertyName("djot_content")]
+    public DjotContent? DjotContent { get; init; } = null;
 
-  /// <summary>
-  /// OCR elements with full spatial and confidence metadata.
-  ///
-  /// When OCR is performed with element extraction enabled, this field contains
-  /// the structured representation of detected text including:
-  /// - Bounding geometry (rectangles or quadrilaterals)
-  /// - Confidence scores (detection and recognition)
-  /// - Rotation information
-  /// - Hierarchical relationships (Tesseract only)
-  ///
-  /// This field preserves all metadata that would otherwise be lost when
-  /// converting to plain text or markdown output formats.
-  ///
-  /// Only populated when `OcrElementConfig.include_elements` is true.
-  /// </summary>
-  [JsonPropertyName("ocr_elements")]
-  public List<OcrElement>
-      ? OcrElements {
-          get; init;
-        } = null;
+    /// <summary>
+    /// OCR elements with full spatial and confidence metadata.
+    ///
+    /// When OCR is performed with element extraction enabled, this field contains
+    /// the structured representation of detected text including:
+    /// - Bounding geometry (rectangles or quadrilaterals)
+    /// - Confidence scores (detection and recognition)
+    /// - Rotation information
+    /// - Hierarchical relationships (Tesseract only)
+    ///
+    /// This field preserves all metadata that would otherwise be lost when
+    /// converting to plain text or markdown output formats.
+    ///
+    /// Only populated when `OcrElementConfig.include_elements` is true.
+    /// </summary>
+    [JsonPropertyName("ocr_elements")]
+    public List<OcrElement>? OcrElements { get; init; } = null;
 
-  /// <summary>
-  /// Structured document tree (when document structure extraction is enabled).
-  ///
-  /// When `include_document_structure` is true in `ExtractionConfig`, this
-  /// field contains the full hierarchical representation of the document
-  /// including:
-  /// - Heading-driven section nesting
-  /// - Table grids with cell-level metadata
-  /// - Content layer classification (body, header, footer, footnote)
-  /// - Inline text annotations (formatting, links)
-  /// - Bounding boxes and page numbers
-  ///
-  /// Independent of `result_format` — can be combined with Unified or
-  /// ElementBased.
-  /// </summary>
-  [JsonPropertyName("document")]
-  public DocumentStructure
-      ? Document {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Structured document tree (when document structure extraction is enabled).
+    ///
+    /// When `include_document_structure` is true in `ExtractionConfig`, this field
+    /// contains the full hierarchical representation of the document including:
+    /// - Heading-driven section nesting
+    /// - Table grids with cell-level metadata
+    /// - Content layer classification (body, header, footer, footnote)
+    /// - Inline text annotations (formatting, links)
+    /// - Bounding boxes and page numbers
+    ///
+    /// Independent of `result_format` — can be combined with Unified or ElementBased.
+    /// </summary>
+    [JsonPropertyName("document")]
+    public DocumentStructure? Document { get; init; } = null;
 
-  /// <summary>
-  /// Extracted keywords when keyword extraction is enabled.
-  ///
-  /// When keyword extraction (RAKE or YAKE) is configured, this field contains
-  /// the extracted keywords with scores, algorithm info, and position data.
-  /// Previously stored in `metadata.additional["keywords"]`.
-  /// </summary>
-  [JsonPropertyName("extracted_keywords")]
-  public List<Keyword>
-      ? ExtractedKeywords {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Extracted keywords when keyword extraction is enabled.
+    ///
+    /// When keyword extraction (RAKE or YAKE) is configured, this field contains
+    /// the extracted keywords with scores, algorithm info, and position data.
+    /// Previously stored in `metadata.additional["keywords"]`.
+    /// </summary>
+    [JsonPropertyName("extracted_keywords")]
+    public List<Keyword>? ExtractedKeywords { get; init; } = null;
 
-  /// <summary>
-  /// Document quality score from quality analysis.
-  ///
-  /// A value between 0.0 and 1.0 indicating the overall text quality.
-  /// Previously stored in `metadata.additional["quality_score"]`.
-  /// </summary>
-  [JsonPropertyName("quality_score")]
-  public double
-      ? QualityScore {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Document quality score from quality analysis.
+    ///
+    /// A value between 0.0 and 1.0 indicating the overall text quality.
+    /// Previously stored in `metadata.additional["quality_score"]`.
+    /// </summary>
+    [JsonPropertyName("quality_score")]
+    public double? QualityScore { get; init; } = null;
 
-  /// <summary>
-  /// Non-fatal warnings collected during processing pipeline stages.
-  ///
-  /// Captures errors from optional pipeline features (embedding, chunking,
-  /// language detection, output formatting) that don't prevent extraction
-  /// but may indicate degraded results.
-  /// Previously stored as individual keys in `metadata.additional`.
-  /// </summary>
-  [JsonPropertyName("processing_warnings")]
-  public List<ProcessingWarning> ProcessingWarnings {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Non-fatal warnings collected during processing pipeline stages.
+    ///
+    /// Captures errors from optional pipeline features (embedding, chunking,
+    /// language detection, output formatting) that don't prevent extraction
+    /// but may indicate degraded results.
+    /// Previously stored as individual keys in `metadata.additional`.
+    /// </summary>
+    [JsonPropertyName("processing_warnings")]
+    public List<ProcessingWarning> ProcessingWarnings { get; init; } = [];
 
-  /// <summary>
-  /// PDF annotations extracted from the document.
-  ///
-  /// When annotation extraction is enabled via `PdfConfig.extract_annotations`,
-  /// this field contains text notes, highlights, links, stamps, and other
-  /// annotations found in PDF documents.
-  /// </summary>
-  [JsonPropertyName("annotations")]
-  public List<PdfAnnotation>
-      ? Annotations {
-          get; init;
-        } = null;
+    /// <summary>
+    /// PDF annotations extracted from the document.
+    ///
+    /// When annotation extraction is enabled via `PdfConfig.extract_annotations`,
+    /// this field contains text notes, highlights, links, stamps, and other
+    /// annotations found in PDF documents.
+    /// </summary>
+    [JsonPropertyName("annotations")]
+    public List<PdfAnnotation>? Annotations { get; init; } = null;
 
-  /// <summary>
-  /// Nested extraction results from archive contents.
-  ///
-  /// When extracting archives, each processable file inside produces its own
-  /// full extraction result. Set to `None` for non-archive formats.
-  /// Use `max_archive_depth` in config to control recursion depth.
-  /// </summary>
-  [JsonPropertyName("children")]
-  public List<ArchiveEntry>
-      ? Children {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Nested extraction results from archive contents.
+    ///
+    /// When extracting archives, each processable file inside produces its own
+    /// full extraction result. Set to `None` for non-archive formats.
+    /// Use `max_archive_depth` in config to control recursion depth.
+    /// </summary>
+    [JsonPropertyName("children")]
+    public List<ArchiveEntry>? Children { get; init; } = null;
 
-  /// <summary>
-  /// URIs/links discovered during document extraction.
-  ///
-  /// Contains hyperlinks, image references, citations, email addresses, and
-  /// other URI-like references found in the document. Always extracted when
-  /// present in the source document.
-  /// </summary>
-  [JsonPropertyName("uris")]
-  public List<ExtractedUri>
-      ? Uris {
-          get; init;
-        } = null;
+    /// <summary>
+    /// URIs/links discovered during document extraction.
+    ///
+    /// Contains hyperlinks, image references, citations, email addresses, and
+    /// other URI-like references found in the document. Always extracted when
+    /// present in the source document.
+    /// </summary>
+    [JsonPropertyName("uris")]
+    public List<ExtractedUri>? Uris { get; init; } = null;
 
-  /// <summary>
-  /// Tracked changes embedded in the source document.
-  ///
-  /// Populated by per-format extractors that understand change-tracking
-  /// metadata (DOCX `w:ins`/`w:del`/`w:rPrChange`, ODT `text:change-*`,
-  /// …). Every extractor defaults to `None` until its format-specific
-  /// implementation is added. Extractors that do populate this field follow
-  /// the "accepted-changes" convention: inserted text is present in
-  /// `content`, deleted text is absent — the revision list is the separate
-  /// audit trail.
-  /// </summary>
-  [JsonPropertyName("revisions")]
-  public List<DocumentRevision>
-      ? Revisions {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Tracked changes embedded in the source document.
+    ///
+    /// Populated by per-format extractors that understand change-tracking
+    /// metadata (DOCX `w:ins`/`w:del`/`w:rPrChange`, ODT `text:change-*`,
+    /// …). Every extractor defaults to `None` until its format-specific
+    /// implementation is added. Extractors that do populate this field follow
+    /// the "accepted-changes" convention: inserted text is present in
+    /// `content`, deleted text is absent — the revision list is the separate
+    /// audit trail.
+    /// </summary>
+    [JsonPropertyName("revisions")]
+    public List<DocumentRevision>? Revisions { get; init; } = null;
 
-  /// <summary>
-  /// Structured extraction output from LLM-based JSON schema extraction.
-  ///
-  /// When `structured_extraction` is configured in `ExtractionConfig`, the
-  /// extracted document content is sent to a VLM with the provided JSON schema.
-  /// The response is parsed and stored here as a JSON value matching the
-  /// schema.
-  /// </summary>
-  [JsonPropertyName("structured_output")]
-  public JsonElement
-      ? StructuredOutput {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Structured extraction output from LLM-based JSON schema extraction.
+    ///
+    /// When `structured_extraction` is configured in `ExtractionConfig`, the
+    /// extracted document content is sent to a VLM with the provided JSON schema.
+    /// The response is parsed and stored here as a JSON value matching the schema.
+    /// </summary>
+    [JsonPropertyName("structured_output")]
+    public JsonElement? StructuredOutput { get; init; } = null;
 
-  /// <summary>
-  /// Code intelligence results from tree-sitter analysis.
-  ///
-  /// Populated when extracting source code files with the `tree-sitter`
-  /// feature. Contains metrics, structural analysis, imports/exports, comments,
-  /// docstrings, symbols, diagnostics, and optionally chunked code segments.
-  ///
-  /// Stored as an opaque JSON value so that all language bindings (Go, Java,
-  /// C#, …) can deserialize it as a raw JSON object rather than a typed struct.
-  /// The underlying type is `tree_sitter_language_pack.ProcessResult`.
-  /// </summary>
-  [JsonPropertyName("code_intelligence")]
-  public JsonElement
-      ? CodeIntelligence {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Code intelligence results from tree-sitter analysis.
+    ///
+    /// Populated when extracting source code files with the `tree-sitter` feature.
+    /// Contains metrics, structural analysis, imports/exports, comments,
+    /// docstrings, symbols, diagnostics, and optionally chunked code segments.
+    ///
+    /// Stored as an opaque JSON value so that all language bindings (Go, Java,
+    /// C#, …) can deserialize it as a raw JSON object rather than a typed struct.
+    /// The underlying type is `tree_sitter_language_pack.ProcessResult`.
+    /// </summary>
+    [JsonPropertyName("code_intelligence")]
+    public JsonElement? CodeIntelligence { get; init; } = null;
 
-  /// <summary>
-  /// LLM token usage and cost data for all LLM calls made during this
-  /// extraction.
-  ///
-  /// Contains one entry per LLM call. Multiple entries are produced when
-  /// VLM OCR, structured extraction, or LLM embeddings run during
-  /// the same extraction.
-  ///
-  /// `None` when no LLM was used.
-  /// </summary>
-  [JsonPropertyName("llm_usage")]
-  public List<LlmUsage>
-      ? LlmUsage {
-          get; init;
-        } = null;
+    /// <summary>
+    /// LLM token usage and cost data for all LLM calls made during this extraction.
+    ///
+    /// Contains one entry per LLM call. Multiple entries are produced when
+    /// VLM OCR, structured extraction, or LLM embeddings run during
+    /// the same extraction.
+    ///
+    /// `None` when no LLM was used.
+    /// </summary>
+    [JsonPropertyName("llm_usage")]
+    public List<LlmUsage>? LlmUsage { get; init; } = null;
 
-  /// <summary>
-  /// Named entities detected in `content` by the NER post-processor.
-  ///
-  /// `None` when no NER backend is configured. Populated by the `xberg-gliner`
-  /// ONNX backend or the LLM-driven backend (see `crates/xberg/src/text/ner/`).
-  /// </summary>
-  [JsonPropertyName("entities")]
-  public List<Entity>
-      ? Entities {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Named entities detected in `content` by the NER post-processor.
+    ///
+    /// `None` when no NER backend is configured. Populated by the `xberg-gliner`
+    /// ONNX backend or the LLM-driven backend (see `crates/xberg/src/text/ner/`).
+    /// </summary>
+    [JsonPropertyName("entities")]
+    public List<Entity>? Entities { get; init; } = null;
 
-  /// <summary>
-  /// Summary of `content` produced by the summarisation post-processor.
-  ///
-  /// `None` when summarisation is not configured. Populated by the TextRank
-  /// extractive backend (deterministic, no external service) or by the
-  /// liter-llm-driven abstractive backend.
-  /// </summary>
-  [JsonPropertyName("summary")]
-  public DocumentSummary
-      ? Summary {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Summary of `content` produced by the summarisation post-processor.
+    ///
+    /// `None` when summarisation is not configured. Populated by the TextRank
+    /// extractive backend (deterministic, no external service) or by the
+    /// liter-llm-driven abstractive backend.
+    /// </summary>
+    [JsonPropertyName("summary")]
+    public DocumentSummary? Summary { get; init; } = null;
 
-  /// <summary>
-  /// Confidence score computed by the heuristics pipeline.
-  ///
-  /// Populated when the `heuristics` feature is enabled and confidence
-  /// scoring has been performed.  Combines text-coverage, OCR aggregate
-  /// confidence, and schema-compliance into a single `[0, 1]` value.
-  ///
-  /// `None` when confidence scoring is not configured or the feature is
-  /// absent.
-  /// </summary>
-  [JsonPropertyName("extraction_confidence")]
-  public ExtractionConfidence
-      ? ExtractionConfidence {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Confidence score computed by the heuristics pipeline.
+    ///
+    /// Populated when the `heuristics` feature is enabled and confidence
+    /// scoring has been performed.  Combines text-coverage, OCR aggregate
+    /// confidence, and schema-compliance into a single `[0, 1]` value.
+    ///
+    /// `None` when confidence scoring is not configured or the feature is
+    /// absent.
+    /// </summary>
+    [JsonPropertyName("extraction_confidence")]
+    public ExtractionConfidence? ExtractionConfidence { get; init; } = null;
 
-  /// <summary>
-  /// Translation of `content` produced by the translation post-processor.
-  ///
-  /// `None` when translation is not configured.
-  /// </summary>
-  [JsonPropertyName("translation")]
-  public Translation
-      ? Translation {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Translation of `content` produced by the translation post-processor.
+    ///
+    /// `None` when translation is not configured.
+    /// </summary>
+    [JsonPropertyName("translation")]
+    public Translation? Translation { get; init; } = null;
 
-  /// <summary>
-  /// Per-page classifications produced by the page-classification
-  /// post-processor.
-  ///
-  /// `None` when classification is not configured.
-  /// </summary>
-  [JsonPropertyName("page_classifications")]
-  public List<PageClassification>
-      ? PageClassifications {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Per-page classifications produced by the page-classification post-processor.
+    ///
+    /// `None` when classification is not configured.
+    /// </summary>
+    [JsonPropertyName("page_classifications")]
+    public List<PageClassification>? PageClassifications { get; init; } = null;
 
-  /// <summary>
-  /// Audit report of redactions applied by the redaction post-processor.
-  ///
-  /// The redaction processor rewrites `content`, `formatted_content`, every
-  /// chunk's text, and the textual fields of `entities` / `summary` /
-  /// `translation` / `page_classifications` in place. This report describes
-  /// what was found and how it was replaced. `None` when redaction is not
-  /// configured.
-  /// </summary>
-  [JsonPropertyName("redaction_report")]
-  public RedactionReport
-      ? RedactionReport {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Audit report of redactions applied by the redaction post-processor.
+    ///
+    /// The redaction processor rewrites `content`, `formatted_content`, every
+    /// chunk's text, and the textual fields of `entities` / `summary` / `translation` /
+    /// `page_classifications` in place. This report describes what was found and how it
+    /// was replaced. `None` when redaction is not configured.
+    /// </summary>
+    [JsonPropertyName("redaction_report")]
+    public RedactionReport? RedactionReport { get; init; } = null;
 
-  /// <summary>
-  /// Mathematical formulas recognized in the document.
-  ///
-  /// Populated by the layout-guided formula pipeline when the
-  /// `layout-detection` feature is enabled and the document contains regions
-  /// classified as formulas. Empty otherwise.
-  /// </summary>
-  [JsonPropertyName("formulas")]
-  public List<Formula> Formulas {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Mathematical formulas recognized in the document.
+    ///
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
+    /// </summary>
+    [JsonPropertyName("formulas")]
+    public List<Formula> Formulas { get; init; } = [];
 
-  /// <summary>
-  /// Form fields extracted from a PDF's AcroForm or XFA structure.
-  ///
-  /// Populated by the PDF extractor when `PdfConfig.extract_form_fields` is
-  /// enabled (default) and the document is a fillable form. Empty otherwise.
-  /// </summary>
-  [JsonPropertyName("form_fields")]
-  public List<PdfFormField> FormFields {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Form fields extracted from a PDF's AcroForm or XFA structure.
+    ///
+    /// Populated by the PDF extractor when `PdfConfig.extract_form_fields` is
+    /// enabled (default) and the document is a fillable form. Empty otherwise.
+    /// </summary>
+    [JsonPropertyName("form_fields")]
+    public List<PdfFormField> FormFields { get; init; } = [];
 
-  /// <summary>
-  /// Parse a <see cref="ExtractedDocument"/> from a JSON string.
-  /// </summary>
-  /// <exception cref="XbergException">When the JSON cannot be
-  /// deserialised.</exception>
-  public static ExtractedDocument FromJson(string json) {
-    try {
-      return JsonSerializer.Deserialize<ExtractedDocument>(json, JsonOptions) ??
-             throw new XbergException(
-                 $"Failed to parse ExtractedDocument from JSON: deserializer returned null");
-    } catch (XbergException) {
-      throw;
-    } catch (Exception e) {
-      throw new XbergException(
-          $"Failed to parse ExtractedDocument from JSON: {e.Message}", e);
+
+    /// <summary>
+    /// Parse a <see cref="ExtractedDocument"/> from a JSON string.
+    /// </summary>
+    /// <exception cref="XbergException">When the JSON cannot be deserialised.</exception>
+    public static ExtractedDocument FromJson(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<ExtractedDocument>(json, JsonOptions)
+                ?? throw new XbergException($"Failed to parse ExtractedDocument from JSON: deserializer returned null");
+        }
+        catch (XbergException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            throw new XbergException($"Failed to parse ExtractedDocument from JSON: {e.Message}", e);
+        }
     }
-  }
 
-  private static readonly JsonSerializerOptions JsonOptions = new() {
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower),
-                   new ByteArrayJsonConverter() },
-  };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 
-  /// <summary>Options for serializing config/input objects to FFI. Strips nulls
-  /// (nullable C# fields default to null and would override required Rust
-  /// fields with non-deserialisable nulls) but preserves explicit false/0 so
-  /// caller intent is kept.</summary>
-  private static readonly JsonSerializerOptions JsonSerializationOptions =
-      new() {
+    /// <summary>Options for serializing config/input objects to FFI. Strips nulls
+    /// (nullable C# fields default to null and would override required Rust fields with
+    /// non-deserialisable nulls) but preserves explicit false/0 so caller intent is kept.</summary>
+    private static readonly JsonSerializerOptions JsonSerializationOptions = new()
+    {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(
-                           JsonNamingPolicy.SnakeCaseLower),
-                       new ByteArrayJsonConverter() },
-      };
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 }

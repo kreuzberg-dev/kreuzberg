@@ -549,6 +549,7 @@ mod ffi {
             confidence_threshold: Option<f32>,
             apply_heuristics: bool,
             table_model: TableModel,
+            formula_model: Option<FormulaModel>,
             table_overlap_preference: TableOverlapPreference,
             acceleration: Option<AccelerationConfig>,
             enable_chart_understanding: bool,
@@ -560,6 +561,8 @@ mod ffi {
         fn apply_heuristics(&self) -> bool;
         #[swift_bridge(swift_name = "tableModel")]
         fn table_model(&self) -> String;
+        #[swift_bridge(swift_name = "formulaModel")]
+        fn formula_model(&self) -> Option<String>;
         #[swift_bridge(swift_name = "tableOverlapPreference")]
         fn table_overlap_preference(&self) -> String;
         fn acceleration(&self) -> Option<AccelerationConfig>;
@@ -2160,8 +2163,8 @@ mod ffi {
     extern "Rust" {
         type Formula;
         fn latex(&self) -> String;
-        fn bbox(&self) -> BoundingBox;
-        fn page(&self) -> u32;
+        fn bbox(&self) -> Option<BoundingBox>;
+        fn page(&self) -> Option<u32>;
     }
 
     #[cfg(feature = "tree-sitter")]
@@ -3941,6 +3944,12 @@ mod ffi {
 
     #[cfg(feature = "layout-types")]
     extern "Rust" {
+        type FormulaModel;
+        fn to_string(&self) -> String;
+    }
+
+    #[cfg(feature = "layout-types")]
+    extern "Rust" {
         type TableModel;
         fn to_string(&self) -> String;
     }
@@ -5123,6 +5132,8 @@ mod ffi {
         fn html_theme_from_json(json: String) -> Result<HtmlTheme, String>;
         #[swift_bridge(swift_name = "lateInteractionModelTypeFromJson")]
         fn late_interaction_model_type_from_json(json: String) -> Result<LateInteractionModelType, String>;
+        #[swift_bridge(swift_name = "formulaModelFromJson")]
+        fn formula_model_from_json(json: String) -> Result<FormulaModel, String>;
         #[swift_bridge(swift_name = "tableModelFromJson")]
         fn table_model_from_json(json: String) -> Result<TableModel, String>;
         #[swift_bridge(swift_name = "tableOverlapPreferenceFromJson")]
@@ -6451,6 +6462,20 @@ mod ffi {
         // trying to construct or manipulate Vec<T> of opaque types.
         //
         // These declarations are paired with phantom_impl functions below the bridge module.
+        fn __alef_phantom_vec_formula_model() -> Vec<FormulaModel>;
+    }
+
+    #[cfg(feature = "layout-types")]
+    extern "Rust" {
+        // Phantom Vec<T> functions: swift-bridge-build must emit the full Vec support
+        // C ABI symbols (__swift_bridge__$Vec_T$new, drop, push, pop, get, get_mut, as_ptr, len)
+        // which the auto-generated Swift Vec<T> conformances reference.
+        //
+        // swift-bridge 0.1.59 only emits these when Vec<T> appears as a return type
+        // in an extern block. Without these phantom functions, Swift linker fails when
+        // trying to construct or manipulate Vec<T> of opaque types.
+        //
+        // These declarations are paired with phantom_impl functions below the bridge module.
         fn __alef_phantom_vec_table_model() -> Vec<TableModel>;
     }
 
@@ -7696,6 +7721,11 @@ pub fn __alef_phantom_vec_html_theme() -> Vec<HtmlTheme> {
 }
 #[doc(hidden)]
 pub fn __alef_phantom_vec_late_interaction_model_type() -> Vec<LateInteractionModelType> {
+    Vec::new()
+}
+#[cfg(feature = "layout-types")]
+#[doc(hidden)]
+pub fn __alef_phantom_vec_formula_model() -> Vec<FormulaModel> {
     Vec::new()
 }
 #[cfg(feature = "layout-types")]
@@ -9291,6 +9321,7 @@ impl LayoutDetectionConfig {
         confidence_threshold: Option<f32>,
         apply_heuristics: bool,
         table_model: TableModel,
+        formula_model: Option<FormulaModel>,
         table_overlap_preference: TableOverlapPreference,
         acceleration: Option<AccelerationConfig>,
         enable_chart_understanding: bool,
@@ -9300,6 +9331,7 @@ impl LayoutDetectionConfig {
         __target.confidence_threshold = confidence_threshold;
         __target.apply_heuristics = apply_heuristics;
         // alef: table_model (TableModel) is an enum; reverse From not generated — left at default
+        // alef: formula_model (FormulaModel) is an enum; reverse From not generated — left at default
         // alef: table_overlap_preference (TableOverlapPreference) is an enum; reverse From not generated — left at default
         if let Some(w) = acceleration {
             __target.acceleration = Some(w.0);
@@ -9325,6 +9357,9 @@ impl LayoutDetectionConfig {
     }
     pub fn table_model(&self) -> String {
         TableModel::from(self.0.table_model.clone()).to_string()
+    }
+    pub fn formula_model(&self) -> Option<String> {
+        self.0.formula_model.clone().map(|w| FormulaModel::from(w).to_string())
     }
     pub fn table_overlap_preference(&self) -> String {
         TableOverlapPreference::from(self.0.table_overlap_preference.clone()).to_string()
@@ -13685,14 +13720,15 @@ impl Formula {
     pub fn latex(&self) -> String {
         self.0.latex.clone()
     }
-    pub fn bbox(&self) -> BoundingBox {
-        BoundingBox(self.0.bbox.clone())
+    pub fn bbox(&self) -> Option<BoundingBox> {
+        self.0.bbox.clone().map(BoundingBox)
     }
-    pub fn page(&self) -> u32 {
-        ::serde_json::to_value(&self.0.page)
-            .ok()
-            .and_then(|j| ::serde_json::from_value(j).ok())
-            .unwrap_or_default()
+    pub fn page(&self) -> Option<u32> {
+        self.0.page.as_ref().and_then(|v| {
+            ::serde_json::to_value(v)
+                .ok()
+                .and_then(|j| ::serde_json::from_value(j).ok())
+        })
     }
 }
 
@@ -18357,6 +18393,26 @@ impl LateInteractionModelType {
     }
 }
 
+pub enum FormulaModel {
+    LatexOcr,
+}
+
+impl From<xberg::core::config::layout::FormulaModel> for FormulaModel {
+    fn from(val: xberg::core::config::layout::FormulaModel) -> Self {
+        match val {
+            xberg::core::config::layout::FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
+impl FormulaModel {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::LatexOcr => "latex_ocr".to_string(),
+        }
+    }
+}
+
 pub enum TableModel {
     Tatr,
     SlanetWired,
@@ -19579,6 +19635,7 @@ pub enum ElementType {
     Image,
     PageBreak,
     CodeBlock,
+    Formula,
     BlockQuote,
     Footer,
     Header,
@@ -19595,6 +19652,7 @@ impl From<xberg::ElementType> for ElementType {
             xberg::ElementType::Image => Self::Image,
             xberg::ElementType::PageBreak => Self::PageBreak,
             xberg::ElementType::CodeBlock => Self::CodeBlock,
+            xberg::ElementType::Formula => Self::Formula,
             xberg::ElementType::BlockQuote => Self::BlockQuote,
             xberg::ElementType::Footer => Self::Footer,
             xberg::ElementType::Header => Self::Header,
@@ -19613,6 +19671,7 @@ impl ElementType {
             Self::Image => "image".to_string(),
             Self::PageBreak => "page_break".to_string(),
             Self::CodeBlock => "code_block".to_string(),
+            Self::Formula => "formula".to_string(),
             Self::BlockQuote => "block_quote".to_string(),
             Self::Footer => "footer".to_string(),
             Self::Header => "header".to_string(),
@@ -23307,6 +23366,11 @@ pub fn html_theme_from_json(json: String) -> Result<HtmlTheme, String> {
 pub fn late_interaction_model_type_from_json(json: String) -> Result<LateInteractionModelType, String> {
     serde_json::from_str::<xberg::LateInteractionModelType>(&json)
         .map(LateInteractionModelType::from)
+        .map_err(|e| e.to_string())
+}
+pub fn formula_model_from_json(json: String) -> Result<FormulaModel, String> {
+    serde_json::from_str::<xberg::core::config::layout::FormulaModel>(&json)
+        .map(FormulaModel::from)
         .map_err(|e| e.to_string())
 }
 pub fn table_model_from_json(json: String) -> Result<TableModel, String> {

@@ -101,9 +101,16 @@ test "extract_batch_uri_basic" {
     // extract_batch over URI inputs
     suppress_abort();
     allow_private_network();
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
     const _result_json = try xberg.extract_batch("[{\"kind\":\"uri\",\"uri\":\"pdf/fake_memo.pdf\"},{\"kind\":\"uri\",\"uri\":\"text/fake_text.txt\"}]", "{}");
     defer std.heap.c_allocator.free(_result_json);
-    std.debug.print("{s}\n", .{_result_json});
+    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+    defer _parsed.deinit();
+    const result = &_parsed.value;
+    try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 2));
 }
 
 test "extract_batch_uri_not_found" {

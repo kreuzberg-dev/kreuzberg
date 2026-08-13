@@ -16,6 +16,7 @@ defmodule Xberg.LayoutDetectionConfig do
           confidence_threshold: float() | nil,
           apply_heuristics: boolean(),
           table_model: Xberg.TableModel.t(),
+          formula_model: Xberg.FormulaModel.t() | nil,
           table_overlap_preference: Xberg.TableOverlapPreference.t(),
           acceleration: Xberg.AccelerationConfig.t() | nil,
           enable_chart_understanding: boolean()
@@ -25,6 +26,7 @@ defmodule Xberg.LayoutDetectionConfig do
             confidence_threshold: nil,
             apply_heuristics: true,
             table_model: :tatr,
+            formula_model: nil,
             table_overlap_preference: :content,
             acceleration: nil,
             enable_chart_understanding: false

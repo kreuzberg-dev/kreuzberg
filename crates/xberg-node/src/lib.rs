@@ -1407,6 +1407,14 @@ pub struct JsLayoutDetectionConfig {
     #[napi(js_name = "tableModel")]
     #[serde(rename = "tableModel")]
     pub table_model: Option<JsTableModel>,
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    #[napi(js_name = "formulaModel")]
+    #[serde(rename = "formulaModel")]
+    pub formula_model: Option<JsFormulaModel>,
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -4211,9 +4219,10 @@ pub struct JsExtractedDocument {
     pub redaction_report: Option<JsRedactionReport>,
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     pub formulas: Option<Vec<JsFormula>>,
     /// Form fields extracted from a PDF's AcroForm or XFA structure.
     ///
@@ -5130,32 +5139,35 @@ pub struct JsImagePreprocessingMetadata {
     pub resize_error: Option<String>,
 }
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass.Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// `ExtractedDocument` but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "Formula")]
 pub struct JsFormula {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     pub latex: String,
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
-    pub bbox: JsBoundingBox,
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
-    pub page: u32,
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
+    pub bbox: Option<JsBoundingBox>,
+    /// 1-indexed page number the formula appears on. `None` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
+    pub page: Option<u32>,
 }
 
 /// Code-format metadata: the structural chunks produced by tree-sitter parsing.
@@ -8951,6 +8963,22 @@ impl Default for JsLateInteractionModelType {
     }
 }
 
+/// Formula recognition model selection.
+#[napi(string_enum = "snake_case", js_name = "FormulaModel")]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub enum JsFormulaModel {
+    /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+    /// ~180 MB total, downloaded on demand.
+    LatexOcr,
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for JsFormulaModel {
+    fn default() -> Self {
+        Self::LatexOcr
+    }
+}
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -10086,6 +10114,8 @@ pub enum JsElementType {
     PageBreak,
     /// Code block
     CodeBlock,
+    /// Mathematical formula (LaTeX source in `text`)
+    Formula,
     /// Block quote
     BlockQuote,
     /// Footer text
@@ -17402,6 +17432,7 @@ impl From<JsLayoutDetectionConfig> for xberg::LayoutDetectionConfig {
         if let Some(__v) = val.table_model {
             __result.table_model = __v.into();
         }
+        __result.formula_model = val.formula_model.map(Into::into);
         if let Some(__v) = val.table_overlap_preference {
             __result.table_overlap_preference = __v.into();
         }
@@ -17421,6 +17452,7 @@ impl From<xberg::LayoutDetectionConfig> for JsLayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold.map(|v| v as f64),
             apply_heuristics: Some(val.apply_heuristics),
             table_model: Some(val.table_model.into()),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: Some(val.table_overlap_preference.into()),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: Some(val.enable_chart_understanding),
@@ -20187,7 +20219,7 @@ impl From<JsFormula> for xberg::Formula {
     fn from(val: JsFormula) -> Self {
         Self {
             latex: val.latex,
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -20198,7 +20230,7 @@ impl From<xberg::Formula> for JsFormula {
     fn from(val: xberg::Formula) -> Self {
         Self {
             latex: val.latex.to_string(),
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -23489,6 +23521,22 @@ impl From<xberg::LateInteractionModelType> for JsLateInteractionModelType {
     }
 }
 
+impl From<JsFormulaModel> for xberg::core::config::layout::FormulaModel {
+    fn from(val: JsFormulaModel) -> Self {
+        match val {
+            JsFormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
+impl From<xberg::core::config::layout::FormulaModel> for JsFormulaModel {
+    fn from(val: xberg::core::config::layout::FormulaModel) -> Self {
+        match val {
+            xberg::core::config::layout::FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
 impl From<JsTableModel> for xberg::TableModel {
     fn from(val: JsTableModel) -> Self {
         match val {
@@ -25223,6 +25271,7 @@ impl From<JsElementType> for xberg::ElementType {
             JsElementType::Image => Self::Image,
             JsElementType::PageBreak => Self::PageBreak,
             JsElementType::CodeBlock => Self::CodeBlock,
+            JsElementType::Formula => Self::Formula,
             JsElementType::BlockQuote => Self::BlockQuote,
             JsElementType::Footer => Self::Footer,
             JsElementType::Header => Self::Header,
@@ -25241,6 +25290,7 @@ impl From<xberg::ElementType> for JsElementType {
             xberg::ElementType::Image => Self::Image,
             xberg::ElementType::PageBreak => Self::PageBreak,
             xberg::ElementType::CodeBlock => Self::CodeBlock,
+            xberg::ElementType::Formula => Self::Formula,
             xberg::ElementType::BlockQuote => Self::BlockQuote,
             xberg::ElementType::Footer => Self::Footer,
             xberg::ElementType::Header => Self::Header,

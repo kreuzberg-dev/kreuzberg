@@ -37,8 +37,12 @@ func Test_ApiExtractBatchBytes(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -97,8 +101,12 @@ func Test_ApiExtractBatchUri(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -157,8 +165,12 @@ func Test_ApiExtractBytesInput(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -192,8 +204,12 @@ func Test_ApiExtractUri(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -224,9 +240,37 @@ func Test_ConfigChunkingPrependHeadingContext(t *testing.T) {
 		assert.GreaterOrEqual(t, len(result.Results[0].Content), 10, "expected length >= 10")
 	}
 	assert.GreaterOrEqual(t, len(result.Chunks), 2, "expected at least 2 elements")
-	assert.True(t, func() bool { chunks := result.Chunks; if chunks == nil { return false }; for _, c := range chunks { if c.Content == "" { return false } }; return true }(), "expected true")
-	assert.True(t, func() bool { chunks := result.Chunks; if chunks == nil { return false }; for _, c := range chunks { if c.Metadata.HeadingContext == nil { return false } }; return true }(), "expected true")
-	assert.True(t, func() bool { chunks := result.Chunks; if chunks == nil || len(chunks) == 0 { return false }; return chunks[0].Metadata.HeadingContext != nil }(), "expected true")
+	assert.True(t, func() bool {
+		chunks := result.Chunks
+		if chunks == nil {
+			return false
+		}
+		for _, c := range chunks {
+			if c.Content == "" {
+				return false
+			}
+		}
+		return true
+	}(), "expected true")
+	assert.True(t, func() bool {
+		chunks := result.Chunks
+		if chunks == nil {
+			return false
+		}
+		for _, c := range chunks {
+			if c.Metadata.HeadingContext == nil {
+				return false
+			}
+		}
+		return true
+	}(), "expected true")
+	assert.True(t, func() bool {
+		chunks := result.Chunks
+		if chunks == nil || len(chunks) == 0 {
+			return false
+		}
+		return chunks[0].Metadata.HeadingContext != nil
+	}(), "expected true")
 }
 
 func Test_ConfigDocumentStructureWithHeadings(t *testing.T) {
@@ -285,7 +329,9 @@ func Test_ConfigElementTypes(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].MimeType), `application/vnd.openxmlformats-officedocument.wordprocessingml.document`) { found = true }
+			if strings.Contains(string(result.Results[0].MimeType), `application/vnd.openxmlformats-officedocument.wordprocessingml.document`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -392,7 +438,9 @@ func Test_ConfigPages(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `PAGE`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `PAGE`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -466,8 +514,12 @@ func Test_ConfigSecurityLimits(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].MimeType), `application/zip`) { found = true }
-			if strings.Contains(string(result.Results[0].MimeType), `application/x-zip-compressed`) { found = true }
+			if strings.Contains(string(result.Results[0].MimeType), `application/zip`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].MimeType), `application/x-zip-compressed`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}

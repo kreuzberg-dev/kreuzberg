@@ -23,6 +23,32 @@ fn allow_private_network() void {
 
 // E2e tests for category: format_specific
 
+test "format_docx_equations" {
+    // DOCX equations extract to LaTeX math in markdown output
+    suppress_abort();
+    allow_private_network();
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_FORMAT_DOCX_EQUATIONS")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/format_docx_equations", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
+    defer allocator.free(input_mock_base_url);
+    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"filename\":\"equations.docx\",\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"uri\":\"$mock_url/docx/equations.docx\"}", "$mock_url", input_mock_base_url);
+    defer allocator.free(input_json);
+    const _result_json = try xberg.extract(input_json, "{\"output_format\":\"markdown\"}");
+    defer std.heap.c_allocator.free(_result_json);
+    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+    defer _parsed.deinit();
+    const result = &_parsed.value;
+    try testing.expect(result.object.get("results").?.array.items[0].object.get("content").?.string.len >= @as(usize, 20));
+    {
+        const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
+        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+        defer if (_jv != .string) std.heap.c_allocator.free(_js);
+        try testing.expect(std.mem.indexOf(u8, _js, "$") != null);
+    }
+}
+
 test "format_docx_standalone" {
     // Standalone DOCX extraction using extract
     suppress_abort();

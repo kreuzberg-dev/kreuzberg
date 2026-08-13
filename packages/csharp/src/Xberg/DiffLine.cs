@@ -18,34 +18,39 @@ namespace Xberg;
 /// reference it unconditionally, without requiring the `diff` Cargo feature.
 /// `crate.diff` re-exports this type verbatim.
 /// </summary>
-[JsonConverter(typeof(DiffLineJsonConverter))]
-public abstract record DiffLine {
-  /// <summary>
-  /// Unchanged context line.
-  /// </summary>
-  public sealed record Context(string Value) : DiffLine;
+    [JsonConverter(typeof(DiffLineJsonConverter))]
+public abstract record DiffLine
+{
+    /// <summary>
+    /// Unchanged context line.
+    /// </summary>
+    public sealed record Context(
+        string Value
+    ) : DiffLine;
 
-  /// <summary>
-  /// Line added in the "after" version.
-  /// </summary>
-  public sealed record Added(string Value) : DiffLine;
+    /// <summary>
+    /// Line added in the "after" version.
+    /// </summary>
+    public sealed record Added(
+        string Value
+    ) : DiffLine;
 
-  /// <summary>
-  /// Line removed from the "before" version.
-  /// </summary>
-  public sealed record Removed(string Value) : DiffLine;
+    /// <summary>
+    /// Line removed from the "before" version.
+    /// </summary>
+    public sealed record Removed(
+        string Value
+    ) : DiffLine;
 
-  /// <summary>Returns the Context data if this is a Context variant, otherwise
-  /// null.</summary>
-  public string? AsContext => this is Context e ? e.Value : null;
+    /// <summary>Returns the Context data if this is a Context variant, otherwise null.</summary>
+    public string? AsContext => this is Context e ? e.Value : null;
 
-  /// <summary>Returns the Added data if this is a Added variant, otherwise
-  /// null.</summary>
-  public string? AsAdded => this is Added e ? e.Value : null;
+    /// <summary>Returns the Added data if this is a Added variant, otherwise null.</summary>
+    public string? AsAdded => this is Added e ? e.Value : null;
 
-  /// <summary>Returns the Removed data if this is a Removed variant, otherwise
-  /// null.</summary>
-  public string? AsRemoved => this is Removed e ? e.Value : null;
+    /// <summary>Returns the Removed data if this is a Removed variant, otherwise null.</summary>
+    public string? AsRemoved => this is Removed e ? e.Value : null;
+
 }
 
 /// <summary>
@@ -56,119 +61,107 @@ public abstract record DiffLine {
 /// fields at the same level. System.Text.Json's [JsonPolymorphic] cannot handle
 /// this layout, so we manually deserialize here.
 /// </remarks>
-public sealed class DiffLineJsonConverter : JsonConverter<DiffLine> {
-  public override DiffLine Read(ref Utf8JsonReader reader, Type typeToConvert,
-                                JsonSerializerOptions options) {
-    if (reader.TokenType != JsonTokenType.StartObject) {
-      throw new JsonException($"Expected JSON object, got {reader.TokenType}");
-    }
-
-    using var doc = JsonDocument.ParseValue(ref reader);
-    var root = doc.RootElement;
-
-    if (!root.TryGetProperty("kind", out var tagElement)) {
-      throw new JsonException($"Missing discriminator field: kind");
-    }
-
-    var tagValue = tagElement.GetString();
-    if (tagValue == null) {
-      throw new JsonException("Discriminator field is null");
-    }
-
-    // Tuple-variant records (`Variant(InnerStruct value)`) expect a single
-    // "Value" field holding the inner struct's JSON, so wrap the remaining
-    // fields under "Value". Struct-variant records (`Variant { field1,
-    // field2 }`) have positional record components annotated with
-    // [JsonPropertyName(...)] for each named field, so pass the remaining
-    // fields through directly without the wrap.
-    using var ms = new MemoryStream();
-    using var writer = new Utf8JsonWriter(ms);
-    writer.WriteStartObject();
-    foreach (var prop in root.EnumerateObject()) {
-      if (prop.Name != "kind") {
-        writer.WritePropertyName(prop.Name);
-        prop.Value.WriteTo(writer);
-      }
-    }
-    writer.WriteEndObject();
-    writer.Flush();
-    ms.Position = 0;
-    var flatJson = ms.ToArray();
-
-    using var msWrapped = new MemoryStream();
-    using var writerWrapped = new Utf8JsonWriter(msWrapped);
-    writerWrapped.WriteStartObject();
-    writerWrapped.WritePropertyName("Value");
-    writerWrapped.WriteStartObject();
-    foreach (var prop in root.EnumerateObject()) {
-      if (prop.Name != "kind") {
-        writerWrapped.WritePropertyName(prop.Name);
-        prop.Value.WriteTo(writerWrapped);
-      }
-    }
-    writerWrapped.WriteEndObject();
-    writerWrapped.WriteEndObject();
-    writerWrapped.Flush();
-    msWrapped.Position = 0;
-    var wrappedJson = msWrapped.ToArray();
-
-    return tagValue switch {
-      "context" =>
-          JsonSerializer.Deserialize<DiffLine.Context>(wrappedJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "added" =>
-          JsonSerializer.Deserialize<DiffLine.Added>(wrappedJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "removed" =>
-          JsonSerializer.Deserialize<DiffLine.Removed>(wrappedJson, options) ??
-          throw new JsonException(
-              "Failed to deserialize variant"), // Unknown discriminator:
-                                                // forward compatibility for
-                                                // unknown variants
-      _ =>
-          throw new JsonException($"Unknown DiffLine discriminator: {tagValue}")
-    };
-  }
-
-  public override void Write(Utf8JsonWriter writer, DiffLine value,
-                             JsonSerializerOptions options) {
-    // Emit the discriminator tag plus the inner variant's fields flattened at
-    // the same level — mirrors the Java sealed-union serializer pattern. Turn
-    // `Message.User(UserMessage value)` into `{"kind":"user","content":...}`
-    // not `{"value":{...}}`. Without this, sending a chat request to FFI fails
-    // with "missing field kind" inside Rust serde.
-    string tag;
-    object? inner;
-    switch (value) {
-    case DiffLine.Context v_context:
-      tag = "context";
-      inner = v_context.Value;
-      break;
-    case DiffLine.Added v_added:
-      tag = "added";
-      inner = v_added.Value;
-      break;
-    case DiffLine.Removed v_removed:
-      tag = "removed";
-      inner = v_removed.Value;
-      break;
-    default:
-      throw new JsonException(
-          $"Unknown DiffLine variant: {value.GetType().Name}");
-    }
-
-    writer.WriteStartObject();
-    writer.WriteString("kind", tag);
-    if (inner != null) {
-      using var doc =
-          JsonSerializer.SerializeToDocument(inner, inner.GetType(), options);
-      if (doc.RootElement.ValueKind == JsonValueKind.Object) {
-        foreach (var prop in doc.RootElement.EnumerateObject()) {
-          writer.WritePropertyName(prop.Name);
-          prop.Value.WriteTo(writer);
+public sealed class DiffLineJsonConverter : JsonConverter<DiffLine>
+{
+    public override DiffLine Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            throw new JsonException($"Expected JSON object, got {reader.TokenType}");
         }
-      }
+
+        using var doc = JsonDocument.ParseValue(ref reader);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("kind", out var tagElement))
+        {
+            throw new JsonException($"Missing discriminator field: kind");
+        }
+
+        var tagValue = tagElement.GetString();
+        if (tagValue == null)
+        {
+            throw new JsonException("Discriminator field is null");
+        }
+
+        // Tuple-variant records (`Variant(InnerStruct value)`) expect a single
+        // "Value" field holding the inner struct's JSON, so wrap the remaining
+        // fields under "Value". Struct-variant records (`Variant { field1,
+        // field2 }`) have positional record components annotated with
+        // [JsonPropertyName(...)] for each named field, so pass the remaining
+        // fields through directly without the wrap.
+        using var ms = new MemoryStream();
+        using var writer = new Utf8JsonWriter(ms);
+        writer.WriteStartObject();
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (prop.Name != "kind")
+            {
+                writer.WritePropertyName(prop.Name);
+                prop.Value.WriteTo(writer);
+            }
+        }
+        writer.WriteEndObject();
+        writer.Flush();
+        ms.Position = 0;
+        var flatJson = ms.ToArray();
+
+        using var msWrapped = new MemoryStream();
+        using var writerWrapped = new Utf8JsonWriter(msWrapped);
+        writerWrapped.WriteStartObject();
+        writerWrapped.WritePropertyName("Value");
+        writerWrapped.WriteStartObject();
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (prop.Name != "kind")
+            {
+                writerWrapped.WritePropertyName(prop.Name);
+                prop.Value.WriteTo(writerWrapped);
+            }
+        }
+        writerWrapped.WriteEndObject();
+        writerWrapped.WriteEndObject();
+        writerWrapped.Flush();
+        msWrapped.Position = 0;
+        var wrappedJson = msWrapped.ToArray();
+
+        return tagValue switch
+        {            "context" => JsonSerializer.Deserialize<DiffLine.Context>(wrappedJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "added" => JsonSerializer.Deserialize<DiffLine.Added>(wrappedJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "removed" => JsonSerializer.Deserialize<DiffLine.Removed>(wrappedJson, options) ?? throw new JsonException("Failed to deserialize variant"),            // Unknown discriminator: forward compatibility for unknown variants
+            _ => throw new JsonException($"Unknown DiffLine discriminator: {tagValue}")
+        };
     }
-    writer.WriteEndObject();
-  }
+
+    public override void Write(Utf8JsonWriter writer, DiffLine value, JsonSerializerOptions options)
+    {
+        // Emit the discriminator tag plus the inner variant's fields flattened at
+        // the same level — mirrors the Java sealed-union serializer pattern. Turn
+        // `Message.User(UserMessage value)` into `{"kind":"user","content":...}`
+        // not `{"value":{...}}`. Without this, sending a chat request to FFI fails
+        // with "missing field kind" inside Rust serde.
+        string tag;
+        object? inner;
+        switch (value)
+        {            case DiffLine.Context v_context:
+                tag = "context";                inner = v_context.Value;                break;            case DiffLine.Added v_added:
+                tag = "added";                inner = v_added.Value;                break;            case DiffLine.Removed v_removed:
+                tag = "removed";                inner = v_removed.Value;                break;            default:
+                throw new JsonException($"Unknown DiffLine variant: {value.GetType().Name}");
+        }
+
+        writer.WriteStartObject();
+        writer.WriteString("kind", tag);
+        if (inner != null)
+        {
+            using var doc = JsonSerializer.SerializeToDocument(inner, inner.GetType(), options);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    writer.WritePropertyName(prop.Name);
+                    prop.Value.WriteTo(writer);
+                }
+            }
+        }
+        writer.WriteEndObject();
+    }
 }

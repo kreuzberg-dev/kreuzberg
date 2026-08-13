@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChunkClassificationEnrichmentConfig`, `DocumentExtractorDartCallbacks`, `EmbeddingBackendDartCallbacks`, `OcrBackendDartCallbacks`, `PostProcessorDartCallbacks`, `RendererDartCallbacks`, `RerankerBackendDartCallbacks`, `TokenizerBackendDartCallbacks`, `ValidatorDartCallbacks`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `backend_type`, `can_handle`, `count_tokens`, `dimensions`, `embed`, `emits_structured_markdown`, `estimated_duration_ms`, `extract`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `priority`, `priority`, `priority`, `process_document`, `process_image_file`, `process_image`, `process`, `processing_stage`, `render_result`, `rerank`, `should_process`, `should_validate`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `supported_languages`, `supported_mime_types`, `supports_document_processing`, `supports_language`, `supports_table_detection`, `validate`, `version`, `version`, `version`, `version`, `version`, `version`, `version`, `version`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `backend_type`, `can_handle`, `count_tokens`, `dimensions`, `embed`, `emits_structured_markdown`, `estimated_duration_ms`, `extract`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `name`, `priority`, `priority`, `priority`, `process_document`, `process_image_file`, `process_image`, `process`, `processing_stage`, `render_result`, `rerank`, `should_process`, `should_validate`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `shutdown`, `supported_languages`, `supported_mime_types`, `supports_document_processing`, `supports_language`, `supports_table_detection`, `validate`, `version`, `version`, `version`, `version`, `version`, `version`, `version`, `version`
 
 /// Extract content from a single bytes or URI input.
 Future<ExtractionResult> extract({
@@ -5614,6 +5614,9 @@ enum ElementType {
   /// Code block
   codeBlock,
 
+  /// Mathematical formula (LaTeX source in `text`)
+  formula,
+
   /// Block quote
   blockQuote,
 
@@ -6725,9 +6728,10 @@ class ExtractedDocument {
 
   /// Mathematical formulas recognized in the document.
   ///
-  /// Populated by the layout-guided formula pipeline when the
-  /// `layout-detection` feature is enabled and the document contains regions
-  /// classified as formulas. Empty otherwise.
+  /// Populated from every source that produces formulas: layout-guided OCR
+  /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+  /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+  /// without geometry). Empty when the document contains no formulas.
   final List<Formula> formulas;
 
   /// Form fields extracted from a PDF's AcroForm or XFA structure.
@@ -8356,34 +8360,37 @@ class FormattedBlock {
           children == other.children;
 }
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass::Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// [`ExtractedDocument`](super::extraction::ExtractedDocument) but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 class Formula {
-  /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+  /// LaTeX source of the formula, without surrounding `$$` delimiters.
   ///
-  /// This field contains the raw LaTeX code as produced by the OCR backend.
-  /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+  /// Markup converters and formula OCR produce real LaTeX. The native PDF
+  /// layout path stores the plain text of a detected formula region, which
+  /// keeps the original Unicode math characters instead of LaTeX commands.
+  /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
   final String latex;
 
-  /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+  /// Bounding box of the formula region on its page. `None` for markup sources.
   ///
-  /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-  /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-  /// native PDF text extraction, which use PDF point coordinates.
-  final BoundingBox bbox;
+  /// PDF OCR sources report PDF point coordinates with the origin at the
+  /// bottom-left of the page, comparable to native PDF geometry. Image
+  /// sources, and PDF pages whose geometry is unavailable, report pixels of
+  /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+  /// null pointer.
+  final BoundingBox? bbox;
 
-  /// 1-indexed page number the formula appears on in the document.
-  ///
-  /// This is set by the extraction pipeline based on which page the formula was found on.
-  final PlatformInt64 page;
+  /// 1-indexed page number the formula appears on. `None` when the source
+  /// format has no page concept. The C FFI reports an absent page as `0`.
+  final PlatformInt64? page;
 
-  const Formula({required this.latex, required this.bbox, required this.page});
+  const Formula({required this.latex, this.bbox, this.page});
 
   @override
   int get hashCode => latex.hashCode ^ bbox.hashCode ^ page.hashCode;
@@ -8396,6 +8403,13 @@ class Formula {
           latex == other.latex &&
           bbox == other.bbox &&
           page == other.page;
+}
+
+/// Formula recognition model selection.
+enum FormulaModel {
+  /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+  /// ~180 MB total, downloaded on demand.
+  latexOcr,
 }
 
 /// Individual grid cell with position and span metadata.
@@ -10146,6 +10160,13 @@ class LayoutDetectionConfig {
   /// table regions. Defaults to [`TableModel::Tatr`].
   final TableModel tableModel;
 
+  /// Formula recognition model for layout-detected formula regions.
+  ///
+  /// `None` (the default) keeps the plain OCR text of the region. Setting a
+  /// model converts each formula region crop to LaTeX. Requires the
+  /// `formula-recognition` feature; without it the setting is ignored.
+  final FormulaModel? formulaModel;
+
   /// How to resolve overlapping native vs layout tables.
   ///
   /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -10174,6 +10195,7 @@ class LayoutDetectionConfig {
     this.confidenceThreshold,
     required this.applyHeuristics,
     required this.tableModel,
+    this.formulaModel,
     required this.tableOverlapPreference,
     this.acceleration,
     required this.enableChartUnderstanding,
@@ -10185,6 +10207,7 @@ class LayoutDetectionConfig {
       confidenceThreshold.hashCode ^
       applyHeuristics.hashCode ^
       tableModel.hashCode ^
+      formulaModel.hashCode ^
       tableOverlapPreference.hashCode ^
       acceleration.hashCode ^
       enableChartUnderstanding.hashCode;
@@ -10198,6 +10221,7 @@ class LayoutDetectionConfig {
           confidenceThreshold == other.confidenceThreshold &&
           applyHeuristics == other.applyHeuristics &&
           tableModel == other.tableModel &&
+          formulaModel == other.formulaModel &&
           tableOverlapPreference == other.tableOverlapPreference &&
           acceleration == other.acceleration &&
           enableChartUnderstanding == other.enableChartUnderstanding;

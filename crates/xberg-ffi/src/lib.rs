@@ -35,21 +35,21 @@ use xberg::engine::seams::PresetResolver;
 thread_local! {
     static LAST_ERROR_CODE: RefCell<i32> = const { RefCell::new(0) };
     static LAST_ERROR_CONTEXT: RefCell<Option<CString>> = const { RefCell::new(None) };
-    static LAST_RETURN_LENGTHS: RefCell<std::collections::BTreeMap<&'static str, usize>> =
-        const { RefCell::new(std::collections::BTreeMap::new()) };
+    static LAST_RETURN_LEN: RefCell<usize> = const { RefCell::new(0) };
 }
 
-const ALEF_FFI_CONVERSION_ERROR: i32 = 1;
 const ALEF_FFI_PANIC_ERROR: i32 = 3;
 
 fn set_last_error(code: i32, message: &str) {
     LAST_ERROR_CODE.with_borrow_mut(|c| *c = code);
     LAST_ERROR_CONTEXT.with_borrow_mut(|c| *c = CString::new(message).ok());
+    LAST_RETURN_LEN.with_borrow_mut(|c| *c = 0);
 }
 
 fn clear_last_error() {
     LAST_ERROR_CODE.with_borrow_mut(|c| *c = 0);
     LAST_ERROR_CONTEXT.with_borrow_mut(|c| *c = None);
+    LAST_RETURN_LEN.with_borrow_mut(|c| *c = 0);
 }
 
 fn set_panic_error() {
@@ -71,14 +71,12 @@ fn catch_ffi_panic_preserving_error<T>(fallback: T, body: impl FnOnce() -> T) ->
     }
 }
 
-fn set_last_return_len(function: &'static str, len: usize) {
-    LAST_RETURN_LENGTHS.with_borrow_mut(|lengths| {
-        lengths.insert(function, len);
-    });
+fn set_last_return_len(len: usize) {
+    LAST_RETURN_LEN.with_borrow_mut(|c| *c = len);
 }
 
-fn last_return_len(function: &'static str) -> usize {
-    LAST_RETURN_LENGTHS.with_borrow(|lengths| lengths.get(function).copied().unwrap_or(0))
+fn last_return_len() -> usize {
+    LAST_RETURN_LEN.with_borrow(|c| *c)
 }
 
 /// Return the last error code (0 means no error).
@@ -186,6 +184,14 @@ fn html_theme_from_i32_rs(v: i32) -> Option<xberg::HtmlTheme> {
         2 => Some(xberg::HtmlTheme::Dark),
         3 => Some(xberg::HtmlTheme::Light),
         4 => Some(xberg::HtmlTheme::Unstyled),
+        _ => None,
+    }
+}
+
+#[allow(dead_code)]
+fn formula_model_from_i32_rs(v: i32) -> Option<xberg::core::config::layout::FormulaModel> {
+    match v {
+        0 => Some(xberg::core::config::layout::FormulaModel::LatexOcr),
         _ => None,
     }
 }
@@ -514,9 +520,10 @@ fn element_type_from_i32_rs(v: i32) -> Option<xberg::ElementType> {
         5 => Some(xberg::ElementType::Image),
         6 => Some(xberg::ElementType::PageBreak),
         7 => Some(xberg::ElementType::CodeBlock),
-        8 => Some(xberg::ElementType::BlockQuote),
-        9 => Some(xberg::ElementType::Footer),
-        10 => Some(xberg::ElementType::Header),
+        8 => Some(xberg::ElementType::Formula),
+        9 => Some(xberg::ElementType::BlockQuote),
+        10 => Some(xberg::ElementType::Footer),
+        11 => Some(xberg::ElementType::Header),
         _ => None,
     }
 }
@@ -1172,8 +1179,6 @@ pub unsafe extern "C" fn xberg_acceleration_config_free(ptr: *mut xberg::Acceler
 }
 
 /// Get the `provider` field from a `AccelerationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_execution_provider_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1281,8 +1286,6 @@ pub unsafe extern "C" fn xberg_captioning_config_free(ptr: *mut xberg::Captionin
 }
 
 /// Get the `llm` field from a `CaptioningConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1298,8 +1301,6 @@ pub unsafe extern "C" fn xberg_captioning_config_llm(ptr: *const xberg::Captioni
 }
 
 /// Get the `prompt` field from a `CaptioningConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1313,13 +1314,7 @@ pub unsafe extern "C" fn xberg_captioning_config_prompt(ptr: *const xberg::Capti
         match &obj.prompt {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -1421,8 +1416,6 @@ pub unsafe extern "C" fn xberg_chunk_classification_definition_free(ptr: *mut xb
 }
 
 /// Get the `label` field from a `ChunkClassificationDefinition`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1437,20 +1430,12 @@ pub unsafe extern "C" fn xberg_chunk_classification_definition_label(
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `description` field from a `ChunkClassificationDefinition`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1465,13 +1450,7 @@ pub unsafe extern "C" fn xberg_chunk_classification_definition_description(
         let obj = unsafe { &*ptr };
         match CString::new(obj.description.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -1556,8 +1535,6 @@ pub unsafe extern "C" fn xberg_chunk_classification_config_free(ptr: *mut xberg:
 }
 
 /// Get the `prompt_template` field from a `ChunkClassificationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1573,13 +1550,7 @@ pub unsafe extern "C" fn xberg_chunk_classification_config_prompt_template(
         match &obj.prompt_template {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -1587,8 +1558,6 @@ pub unsafe extern "C" fn xberg_chunk_classification_config_prompt_template(
 }
 
 /// Get the `definitions` field from a `ChunkClassificationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1604,25 +1573,14 @@ pub unsafe extern "C" fn xberg_chunk_classification_config_definitions(
         match serde_json::to_string(&obj.definitions) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `llm` field from a `ChunkClassificationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1753,8 +1711,6 @@ pub unsafe extern "C" fn xberg_page_classification_config_free(ptr: *mut xberg::
 }
 
 /// Get the `prompt_template` field from a `PageClassificationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1770,13 +1726,7 @@ pub unsafe extern "C" fn xberg_page_classification_config_prompt_template(
         match &obj.prompt_template {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -1784,8 +1734,6 @@ pub unsafe extern "C" fn xberg_page_classification_config_prompt_template(
 }
 
 /// Get the `labels` field from a `PageClassificationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -1801,18 +1749,9 @@ pub unsafe extern "C" fn xberg_page_classification_config_labels(
         match serde_json::to_string(&obj.labels) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -1835,8 +1774,6 @@ pub unsafe extern "C" fn xberg_page_classification_config_multi_label(
 }
 
 /// Get the `llm` field from a `PageClassificationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2098,8 +2035,6 @@ pub unsafe extern "C" fn xberg_csv_config_free(ptr: *mut xberg::CsvConfig) {
 }
 
 /// Get the `delimiter` field from a `CsvConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2113,13 +2048,7 @@ pub unsafe extern "C" fn xberg_csv_config_delimiter(ptr: *const xberg::CsvConfig
         match &obj.delimiter {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -2127,8 +2056,6 @@ pub unsafe extern "C" fn xberg_csv_config_delimiter(ptr: *const xberg::CsvConfig
 }
 
 /// Get the `comment_prefixes` field from a `CsvConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2142,18 +2069,9 @@ pub unsafe extern "C" fn xberg_csv_config_comment_prefixes(ptr: *const xberg::Cs
         match serde_json::to_string(&obj.comment_prefixes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -2357,8 +2275,6 @@ pub unsafe extern "C" fn xberg_extraction_config_enable_quality_processing(ptr: 
 }
 
 /// Get the `ocr` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2392,8 +2308,6 @@ pub unsafe extern "C" fn xberg_extraction_config_force_ocr(ptr: *const xberg::Ex
 }
 
 /// Get the `ocr_strategy` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2411,8 +2325,6 @@ pub unsafe extern "C" fn xberg_extraction_config_ocr_strategy(
 }
 
 /// Get the `force_ocr_pages` field from a `ExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2429,18 +2341,9 @@ pub unsafe extern "C" fn xberg_extraction_config_force_ocr_pages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -2463,8 +2366,6 @@ pub unsafe extern "C" fn xberg_extraction_config_disable_ocr(ptr: *const xberg::
 }
 
 /// Get the `chunking` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunking_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2485,8 +2386,6 @@ pub unsafe extern "C" fn xberg_extraction_config_chunking(
 }
 
 /// Get the `content_filter` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_content_filter_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2507,8 +2406,6 @@ pub unsafe extern "C" fn xberg_extraction_config_content_filter(
 }
 
 /// Get the `images` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2529,8 +2426,6 @@ pub unsafe extern "C" fn xberg_extraction_config_images(
 }
 
 /// Get the `pdf_options` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pdf_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2551,8 +2446,6 @@ pub unsafe extern "C" fn xberg_extraction_config_pdf_options(
 }
 
 /// Get the `token_reduction` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_token_reduction_options_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2573,8 +2466,6 @@ pub unsafe extern "C" fn xberg_extraction_config_token_reduction(
 }
 
 /// Get the `language_detection` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_language_detection_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2595,8 +2486,6 @@ pub unsafe extern "C" fn xberg_extraction_config_language_detection(
 }
 
 /// Get the `pages` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2615,8 +2504,6 @@ pub unsafe extern "C" fn xberg_extraction_config_pages(ptr: *const xberg::Extrac
 }
 
 /// Get the `keywords` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_keyword_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2637,8 +2524,6 @@ pub unsafe extern "C" fn xberg_extraction_config_keywords(
 }
 
 /// Get the `postprocessor` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_post_processor_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2659,8 +2544,6 @@ pub unsafe extern "C" fn xberg_extraction_config_postprocessor(
 }
 
 /// Get the `html_options` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_conversion_options_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2681,8 +2564,6 @@ pub unsafe extern "C" fn xberg_extraction_config_html_options(
 }
 
 /// Get the `html_output` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_html_output_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2741,8 +2622,6 @@ pub unsafe extern "C" fn xberg_extraction_config_max_concurrent_extractions(
 }
 
 /// Get the `result_format` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_result_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2760,8 +2639,6 @@ pub unsafe extern "C" fn xberg_extraction_config_result_format(
 }
 
 /// Get the `security_limits` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_security_limits_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2800,8 +2677,6 @@ pub unsafe extern "C" fn xberg_extraction_config_max_embedded_file_bytes(ptr: *c
 }
 
 /// Get the `output_format` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_output_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2849,8 +2724,6 @@ pub unsafe extern "C" fn xberg_extraction_config_table_anchors(ptr: *const xberg
 }
 
 /// Get the `jupyter_cell_rendering` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_jupyter_cell_rendering_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2868,8 +2741,6 @@ pub unsafe extern "C" fn xberg_extraction_config_jupyter_cell_rendering(
 }
 
 /// Get the `layout` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_layout_detection_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2890,8 +2761,6 @@ pub unsafe extern "C" fn xberg_extraction_config_layout(
 }
 
 /// Get the `transcription` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_transcription_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2944,8 +2813,6 @@ pub unsafe extern "C" fn xberg_extraction_config_include_document_structure(
 }
 
 /// Get the `acceleration` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2966,8 +2833,6 @@ pub unsafe extern "C" fn xberg_extraction_config_acceleration(
 }
 
 /// Get the `cache_namespace` field from a `ExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -2983,13 +2848,7 @@ pub unsafe extern "C" fn xberg_extraction_config_cache_namespace(
         match &obj.cache_namespace {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -3015,8 +2874,6 @@ pub unsafe extern "C" fn xberg_extraction_config_cache_ttl_secs(ptr: *const xber
 }
 
 /// Get the `email` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_email_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3035,8 +2892,6 @@ pub unsafe extern "C" fn xberg_extraction_config_email(ptr: *const xberg::Extrac
 }
 
 /// Get the `csv` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_csv_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3055,8 +2910,6 @@ pub unsafe extern "C" fn xberg_extraction_config_csv(ptr: *const xberg::Extracti
 }
 
 /// Get the `url` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_url_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3089,8 +2942,6 @@ pub unsafe extern "C" fn xberg_extraction_config_max_archive_depth(ptr: *const x
 }
 
 /// Get the `tree_sitter` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_tree_sitter_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3111,8 +2962,6 @@ pub unsafe extern "C" fn xberg_extraction_config_tree_sitter(
 }
 
 /// Get the `structured_extraction` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_structured_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3133,8 +2982,6 @@ pub unsafe extern "C" fn xberg_extraction_config_structured_extraction(
 }
 
 /// Get the `ner` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ner_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3153,8 +3000,6 @@ pub unsafe extern "C" fn xberg_extraction_config_ner(ptr: *const xberg::Extracti
 }
 
 /// Get the `redaction` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_redaction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3175,8 +3020,6 @@ pub unsafe extern "C" fn xberg_extraction_config_redaction(
 }
 
 /// Get the `summarization` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_summarization_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3197,8 +3040,6 @@ pub unsafe extern "C" fn xberg_extraction_config_summarization(
 }
 
 /// Get the `translation` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_translation_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3219,8 +3060,6 @@ pub unsafe extern "C" fn xberg_extraction_config_translation(
 }
 
 /// Get the `page_classification` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_classification_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3241,8 +3080,6 @@ pub unsafe extern "C" fn xberg_extraction_config_page_classification(
 }
 
 /// Get the `chunk_classification` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_classification_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3263,8 +3100,6 @@ pub unsafe extern "C" fn xberg_extraction_config_chunk_classification(
 }
 
 /// Get the `captioning` field from a `ExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_captioning_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3536,8 +3371,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_enable_quality_processing(
 }
 
 /// Get the `ocr` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3576,8 +3409,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_force_ocr(ptr: *const xber
 }
 
 /// Get the `ocr_strategy` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3598,8 +3429,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_ocr_strategy(
 }
 
 /// Get the `force_ocr_pages` field from a `FileExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3616,18 +3445,9 @@ pub unsafe extern "C" fn xberg_file_extraction_config_force_ocr_pages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -3653,8 +3473,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_disable_ocr(ptr: *const xb
 }
 
 /// Get the `chunking` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunking_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3675,8 +3493,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_chunking(
 }
 
 /// Get the `content_filter` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_content_filter_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3697,8 +3513,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_content_filter(
 }
 
 /// Get the `images` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3719,8 +3533,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_images(
 }
 
 /// Get the `pdf_options` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pdf_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3741,8 +3553,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_pdf_options(
 }
 
 /// Get the `token_reduction` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_token_reduction_options_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3763,8 +3573,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_token_reduction(
 }
 
 /// Get the `language_detection` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_language_detection_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3785,8 +3593,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_language_detection(
 }
 
 /// Get the `pages` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3807,8 +3613,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_pages(
 }
 
 /// Get the `keywords` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_keyword_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3829,8 +3633,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_keywords(
 }
 
 /// Get the `postprocessor` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_post_processor_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3851,8 +3653,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_postprocessor(
 }
 
 /// Get the `html_output` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_html_output_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3873,8 +3673,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_html_output(
 }
 
 /// Get the `result_format` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_result_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3895,8 +3693,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_result_format(
 }
 
 /// Get the `output_format` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_output_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3937,8 +3733,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_include_document_structure
 }
 
 /// Get the `layout` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_layout_detection_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3959,8 +3753,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_layout(
 }
 
 /// Get the `transcription` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_transcription_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -3999,8 +3791,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_timeout_secs(ptr: *const x
 }
 
 /// Get the `tree_sitter` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_tree_sitter_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4021,8 +3811,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_tree_sitter(
 }
 
 /// Get the `structured_extraction` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_structured_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4043,8 +3831,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_structured_extraction(
 }
 
 /// Get the `url` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_url_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4065,8 +3851,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_url(
 }
 
 /// Get the `ner` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ner_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4087,8 +3871,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_ner(
 }
 
 /// Get the `redaction` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_redaction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4109,8 +3891,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_redaction(
 }
 
 /// Get the `summarization` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_summarization_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4131,8 +3911,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_summarization(
 }
 
 /// Get the `translation` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_translation_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4153,8 +3931,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_translation(
 }
 
 /// Get the `page_classification` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_classification_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4175,8 +3951,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_page_classification(
 }
 
 /// Get the `chunk_classification` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_classification_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4197,8 +3971,6 @@ pub unsafe extern "C" fn xberg_file_extraction_config_chunk_classification(
 }
 
 /// Get the `captioning` field from a `FileExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_captioning_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4444,8 +4216,6 @@ pub unsafe extern "C" fn xberg_extract_input_free(ptr: *mut xberg::ExtractInput)
 }
 
 /// Get the `kind` field from a `ExtractInput`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extract_input_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4461,8 +4231,6 @@ pub unsafe extern "C" fn xberg_extract_input_kind(ptr: *const xberg::ExtractInpu
 }
 
 /// Get the `bytes` field from a `ExtractInput`.
-/// The returned byte pointer is borrowed from `ptr` and must not be freed.
-/// It remains valid until `ptr` is destroyed or the field is mutated.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4497,8 +4265,6 @@ pub unsafe extern "C" fn xberg_extract_input_bytes(ptr: *const xberg::ExtractInp
 }
 
 /// Get the `uri` field from a `ExtractInput`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4512,13 +4278,7 @@ pub unsafe extern "C" fn xberg_extract_input_uri(ptr: *const xberg::ExtractInput
         match &obj.uri {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -4526,8 +4286,6 @@ pub unsafe extern "C" fn xberg_extract_input_uri(ptr: *const xberg::ExtractInput
 }
 
 /// Get the `mime_type` field from a `ExtractInput`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4541,13 +4299,7 @@ pub unsafe extern "C" fn xberg_extract_input_mime_type(ptr: *const xberg::Extrac
         match &obj.mime_type {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -4555,8 +4307,6 @@ pub unsafe extern "C" fn xberg_extract_input_mime_type(ptr: *const xberg::Extrac
 }
 
 /// Get the `filename` field from a `ExtractInput`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4570,13 +4320,7 @@ pub unsafe extern "C" fn xberg_extract_input_filename(ptr: *const xberg::Extract
         match &obj.filename {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -4584,8 +4328,6 @@ pub unsafe extern "C" fn xberg_extract_input_filename(ptr: *const xberg::Extract
 }
 
 /// Get the `config` field from a `ExtractInput`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_file_extraction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4815,8 +4557,6 @@ pub unsafe extern "C" fn xberg_extraction_error_item_code(ptr: *const xberg::Ext
 }
 
 /// Get the `error_type` field from a `ExtractionErrorItem`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4831,20 +4571,12 @@ pub unsafe extern "C" fn xberg_extraction_error_item_error_type(
         let obj = unsafe { &*ptr };
         match CString::new(obj.error_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `source` field from a `ExtractionErrorItem`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4859,20 +4591,12 @@ pub unsafe extern "C" fn xberg_extraction_error_item_source(
         let obj = unsafe { &*ptr };
         match CString::new(obj.source.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `message` field from a `ExtractionErrorItem`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -4887,13 +4611,7 @@ pub unsafe extern "C" fn xberg_extraction_error_item_message(
         let obj = unsafe { &*ptr };
         match CString::new(obj.message.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -5139,8 +4857,6 @@ pub unsafe extern "C" fn xberg_extraction_result_free(ptr: *mut xberg::Extractio
 }
 
 /// Get the `results` field from a `ExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5154,25 +4870,14 @@ pub unsafe extern "C" fn xberg_extraction_result_results(ptr: *const xberg::Extr
         match serde_json::to_string(&obj.results) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `errors` field from a `ExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5186,25 +4891,14 @@ pub unsafe extern "C" fn xberg_extraction_result_errors(ptr: *const xberg::Extra
         match serde_json::to_string(&obj.errors) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `summary` field from a `ExtractionResult`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extraction_summary_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5222,8 +4916,6 @@ pub unsafe extern "C" fn xberg_extraction_result_summary(
 }
 
 /// Get the `crawl_final_urls` field from a `ExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5239,18 +4931,9 @@ pub unsafe extern "C" fn xberg_extraction_result_crawl_final_urls(
         match serde_json::to_string(&obj.crawl_final_urls) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -5271,8 +4954,6 @@ pub unsafe extern "C" fn xberg_extraction_result_crawl_redirect_count(ptr: *cons
 }
 
 /// Get the `crawl_unique_normalized_urls` field from a `ExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5288,18 +4969,9 @@ pub unsafe extern "C" fn xberg_extraction_result_crawl_unique_normalized_urls(
         match serde_json::to_string(&obj.crawl_unique_normalized_urls) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -5406,8 +5078,6 @@ pub unsafe extern "C" fn xberg_url_extraction_config_free(ptr: *mut xberg::UrlEx
 }
 
 /// Get the `mode` field from a `UrlExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_url_extraction_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5425,8 +5095,6 @@ pub unsafe extern "C" fn xberg_url_extraction_config_mode(
 }
 
 /// Get the `crawl` field from a `UrlExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_crawl_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5444,8 +5112,6 @@ pub unsafe extern "C" fn xberg_url_extraction_config_crawl(
 }
 
 /// Get the `document_url_pattern` field from a `UrlExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5461,13 +5127,7 @@ pub unsafe extern "C" fn xberg_url_extraction_config_document_url_pattern(
         match &obj.document_url_pattern {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -5853,8 +5513,6 @@ pub unsafe extern "C" fn xberg_image_extraction_config_append_ocr_text(
 }
 
 /// Get the `output_format` field from a `ImageExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_output_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -5872,8 +5530,6 @@ pub unsafe extern "C" fn xberg_image_extraction_config_output_format(
 }
 
 /// Get the `svg` field from a `ImageExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_svg_options_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6004,8 +5660,6 @@ pub unsafe extern "C" fn xberg_token_reduction_options_free(ptr: *mut xberg::Tok
 }
 
 /// Get the `mode` field from a `TokenReductionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6020,13 +5674,7 @@ pub unsafe extern "C" fn xberg_token_reduction_options_mode(
         let obj = unsafe { &*ptr };
         match CString::new(obj.mode.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -6290,8 +5938,6 @@ pub unsafe extern "C" fn xberg_html_output_config_free(ptr: *mut xberg::HtmlOutp
 
 #[cfg(feature = "html")]
 /// Get the `css` field from a `HtmlOutputConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6305,13 +5951,7 @@ pub unsafe extern "C" fn xberg_html_output_config_css(ptr: *const xberg::HtmlOut
         match &obj.css {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -6320,8 +5960,6 @@ pub unsafe extern "C" fn xberg_html_output_config_css(ptr: *const xberg::HtmlOut
 
 #[cfg(feature = "html")]
 /// Get the `css_file` field from a `HtmlOutputConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6337,13 +5975,7 @@ pub unsafe extern "C" fn xberg_html_output_config_css_file(
         match &obj.css_file {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -6352,8 +5984,6 @@ pub unsafe extern "C" fn xberg_html_output_config_css_file(
 
 #[cfg(feature = "html")]
 /// Get the `theme` field from a `HtmlOutputConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_html_theme_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6370,8 +6000,6 @@ pub unsafe extern "C" fn xberg_html_output_config_theme(ptr: *const xberg::HtmlO
 
 #[cfg(feature = "html")]
 /// Get the `class_prefix` field from a `HtmlOutputConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6386,13 +6014,7 @@ pub unsafe extern "C" fn xberg_html_output_config_class_prefix(
         let obj = unsafe { &*ptr };
         match CString::new(obj.class_prefix.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -6511,8 +6133,6 @@ pub unsafe extern "C" fn xberg_late_interaction_config_free(ptr: *mut xberg::Lat
 }
 
 /// Get the `model` field from a `LateInteractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_late_interaction_model_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6594,8 +6214,6 @@ pub unsafe extern "C" fn xberg_late_interaction_config_show_download_progress(
 }
 
 /// Get the `cache_dir` field from a `LateInteractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6611,13 +6229,7 @@ pub unsafe extern "C" fn xberg_late_interaction_config_cache_dir(
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -6625,8 +6237,6 @@ pub unsafe extern "C" fn xberg_late_interaction_config_cache_dir(
 }
 
 /// Get the `acceleration` field from a `LateInteractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6767,8 +6377,6 @@ pub unsafe extern "C" fn xberg_layout_detection_config_free(ptr: *mut xberg::Lay
 
 #[cfg(feature = "layout-types")]
 /// Get the `strategy` field from a `LayoutDetectionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_layout_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6826,8 +6434,6 @@ pub unsafe extern "C" fn xberg_layout_detection_config_apply_heuristics(
 
 #[cfg(feature = "layout-types")]
 /// Get the `table_model` field from a `LayoutDetectionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_table_model_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6845,9 +6451,28 @@ pub unsafe extern "C" fn xberg_layout_detection_config_table_model(
 }
 
 #[cfg(feature = "layout-types")]
+/// Get the `formula_model` field from a `LayoutDetectionConfig`.
+/// # Safety
+/// Pointer must be a valid handle returned by this library.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_layout_detection_config_formula_model(
+    ptr: *const xberg::LayoutDetectionConfig,
+) -> *mut xberg::core::config::layout::FormulaModel {
+    catch_ffi_panic(std::ptr::null_mut(), || {
+        if ptr.is_null() {
+            return std::ptr::null_mut();
+        }
+        // SAFETY: null check above guarantees ptr is a valid pointer.
+        let obj = unsafe { &*ptr };
+        match &obj.formula_model {
+            Some(val) => Box::into_raw(Box::new(*val)),
+            None => std::ptr::null_mut(),
+        }
+    })
+}
+
+#[cfg(feature = "layout-types")]
 /// Get the `table_overlap_preference` field from a `LayoutDetectionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_table_overlap_preference_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6866,8 +6491,6 @@ pub unsafe extern "C" fn xberg_layout_detection_config_table_overlap_preference(
 
 #[cfg(feature = "layout-types")]
 /// Get the `acceleration` field from a `LayoutDetectionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -6999,8 +6622,6 @@ pub unsafe extern "C" fn xberg_llm_config_free(ptr: *mut xberg::LlmConfig) {
 }
 
 /// Get the `model` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7013,20 +6634,12 @@ pub unsafe extern "C" fn xberg_llm_config_model(ptr: *const xberg::LlmConfig) ->
         let obj = unsafe { &*ptr };
         match CString::new(obj.model.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `api_key` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7040,13 +6653,7 @@ pub unsafe extern "C" fn xberg_llm_config_api_key(ptr: *const xberg::LlmConfig) 
         match &obj.api_key {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7054,8 +6661,6 @@ pub unsafe extern "C" fn xberg_llm_config_api_key(ptr: *const xberg::LlmConfig) 
 }
 
 /// Get the `base_url` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7069,13 +6674,7 @@ pub unsafe extern "C" fn xberg_llm_config_base_url(ptr: *const xberg::LlmConfig)
         match &obj.base_url {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7173,8 +6772,6 @@ pub unsafe extern "C" fn xberg_llm_config_top_p(ptr: *const xberg::LlmConfig) ->
 }
 
 /// Get the `stop` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7189,18 +6786,9 @@ pub unsafe extern "C" fn xberg_llm_config_stop(ptr: *const xberg::LlmConfig) -> 
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7262,8 +6850,6 @@ pub unsafe extern "C" fn xberg_llm_config_frequency_penalty(ptr: *const xberg::L
 }
 
 /// Get the `reasoning_effort` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7277,13 +6863,7 @@ pub unsafe extern "C" fn xberg_llm_config_reasoning_effort(ptr: *const xberg::Ll
         match &obj.reasoning_effort {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7291,8 +6871,6 @@ pub unsafe extern "C" fn xberg_llm_config_reasoning_effort(ptr: *const xberg::Ll
 }
 
 /// Get the `extra_body` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7307,18 +6885,9 @@ pub unsafe extern "C" fn xberg_llm_config_extra_body(ptr: *const xberg::LlmConfi
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7344,8 +6913,6 @@ pub unsafe extern "C" fn xberg_llm_config_load_env(ptr: *const xberg::LlmConfig)
 }
 
 /// Get the `headers` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7360,18 +6927,9 @@ pub unsafe extern "C" fn xberg_llm_config_headers(ptr: *const xberg::LlmConfig) 
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7379,8 +6937,6 @@ pub unsafe extern "C" fn xberg_llm_config_headers(ptr: *const xberg::LlmConfig) 
 }
 
 /// Get the `providers` field from a `LlmConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7395,18 +6951,9 @@ pub unsafe extern "C" fn xberg_llm_config_providers(ptr: *const xberg::LlmConfig
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7414,8 +6961,6 @@ pub unsafe extern "C" fn xberg_llm_config_providers(ptr: *const xberg::LlmConfig
 }
 
 /// Get the `cache` field from a `LlmConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_cache_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7436,8 +6981,6 @@ pub unsafe extern "C" fn xberg_llm_config_cache(
 }
 
 /// Get the `budget` field from a `LlmConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_budget_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7458,8 +7001,6 @@ pub unsafe extern "C" fn xberg_llm_config_budget(
 }
 
 /// Get the `rate_limit` field from a `LlmConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_rate_limit_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7552,8 +7093,6 @@ pub unsafe extern "C" fn xberg_llm_config_health_check_secs(ptr: *const xberg::L
 }
 
 /// Get the `bedrock` field from a `LlmConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bedrock_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7572,8 +7111,6 @@ pub unsafe extern "C" fn xberg_llm_config_bedrock(ptr: *const xberg::LlmConfig) 
 }
 
 /// Get the `credential_provider` field from a `LlmConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_credential_provider_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7711,8 +7248,6 @@ pub unsafe extern "C" fn xberg_llm_provider_config_free(ptr: *mut xberg::core::c
 }
 
 /// Get the `name` field from a `LlmProviderConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7727,20 +7262,12 @@ pub unsafe extern "C" fn xberg_llm_provider_config_name(
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `base_url` field from a `LlmProviderConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7755,20 +7282,12 @@ pub unsafe extern "C" fn xberg_llm_provider_config_base_url(
         let obj = unsafe { &*ptr };
         match CString::new(obj.base_url.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `auth_header` field from a `LlmProviderConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7784,13 +7303,7 @@ pub unsafe extern "C" fn xberg_llm_provider_config_auth_header(
         match &obj.auth_header {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7798,8 +7311,6 @@ pub unsafe extern "C" fn xberg_llm_provider_config_auth_header(
 }
 
 /// Get the `model_prefixes` field from a `LlmProviderConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7815,18 +7326,9 @@ pub unsafe extern "C" fn xberg_llm_provider_config_model_prefixes(
         match serde_json::to_string(&obj.model_prefixes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -7947,8 +7449,6 @@ pub unsafe extern "C" fn xberg_llm_cache_config_ttl_seconds(ptr: *const xberg::c
 }
 
 /// Get the `backend` field from a `LlmCacheConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7964,13 +7464,7 @@ pub unsafe extern "C" fn xberg_llm_cache_config_backend(
         match &obj.backend {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -7978,8 +7472,6 @@ pub unsafe extern "C" fn xberg_llm_cache_config_backend(
 }
 
 /// Get the `backend_config` field from a `LlmCacheConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -7996,18 +7488,9 @@ pub unsafe extern "C" fn xberg_llm_cache_config_backend_config(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8112,8 +7595,6 @@ pub unsafe extern "C" fn xberg_llm_budget_config_global_limit(ptr: *const xberg:
 }
 
 /// Get the `model_limits` field from a `LlmBudgetConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8130,18 +7611,9 @@ pub unsafe extern "C" fn xberg_llm_budget_config_model_limits(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8149,8 +7621,6 @@ pub unsafe extern "C" fn xberg_llm_budget_config_model_limits(
 }
 
 /// Get the `enforcement` field from a `LlmBudgetConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8166,13 +7636,7 @@ pub unsafe extern "C" fn xberg_llm_budget_config_enforcement(
         match &obj.enforcement {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8390,8 +7854,6 @@ pub unsafe extern "C" fn xberg_bedrock_config_free(ptr: *mut xberg::BedrockConfi
 }
 
 /// Get the `region` field from a `BedrockConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8405,13 +7867,7 @@ pub unsafe extern "C" fn xberg_bedrock_config_region(ptr: *const xberg::BedrockC
         match &obj.region {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8419,8 +7875,6 @@ pub unsafe extern "C" fn xberg_bedrock_config_region(ptr: *const xberg::BedrockC
 }
 
 /// Get the `cross_region_prefix` field from a `BedrockConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8436,13 +7890,7 @@ pub unsafe extern "C" fn xberg_bedrock_config_cross_region_prefix(
         match &obj.cross_region_prefix {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8450,8 +7898,6 @@ pub unsafe extern "C" fn xberg_bedrock_config_cross_region_prefix(
 }
 
 /// Get the `access_key_id` field from a `BedrockConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8465,13 +7911,7 @@ pub unsafe extern "C" fn xberg_bedrock_config_access_key_id(ptr: *const xberg::B
         match &obj.access_key_id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8479,8 +7919,6 @@ pub unsafe extern "C" fn xberg_bedrock_config_access_key_id(ptr: *const xberg::B
 }
 
 /// Get the `secret_access_key` field from a `BedrockConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8496,13 +7934,7 @@ pub unsafe extern "C" fn xberg_bedrock_config_secret_access_key(
         match &obj.secret_access_key {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8510,8 +7942,6 @@ pub unsafe extern "C" fn xberg_bedrock_config_secret_access_key(
 }
 
 /// Get the `session_token` field from a `BedrockConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8525,13 +7955,7 @@ pub unsafe extern "C" fn xberg_bedrock_config_session_token(ptr: *const xberg::B
         match &obj.session_token {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8618,8 +8042,6 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_free(ptr: *mut xberg
 }
 
 /// Get the `schema` field from a `StructuredExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8635,25 +8057,14 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_schema(
         match serde_json::to_string(&obj.schema) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `schema_name` field from a `StructuredExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8668,20 +8079,12 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_schema_name(
         let obj = unsafe { &*ptr };
         match CString::new(obj.schema_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `schema_description` field from a `StructuredExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8697,13 +8100,7 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_schema_description(
         match &obj.schema_description {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8728,8 +8125,6 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_strict(
 }
 
 /// Get the `prompt` field from a `StructuredExtractionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8745,13 +8140,7 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_prompt(
         match &obj.prompt {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8759,8 +8148,6 @@ pub unsafe extern "C" fn xberg_structured_extraction_config_prompt(
 }
 
 /// Get the `llm` field from a `StructuredExtractionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8853,8 +8240,6 @@ pub unsafe extern "C" fn xberg_ner_config_free(ptr: *mut xberg::NerConfig) {
 }
 
 /// Get the `backend` field from a `NerConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ner_backend_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8870,8 +8255,6 @@ pub unsafe extern "C" fn xberg_ner_config_backend(ptr: *const xberg::NerConfig) 
 }
 
 /// Get the `categories` field from a `NerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8885,25 +8268,14 @@ pub unsafe extern "C" fn xberg_ner_config_categories(ptr: *const xberg::NerConfi
         match serde_json::to_string(&obj.categories) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `model` field from a `NerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8917,13 +8289,7 @@ pub unsafe extern "C" fn xberg_ner_config_model(ptr: *const xberg::NerConfig) ->
         match &obj.model {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -8931,8 +8297,6 @@ pub unsafe extern "C" fn xberg_ner_config_model(ptr: *const xberg::NerConfig) ->
 }
 
 /// Get the `llm` field from a `NerConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8951,8 +8315,6 @@ pub unsafe extern "C" fn xberg_ner_config_llm(ptr: *const xberg::NerConfig) -> *
 }
 
 /// Get the `custom_labels` field from a `NerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -8966,18 +8328,9 @@ pub unsafe extern "C" fn xberg_ner_config_custom_labels(ptr: *const xberg::NerCo
         match serde_json::to_string(&obj.custom_labels) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -9473,8 +8826,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_free(ptr: *mut xberg::OcrPipel
 }
 
 /// Get the `backend` field from a `OcrPipelineStage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9489,13 +8840,7 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_backend(
         let obj = unsafe { &*ptr };
         match CString::new(obj.backend.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -9516,8 +8861,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_priority(ptr: *const xberg::Oc
 }
 
 /// Get the `language` field from a `OcrPipelineStage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9534,18 +8877,9 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_language(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -9553,8 +8887,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_language(
 }
 
 /// Get the `tesseract_config` field from a `OcrPipelineStage`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_tesseract_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9575,8 +8907,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_tesseract_config(
 }
 
 /// Get the `paddle_ocr_config` field from a `OcrPipelineStage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9593,18 +8923,9 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_paddle_ocr_config(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -9612,8 +8933,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_paddle_ocr_config(
 }
 
 /// Get the `vlm_config` field from a `OcrPipelineStage`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9634,8 +8953,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_vlm_config(
 }
 
 /// Get the `backend_options` field from a `OcrPipelineStage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9652,18 +8969,9 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_stage_backend_options(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -9746,8 +9054,6 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_config_free(ptr: *mut xberg::OcrPipe
 }
 
 /// Get the `stages` field from a `OcrPipelineConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9763,25 +9069,14 @@ pub unsafe extern "C" fn xberg_ocr_pipeline_config_stages(
         match serde_json::to_string(&obj.stages) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `quality_thresholds` field from a `OcrPipelineConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_quality_thresholds_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9889,8 +9184,6 @@ pub unsafe extern "C" fn xberg_ocr_config_enabled(ptr: *const xberg::OcrConfig) 
 }
 
 /// Get the `backend` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9903,20 +9196,12 @@ pub unsafe extern "C" fn xberg_ocr_config_backend(ptr: *const xberg::OcrConfig) 
         let obj = unsafe { &*ptr };
         match CString::new(obj.backend.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `language` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9930,25 +9215,14 @@ pub unsafe extern "C" fn xberg_ocr_config_language(ptr: *const xberg::OcrConfig)
         match serde_json::to_string(&obj.language) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `tesseract_config` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_tesseract_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9969,8 +9243,6 @@ pub unsafe extern "C" fn xberg_ocr_config_tesseract_config(
 }
 
 /// Get the `output_format` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_output_format_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -9989,8 +9261,6 @@ pub unsafe extern "C" fn xberg_ocr_config_output_format(ptr: *const xberg::OcrCo
 }
 
 /// Get the `paddle_ocr_config` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10005,18 +9275,9 @@ pub unsafe extern "C" fn xberg_ocr_config_paddle_ocr_config(ptr: *const xberg::O
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10024,8 +9285,6 @@ pub unsafe extern "C" fn xberg_ocr_config_paddle_ocr_config(ptr: *const xberg::O
 }
 
 /// Get the `backend_options` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10040,18 +9299,9 @@ pub unsafe extern "C" fn xberg_ocr_config_backend_options(ptr: *const xberg::Ocr
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10059,8 +9309,6 @@ pub unsafe extern "C" fn xberg_ocr_config_backend_options(ptr: *const xberg::Ocr
 }
 
 /// Get the `element_config` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_element_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10079,8 +9327,6 @@ pub unsafe extern "C" fn xberg_ocr_config_element_config(ptr: *const xberg::OcrC
 }
 
 /// Get the `quality_thresholds` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_quality_thresholds_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10101,8 +9347,6 @@ pub unsafe extern "C" fn xberg_ocr_config_quality_thresholds(
 }
 
 /// Get the `pipeline` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_pipeline_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10136,8 +9380,6 @@ pub unsafe extern "C" fn xberg_ocr_config_auto_rotate(ptr: *const xberg::OcrConf
 }
 
 /// Get the `vlm_fallback` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_vlm_fallback_policy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10153,8 +9395,6 @@ pub unsafe extern "C" fn xberg_ocr_config_vlm_fallback(ptr: *const xberg::OcrCon
 }
 
 /// Get the `vlm_config` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10173,8 +9413,6 @@ pub unsafe extern "C" fn xberg_ocr_config_vlm_config(ptr: *const xberg::OcrConfi
 }
 
 /// Get the `vlm_prompt` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10188,13 +9426,7 @@ pub unsafe extern "C" fn xberg_ocr_config_vlm_prompt(ptr: *const xberg::OcrConfi
         match &obj.vlm_prompt {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10202,8 +9434,6 @@ pub unsafe extern "C" fn xberg_ocr_config_vlm_prompt(ptr: *const xberg::OcrConfi
 }
 
 /// Get the `acceleration` field from a `OcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10222,8 +9452,6 @@ pub unsafe extern "C" fn xberg_ocr_config_acceleration(ptr: *const xberg::OcrCon
 }
 
 /// Get the `tessdata_bytes` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10238,18 +9466,9 @@ pub unsafe extern "C" fn xberg_ocr_config_tessdata_bytes(ptr: *const xberg::OcrC
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10257,8 +9476,6 @@ pub unsafe extern "C" fn xberg_ocr_config_tessdata_bytes(ptr: *const xberg::OcrC
 }
 
 /// Get the `tessdata_path` field from a `OcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10272,13 +9489,7 @@ pub unsafe extern "C" fn xberg_ocr_config_tessdata_path(ptr: *const xberg::OcrCo
         match &obj.tessdata_path {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10408,8 +9619,6 @@ pub unsafe extern "C" fn xberg_page_config_insert_page_markers(ptr: *const xberg
 }
 
 /// Get the `marker_format` field from a `PageConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10422,13 +9631,7 @@ pub unsafe extern "C" fn xberg_page_config_marker_format(ptr: *const xberg::Page
         let obj = unsafe { &*ptr };
         match CString::new(obj.marker_format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -10562,8 +9765,6 @@ pub unsafe extern "C" fn xberg_pdf_config_extract_tables(ptr: *const xberg::PdfC
 
 #[cfg(feature = "pdf")]
 /// Get the `passwords` field from a `PdfConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -10578,18 +9779,9 @@ pub unsafe extern "C" fn xberg_pdf_config_passwords(ptr: *const xberg::PdfConfig
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -10614,8 +9806,6 @@ pub unsafe extern "C" fn xberg_pdf_config_extract_metadata(ptr: *const xberg::Pd
 
 #[cfg(feature = "pdf")]
 /// Get the `hierarchy` field from a `PdfConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_hierarchy_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11004,8 +10194,6 @@ pub unsafe extern "C" fn xberg_post_processor_config_enabled(ptr: *const xberg::
 }
 
 /// Get the `enabled_processors` field from a `PostProcessorConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11022,18 +10210,9 @@ pub unsafe extern "C" fn xberg_post_processor_config_enabled_processors(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11041,8 +10220,6 @@ pub unsafe extern "C" fn xberg_post_processor_config_enabled_processors(
 }
 
 /// Get the `disabled_processors` field from a `PostProcessorConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11059,18 +10236,9 @@ pub unsafe extern "C" fn xberg_post_processor_config_disabled_processors(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11078,8 +10246,6 @@ pub unsafe extern "C" fn xberg_post_processor_config_disabled_processors(
 }
 
 /// Get the `enabled_set` field from a `PostProcessorConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11096,18 +10262,9 @@ pub unsafe extern "C" fn xberg_post_processor_config_enabled_set(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11115,8 +10272,6 @@ pub unsafe extern "C" fn xberg_post_processor_config_enabled_set(
 }
 
 /// Get the `disabled_set` field from a `PostProcessorConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11133,18 +10288,9 @@ pub unsafe extern "C" fn xberg_post_processor_config_disabled_set(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11289,8 +10435,6 @@ pub unsafe extern "C" fn xberg_chunking_config_trim(ptr: *const xberg::ChunkingC
 }
 
 /// Get the `chunker_type` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunker_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11308,8 +10452,6 @@ pub unsafe extern "C" fn xberg_chunking_config_chunker_type(
 }
 
 /// Get the `embedding` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_embedding_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11330,8 +10472,6 @@ pub unsafe extern "C" fn xberg_chunking_config_embedding(
 }
 
 /// Get the `sparse_embedding` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_sparse_embedding_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11352,8 +10492,6 @@ pub unsafe extern "C" fn xberg_chunking_config_sparse_embedding(
 }
 
 /// Get the `late_interaction` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_late_interaction_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11374,8 +10512,6 @@ pub unsafe extern "C" fn xberg_chunking_config_late_interaction(
 }
 
 /// Get the `preset` field from a `ChunkingConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11389,13 +10525,7 @@ pub unsafe extern "C" fn xberg_chunking_config_preset(ptr: *const xberg::Chunkin
         match &obj.preset {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11403,8 +10533,6 @@ pub unsafe extern "C" fn xberg_chunking_config_preset(ptr: *const xberg::Chunkin
 }
 
 /// Get the `sizing` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_sizing_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11453,8 +10581,6 @@ pub unsafe extern "C" fn xberg_chunking_config_topic_threshold(ptr: *const xberg
 }
 
 /// Get the `table_chunking` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_table_chunking_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11472,8 +10598,6 @@ pub unsafe extern "C" fn xberg_chunking_config_table_chunking(
 }
 
 /// Get the `breadcrumb_target` field from a `ChunkingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_breadcrumb_target_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11583,8 +10707,6 @@ pub unsafe extern "C" fn xberg_embedding_config_free(ptr: *mut xberg::EmbeddingC
 }
 
 /// Get the `model` field from a `EmbeddingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_embedding_model_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11647,8 +10769,6 @@ pub unsafe extern "C" fn xberg_embedding_config_show_download_progress(ptr: *con
 }
 
 /// Get the `cache_dir` field from a `EmbeddingConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11662,13 +10782,7 @@ pub unsafe extern "C" fn xberg_embedding_config_cache_dir(ptr: *const xberg::Emb
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -11676,8 +10790,6 @@ pub unsafe extern "C" fn xberg_embedding_config_cache_dir(ptr: *const xberg::Emb
 }
 
 /// Get the `acceleration` field from a `EmbeddingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11826,8 +10938,6 @@ pub unsafe extern "C" fn xberg_redaction_config_free(ptr: *mut xberg::RedactionC
 }
 
 /// Get the `categories` field from a `RedactionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11843,25 +10953,14 @@ pub unsafe extern "C" fn xberg_redaction_config_categories(
         match serde_json::to_string(&obj.categories) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `strategy` field from a `RedactionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_redaction_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11879,8 +10978,6 @@ pub unsafe extern "C" fn xberg_redaction_config_strategy(
 }
 
 /// Get the `ner` field from a `RedactionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ner_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11914,8 +11011,6 @@ pub unsafe extern "C" fn xberg_redaction_config_preserve_offsets(ptr: *const xbe
 }
 
 /// Get the `custom_terms` field from a `RedactionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11931,25 +11026,14 @@ pub unsafe extern "C" fn xberg_redaction_config_custom_terms(
         match serde_json::to_string(&obj.custom_terms) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `custom_patterns` field from a `RedactionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -11965,18 +11049,9 @@ pub unsafe extern "C" fn xberg_redaction_config_custom_patterns(
         match serde_json::to_string(&obj.custom_patterns) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -12111,8 +11186,6 @@ pub unsafe extern "C" fn xberg_redaction_term_free(ptr: *mut xberg::RedactionTer
 }
 
 /// Get the `label` field from a `RedactionTerm`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12125,20 +11198,12 @@ pub unsafe extern "C" fn xberg_redaction_term_label(ptr: *const xberg::Redaction
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `value` field from a `RedactionTerm`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12151,13 +11216,7 @@ pub unsafe extern "C" fn xberg_redaction_term_value(ptr: *const xberg::Redaction
         let obj = unsafe { &*ptr };
         match CString::new(obj.value.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -12328,8 +11387,6 @@ pub unsafe extern "C" fn xberg_redaction_pattern_free(ptr: *mut xberg::Redaction
 }
 
 /// Get the `label` field from a `RedactionPattern`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12342,20 +11399,12 @@ pub unsafe extern "C" fn xberg_redaction_pattern_label(ptr: *const xberg::Redact
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `pattern` field from a `RedactionPattern`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12368,13 +11417,7 @@ pub unsafe extern "C" fn xberg_redaction_pattern_pattern(ptr: *const xberg::Reda
         let obj = unsafe { &*ptr };
         match CString::new(obj.pattern.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -12515,8 +11558,6 @@ pub unsafe extern "C" fn xberg_reranker_config_free(ptr: *mut xberg::RerankerCon
 }
 
 /// Get the `model` field from a `RerankerConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_reranker_model_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12582,8 +11623,6 @@ pub unsafe extern "C" fn xberg_reranker_config_show_download_progress(ptr: *cons
 }
 
 /// Get the `cache_dir` field from a `RerankerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12597,13 +11636,7 @@ pub unsafe extern "C" fn xberg_reranker_config_cache_dir(ptr: *const xberg::Rera
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -12611,8 +11644,6 @@ pub unsafe extern "C" fn xberg_reranker_config_cache_dir(ptr: *const xberg::Rera
 }
 
 /// Get the `acceleration` field from a `RerankerConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12747,8 +11778,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_config_free(ptr: *mut xberg::Spa
 }
 
 /// Get the `model` field from a `SparseEmbeddingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_sparse_embedding_model_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12813,8 +11842,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_config_show_download_progress(
 }
 
 /// Get the `cache_dir` field from a `SparseEmbeddingConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12830,13 +11857,7 @@ pub unsafe extern "C" fn xberg_sparse_embedding_config_cache_dir(
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -12844,8 +11865,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_config_cache_dir(
 }
 
 /// Get the `acceleration` field from a `SparseEmbeddingConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_acceleration_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -12978,8 +11997,6 @@ pub unsafe extern "C" fn xberg_summarization_config_free(ptr: *mut xberg::Summar
 }
 
 /// Get the `strategy` field from a `SummarizationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_summary_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13015,8 +12032,6 @@ pub unsafe extern "C" fn xberg_summarization_config_max_tokens(ptr: *const xberg
 }
 
 /// Get the `llm` field from a `SummarizationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13132,8 +12147,6 @@ pub unsafe extern "C" fn xberg_transcription_config_enabled(ptr: *const xberg::T
 
 #[cfg(feature = "transcription-types")]
 /// Get the `model` field from a `TranscriptionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_whisper_model_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13152,8 +12165,6 @@ pub unsafe extern "C" fn xberg_transcription_config_model(
 
 #[cfg(feature = "transcription-types")]
 /// Get the `language` field from a `TranscriptionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13169,13 +12180,7 @@ pub unsafe extern "C" fn xberg_transcription_config_language(
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13257,8 +12262,6 @@ pub unsafe extern "C" fn xberg_transcription_config_timeout_ms(ptr: *const xberg
 
 #[cfg(feature = "transcription-types")]
 /// Get the `model_cache_dir` field from a `TranscriptionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13274,13 +12277,7 @@ pub unsafe extern "C" fn xberg_transcription_config_model_cache_dir(
         match &obj.model_cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13413,8 +12410,6 @@ pub unsafe extern "C" fn xberg_translation_config_free(ptr: *mut xberg::Translat
 }
 
 /// Get the `target_lang` field from a `TranslationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13429,20 +12424,12 @@ pub unsafe extern "C" fn xberg_translation_config_target_lang(
         let obj = unsafe { &*ptr };
         match CString::new(obj.target_lang.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `source_lang` field from a `TranslationConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13458,13 +12445,7 @@ pub unsafe extern "C" fn xberg_translation_config_source_lang(
         match &obj.source_lang {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13487,8 +12468,6 @@ pub unsafe extern "C" fn xberg_translation_config_preserve_markup(ptr: *const xb
 }
 
 /// Get the `llm` field from a `TranslationConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_llm_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13599,8 +12578,6 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_enabled(ptr: *const xberg::Tre
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `cache_dir` field from a `TreeSitterConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13616,13 +12593,7 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_cache_dir(
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13631,8 +12602,6 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_cache_dir(
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `languages` field from a `TreeSitterConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13649,18 +12618,9 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_languages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13669,8 +12629,6 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_languages(
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `groups` field from a `TreeSitterConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13685,18 +12643,9 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_groups(ptr: *const xberg::Tree
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -13705,8 +12654,6 @@ pub unsafe extern "C" fn xberg_tree_sitter_config_groups(ptr: *const xberg::Tree
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `process` field from a `TreeSitterConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_tree_sitter_process_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -13980,8 +12927,6 @@ pub unsafe extern "C" fn xberg_tree_sitter_process_config_chunk_max_size(
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `content_mode` field from a `TreeSitterProcessConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_code_content_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14092,8 +13037,6 @@ pub unsafe extern "C" fn xberg_supported_format_free(ptr: *mut xberg::SupportedF
 }
 
 /// Get the `extension` field from a `SupportedFormat`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14106,20 +13049,12 @@ pub unsafe extern "C" fn xberg_supported_format_extension(ptr: *const xberg::Sup
         let obj = unsafe { &*ptr };
         match CString::new(obj.extension.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `mime_type` field from a `SupportedFormat`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14132,13 +13067,7 @@ pub unsafe extern "C" fn xberg_supported_format_mime_type(ptr: *const xberg::Sup
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -14223,8 +13152,6 @@ pub unsafe extern "C" fn xberg_server_config_free(ptr: *mut xberg::ServerConfig)
 
 #[cfg(feature = "api-types")]
 /// Get the `host` field from a `ServerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14237,13 +13164,7 @@ pub unsafe extern "C" fn xberg_server_config_host(ptr: *const xberg::ServerConfi
         let obj = unsafe { &*ptr };
         match CString::new(obj.host.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -14266,8 +13187,6 @@ pub unsafe extern "C" fn xberg_server_config_port(ptr: *const xberg::ServerConfi
 
 #[cfg(feature = "api-types")]
 /// Get the `cors_origins` field from a `ServerConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14281,18 +13200,9 @@ pub unsafe extern "C" fn xberg_server_config_cors_origins(ptr: *const xberg::Ser
         match serde_json::to_string(&obj.cors_origins) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -14371,13 +13281,7 @@ pub unsafe extern "C" fn xberg_server_config_listen_addr(this: *const xberg::Ser
         let result = obj.listen_addr();
         match CString::new(result.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })) {
         Ok(value) => value,
@@ -14626,8 +13530,6 @@ pub unsafe extern "C" fn xberg_structured_data_result_free(
 }
 
 /// Get the `content` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14642,20 +13544,12 @@ pub unsafe extern "C" fn xberg_structured_data_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `format` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14670,20 +13564,12 @@ pub unsafe extern "C" fn xberg_structured_data_result_format(
         let obj = unsafe { &*ptr };
         match CString::new(obj.format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14699,25 +13585,14 @@ pub unsafe extern "C" fn xberg_structured_data_result_metadata(
         match serde_json::to_string(&obj.metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `text_fields` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14733,25 +13608,14 @@ pub unsafe extern "C" fn xberg_structured_data_result_text_fields(
         match serde_json::to_string(&obj.text_fields) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `value` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14768,18 +13632,9 @@ pub unsafe extern "C" fn xberg_structured_data_result_value(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -14787,8 +13642,6 @@ pub unsafe extern "C" fn xberg_structured_data_result_value(
 }
 
 /// Get the `flattened` field from a `StructuredDataResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14804,18 +13657,9 @@ pub unsafe extern "C" fn xberg_structured_data_result_flattened(
         match serde_json::to_string(&obj.flattened) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -14900,8 +13744,6 @@ pub unsafe extern "C" fn xberg_docx_app_properties_free(ptr: *mut xberg::DocxApp
 
 #[cfg(feature = "office")]
 /// Get the `application` field from a `DocxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14917,13 +13759,7 @@ pub unsafe extern "C" fn xberg_docx_app_properties_application(
         match &obj.application {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -14932,8 +13768,6 @@ pub unsafe extern "C" fn xberg_docx_app_properties_application(
 
 #[cfg(feature = "office")]
 /// Get the `app_version` field from a `DocxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14949,13 +13783,7 @@ pub unsafe extern "C" fn xberg_docx_app_properties_app_version(
         match &obj.app_version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -14964,8 +13792,6 @@ pub unsafe extern "C" fn xberg_docx_app_properties_app_version(
 
 #[cfg(feature = "office")]
 /// Get the `template` field from a `DocxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -14981,13 +13807,7 @@ pub unsafe extern "C" fn xberg_docx_app_properties_template(
         match &obj.template {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15129,8 +13949,6 @@ pub unsafe extern "C" fn xberg_docx_app_properties_paragraphs(ptr: *const xberg:
 
 #[cfg(feature = "office")]
 /// Get the `company` field from a `DocxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15146,13 +13964,7 @@ pub unsafe extern "C" fn xberg_docx_app_properties_company(
         match &obj.company {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15336,8 +14148,6 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_free(
 }
 
 /// Get the `application` field from a `XlsxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15353,13 +14163,7 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_application(
         match &obj.application {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15367,8 +14171,6 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_application(
 }
 
 /// Get the `app_version` field from a `XlsxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15384,13 +14186,7 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_app_version(
         match &obj.app_version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15498,8 +14294,6 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_hyperlinks_changed(
 }
 
 /// Get the `company` field from a `XlsxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15515,13 +14309,7 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_company(
         match &obj.company {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15529,8 +14317,6 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_company(
 }
 
 /// Get the `worksheet_names` field from a `XlsxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15546,18 +14332,9 @@ pub unsafe extern "C" fn xberg_xlsx_app_properties_worksheet_names(
         match serde_json::to_string(&obj.worksheet_names) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -15644,8 +14421,6 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_free(
 }
 
 /// Get the `application` field from a `PptxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15661,13 +14436,7 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_application(
         match &obj.application {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15675,8 +14444,6 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_application(
 }
 
 /// Get the `app_version` field from a `PptxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15692,13 +14459,7 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_app_version(
         match &obj.app_version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15726,8 +14487,6 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_total_time(
 }
 
 /// Get the `company` field from a `PptxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15743,13 +14502,7 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_company(
         match &obj.company {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15937,8 +14690,6 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_multimedia_clips(
 }
 
 /// Get the `presentation_format` field from a `PptxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15954,13 +14705,7 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_presentation_format(
         match &obj.presentation_format {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -15968,8 +14713,6 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_presentation_format(
 }
 
 /// Get the `slide_titles` field from a `PptxAppProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -15985,18 +14728,9 @@ pub unsafe extern "C" fn xberg_pptx_app_properties_slide_titles(
         match serde_json::to_string(&obj.slide_titles) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -16081,8 +14815,6 @@ pub unsafe extern "C" fn xberg_core_properties_free(ptr: *mut xberg::CorePropert
 
 #[cfg(feature = "office")]
 /// Get the `title` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16096,13 +14828,7 @@ pub unsafe extern "C" fn xberg_core_properties_title(ptr: *const xberg::CoreProp
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16111,8 +14837,6 @@ pub unsafe extern "C" fn xberg_core_properties_title(ptr: *const xberg::CoreProp
 
 #[cfg(feature = "office")]
 /// Get the `subject` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16126,13 +14850,7 @@ pub unsafe extern "C" fn xberg_core_properties_subject(ptr: *const xberg::CorePr
         match &obj.subject {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16141,8 +14859,6 @@ pub unsafe extern "C" fn xberg_core_properties_subject(ptr: *const xberg::CorePr
 
 #[cfg(feature = "office")]
 /// Get the `creator` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16156,13 +14872,7 @@ pub unsafe extern "C" fn xberg_core_properties_creator(ptr: *const xberg::CorePr
         match &obj.creator {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16171,8 +14881,6 @@ pub unsafe extern "C" fn xberg_core_properties_creator(ptr: *const xberg::CorePr
 
 #[cfg(feature = "office")]
 /// Get the `keywords` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16186,13 +14894,7 @@ pub unsafe extern "C" fn xberg_core_properties_keywords(ptr: *const xberg::CoreP
         match &obj.keywords {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16201,8 +14903,6 @@ pub unsafe extern "C" fn xberg_core_properties_keywords(ptr: *const xberg::CoreP
 
 #[cfg(feature = "office")]
 /// Get the `description` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16216,13 +14916,7 @@ pub unsafe extern "C" fn xberg_core_properties_description(ptr: *const xberg::Co
         match &obj.description {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16231,8 +14925,6 @@ pub unsafe extern "C" fn xberg_core_properties_description(ptr: *const xberg::Co
 
 #[cfg(feature = "office")]
 /// Get the `last_modified_by` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16248,13 +14940,7 @@ pub unsafe extern "C" fn xberg_core_properties_last_modified_by(
         match &obj.last_modified_by {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16263,8 +14949,6 @@ pub unsafe extern "C" fn xberg_core_properties_last_modified_by(
 
 #[cfg(feature = "office")]
 /// Get the `revision` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16278,13 +14962,7 @@ pub unsafe extern "C" fn xberg_core_properties_revision(ptr: *const xberg::CoreP
         match &obj.revision {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16293,8 +14971,6 @@ pub unsafe extern "C" fn xberg_core_properties_revision(ptr: *const xberg::CoreP
 
 #[cfg(feature = "office")]
 /// Get the `created` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16308,13 +14984,7 @@ pub unsafe extern "C" fn xberg_core_properties_created(ptr: *const xberg::CorePr
         match &obj.created {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16323,8 +14993,6 @@ pub unsafe extern "C" fn xberg_core_properties_created(ptr: *const xberg::CorePr
 
 #[cfg(feature = "office")]
 /// Get the `modified` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16338,13 +15006,7 @@ pub unsafe extern "C" fn xberg_core_properties_modified(ptr: *const xberg::CoreP
         match &obj.modified {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16353,8 +15015,6 @@ pub unsafe extern "C" fn xberg_core_properties_modified(ptr: *const xberg::CoreP
 
 #[cfg(feature = "office")]
 /// Get the `category` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16368,13 +15028,7 @@ pub unsafe extern "C" fn xberg_core_properties_category(ptr: *const xberg::CoreP
         match &obj.category {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16383,8 +15037,6 @@ pub unsafe extern "C" fn xberg_core_properties_category(ptr: *const xberg::CoreP
 
 #[cfg(feature = "office")]
 /// Get the `content_status` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16400,13 +15052,7 @@ pub unsafe extern "C" fn xberg_core_properties_content_status(
         match &obj.content_status {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16415,8 +15061,6 @@ pub unsafe extern "C" fn xberg_core_properties_content_status(
 
 #[cfg(feature = "office")]
 /// Get the `language` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16430,13 +15074,7 @@ pub unsafe extern "C" fn xberg_core_properties_language(ptr: *const xberg::CoreP
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16445,8 +15083,6 @@ pub unsafe extern "C" fn xberg_core_properties_language(ptr: *const xberg::CoreP
 
 #[cfg(feature = "office")]
 /// Get the `identifier` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16460,13 +15096,7 @@ pub unsafe extern "C" fn xberg_core_properties_identifier(ptr: *const xberg::Cor
         match &obj.identifier {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16475,8 +15105,6 @@ pub unsafe extern "C" fn xberg_core_properties_identifier(ptr: *const xberg::Cor
 
 #[cfg(feature = "office")]
 /// Get the `version` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16490,13 +15118,7 @@ pub unsafe extern "C" fn xberg_core_properties_version(ptr: *const xberg::CorePr
         match &obj.version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16505,8 +15127,6 @@ pub unsafe extern "C" fn xberg_core_properties_version(ptr: *const xberg::CorePr
 
 #[cfg(feature = "office")]
 /// Get the `last_printed` field from a `CoreProperties`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16522,13 +15142,7 @@ pub unsafe extern "C" fn xberg_core_properties_last_printed(
         match &obj.last_printed {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16844,8 +15458,6 @@ pub unsafe extern "C" fn xberg_token_reduction_config_free(ptr: *mut xberg::Toke
 
 #[cfg(feature = "quality")]
 /// Get the `level` field from a `TokenReductionConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_reduction_level_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16864,8 +15476,6 @@ pub unsafe extern "C" fn xberg_token_reduction_config_level(
 
 #[cfg(feature = "quality")]
 /// Get the `language_hint` field from a `TokenReductionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16881,13 +15491,7 @@ pub unsafe extern "C" fn xberg_token_reduction_config_language_hint(
         match &obj.language_hint {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -16980,8 +15584,6 @@ pub unsafe extern "C" fn xberg_token_reduction_config_use_simd(ptr: *const xberg
 
 #[cfg(feature = "quality")]
 /// Get the `custom_stopwords` field from a `TokenReductionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -16998,18 +15600,9 @@ pub unsafe extern "C" fn xberg_token_reduction_config_custom_stopwords(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -17018,8 +15611,6 @@ pub unsafe extern "C" fn xberg_token_reduction_config_custom_stopwords(
 
 #[cfg(feature = "quality")]
 /// Get the `preserve_patterns` field from a `TokenReductionConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17035,18 +15626,9 @@ pub unsafe extern "C" fn xberg_token_reduction_config_preserve_patterns(
         match serde_json::to_string(&obj.preserve_patterns) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -17236,8 +15818,6 @@ pub unsafe extern "C" fn xberg_pattern_match_end(ptr: *const xberg::text::redact
 }
 
 /// Get the `category` field from a `PatternMatch`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pii_category_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17255,8 +15835,6 @@ pub unsafe extern "C" fn xberg_pattern_match_category(
 }
 
 /// Get the `text` field from a `PatternMatch`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17271,13 +15849,7 @@ pub unsafe extern "C" fn xberg_pattern_match_text(
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -17298,7 +15870,6 @@ pub unsafe extern "C" fn xberg_token_counter_free(ptr: *mut xberg::TokenCounter)
     })
 }
 
-#[cfg(feature = "redaction")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_token_counter_new() -> *mut xberg::TokenCounter {
     catch_ffi_panic(std::ptr::null_mut(), || {
@@ -17529,8 +16100,6 @@ pub unsafe extern "C" fn xberg_footnote_anchor_free(ptr: *mut xberg::FootnoteAnc
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `label` field from a `FootnoteAnchor`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17543,13 +16112,7 @@ pub unsafe extern "C" fn xberg_footnote_anchor_label(ptr: *const xberg::Footnote
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -17650,8 +16213,6 @@ pub unsafe extern "C" fn xberg_footnote_definition_free(ptr: *mut xberg::Footnot
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `label` field from a `FootnoteDefinition`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17666,21 +16227,13 @@ pub unsafe extern "C" fn xberg_footnote_definition_label(
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `content` field from a `FootnoteDefinition`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17695,13 +16248,7 @@ pub unsafe extern "C" fn xberg_footnote_definition_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -17802,8 +16349,6 @@ pub unsafe extern "C" fn xberg_citation_free(ptr: *mut xberg::Citation) {
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `label` field from a `Citation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17816,21 +16361,13 @@ pub unsafe extern "C" fn xberg_citation_label(ptr: *const xberg::Citation) -> *m
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `source` field from a `Citation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17843,21 +16380,13 @@ pub unsafe extern "C" fn xberg_citation_source(ptr: *const xberg::Citation) -> *
         let obj = unsafe { &*ptr };
         match CString::new(obj.source.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `locator` field from a `Citation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17871,13 +16400,7 @@ pub unsafe extern "C" fn xberg_citation_locator(ptr: *const xberg::Citation) -> 
         match &obj.locator {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -17886,8 +16409,6 @@ pub unsafe extern "C" fn xberg_citation_locator(ptr: *const xberg::Citation) -> 
 
 #[cfg(feature = "markdown-footnotes")]
 /// Get the `excerpt` field from a `Citation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -17901,13 +16422,7 @@ pub unsafe extern "C" fn xberg_citation_excerpt(ptr: *const xberg::Citation) -> 
         match &obj.excerpt {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -17990,8 +16505,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_free(ptr: *mut xberg::PdfAnnotatio
 }
 
 /// Get the `annotation_type` field from a `PdfAnnotation`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pdf_annotation_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18009,8 +16522,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_annotation_type(
 }
 
 /// Get the `content` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18024,13 +16535,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_content(ptr: *const xberg::PdfAnno
         match &obj.content {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18053,8 +16558,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_page_number(ptr: *const xberg::Pdf
 }
 
 /// Get the `bounding_box` field from a `PdfAnnotation`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18075,8 +16578,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_bounding_box(
 }
 
 /// Get the `author` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18090,13 +16591,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_author(ptr: *const xberg::PdfAnnot
         match &obj.author {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18104,8 +16599,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_author(ptr: *const xberg::PdfAnnot
 }
 
 /// Get the `modified` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18119,13 +16612,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_modified(ptr: *const xberg::PdfAnn
         match &obj.modified {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18133,8 +16620,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_modified(ptr: *const xberg::PdfAnn
 }
 
 /// Get the `color` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18148,13 +16633,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_color(ptr: *const xberg::PdfAnnota
         match &obj.color {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18162,8 +16641,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_color(ptr: *const xberg::PdfAnnota
 }
 
 /// Get the `subject` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18177,13 +16654,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_subject(ptr: *const xberg::PdfAnno
         match &obj.subject {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18191,8 +16662,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_subject(ptr: *const xberg::PdfAnno
 }
 
 /// Get the `quad_points` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18207,18 +16676,9 @@ pub unsafe extern "C" fn xberg_pdf_annotation_quad_points(ptr: *const xberg::Pdf
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18226,8 +16686,6 @@ pub unsafe extern "C" fn xberg_pdf_annotation_quad_points(ptr: *const xberg::Pdf
 }
 
 /// Get the `marked_text` field from a `PdfAnnotation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18241,13 +16699,7 @@ pub unsafe extern "C" fn xberg_pdf_annotation_marked_text(ptr: *const xberg::Pdf
         match &obj.marked_text {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18345,8 +16797,6 @@ pub unsafe extern "C" fn xberg_page_classification_page_number(ptr: *const xberg
 }
 
 /// Get the `labels` field from a `PageClassification`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18362,18 +16812,9 @@ pub unsafe extern "C" fn xberg_page_classification_labels(
         match serde_json::to_string(&obj.labels) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -18454,8 +16895,6 @@ pub unsafe extern "C" fn xberg_classification_label_free(ptr: *mut xberg::Classi
 }
 
 /// Get the `label` field from a `ClassificationLabel`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18470,13 +16909,7 @@ pub unsafe extern "C" fn xberg_classification_label_label(
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -18575,8 +17008,6 @@ pub unsafe extern "C" fn xberg_djot_content_free(ptr: *mut xberg::DjotContent) {
 }
 
 /// Get the `plain_text` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18589,20 +17020,12 @@ pub unsafe extern "C" fn xberg_djot_content_plain_text(ptr: *const xberg::DjotCo
         let obj = unsafe { &*ptr };
         match CString::new(obj.plain_text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `blocks` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18616,25 +17039,14 @@ pub unsafe extern "C" fn xberg_djot_content_blocks(ptr: *const xberg::DjotConten
         match serde_json::to_string(&obj.blocks) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `DjotContent`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18650,8 +17062,6 @@ pub unsafe extern "C" fn xberg_djot_content_metadata(ptr: *const xberg::DjotCont
 }
 
 /// Get the `tables` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18665,25 +17075,14 @@ pub unsafe extern "C" fn xberg_djot_content_tables(ptr: *const xberg::DjotConten
         match serde_json::to_string(&obj.tables) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `images` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18697,25 +17096,14 @@ pub unsafe extern "C" fn xberg_djot_content_images(ptr: *const xberg::DjotConten
         match serde_json::to_string(&obj.images) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `links` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18729,25 +17117,14 @@ pub unsafe extern "C" fn xberg_djot_content_links(ptr: *const xberg::DjotContent
         match serde_json::to_string(&obj.links) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `footnotes` field from a `DjotContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18761,18 +17138,9 @@ pub unsafe extern "C" fn xberg_djot_content_footnotes(ptr: *const xberg::DjotCon
         match serde_json::to_string(&obj.footnotes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -18853,8 +17221,6 @@ pub unsafe extern "C" fn xberg_formatted_block_free(ptr: *mut xberg::FormattedBl
 }
 
 /// Get the `block_type` field from a `FormattedBlock`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_block_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18888,8 +17254,6 @@ pub unsafe extern "C" fn xberg_formatted_block_level(ptr: *const xberg::Formatte
 }
 
 /// Get the `inline_content` field from a `FormattedBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18905,25 +17269,14 @@ pub unsafe extern "C" fn xberg_formatted_block_inline_content(
         match serde_json::to_string(&obj.inline_content) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `language` field from a `FormattedBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18937,13 +17290,7 @@ pub unsafe extern "C" fn xberg_formatted_block_language(ptr: *const xberg::Forma
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18951,8 +17298,6 @@ pub unsafe extern "C" fn xberg_formatted_block_language(ptr: *const xberg::Forma
 }
 
 /// Get the `code` field from a `FormattedBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18966,13 +17311,7 @@ pub unsafe extern "C" fn xberg_formatted_block_code(ptr: *const xberg::Formatted
         match &obj.code {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -18980,8 +17319,6 @@ pub unsafe extern "C" fn xberg_formatted_block_code(ptr: *const xberg::Formatted
 }
 
 /// Get the `children` field from a `FormattedBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -18995,18 +17332,9 @@ pub unsafe extern "C" fn xberg_formatted_block_children(ptr: *const xberg::Forma
         match serde_json::to_string(&obj.children) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -19087,8 +17415,6 @@ pub unsafe extern "C" fn xberg_inline_element_free(ptr: *mut xberg::InlineElemen
 }
 
 /// Get the `element_type` field from a `InlineElement`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_inline_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19104,8 +17430,6 @@ pub unsafe extern "C" fn xberg_inline_element_element_type(ptr: *const xberg::In
 }
 
 /// Get the `content` field from a `InlineElement`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19118,20 +17442,12 @@ pub unsafe extern "C" fn xberg_inline_element_content(ptr: *const xberg::InlineE
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `InlineElement`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19146,18 +17462,9 @@ pub unsafe extern "C" fn xberg_inline_element_metadata(ptr: *const xberg::Inline
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -19240,8 +17547,6 @@ pub unsafe extern "C" fn xberg_djot_image_free(ptr: *mut xberg::DjotImage) {
 }
 
 /// Get the `src` field from a `DjotImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19254,20 +17559,12 @@ pub unsafe extern "C" fn xberg_djot_image_src(ptr: *const xberg::DjotImage) -> *
         let obj = unsafe { &*ptr };
         match CString::new(obj.src.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `alt` field from a `DjotImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19280,20 +17577,12 @@ pub unsafe extern "C" fn xberg_djot_image_alt(ptr: *const xberg::DjotImage) -> *
         let obj = unsafe { &*ptr };
         match CString::new(obj.alt.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `title` field from a `DjotImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19307,13 +17596,7 @@ pub unsafe extern "C" fn xberg_djot_image_title(ptr: *const xberg::DjotImage) ->
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -19396,8 +17679,6 @@ pub unsafe extern "C" fn xberg_djot_link_free(ptr: *mut xberg::DjotLink) {
 }
 
 /// Get the `url` field from a `DjotLink`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19410,20 +17691,12 @@ pub unsafe extern "C" fn xberg_djot_link_url(ptr: *const xberg::DjotLink) -> *mu
         let obj = unsafe { &*ptr };
         match CString::new(obj.url.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `text` field from a `DjotLink`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19436,20 +17709,12 @@ pub unsafe extern "C" fn xberg_djot_link_text(ptr: *const xberg::DjotLink) -> *m
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `title` field from a `DjotLink`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19463,13 +17728,7 @@ pub unsafe extern "C" fn xberg_djot_link_title(ptr: *const xberg::DjotLink) -> *
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -19552,8 +17811,6 @@ pub unsafe extern "C" fn xberg_footnote_free(ptr: *mut xberg::Footnote) {
 }
 
 /// Get the `label` field from a `Footnote`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19566,20 +17823,12 @@ pub unsafe extern "C" fn xberg_footnote_label(ptr: *const xberg::Footnote) -> *m
         let obj = unsafe { &*ptr };
         match CString::new(obj.label.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `content` field from a `Footnote`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19593,18 +17842,9 @@ pub unsafe extern "C" fn xberg_footnote_content(ptr: *const xberg::Footnote) -> 
         match serde_json::to_string(&obj.content) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -19685,8 +17925,6 @@ pub unsafe extern "C" fn xberg_document_structure_free(ptr: *mut xberg::Document
 }
 
 /// Get the `nodes` field from a `DocumentStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19700,25 +17938,14 @@ pub unsafe extern "C" fn xberg_document_structure_nodes(ptr: *const xberg::Docum
         match serde_json::to_string(&obj.nodes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `source_format` field from a `DocumentStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19734,13 +17961,7 @@ pub unsafe extern "C" fn xberg_document_structure_source_format(
         match &obj.source_format {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -19748,8 +17969,6 @@ pub unsafe extern "C" fn xberg_document_structure_source_format(
 }
 
 /// Get the `relationships` field from a `DocumentStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19765,25 +17984,14 @@ pub unsafe extern "C" fn xberg_document_structure_relationships(
         match serde_json::to_string(&obj.relationships) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `node_types` field from a `DocumentStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -19799,18 +18007,9 @@ pub unsafe extern "C" fn xberg_document_structure_node_types(
         match serde_json::to_string(&obj.node_types) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -20015,8 +18214,6 @@ pub unsafe extern "C" fn xberg_document_relationship_target(ptr: *const xberg::D
 }
 
 /// Get the `kind` field from a `DocumentRelationship`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_relationship_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20109,8 +18306,6 @@ pub unsafe extern "C" fn xberg_document_node_free(ptr: *mut xberg::DocumentNode)
 }
 
 /// Get the `id` field from a `DocumentNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20123,20 +18318,12 @@ pub unsafe extern "C" fn xberg_document_node_id(ptr: *const xberg::DocumentNode)
         let obj = unsafe { &*ptr };
         match CString::new(obj.id.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `content` field from a `DocumentNode`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_node_content_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20170,8 +18357,6 @@ pub unsafe extern "C" fn xberg_document_node_parent(ptr: *const xberg::DocumentN
 }
 
 /// Get the `children` field from a `DocumentNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20185,25 +18370,14 @@ pub unsafe extern "C" fn xberg_document_node_children(ptr: *const xberg::Documen
         match serde_json::to_string(&obj.children) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `content_layer` field from a `DocumentNode`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_content_layer_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20257,8 +18431,6 @@ pub unsafe extern "C" fn xberg_document_node_page_end(ptr: *const xberg::Documen
 }
 
 /// Get the `bbox` field from a `DocumentNode`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20277,8 +18449,6 @@ pub unsafe extern "C" fn xberg_document_node_bbox(ptr: *const xberg::DocumentNod
 }
 
 /// Get the `annotations` field from a `DocumentNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20292,25 +18462,14 @@ pub unsafe extern "C" fn xberg_document_node_annotations(ptr: *const xberg::Docu
         match serde_json::to_string(&obj.annotations) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `attributes` field from a `DocumentNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20325,18 +18484,9 @@ pub unsafe extern "C" fn xberg_document_node_attributes(ptr: *const xberg::Docum
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -20449,8 +18599,6 @@ pub unsafe extern "C" fn xberg_table_grid_cols(ptr: *const xberg::TableGrid) -> 
 }
 
 /// Get the `cells` field from a `TableGrid`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20464,18 +18612,9 @@ pub unsafe extern "C" fn xberg_table_grid_cells(ptr: *const xberg::TableGrid) ->
         match serde_json::to_string(&obj.cells) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -20556,8 +18695,6 @@ pub unsafe extern "C" fn xberg_grid_cell_free(ptr: *mut xberg::GridCell) {
 }
 
 /// Get the `content` field from a `GridCell`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20570,13 +18707,7 @@ pub unsafe extern "C" fn xberg_grid_cell_content(ptr: *const xberg::GridCell) ->
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -20657,8 +18788,6 @@ pub unsafe extern "C" fn xberg_grid_cell_is_header(ptr: *const xberg::GridCell) 
 }
 
 /// Get the `bbox` field from a `GridCell`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20782,8 +18911,6 @@ pub unsafe extern "C" fn xberg_text_annotation_end(ptr: *const xberg::TextAnnota
 }
 
 /// Get the `kind` field from a `TextAnnotation`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_annotation_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20874,8 +19001,6 @@ pub unsafe extern "C" fn xberg_entity_free(ptr: *mut xberg::Entity) {
 }
 
 /// Get the `category` field from a `Entity`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_entity_category_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20891,8 +19016,6 @@ pub unsafe extern "C" fn xberg_entity_category(ptr: *const xberg::Entity) -> *mu
 }
 
 /// Get the `text` field from a `Entity`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -20905,13 +19028,7 @@ pub unsafe extern "C" fn xberg_entity_text(ptr: *const xberg::Entity) -> *mut st
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -21160,8 +19277,6 @@ pub unsafe extern "C" fn xberg_language_confidence_free(ptr: *mut xberg::Languag
 }
 
 /// Get the `language` field from a `LanguageConfidence`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21176,13 +19291,7 @@ pub unsafe extern "C" fn xberg_language_confidence_language(
         let obj = unsafe { &*ptr };
         match CString::new(obj.language.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -21218,8 +19327,6 @@ pub unsafe extern "C" fn xberg_language_confidence_proportion(ptr: *const xberg:
 }
 
 /// Get the `script` field from a `LanguageConfidence`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21234,13 +19341,7 @@ pub unsafe extern "C" fn xberg_language_confidence_script(
         let obj = unsafe { &*ptr };
         match CString::new(obj.script.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -21336,8 +19437,6 @@ pub unsafe extern "C" fn xberg_extracted_document_free(ptr: *mut xberg::Extracte
 }
 
 /// Get the `content` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21352,20 +19451,12 @@ pub unsafe extern "C" fn xberg_extracted_document_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `mime_type` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21380,20 +19471,12 @@ pub unsafe extern "C" fn xberg_extracted_document_mime_type(
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21411,8 +19494,6 @@ pub unsafe extern "C" fn xberg_extracted_document_metadata(
 }
 
 /// Get the `extraction_method` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extraction_method_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21433,8 +19514,6 @@ pub unsafe extern "C" fn xberg_extracted_document_extraction_method(
 }
 
 /// Get the `tables` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21450,25 +19529,14 @@ pub unsafe extern "C" fn xberg_extracted_document_tables(
         match serde_json::to_string(&obj.tables) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `counts` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_document_counts_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21486,8 +19554,6 @@ pub unsafe extern "C" fn xberg_extracted_document_counts(
 }
 
 /// Get the `detected_languages` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21504,18 +19570,9 @@ pub unsafe extern "C" fn xberg_extracted_document_detected_languages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21523,8 +19580,6 @@ pub unsafe extern "C" fn xberg_extracted_document_detected_languages(
 }
 
 /// Get the `detected_language_confidences` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21541,18 +19596,9 @@ pub unsafe extern "C" fn xberg_extracted_document_detected_language_confidences(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21560,8 +19606,6 @@ pub unsafe extern "C" fn xberg_extracted_document_detected_language_confidences(
 }
 
 /// Get the `chunks` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21578,18 +19622,9 @@ pub unsafe extern "C" fn xberg_extracted_document_chunks(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21597,8 +19632,6 @@ pub unsafe extern "C" fn xberg_extracted_document_chunks(
 }
 
 /// Get the `images` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21615,18 +19648,9 @@ pub unsafe extern "C" fn xberg_extracted_document_images(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21634,8 +19658,6 @@ pub unsafe extern "C" fn xberg_extracted_document_images(
 }
 
 /// Get the `pages` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21650,18 +19672,9 @@ pub unsafe extern "C" fn xberg_extracted_document_pages(ptr: *const xberg::Extra
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21669,8 +19682,6 @@ pub unsafe extern "C" fn xberg_extracted_document_pages(ptr: *const xberg::Extra
 }
 
 /// Get the `elements` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21687,18 +19698,9 @@ pub unsafe extern "C" fn xberg_extracted_document_elements(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21706,8 +19708,6 @@ pub unsafe extern "C" fn xberg_extracted_document_elements(
 }
 
 /// Get the `djot_content` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_djot_content_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21728,8 +19728,6 @@ pub unsafe extern "C" fn xberg_extracted_document_djot_content(
 }
 
 /// Get the `ocr_elements` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21746,18 +19744,9 @@ pub unsafe extern "C" fn xberg_extracted_document_ocr_elements(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21765,8 +19754,6 @@ pub unsafe extern "C" fn xberg_extracted_document_ocr_elements(
 }
 
 /// Get the `document` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_document_structure_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21787,8 +19774,6 @@ pub unsafe extern "C" fn xberg_extracted_document_document(
 }
 
 /// Get the `extracted_keywords` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21805,18 +19790,9 @@ pub unsafe extern "C" fn xberg_extracted_document_extracted_keywords(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21842,8 +19818,6 @@ pub unsafe extern "C" fn xberg_extracted_document_quality_score(ptr: *const xber
 }
 
 /// Get the `processing_warnings` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21859,25 +19833,14 @@ pub unsafe extern "C" fn xberg_extracted_document_processing_warnings(
         match serde_json::to_string(&obj.processing_warnings) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `annotations` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21894,18 +19857,9 @@ pub unsafe extern "C" fn xberg_extracted_document_annotations(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21913,8 +19867,6 @@ pub unsafe extern "C" fn xberg_extracted_document_annotations(
 }
 
 /// Get the `children` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21931,18 +19883,9 @@ pub unsafe extern "C" fn xberg_extracted_document_children(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21950,8 +19893,6 @@ pub unsafe extern "C" fn xberg_extracted_document_children(
 }
 
 /// Get the `uris` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -21966,18 +19907,9 @@ pub unsafe extern "C" fn xberg_extracted_document_uris(ptr: *const xberg::Extrac
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -21985,8 +19917,6 @@ pub unsafe extern "C" fn xberg_extracted_document_uris(ptr: *const xberg::Extrac
 }
 
 /// Get the `revisions` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22003,18 +19933,9 @@ pub unsafe extern "C" fn xberg_extracted_document_revisions(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22022,8 +19943,6 @@ pub unsafe extern "C" fn xberg_extracted_document_revisions(
 }
 
 /// Get the `structured_output` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22040,18 +19959,9 @@ pub unsafe extern "C" fn xberg_extracted_document_structured_output(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22059,8 +19969,6 @@ pub unsafe extern "C" fn xberg_extracted_document_structured_output(
 }
 
 /// Get the `code_intelligence` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22077,18 +19985,9 @@ pub unsafe extern "C" fn xberg_extracted_document_code_intelligence(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22096,8 +19995,6 @@ pub unsafe extern "C" fn xberg_extracted_document_code_intelligence(
 }
 
 /// Get the `llm_usage` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22114,18 +20011,9 @@ pub unsafe extern "C" fn xberg_extracted_document_llm_usage(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22133,8 +20021,6 @@ pub unsafe extern "C" fn xberg_extracted_document_llm_usage(
 }
 
 /// Get the `entities` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22151,18 +20037,9 @@ pub unsafe extern "C" fn xberg_extracted_document_entities(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22170,8 +20047,6 @@ pub unsafe extern "C" fn xberg_extracted_document_entities(
 }
 
 /// Get the `summary` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_document_summary_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22192,8 +20067,6 @@ pub unsafe extern "C" fn xberg_extracted_document_summary(
 }
 
 /// Get the `extraction_confidence` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extraction_confidence_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22214,8 +20087,6 @@ pub unsafe extern "C" fn xberg_extracted_document_extraction_confidence(
 }
 
 /// Get the `translation` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_translation_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22236,8 +20107,6 @@ pub unsafe extern "C" fn xberg_extracted_document_translation(
 }
 
 /// Get the `page_classifications` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22254,18 +20123,9 @@ pub unsafe extern "C" fn xberg_extracted_document_page_classifications(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22273,8 +20133,6 @@ pub unsafe extern "C" fn xberg_extracted_document_page_classifications(
 }
 
 /// Get the `redaction_report` field from a `ExtractedDocument`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_redaction_report_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22295,8 +20153,6 @@ pub unsafe extern "C" fn xberg_extracted_document_redaction_report(
 }
 
 /// Get the `formulas` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22312,25 +20168,14 @@ pub unsafe extern "C" fn xberg_extracted_document_formulas(
         match serde_json::to_string(&obj.formulas) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `form_fields` field from a `ExtractedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22346,18 +20191,9 @@ pub unsafe extern "C" fn xberg_extracted_document_form_fields(
         match serde_json::to_string(&obj.form_fields) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -22438,8 +20274,6 @@ pub unsafe extern "C" fn xberg_archive_entry_free(ptr: *mut xberg::ArchiveEntry)
 }
 
 /// Get the `path` field from a `ArchiveEntry`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22452,20 +20286,12 @@ pub unsafe extern "C" fn xberg_archive_entry_path(ptr: *const xberg::ArchiveEntr
         let obj = unsafe { &*ptr };
         match CString::new(obj.path.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `mime_type` field from a `ArchiveEntry`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22478,20 +20304,12 @@ pub unsafe extern "C" fn xberg_archive_entry_mime_type(ptr: *const xberg::Archiv
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `result` field from a `ArchiveEntry`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extracted_document_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22582,8 +20400,6 @@ pub unsafe extern "C" fn xberg_processing_warning_free(ptr: *mut xberg::Processi
 }
 
 /// Get the `source` field from a `ProcessingWarning`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22598,20 +20414,12 @@ pub unsafe extern "C" fn xberg_processing_warning_source(
         let obj = unsafe { &*ptr };
         match CString::new(obj.source.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `message` field from a `ProcessingWarning`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22626,13 +20434,7 @@ pub unsafe extern "C" fn xberg_processing_warning_message(
         let obj = unsafe { &*ptr };
         match CString::new(obj.message.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -22713,8 +20515,6 @@ pub unsafe extern "C" fn xberg_llm_usage_free(ptr: *mut xberg::LlmUsage) {
 }
 
 /// Get the `model` field from a `LlmUsage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22727,20 +20527,12 @@ pub unsafe extern "C" fn xberg_llm_usage_model(ptr: *const xberg::LlmUsage) -> *
         let obj = unsafe { &*ptr };
         match CString::new(obj.model.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `source` field from a `LlmUsage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22753,13 +20545,7 @@ pub unsafe extern "C" fn xberg_llm_usage_source(ptr: *const xberg::LlmUsage) -> 
         let obj = unsafe { &*ptr };
         match CString::new(obj.source.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -22837,8 +20623,6 @@ pub unsafe extern "C" fn xberg_llm_usage_estimated_cost(ptr: *const xberg::LlmUs
 }
 
 /// Get the `finish_reason` field from a `LlmUsage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22852,13 +20636,7 @@ pub unsafe extern "C" fn xberg_llm_usage_finish_reason(ptr: *const xberg::LlmUsa
         match &obj.finish_reason {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -22941,8 +20719,6 @@ pub unsafe extern "C" fn xberg_chunk_free(ptr: *mut xberg::Chunk) {
 }
 
 /// Get the `content` field from a `Chunk`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22955,20 +20731,12 @@ pub unsafe extern "C" fn xberg_chunk_content(ptr: *const xberg::Chunk) -> *mut s
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `chunk_type` field from a `Chunk`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -22984,8 +20752,6 @@ pub unsafe extern "C" fn xberg_chunk_chunk_type(ptr: *const xberg::Chunk) -> *mu
 }
 
 /// Get the `embedding` field from a `Chunk`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23000,18 +20766,9 @@ pub unsafe extern "C" fn xberg_chunk_embedding(ptr: *const xberg::Chunk) -> *mut
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -23019,8 +20776,6 @@ pub unsafe extern "C" fn xberg_chunk_embedding(ptr: *const xberg::Chunk) -> *mut
 }
 
 /// Get the `sparse_embedding` field from a `Chunk`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_sparse_embedding_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23039,8 +20794,6 @@ pub unsafe extern "C" fn xberg_chunk_sparse_embedding(ptr: *const xberg::Chunk) 
 }
 
 /// Get the `late_interaction` field from a `Chunk`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_multi_vector_embedding_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23059,8 +20812,6 @@ pub unsafe extern "C" fn xberg_chunk_late_interaction(ptr: *const xberg::Chunk) 
 }
 
 /// Get the `metadata` field from a `Chunk`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23151,8 +20902,6 @@ pub unsafe extern "C" fn xberg_heading_context_free(ptr: *mut xberg::HeadingCont
 }
 
 /// Get the `headings` field from a `HeadingContext`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23166,18 +20915,9 @@ pub unsafe extern "C" fn xberg_heading_context_headings(ptr: *const xberg::Headi
         match serde_json::to_string(&obj.headings) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -23273,8 +21013,6 @@ pub unsafe extern "C" fn xberg_heading_level_level(ptr: *const xberg::HeadingLev
 }
 
 /// Get the `text` field from a `HeadingLevel`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23287,13 +21025,7 @@ pub unsafe extern "C" fn xberg_heading_level_text(ptr: *const xberg::HeadingLeve
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -23488,8 +21220,6 @@ pub unsafe extern "C" fn xberg_chunk_metadata_last_page(ptr: *const xberg::Chunk
 }
 
 /// Get the `heading_context` field from a `ChunkMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_heading_context_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23510,8 +21240,6 @@ pub unsafe extern "C" fn xberg_chunk_metadata_heading_context(
 }
 
 /// Get the `heading_path` field from a `ChunkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23525,25 +21253,14 @@ pub unsafe extern "C" fn xberg_chunk_metadata_heading_path(ptr: *const xberg::Ch
         match serde_json::to_string(&obj.heading_path) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `image_indices` field from a `ChunkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23557,25 +21274,14 @@ pub unsafe extern "C" fn xberg_chunk_metadata_image_indices(ptr: *const xberg::C
         match serde_json::to_string(&obj.image_indices) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `node_ids` field from a `ChunkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23589,25 +21295,14 @@ pub unsafe extern "C" fn xberg_chunk_metadata_node_ids(ptr: *const xberg::ChunkM
         match serde_json::to_string(&obj.node_ids) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `page_spans` field from a `ChunkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23621,25 +21316,14 @@ pub unsafe extern "C" fn xberg_chunk_metadata_page_spans(ptr: *const xberg::Chun
         match serde_json::to_string(&obj.page_spans) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `classifications` field from a `ChunkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23655,18 +21339,9 @@ pub unsafe extern "C" fn xberg_chunk_metadata_classifications(
         match serde_json::to_string(&obj.classifications) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -23762,8 +21437,6 @@ pub unsafe extern "C" fn xberg_page_span_page(ptr: *const xberg::PageSpan) -> u3
 }
 
 /// Get the `bbox` field from a `PageSpan`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23857,8 +21530,6 @@ pub unsafe extern "C" fn xberg_extracted_image_free(ptr: *mut xberg::ExtractedIm
 }
 
 /// Get the `data` field from a `ExtractedImage`.
-/// The returned byte pointer is borrowed from `ptr` and must not be freed.
-/// It remains valid until `ptr` is destroyed or the field is mutated.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23881,8 +21552,6 @@ pub unsafe extern "C" fn xberg_extracted_image_data(ptr: *const xberg::Extracted
 }
 
 /// Get the `format` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23895,13 +21564,7 @@ pub unsafe extern "C" fn xberg_extracted_image_format(ptr: *const xberg::Extract
         let obj = unsafe { &*ptr };
         match CString::new(obj.format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -23976,8 +21639,6 @@ pub unsafe extern "C" fn xberg_extracted_image_height(ptr: *const xberg::Extract
 }
 
 /// Get the `colorspace` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -23991,13 +21652,7 @@ pub unsafe extern "C" fn xberg_extracted_image_colorspace(ptr: *const xberg::Ext
         match &obj.colorspace {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24038,8 +21693,6 @@ pub unsafe extern "C" fn xberg_extracted_image_is_mask(ptr: *const xberg::Extrac
 }
 
 /// Get the `description` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24053,13 +21706,7 @@ pub unsafe extern "C" fn xberg_extracted_image_description(ptr: *const xberg::Ex
         match &obj.description {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24067,8 +21714,6 @@ pub unsafe extern "C" fn xberg_extracted_image_description(ptr: *const xberg::Ex
 }
 
 /// Get the `ocr_result` field from a `ExtractedImage`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extracted_document_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24089,8 +21734,6 @@ pub unsafe extern "C" fn xberg_extracted_image_ocr_result(
 }
 
 /// Get the `bounding_box` field from a `ExtractedImage`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24111,8 +21754,6 @@ pub unsafe extern "C" fn xberg_extracted_image_bounding_box(
 }
 
 /// Get the `source_path` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24126,13 +21767,7 @@ pub unsafe extern "C" fn xberg_extracted_image_source_path(ptr: *const xberg::Ex
         match &obj.source_path {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24140,8 +21775,6 @@ pub unsafe extern "C" fn xberg_extracted_image_source_path(ptr: *const xberg::Ex
 }
 
 /// Get the `image_kind` field from a `ExtractedImage`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24196,8 +21829,6 @@ pub unsafe extern "C" fn xberg_extracted_image_cluster_id(ptr: *const xberg::Ext
 }
 
 /// Get the `caption` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24211,13 +21842,7 @@ pub unsafe extern "C" fn xberg_extracted_image_caption(ptr: *const xberg::Extrac
         match &obj.caption {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24225,8 +21850,6 @@ pub unsafe extern "C" fn xberg_extracted_image_caption(ptr: *const xberg::Extrac
 }
 
 /// Get the `qr_codes` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24241,18 +21864,9 @@ pub unsafe extern "C" fn xberg_extracted_image_qr_codes(ptr: *const xberg::Extra
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24260,8 +21874,6 @@ pub unsafe extern "C" fn xberg_extracted_image_qr_codes(ptr: *const xberg::Extra
 }
 
 /// Get the `data_base64` field from a `ExtractedImage`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24275,13 +21887,7 @@ pub unsafe extern "C" fn xberg_extracted_image_data_base64(ptr: *const xberg::Ex
         match &obj.data_base64 {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24517,8 +22123,6 @@ pub unsafe extern "C" fn xberg_element_metadata_page_number(ptr: *const xberg::E
 }
 
 /// Get the `filename` field from a `ElementMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24532,13 +22136,7 @@ pub unsafe extern "C" fn xberg_element_metadata_filename(ptr: *const xberg::Elem
         match &obj.filename {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24546,8 +22144,6 @@ pub unsafe extern "C" fn xberg_element_metadata_filename(ptr: *const xberg::Elem
 }
 
 /// Get the `coordinates` field from a `ElementMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24586,8 +22182,6 @@ pub unsafe extern "C" fn xberg_element_metadata_element_index(ptr: *const xberg:
 }
 
 /// Get the `additional` field from a `ElementMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24603,18 +22197,9 @@ pub unsafe extern "C" fn xberg_element_metadata_additional(
         match serde_json::to_string(&obj.additional) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -24695,8 +22280,6 @@ pub unsafe extern "C" fn xberg_element_free(ptr: *mut xberg::Element) {
 }
 
 /// Get the `element_type` field from a `Element`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_element_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24712,8 +22295,6 @@ pub unsafe extern "C" fn xberg_element_element_type(ptr: *const xberg::Element) 
 }
 
 /// Get the `text` field from a `Element`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24726,20 +22307,12 @@ pub unsafe extern "C" fn xberg_element_text(ptr: *const xberg::Element) -> *mut 
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `Element`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_element_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24830,8 +22403,6 @@ pub unsafe extern "C" fn xberg_pdf_form_field_free(ptr: *mut xberg::PdfFormField
 }
 
 /// Get the `name` field from a `PdfFormField`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24844,20 +22415,12 @@ pub unsafe extern "C" fn xberg_pdf_form_field_name(ptr: *const xberg::PdfFormFie
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `full_name` field from a `PdfFormField`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24870,20 +22433,12 @@ pub unsafe extern "C" fn xberg_pdf_form_field_full_name(ptr: *const xberg::PdfFo
         let obj = unsafe { &*ptr };
         match CString::new(obj.full_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `field_type` field from a `PdfFormField`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_form_field_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24899,8 +22454,6 @@ pub unsafe extern "C" fn xberg_pdf_form_field_field_type(ptr: *const xberg::PdfF
 }
 
 /// Get the `value` field from a `PdfFormField`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24914,13 +22467,7 @@ pub unsafe extern "C" fn xberg_pdf_form_field_value(ptr: *const xberg::PdfFormFi
         match &obj.value {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24928,8 +22475,6 @@ pub unsafe extern "C" fn xberg_pdf_form_field_value(ptr: *const xberg::PdfFormFi
 }
 
 /// Get the `default_value` field from a `PdfFormField`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -24943,13 +22488,7 @@ pub unsafe extern "C" fn xberg_pdf_form_field_default_value(ptr: *const xberg::P
         match &obj.default_value {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -24990,8 +22529,6 @@ pub unsafe extern "C" fn xberg_pdf_form_field_page(ptr: *const xberg::PdfFormFie
 }
 
 /// Get the `bbox` field from a `PdfFormField`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25028,8 +22565,6 @@ pub unsafe extern "C" fn xberg_pdf_form_field_max_length(ptr: *const xberg::PdfF
 }
 
 /// Get the `tooltip` field from a `PdfFormField`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25043,13 +22578,7 @@ pub unsafe extern "C" fn xberg_pdf_form_field_tooltip(ptr: *const xberg::PdfForm
         match &obj.tooltip {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -25132,8 +22661,6 @@ pub unsafe extern "C" fn xberg_excel_workbook_free(ptr: *mut xberg::ExcelWorkboo
 }
 
 /// Get the `sheets` field from a `ExcelWorkbook`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25147,25 +22674,14 @@ pub unsafe extern "C" fn xberg_excel_workbook_sheets(ptr: *const xberg::ExcelWor
         match serde_json::to_string(&obj.sheets) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `ExcelWorkbook`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25179,25 +22695,14 @@ pub unsafe extern "C" fn xberg_excel_workbook_metadata(ptr: *const xberg::ExcelW
         match serde_json::to_string(&obj.metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `revisions` field from a `ExcelWorkbook`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25212,18 +22717,9 @@ pub unsafe extern "C" fn xberg_excel_workbook_revisions(ptr: *const xberg::Excel
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -25306,8 +22802,6 @@ pub unsafe extern "C" fn xberg_excel_sheet_free(ptr: *mut xberg::ExcelSheet) {
 }
 
 /// Get the `name` field from a `ExcelSheet`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25320,20 +22814,12 @@ pub unsafe extern "C" fn xberg_excel_sheet_name(ptr: *const xberg::ExcelSheet) -
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `markdown` field from a `ExcelSheet`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25346,13 +22832,7 @@ pub unsafe extern "C" fn xberg_excel_sheet_markdown(ptr: *const xberg::ExcelShee
         let obj = unsafe { &*ptr };
         match CString::new(obj.markdown.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -25403,8 +22883,6 @@ pub unsafe extern "C" fn xberg_excel_sheet_cell_count(ptr: *const xberg::ExcelSh
 }
 
 /// Get the `table_cells` field from a `ExcelSheet`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25419,18 +22897,9 @@ pub unsafe extern "C" fn xberg_excel_sheet_table_cells(ptr: *const xberg::ExcelS
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -25513,8 +22982,6 @@ pub unsafe extern "C" fn xberg_xml_extraction_result_free(ptr: *mut xberg::XmlEx
 }
 
 /// Get the `content` field from a `XmlExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25529,13 +22996,7 @@ pub unsafe extern "C" fn xberg_xml_extraction_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -25556,8 +23017,6 @@ pub unsafe extern "C" fn xberg_xml_extraction_result_element_count(ptr: *const x
 }
 
 /// Get the `unique_elements` field from a `XmlExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25573,18 +23032,9 @@ pub unsafe extern "C" fn xberg_xml_extraction_result_unique_elements(
         match serde_json::to_string(&obj.unique_elements) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -25667,8 +23117,6 @@ pub unsafe extern "C" fn xberg_text_extraction_result_free(ptr: *mut xberg::Text
 }
 
 /// Get the `content` field from a `TextExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25683,13 +23131,7 @@ pub unsafe extern "C" fn xberg_text_extraction_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -25742,8 +23184,6 @@ pub unsafe extern "C" fn xberg_text_extraction_result_character_count(
 }
 
 /// Get the `headers` field from a `TextExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25760,18 +23200,9 @@ pub unsafe extern "C" fn xberg_text_extraction_result_headers(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -25856,8 +23287,6 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_free(ptr: *mut xberg::Pptx
 }
 
 /// Get the `content` field from a `PptxExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25872,20 +23301,12 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `PptxExtractionResult`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pptx_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25948,8 +23369,6 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_table_count(ptr: *const xb
 }
 
 /// Get the `images` field from a `PptxExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -25965,25 +23384,14 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_images(
         match serde_json::to_string(&obj.images) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `page_structure` field from a `PptxExtractionResult`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_structure_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26004,8 +23412,6 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_page_structure(
 }
 
 /// Get the `page_contents` field from a `PptxExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26022,18 +23428,9 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_page_contents(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26041,8 +23438,6 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_page_contents(
 }
 
 /// Get the `document` field from a `PptxExtractionResult`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_document_structure_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26063,8 +23458,6 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_document(
 }
 
 /// Get the `office_metadata` field from a `PptxExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26080,25 +23473,14 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_office_metadata(
         match serde_json::to_string(&obj.office_metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `revisions` field from a `PptxExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26115,18 +23497,9 @@ pub unsafe extern "C" fn xberg_pptx_extraction_result_revisions(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26213,8 +23586,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_free(ptr: *mut xberg::Ema
 }
 
 /// Get the `subject` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26230,13 +23601,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_subject(
         match &obj.subject {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26244,8 +23609,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_subject(
 }
 
 /// Get the `from_email` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26261,13 +23624,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_from_email(
         match &obj.from_email {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26275,8 +23632,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_from_email(
 }
 
 /// Get the `to_emails` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26292,25 +23647,14 @@ pub unsafe extern "C" fn xberg_email_extraction_result_to_emails(
         match serde_json::to_string(&obj.to_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `cc_emails` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26326,25 +23670,14 @@ pub unsafe extern "C" fn xberg_email_extraction_result_cc_emails(
         match serde_json::to_string(&obj.cc_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `bcc_emails` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26360,25 +23693,14 @@ pub unsafe extern "C" fn xberg_email_extraction_result_bcc_emails(
         match serde_json::to_string(&obj.bcc_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `date` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26394,13 +23716,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_date(
         match &obj.date {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26408,8 +23724,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_date(
 }
 
 /// Get the `message_id` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26425,13 +23739,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_message_id(
         match &obj.message_id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26439,8 +23747,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_message_id(
 }
 
 /// Get the `plain_text` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26456,13 +23762,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_plain_text(
         match &obj.plain_text {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26470,8 +23770,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_plain_text(
 }
 
 /// Get the `html_content` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26487,13 +23785,7 @@ pub unsafe extern "C" fn xberg_email_extraction_result_html_content(
         match &obj.html_content {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26501,8 +23793,6 @@ pub unsafe extern "C" fn xberg_email_extraction_result_html_content(
 }
 
 /// Get the `content` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26517,20 +23807,12 @@ pub unsafe extern "C" fn xberg_email_extraction_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `attachments` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26546,25 +23828,14 @@ pub unsafe extern "C" fn xberg_email_extraction_result_attachments(
         match serde_json::to_string(&obj.attachments) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `EmailExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26580,18 +23851,9 @@ pub unsafe extern "C" fn xberg_email_extraction_result_metadata(
         match serde_json::to_string(&obj.metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -26672,8 +23934,6 @@ pub unsafe extern "C" fn xberg_email_attachment_free(ptr: *mut xberg::EmailAttac
 }
 
 /// Get the `name` field from a `EmailAttachment`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26687,13 +23947,7 @@ pub unsafe extern "C" fn xberg_email_attachment_name(ptr: *const xberg::EmailAtt
         match &obj.name {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26701,8 +23955,6 @@ pub unsafe extern "C" fn xberg_email_attachment_name(ptr: *const xberg::EmailAtt
 }
 
 /// Get the `filename` field from a `EmailAttachment`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26716,13 +23968,7 @@ pub unsafe extern "C" fn xberg_email_attachment_filename(ptr: *const xberg::Emai
         match &obj.filename {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26730,8 +23976,6 @@ pub unsafe extern "C" fn xberg_email_attachment_filename(ptr: *const xberg::Emai
 }
 
 /// Get the `mime_type` field from a `EmailAttachment`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26745,13 +23989,7 @@ pub unsafe extern "C" fn xberg_email_attachment_mime_type(ptr: *const xberg::Ema
         match &obj.mime_type {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -26792,8 +24030,6 @@ pub unsafe extern "C" fn xberg_email_attachment_is_image(ptr: *const xberg::Emai
 }
 
 /// Get the `data` field from a `EmailAttachment`.
-/// The returned byte pointer is borrowed from `ptr` and must not be freed.
-/// It remains valid until `ptr` is destroyed or the field is mutated.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26906,8 +24142,6 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_free(ptr: *mut xberg::OcrEx
 }
 
 /// Get the `content` field from a `OcrExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26922,20 +24156,12 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_content(
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `mime_type` field from a `OcrExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26950,20 +24176,12 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_mime_type(
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `metadata` field from a `OcrExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -26979,25 +24197,14 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_metadata(
         match serde_json::to_string(&obj.metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `tables` field from a `OcrExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27013,25 +24220,14 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_tables(
         match serde_json::to_string(&obj.tables) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `ocr_elements` field from a `OcrExtractionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27048,18 +24244,9 @@ pub unsafe extern "C" fn xberg_ocr_extraction_result_ocr_elements(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -27142,8 +24329,6 @@ pub unsafe extern "C" fn xberg_ocr_table_free(ptr: *mut xberg::OcrTable) {
 }
 
 /// Get the `cells` field from a `OcrTable`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27157,25 +24342,14 @@ pub unsafe extern "C" fn xberg_ocr_table_cells(ptr: *const xberg::OcrTable) -> *
         match serde_json::to_string(&obj.cells) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `markdown` field from a `OcrTable`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27188,13 +24362,7 @@ pub unsafe extern "C" fn xberg_ocr_table_markdown(ptr: *const xberg::OcrTable) -
         let obj = unsafe { &*ptr };
         match CString::new(obj.markdown.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -27215,8 +24383,6 @@ pub unsafe extern "C" fn xberg_ocr_table_page_number(ptr: *const xberg::OcrTable
 }
 
 /// Get the `bounding_box` field from a `OcrTable`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_table_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27532,8 +24698,6 @@ pub unsafe extern "C" fn xberg_image_preprocessing_config_contrast_enhance(
 }
 
 /// Get the `binarization_method` field from a `ImagePreprocessingConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27548,13 +24712,7 @@ pub unsafe extern "C" fn xberg_image_preprocessing_config_binarization_method(
         let obj = unsafe { &*ptr };
         match CString::new(obj.binarization_method.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -27669,8 +24827,6 @@ pub unsafe extern "C" fn xberg_tesseract_config_free(ptr: *mut xberg::TesseractC
 }
 
 /// Get the `language` field from a `TesseractConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27684,18 +24840,9 @@ pub unsafe extern "C" fn xberg_tesseract_config_language(ptr: *const xberg::Tess
         match serde_json::to_string(&obj.language) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -27716,8 +24863,6 @@ pub unsafe extern "C" fn xberg_tesseract_config_psm(ptr: *const xberg::Tesseract
 }
 
 /// Get the `output_format` field from a `TesseractConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27732,13 +24877,7 @@ pub unsafe extern "C" fn xberg_tesseract_config_output_format(
         let obj = unsafe { &*ptr };
         match CString::new(obj.output_format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -27774,8 +24913,6 @@ pub unsafe extern "C" fn xberg_tesseract_config_min_confidence(ptr: *const xberg
 }
 
 /// Get the `preprocessing` field from a `TesseractConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_preprocessing_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27954,8 +25091,6 @@ pub unsafe extern "C" fn xberg_tesseract_config_tessedit_enable_dict_correction(
 }
 
 /// Get the `tessedit_char_whitelist` field from a `TesseractConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27970,20 +25105,12 @@ pub unsafe extern "C" fn xberg_tesseract_config_tessedit_char_whitelist(
         let obj = unsafe { &*ptr };
         match CString::new(obj.tessedit_char_whitelist.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `tessedit_char_blacklist` field from a `TesseractConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -27998,13 +25125,7 @@ pub unsafe extern "C" fn xberg_tesseract_config_tessedit_char_blacklist(
         let obj = unsafe { &*ptr };
         match CString::new(obj.tessedit_char_blacklist.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -28223,8 +25344,6 @@ pub unsafe extern "C" fn xberg_image_preprocessing_metadata_final_dpi(
 }
 
 /// Get the `resample_method` field from a `ImagePreprocessingMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28239,13 +25358,7 @@ pub unsafe extern "C" fn xberg_image_preprocessing_metadata_resample_method(
         let obj = unsafe { &*ptr };
         match CString::new(obj.resample_method.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -28305,8 +25418,6 @@ pub unsafe extern "C" fn xberg_image_preprocessing_metadata_skipped_resize(
 }
 
 /// Get the `resize_error` field from a `ImagePreprocessingMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28322,13 +25433,7 @@ pub unsafe extern "C" fn xberg_image_preprocessing_metadata_resize_error(
         match &obj.resize_error {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -28411,8 +25516,6 @@ pub unsafe extern "C" fn xberg_formula_free(ptr: *mut xberg::Formula) {
 }
 
 /// Get the `latex` field from a `Formula`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28425,20 +25528,12 @@ pub unsafe extern "C" fn xberg_formula_latex(ptr: *const xberg::Formula) -> *mut
         let obj = unsafe { &*ptr };
         match CString::new(obj.latex.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `bbox` field from a `Formula`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28449,7 +25544,10 @@ pub unsafe extern "C" fn xberg_formula_bbox(ptr: *const xberg::Formula) -> *mut 
         }
         // SAFETY: null check above guarantees ptr is a valid pointer.
         let obj = unsafe { &*ptr };
-        Box::into_raw(Box::new(obj.bbox))
+        match &obj.bbox {
+            Some(val) => Box::into_raw(Box::new(*val)),
+            None => std::ptr::null_mut(),
+        }
     })
 }
 
@@ -28464,7 +25562,10 @@ pub unsafe extern "C" fn xberg_formula_page(ptr: *const xberg::Formula) -> u32 {
         }
         // SAFETY: null check above guarantees ptr is a valid pointer.
         let obj = unsafe { &*ptr };
-        obj.page
+        match &obj.page {
+            Some(val) => *val,
+            None => 0,
+        }
     })
 }
 
@@ -28548,8 +25649,6 @@ pub unsafe extern "C" fn xberg_code_metadata_free(ptr: *mut xberg::CodeMetadata)
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `chunks` field from a `CodeMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28563,26 +25662,15 @@ pub unsafe extern "C" fn xberg_code_metadata_chunks(ptr: *const xberg::CodeMetad
         match serde_json::to_string(&obj.chunks) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `data` field from a `CodeMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_code_data_node_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28680,8 +25768,6 @@ pub unsafe extern "C" fn xberg_code_chunk_info_free(ptr: *mut xberg::CodeChunkIn
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `text` field from a `CodeChunkInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28694,21 +25780,13 @@ pub unsafe extern "C" fn xberg_code_chunk_info_text(ptr: *const xberg::CodeChunk
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `context_path` field from a `CodeChunkInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28722,26 +25800,15 @@ pub unsafe extern "C" fn xberg_code_chunk_info_context_path(ptr: *const xberg::C
         match serde_json::to_string(&obj.context_path) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `node_types` field from a `CodeChunkInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28755,18 +25822,9 @@ pub unsafe extern "C" fn xberg_code_chunk_info_node_types(ptr: *const xberg::Cod
         match serde_json::to_string(&obj.node_types) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -28883,8 +25941,6 @@ pub unsafe extern "C" fn xberg_code_data_attribute_free(ptr: *mut xberg::CodeDat
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `name` field from a `CodeDataAttribute`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28897,21 +25953,13 @@ pub unsafe extern "C" fn xberg_code_data_attribute_name(ptr: *const xberg::CodeD
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `value` field from a `CodeDataAttribute`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -28926,13 +25974,7 @@ pub unsafe extern "C" fn xberg_code_data_attribute_value(
         let obj = unsafe { &*ptr };
         match CString::new(obj.value.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -29049,8 +26091,6 @@ pub unsafe extern "C" fn xberg_code_data_node_free(ptr: *mut xberg::CodeDataNode
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `kind` field from a `CodeDataNode`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_code_data_node_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29067,8 +26107,6 @@ pub unsafe extern "C" fn xberg_code_data_node_kind(ptr: *const xberg::CodeDataNo
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `key` field from a `CodeDataNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29082,13 +26120,7 @@ pub unsafe extern "C" fn xberg_code_data_node_key(ptr: *const xberg::CodeDataNod
         match &obj.key {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29097,8 +26129,6 @@ pub unsafe extern "C" fn xberg_code_data_node_key(ptr: *const xberg::CodeDataNod
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `value` field from a `CodeDataNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29112,13 +26142,7 @@ pub unsafe extern "C" fn xberg_code_data_node_value(ptr: *const xberg::CodeDataN
         match &obj.value {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29127,8 +26151,6 @@ pub unsafe extern "C" fn xberg_code_data_node_value(ptr: *const xberg::CodeDataN
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `attributes` field from a `CodeDataNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29142,26 +26164,15 @@ pub unsafe extern "C" fn xberg_code_data_node_attributes(ptr: *const xberg::Code
         match serde_json::to_string(&obj.attributes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "tree-sitter")]
 /// Get the `children` field from a `CodeDataNode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29175,18 +26186,9 @@ pub unsafe extern "C" fn xberg_code_data_node_children(ptr: *const xberg::CodeDa
         match serde_json::to_string(&obj.children) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -29299,8 +26301,6 @@ pub unsafe extern "C" fn xberg_metadata_free(ptr: *mut xberg::Metadata) {
 }
 
 /// Get the `title` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29314,13 +26314,7 @@ pub unsafe extern "C" fn xberg_metadata_title(ptr: *const xberg::Metadata) -> *m
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29328,8 +26322,6 @@ pub unsafe extern "C" fn xberg_metadata_title(ptr: *const xberg::Metadata) -> *m
 }
 
 /// Get the `subject` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29343,13 +26335,7 @@ pub unsafe extern "C" fn xberg_metadata_subject(ptr: *const xberg::Metadata) -> 
         match &obj.subject {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29357,8 +26343,6 @@ pub unsafe extern "C" fn xberg_metadata_subject(ptr: *const xberg::Metadata) -> 
 }
 
 /// Get the `authors` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29373,18 +26357,9 @@ pub unsafe extern "C" fn xberg_metadata_authors(ptr: *const xberg::Metadata) -> 
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29392,8 +26367,6 @@ pub unsafe extern "C" fn xberg_metadata_authors(ptr: *const xberg::Metadata) -> 
 }
 
 /// Get the `keywords` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29408,18 +26381,9 @@ pub unsafe extern "C" fn xberg_metadata_keywords(ptr: *const xberg::Metadata) ->
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29427,8 +26391,6 @@ pub unsafe extern "C" fn xberg_metadata_keywords(ptr: *const xberg::Metadata) ->
 }
 
 /// Get the `language` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29442,13 +26404,7 @@ pub unsafe extern "C" fn xberg_metadata_language(ptr: *const xberg::Metadata) ->
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29456,8 +26412,6 @@ pub unsafe extern "C" fn xberg_metadata_language(ptr: *const xberg::Metadata) ->
 }
 
 /// Get the `created_at` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29471,13 +26425,7 @@ pub unsafe extern "C" fn xberg_metadata_created_at(ptr: *const xberg::Metadata) 
         match &obj.created_at {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29485,8 +26433,6 @@ pub unsafe extern "C" fn xberg_metadata_created_at(ptr: *const xberg::Metadata) 
 }
 
 /// Get the `modified_at` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29500,13 +26446,7 @@ pub unsafe extern "C" fn xberg_metadata_modified_at(ptr: *const xberg::Metadata)
         match &obj.modified_at {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29514,8 +26454,6 @@ pub unsafe extern "C" fn xberg_metadata_modified_at(ptr: *const xberg::Metadata)
 }
 
 /// Get the `created_by` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29529,13 +26467,7 @@ pub unsafe extern "C" fn xberg_metadata_created_by(ptr: *const xberg::Metadata) 
         match &obj.created_by {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29543,8 +26475,6 @@ pub unsafe extern "C" fn xberg_metadata_created_by(ptr: *const xberg::Metadata) 
 }
 
 /// Get the `modified_by` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29558,13 +26488,7 @@ pub unsafe extern "C" fn xberg_metadata_modified_by(ptr: *const xberg::Metadata)
         match &obj.modified_by {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29572,8 +26496,6 @@ pub unsafe extern "C" fn xberg_metadata_modified_by(ptr: *const xberg::Metadata)
 }
 
 /// Get the `pages` field from a `Metadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_structure_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29592,8 +26514,6 @@ pub unsafe extern "C" fn xberg_metadata_pages(ptr: *const xberg::Metadata) -> *m
 }
 
 /// Get the `format` field from a `Metadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_format_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29612,8 +26532,6 @@ pub unsafe extern "C" fn xberg_metadata_format(ptr: *const xberg::Metadata) -> *
 }
 
 /// Get the `image_preprocessing` field from a `Metadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_preprocessing_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29634,8 +26552,6 @@ pub unsafe extern "C" fn xberg_metadata_image_preprocessing(
 }
 
 /// Get the `json_schema` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29650,18 +26566,9 @@ pub unsafe extern "C" fn xberg_metadata_json_schema(ptr: *const xberg::Metadata)
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29669,8 +26576,6 @@ pub unsafe extern "C" fn xberg_metadata_json_schema(ptr: *const xberg::Metadata)
 }
 
 /// Get the `error` field from a `Metadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_error_metadata_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29707,8 +26612,6 @@ pub unsafe extern "C" fn xberg_metadata_extraction_duration_ms(ptr: *const xberg
 }
 
 /// Get the `category` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29722,13 +26625,7 @@ pub unsafe extern "C" fn xberg_metadata_category(ptr: *const xberg::Metadata) ->
         match &obj.category {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29736,8 +26633,6 @@ pub unsafe extern "C" fn xberg_metadata_category(ptr: *const xberg::Metadata) ->
 }
 
 /// Get the `tags` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29752,18 +26647,9 @@ pub unsafe extern "C" fn xberg_metadata_tags(ptr: *const xberg::Metadata) -> *mu
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29771,8 +26657,6 @@ pub unsafe extern "C" fn xberg_metadata_tags(ptr: *const xberg::Metadata) -> *mu
 }
 
 /// Get the `document_version` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29786,13 +26670,7 @@ pub unsafe extern "C" fn xberg_metadata_document_version(ptr: *const xberg::Meta
         match &obj.document_version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29800,8 +26678,6 @@ pub unsafe extern "C" fn xberg_metadata_document_version(ptr: *const xberg::Meta
 }
 
 /// Get the `abstract_text` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29815,13 +26691,7 @@ pub unsafe extern "C" fn xberg_metadata_abstract_text(ptr: *const xberg::Metadat
         match &obj.abstract_text {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29829,8 +26699,6 @@ pub unsafe extern "C" fn xberg_metadata_abstract_text(ptr: *const xberg::Metadat
 }
 
 /// Get the `output_format` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29844,13 +26712,7 @@ pub unsafe extern "C" fn xberg_metadata_output_format(ptr: *const xberg::Metadat
         match &obj.output_format {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -29873,8 +26735,6 @@ pub unsafe extern "C" fn xberg_metadata_ocr_used(ptr: *const xberg::Metadata) ->
 }
 
 /// Get the `additional` field from a `Metadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -29888,18 +26748,9 @@ pub unsafe extern "C" fn xberg_metadata_additional(ptr: *const xberg::Metadata) 
         match serde_json::to_string(&obj.additional) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30024,8 +26875,6 @@ pub unsafe extern "C" fn xberg_excel_metadata_sheet_count(ptr: *const xberg::Exc
 }
 
 /// Get the `sheet_names` field from a `ExcelMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30040,18 +26889,9 @@ pub unsafe extern "C" fn xberg_excel_metadata_sheet_names(ptr: *const xberg::Exc
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -30134,8 +26974,6 @@ pub unsafe extern "C" fn xberg_email_metadata_free(ptr: *mut xberg::EmailMetadat
 }
 
 /// Get the `from_email` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30149,13 +26987,7 @@ pub unsafe extern "C" fn xberg_email_metadata_from_email(ptr: *const xberg::Emai
         match &obj.from_email {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -30163,8 +26995,6 @@ pub unsafe extern "C" fn xberg_email_metadata_from_email(ptr: *const xberg::Emai
 }
 
 /// Get the `from_name` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30178,13 +27008,7 @@ pub unsafe extern "C" fn xberg_email_metadata_from_name(ptr: *const xberg::Email
         match &obj.from_name {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -30192,8 +27016,6 @@ pub unsafe extern "C" fn xberg_email_metadata_from_name(ptr: *const xberg::Email
 }
 
 /// Get the `to_emails` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30207,25 +27029,14 @@ pub unsafe extern "C" fn xberg_email_metadata_to_emails(ptr: *const xberg::Email
         match serde_json::to_string(&obj.to_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `cc_emails` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30239,25 +27050,14 @@ pub unsafe extern "C" fn xberg_email_metadata_cc_emails(ptr: *const xberg::Email
         match serde_json::to_string(&obj.cc_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `bcc_emails` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30271,25 +27071,14 @@ pub unsafe extern "C" fn xberg_email_metadata_bcc_emails(ptr: *const xberg::Emai
         match serde_json::to_string(&obj.bcc_emails) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `message_id` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30303,13 +27092,7 @@ pub unsafe extern "C" fn xberg_email_metadata_message_id(ptr: *const xberg::Emai
         match &obj.message_id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -30317,8 +27100,6 @@ pub unsafe extern "C" fn xberg_email_metadata_message_id(ptr: *const xberg::Emai
 }
 
 /// Get the `attachments` field from a `EmailMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30332,18 +27113,9 @@ pub unsafe extern "C" fn xberg_email_metadata_attachments(ptr: *const xberg::Ema
         match serde_json::to_string(&obj.attachments) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30424,8 +27196,6 @@ pub unsafe extern "C" fn xberg_archive_metadata_free(ptr: *mut xberg::ArchiveMet
 }
 
 /// Get the `format` field from a `ArchiveMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30438,13 +27208,7 @@ pub unsafe extern "C" fn xberg_archive_metadata_format(ptr: *const xberg::Archiv
         let obj = unsafe { &*ptr };
         match CString::new(obj.format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30465,8 +27229,6 @@ pub unsafe extern "C" fn xberg_archive_metadata_file_count(ptr: *const xberg::Ar
 }
 
 /// Get the `file_list` field from a `ArchiveMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30480,18 +27242,9 @@ pub unsafe extern "C" fn xberg_archive_metadata_file_list(ptr: *const xberg::Arc
         match serde_json::to_string(&obj.file_list) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30635,8 +27388,6 @@ pub unsafe extern "C" fn xberg_image_metadata_height(ptr: *const xberg::ImageMet
 }
 
 /// Get the `format` field from a `ImageMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30649,20 +27400,12 @@ pub unsafe extern "C" fn xberg_image_metadata_format(ptr: *const xberg::ImageMet
         let obj = unsafe { &*ptr };
         match CString::new(obj.format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `exif` field from a `ImageMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30676,18 +27419,9 @@ pub unsafe extern "C" fn xberg_image_metadata_exif(ptr: *const xberg::ImageMetad
         match serde_json::to_string(&obj.exif) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30783,8 +27517,6 @@ pub unsafe extern "C" fn xberg_xml_metadata_element_count(ptr: *const xberg::Xml
 }
 
 /// Get the `unique_elements` field from a `XmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30798,18 +27530,9 @@ pub unsafe extern "C" fn xberg_xml_metadata_unique_elements(ptr: *const xberg::X
         match serde_json::to_string(&obj.unique_elements) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -30935,8 +27658,6 @@ pub unsafe extern "C" fn xberg_text_metadata_character_count(ptr: *const xberg::
 }
 
 /// Get the `headers` field from a `TextMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -30951,18 +27672,9 @@ pub unsafe extern "C" fn xberg_text_metadata_headers(ptr: *const xberg::TextMeta
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31060,8 +27772,6 @@ pub unsafe extern "C" fn xberg_header_metadata_level(ptr: *const xberg::HeaderMe
 }
 
 /// Get the `text` field from a `HeaderMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31074,20 +27784,12 @@ pub unsafe extern "C" fn xberg_header_metadata_text(ptr: *const xberg::HeaderMet
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `id` field from a `HeaderMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31101,13 +27803,7 @@ pub unsafe extern "C" fn xberg_header_metadata_id(ptr: *const xberg::HeaderMetad
         match &obj.id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31220,8 +27916,6 @@ pub unsafe extern "C" fn xberg_link_metadata_free(ptr: *mut xberg::LinkMetadata)
 }
 
 /// Get the `href` field from a `LinkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31234,20 +27928,12 @@ pub unsafe extern "C" fn xberg_link_metadata_href(ptr: *const xberg::LinkMetadat
         let obj = unsafe { &*ptr };
         match CString::new(obj.href.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `text` field from a `LinkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31260,20 +27946,12 @@ pub unsafe extern "C" fn xberg_link_metadata_text(ptr: *const xberg::LinkMetadat
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `title` field from a `LinkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31287,13 +27965,7 @@ pub unsafe extern "C" fn xberg_link_metadata_title(ptr: *const xberg::LinkMetada
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31301,8 +27973,6 @@ pub unsafe extern "C" fn xberg_link_metadata_title(ptr: *const xberg::LinkMetada
 }
 
 /// Get the `link_type` field from a `LinkMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_link_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31318,8 +27988,6 @@ pub unsafe extern "C" fn xberg_link_metadata_link_type(ptr: *const xberg::LinkMe
 }
 
 /// Get the `rel` field from a `LinkMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31333,18 +28001,9 @@ pub unsafe extern "C" fn xberg_link_metadata_rel(ptr: *const xberg::LinkMetadata
         match serde_json::to_string(&obj.rel) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -31425,8 +28084,6 @@ pub unsafe extern "C" fn xberg_image_metadata_type_free(ptr: *mut xberg::ImageMe
 }
 
 /// Get the `src` field from a `ImageMetadataType`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31439,20 +28096,12 @@ pub unsafe extern "C" fn xberg_image_metadata_type_src(ptr: *const xberg::ImageM
         let obj = unsafe { &*ptr };
         match CString::new(obj.src.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `alt` field from a `ImageMetadataType`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31466,13 +28115,7 @@ pub unsafe extern "C" fn xberg_image_metadata_type_alt(ptr: *const xberg::ImageM
         match &obj.alt {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31480,8 +28123,6 @@ pub unsafe extern "C" fn xberg_image_metadata_type_alt(ptr: *const xberg::ImageM
 }
 
 /// Get the `title` field from a `ImageMetadataType`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31497,13 +28138,7 @@ pub unsafe extern "C" fn xberg_image_metadata_type_title(
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31511,8 +28146,6 @@ pub unsafe extern "C" fn xberg_image_metadata_type_title(
 }
 
 /// Get the `image_type` field from a `ImageMetadataType`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_image_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31605,8 +28238,6 @@ pub unsafe extern "C" fn xberg_structured_data_free(ptr: *mut xberg::StructuredD
 }
 
 /// Get the `data_type` field from a `StructuredData`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_structured_data_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31624,8 +28255,6 @@ pub unsafe extern "C" fn xberg_structured_data_data_type(
 }
 
 /// Get the `raw_json` field from a `StructuredData`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31638,20 +28267,12 @@ pub unsafe extern "C" fn xberg_structured_data_raw_json(ptr: *const xberg::Struc
         let obj = unsafe { &*ptr };
         match CString::new(obj.raw_json.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `schema_type` field from a `StructuredData`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31665,13 +28286,7 @@ pub unsafe extern "C" fn xberg_structured_data_schema_type(ptr: *const xberg::St
         match &obj.schema_type {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31754,8 +28369,6 @@ pub unsafe extern "C" fn xberg_html_metadata_free(ptr: *mut xberg::HtmlMetadata)
 }
 
 /// Get the `title` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31769,13 +28382,7 @@ pub unsafe extern "C" fn xberg_html_metadata_title(ptr: *const xberg::HtmlMetada
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31783,8 +28390,6 @@ pub unsafe extern "C" fn xberg_html_metadata_title(ptr: *const xberg::HtmlMetada
 }
 
 /// Get the `description` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31798,13 +28403,7 @@ pub unsafe extern "C" fn xberg_html_metadata_description(ptr: *const xberg::Html
         match &obj.description {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31812,8 +28411,6 @@ pub unsafe extern "C" fn xberg_html_metadata_description(ptr: *const xberg::Html
 }
 
 /// Get the `keywords` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31827,25 +28424,14 @@ pub unsafe extern "C" fn xberg_html_metadata_keywords(ptr: *const xberg::HtmlMet
         match serde_json::to_string(&obj.keywords) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `author` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31859,13 +28445,7 @@ pub unsafe extern "C" fn xberg_html_metadata_author(ptr: *const xberg::HtmlMetad
         match &obj.author {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31873,8 +28453,6 @@ pub unsafe extern "C" fn xberg_html_metadata_author(ptr: *const xberg::HtmlMetad
 }
 
 /// Get the `canonical_url` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31888,13 +28466,7 @@ pub unsafe extern "C" fn xberg_html_metadata_canonical_url(ptr: *const xberg::Ht
         match &obj.canonical_url {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31902,8 +28474,6 @@ pub unsafe extern "C" fn xberg_html_metadata_canonical_url(ptr: *const xberg::Ht
 }
 
 /// Get the `base_href` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31917,13 +28487,7 @@ pub unsafe extern "C" fn xberg_html_metadata_base_href(ptr: *const xberg::HtmlMe
         match &obj.base_href {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31931,8 +28495,6 @@ pub unsafe extern "C" fn xberg_html_metadata_base_href(ptr: *const xberg::HtmlMe
 }
 
 /// Get the `language` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31946,13 +28508,7 @@ pub unsafe extern "C" fn xberg_html_metadata_language(ptr: *const xberg::HtmlMet
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -31960,8 +28516,6 @@ pub unsafe extern "C" fn xberg_html_metadata_language(ptr: *const xberg::HtmlMet
 }
 
 /// Get the `text_direction` field from a `HtmlMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_text_direction_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31982,8 +28536,6 @@ pub unsafe extern "C" fn xberg_html_metadata_text_direction(
 }
 
 /// Get the `open_graph` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -31997,25 +28549,14 @@ pub unsafe extern "C" fn xberg_html_metadata_open_graph(ptr: *const xberg::HtmlM
         match serde_json::to_string(&obj.open_graph) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `twitter_card` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32029,25 +28570,14 @@ pub unsafe extern "C" fn xberg_html_metadata_twitter_card(ptr: *const xberg::Htm
         match serde_json::to_string(&obj.twitter_card) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `meta_tags` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32061,25 +28591,14 @@ pub unsafe extern "C" fn xberg_html_metadata_meta_tags(ptr: *const xberg::HtmlMe
         match serde_json::to_string(&obj.meta_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `headers` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32093,25 +28612,14 @@ pub unsafe extern "C" fn xberg_html_metadata_headers(ptr: *const xberg::HtmlMeta
         match serde_json::to_string(&obj.headers) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `links` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32125,25 +28633,14 @@ pub unsafe extern "C" fn xberg_html_metadata_links(ptr: *const xberg::HtmlMetada
         match serde_json::to_string(&obj.links) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `images` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32157,25 +28654,14 @@ pub unsafe extern "C" fn xberg_html_metadata_images(ptr: *const xberg::HtmlMetad
         match serde_json::to_string(&obj.images) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `structured_data` field from a `HtmlMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32189,18 +28675,9 @@ pub unsafe extern "C" fn xberg_html_metadata_structured_data(ptr: *const xberg::
         match serde_json::to_string(&obj.structured_data) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -32281,8 +28758,6 @@ pub unsafe extern "C" fn xberg_ocr_metadata_free(ptr: *mut xberg::OcrMetadata) {
 }
 
 /// Get the `language` field from a `OcrMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32295,13 +28770,7 @@ pub unsafe extern "C" fn xberg_ocr_metadata_language(ptr: *const xberg::OcrMetad
         let obj = unsafe { &*ptr };
         match CString::new(obj.language.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -32322,8 +28791,6 @@ pub unsafe extern "C" fn xberg_ocr_metadata_psm(ptr: *const xberg::OcrMetadata) 
 }
 
 /// Get the `output_format` field from a `OcrMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32336,13 +28803,7 @@ pub unsafe extern "C" fn xberg_ocr_metadata_output_format(ptr: *const xberg::Ocr
         let obj = unsafe { &*ptr };
         match CString::new(obj.output_format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -32474,8 +28935,6 @@ pub unsafe extern "C" fn xberg_error_metadata_free(ptr: *mut xberg::ErrorMetadat
 }
 
 /// Get the `error_type` field from a `ErrorMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32488,20 +28947,12 @@ pub unsafe extern "C" fn xberg_error_metadata_error_type(ptr: *const xberg::Erro
         let obj = unsafe { &*ptr };
         match CString::new(obj.error_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `message` field from a `ErrorMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32514,13 +28965,7 @@ pub unsafe extern "C" fn xberg_error_metadata_message(ptr: *const xberg::ErrorMe
         let obj = unsafe { &*ptr };
         match CString::new(obj.message.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -32616,8 +29061,6 @@ pub unsafe extern "C" fn xberg_pptx_metadata_slide_count(ptr: *const xberg::Pptx
 }
 
 /// Get the `slide_names` field from a `PptxMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32631,18 +29074,9 @@ pub unsafe extern "C" fn xberg_pptx_metadata_slide_names(ptr: *const xberg::Pptx
         match serde_json::to_string(&obj.slide_names) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -32763,8 +29197,6 @@ pub unsafe extern "C" fn xberg_docx_metadata_free(ptr: *mut xberg::DocxMetadata)
 
 #[cfg(feature = "office")]
 /// Get the `core_properties` field from a `DocxMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_core_properties_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32786,8 +29218,6 @@ pub unsafe extern "C" fn xberg_docx_metadata_core_properties(
 
 #[cfg(feature = "office")]
 /// Get the `app_properties` field from a `DocxMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_docx_app_properties_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32809,8 +29239,6 @@ pub unsafe extern "C" fn xberg_docx_metadata_app_properties(
 
 #[cfg(feature = "office")]
 /// Get the `custom_properties` field from a `DocxMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32827,18 +29255,9 @@ pub unsafe extern "C" fn xberg_docx_metadata_custom_properties(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -32951,8 +29370,6 @@ pub unsafe extern "C" fn xberg_csv_metadata_column_count(ptr: *const xberg::CsvM
 }
 
 /// Get the `delimiter` field from a `CsvMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -32966,13 +29383,7 @@ pub unsafe extern "C" fn xberg_csv_metadata_delimiter(ptr: *const xberg::CsvMeta
         match &obj.delimiter {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -32995,8 +29406,6 @@ pub unsafe extern "C" fn xberg_csv_metadata_has_header(ptr: *const xberg::CsvMet
 }
 
 /// Get the `column_types` field from a `CsvMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33011,18 +29420,9 @@ pub unsafe extern "C" fn xberg_csv_metadata_column_types(ptr: *const xberg::CsvM
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -33120,8 +29520,6 @@ pub unsafe extern "C" fn xberg_bibtex_metadata_entry_count(ptr: *const xberg::Bi
 }
 
 /// Get the `citation_keys` field from a `BibtexMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33137,25 +29535,14 @@ pub unsafe extern "C" fn xberg_bibtex_metadata_citation_keys(
         match serde_json::to_string(&obj.citation_keys) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `authors` field from a `BibtexMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33169,25 +29556,14 @@ pub unsafe extern "C" fn xberg_bibtex_metadata_authors(ptr: *const xberg::Bibtex
         match serde_json::to_string(&obj.authors) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `year_range` field from a `BibtexMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_year_range_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33206,8 +29582,6 @@ pub unsafe extern "C" fn xberg_bibtex_metadata_year_range(ptr: *const xberg::Bib
 }
 
 /// Get the `entry_types` field from a `BibtexMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33222,18 +29596,9 @@ pub unsafe extern "C" fn xberg_bibtex_metadata_entry_types(ptr: *const xberg::Bi
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -33331,8 +29696,6 @@ pub unsafe extern "C" fn xberg_citation_metadata_citation_count(ptr: *const xber
 }
 
 /// Get the `format` field from a `CitationMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33346,13 +29709,7 @@ pub unsafe extern "C" fn xberg_citation_metadata_format(ptr: *const xberg::Citat
         match &obj.format {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -33360,8 +29717,6 @@ pub unsafe extern "C" fn xberg_citation_metadata_format(ptr: *const xberg::Citat
 }
 
 /// Get the `authors` field from a `CitationMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33375,25 +29730,14 @@ pub unsafe extern "C" fn xberg_citation_metadata_authors(ptr: *const xberg::Cita
         match serde_json::to_string(&obj.authors) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `year_range` field from a `CitationMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_year_range_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33414,8 +29758,6 @@ pub unsafe extern "C" fn xberg_citation_metadata_year_range(
 }
 
 /// Get the `dois` field from a `CitationMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33429,25 +29771,14 @@ pub unsafe extern "C" fn xberg_citation_metadata_dois(ptr: *const xberg::Citatio
         match serde_json::to_string(&obj.dois) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `keywords` field from a `CitationMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33463,18 +29794,9 @@ pub unsafe extern "C" fn xberg_citation_metadata_keywords(
         match serde_json::to_string(&obj.keywords) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -33591,8 +29913,6 @@ pub unsafe extern "C" fn xberg_year_range_max(ptr: *const xberg::YearRange) -> u
 }
 
 /// Get the `years` field from a `YearRange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33606,18 +29926,9 @@ pub unsafe extern "C" fn xberg_year_range_years(ptr: *const xberg::YearRange) ->
         match serde_json::to_string(&obj.years) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -33698,8 +30009,6 @@ pub unsafe extern "C" fn xberg_fiction_book_metadata_free(ptr: *mut xberg::Ficti
 }
 
 /// Get the `genres` field from a `FictionBookMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33715,25 +30024,14 @@ pub unsafe extern "C" fn xberg_fiction_book_metadata_genres(
         match serde_json::to_string(&obj.genres) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `sequences` field from a `FictionBookMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33749,25 +30047,14 @@ pub unsafe extern "C" fn xberg_fiction_book_metadata_sequences(
         match serde_json::to_string(&obj.sequences) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `annotation` field from a `FictionBookMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33783,13 +30070,7 @@ pub unsafe extern "C" fn xberg_fiction_book_metadata_annotation(
         match &obj.annotation {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -33902,8 +30183,6 @@ pub unsafe extern "C" fn xberg_dbf_metadata_field_count(ptr: *const xberg::DbfMe
 }
 
 /// Get the `fields` field from a `DbfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -33917,18 +30196,9 @@ pub unsafe extern "C" fn xberg_dbf_metadata_fields(ptr: *const xberg::DbfMetadat
         match serde_json::to_string(&obj.fields) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -34009,8 +30279,6 @@ pub unsafe extern "C" fn xberg_dbf_field_info_free(ptr: *mut xberg::DbfFieldInfo
 }
 
 /// Get the `name` field from a `DbfFieldInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34023,20 +30291,12 @@ pub unsafe extern "C" fn xberg_dbf_field_info_name(ptr: *const xberg::DbfFieldIn
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `field_type` field from a `DbfFieldInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34049,13 +30309,7 @@ pub unsafe extern "C" fn xberg_dbf_field_info_field_type(ptr: *const xberg::DbfF
         let obj = unsafe { &*ptr };
         match CString::new(obj.field_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -34136,8 +30390,6 @@ pub unsafe extern "C" fn xberg_jats_metadata_free(ptr: *mut xberg::JatsMetadata)
 }
 
 /// Get the `copyright` field from a `JatsMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34151,13 +30403,7 @@ pub unsafe extern "C" fn xberg_jats_metadata_copyright(ptr: *const xberg::JatsMe
         match &obj.copyright {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34165,8 +30411,6 @@ pub unsafe extern "C" fn xberg_jats_metadata_copyright(ptr: *const xberg::JatsMe
 }
 
 /// Get the `license` field from a `JatsMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34180,13 +30424,7 @@ pub unsafe extern "C" fn xberg_jats_metadata_license(ptr: *const xberg::JatsMeta
         match &obj.license {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34194,8 +30432,6 @@ pub unsafe extern "C" fn xberg_jats_metadata_license(ptr: *const xberg::JatsMeta
 }
 
 /// Get the `history_dates` field from a `JatsMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34209,25 +30445,14 @@ pub unsafe extern "C" fn xberg_jats_metadata_history_dates(ptr: *const xberg::Ja
         match serde_json::to_string(&obj.history_dates) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `contributor_roles` field from a `JatsMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34243,18 +30468,9 @@ pub unsafe extern "C" fn xberg_jats_metadata_contributor_roles(
         match serde_json::to_string(&obj.contributor_roles) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -34335,8 +30551,6 @@ pub unsafe extern "C" fn xberg_contributor_role_free(ptr: *mut xberg::Contributo
 }
 
 /// Get the `name` field from a `ContributorRole`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34349,20 +30563,12 @@ pub unsafe extern "C" fn xberg_contributor_role_name(ptr: *const xberg::Contribu
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `role` field from a `ContributorRole`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34376,13 +30582,7 @@ pub unsafe extern "C" fn xberg_contributor_role_role(ptr: *const xberg::Contribu
         match &obj.role {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34465,8 +30665,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_free(ptr: *mut xberg::EpubMetadata)
 }
 
 /// Get the `coverage` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34480,13 +30678,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_coverage(ptr: *const xberg::EpubMet
         match &obj.coverage {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34494,8 +30686,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_coverage(ptr: *const xberg::EpubMet
 }
 
 /// Get the `dc_format` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34509,13 +30699,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_dc_format(ptr: *const xberg::EpubMe
         match &obj.dc_format {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34523,8 +30707,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_dc_format(ptr: *const xberg::EpubMe
 }
 
 /// Get the `relation` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34538,13 +30720,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_relation(ptr: *const xberg::EpubMet
         match &obj.relation {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34552,8 +30728,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_relation(ptr: *const xberg::EpubMet
 }
 
 /// Get the `source` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34567,13 +30741,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_source(ptr: *const xberg::EpubMetad
         match &obj.source {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34581,8 +30749,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_source(ptr: *const xberg::EpubMetad
 }
 
 /// Get the `dc_type` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34596,13 +30762,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_dc_type(ptr: *const xberg::EpubMeta
         match &obj.dc_type {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34610,8 +30770,6 @@ pub unsafe extern "C" fn xberg_epub_metadata_dc_type(ptr: *const xberg::EpubMeta
 }
 
 /// Get the `cover_image` field from a `EpubMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34625,13 +30783,7 @@ pub unsafe extern "C" fn xberg_epub_metadata_cover_image(ptr: *const xberg::Epub
         match &obj.cover_image {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34827,8 +30979,6 @@ pub unsafe extern "C" fn xberg_audio_metadata_duration_ms(ptr: *const xberg::Aud
 
 #[cfg(feature = "transcription-types")]
 /// Get the `codec` field from a `AudioMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34842,13 +30992,7 @@ pub unsafe extern "C" fn xberg_audio_metadata_codec(ptr: *const xberg::AudioMeta
         match &obj.codec {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -34857,8 +31001,6 @@ pub unsafe extern "C" fn xberg_audio_metadata_codec(ptr: *const xberg::AudioMeta
 
 #[cfg(feature = "transcription-types")]
 /// Get the `container` field from a `AudioMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -34872,13 +31014,7 @@ pub unsafe extern "C" fn xberg_audio_metadata_container(ptr: *const xberg::Audio
         match &obj.container {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -35234,8 +31370,6 @@ pub unsafe extern "C" fn xberg_ocr_element_free(ptr: *mut xberg::OcrElement) {
 }
 
 /// Get the `text` field from a `OcrElement`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35248,20 +31382,12 @@ pub unsafe extern "C" fn xberg_ocr_element_text(ptr: *const xberg::OcrElement) -
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `geometry` field from a `OcrElement`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_bounding_geometry_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35277,8 +31403,6 @@ pub unsafe extern "C" fn xberg_ocr_element_geometry(ptr: *const xberg::OcrElemen
 }
 
 /// Get the `confidence` field from a `OcrElement`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_confidence_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35294,8 +31418,6 @@ pub unsafe extern "C" fn xberg_ocr_element_confidence(ptr: *const xberg::OcrElem
 }
 
 /// Get the `level` field from a `OcrElement`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_element_level_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35311,8 +31433,6 @@ pub unsafe extern "C" fn xberg_ocr_element_level(ptr: *const xberg::OcrElement) 
 }
 
 /// Get the `rotation` field from a `OcrElement`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_rotation_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35346,8 +31466,6 @@ pub unsafe extern "C" fn xberg_ocr_element_page_number(ptr: *const xberg::OcrEle
 }
 
 /// Get the `parent_id` field from a `OcrElement`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35361,13 +31479,7 @@ pub unsafe extern "C" fn xberg_ocr_element_parent_id(ptr: *const xberg::OcrEleme
         match &obj.parent_id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -35375,8 +31487,6 @@ pub unsafe extern "C" fn xberg_ocr_element_parent_id(ptr: *const xberg::OcrEleme
 }
 
 /// Get the `backend_metadata` field from a `OcrElement`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35390,18 +31500,9 @@ pub unsafe extern "C" fn xberg_ocr_element_backend_metadata(ptr: *const xberg::O
         match serde_json::to_string(&obj.backend_metadata) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -35497,8 +31598,6 @@ pub unsafe extern "C" fn xberg_ocr_element_config_include_elements(ptr: *const x
 }
 
 /// Get the `min_level` field from a `OcrElementConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ocr_element_level_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35636,8 +31735,6 @@ pub unsafe extern "C" fn xberg_page_structure_total_count(ptr: *const xberg::Pag
 }
 
 /// Get the `unit_type` field from a `PageStructure`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_unit_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35653,8 +31750,6 @@ pub unsafe extern "C" fn xberg_page_structure_unit_type(ptr: *const xberg::PageS
 }
 
 /// Get the `boundaries` field from a `PageStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35669,18 +31764,9 @@ pub unsafe extern "C" fn xberg_page_structure_boundaries(ptr: *const xberg::Page
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -35688,8 +31774,6 @@ pub unsafe extern "C" fn xberg_page_structure_boundaries(ptr: *const xberg::Page
 }
 
 /// Get the `pages` field from a `PageStructure`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35704,18 +31788,9 @@ pub unsafe extern "C" fn xberg_page_structure_pages(ptr: *const xberg::PageStruc
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -35933,8 +32008,6 @@ pub unsafe extern "C" fn xberg_page_info_number(ptr: *const xberg::PageInfo) -> 
 }
 
 /// Get the `title` field from a `PageInfo`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -35948,13 +32021,7 @@ pub unsafe extern "C" fn xberg_page_info_title(ptr: *const xberg::PageInfo) -> *
         match &obj.title {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -36139,8 +32206,6 @@ pub unsafe extern "C" fn xberg_page_content_page_number(ptr: *const xberg::PageC
 }
 
 /// Get the `content` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36153,20 +32218,12 @@ pub unsafe extern "C" fn xberg_page_content_content(ptr: *const xberg::PageConte
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `tables` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36180,25 +32237,14 @@ pub unsafe extern "C" fn xberg_page_content_tables(ptr: *const xberg::PageConten
         match serde_json::to_string(&obj.tables) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `image_indices` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36212,25 +32258,14 @@ pub unsafe extern "C" fn xberg_page_content_image_indices(ptr: *const xberg::Pag
         match serde_json::to_string(&obj.image_indices) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `hierarchy` field from a `PageContent`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_hierarchy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36267,8 +32302,6 @@ pub unsafe extern "C" fn xberg_page_content_is_blank(ptr: *const xberg::PageCont
 }
 
 /// Get the `layout_regions` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36283,18 +32316,9 @@ pub unsafe extern "C" fn xberg_page_content_layout_regions(ptr: *const xberg::Pa
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -36302,8 +32326,6 @@ pub unsafe extern "C" fn xberg_page_content_layout_regions(ptr: *const xberg::Pa
 }
 
 /// Get the `speaker_notes` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36317,13 +32339,7 @@ pub unsafe extern "C" fn xberg_page_content_speaker_notes(ptr: *const xberg::Pag
         match &obj.speaker_notes {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -36331,8 +32347,6 @@ pub unsafe extern "C" fn xberg_page_content_speaker_notes(ptr: *const xberg::Pag
 }
 
 /// Get the `section_name` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36346,13 +32360,7 @@ pub unsafe extern "C" fn xberg_page_content_section_name(ptr: *const xberg::Page
         match &obj.section_name {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -36360,8 +32368,6 @@ pub unsafe extern "C" fn xberg_page_content_section_name(ptr: *const xberg::Page
 }
 
 /// Get the `sheet_name` field from a `PageContent`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36375,13 +32381,7 @@ pub unsafe extern "C" fn xberg_page_content_sheet_name(ptr: *const xberg::PageCo
         match &obj.sheet_name {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -36464,8 +32464,6 @@ pub unsafe extern "C" fn xberg_layout_region_free(ptr: *mut xberg::LayoutRegion)
 }
 
 /// Get the `class_name` field from a `LayoutRegion`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36478,13 +32476,7 @@ pub unsafe extern "C" fn xberg_layout_region_class_name(ptr: *const xberg::Layou
         let obj = unsafe { &*ptr };
         match CString::new(obj.class_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -36505,8 +32497,6 @@ pub unsafe extern "C" fn xberg_layout_region_confidence(ptr: *const xberg::Layou
 }
 
 /// Get the `bounding_box` field from a `LayoutRegion`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36627,8 +32617,6 @@ pub unsafe extern "C" fn xberg_page_hierarchy_block_count(ptr: *const xberg::Pag
 }
 
 /// Get the `blocks` field from a `PageHierarchy`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36642,18 +32630,9 @@ pub unsafe extern "C" fn xberg_page_hierarchy_blocks(ptr: *const xberg::PageHier
         match serde_json::to_string(&obj.blocks) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -36734,8 +32713,6 @@ pub unsafe extern "C" fn xberg_hierarchical_block_free(ptr: *mut xberg::Hierarch
 }
 
 /// Get the `text` field from a `HierarchicalBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36748,13 +32725,7 @@ pub unsafe extern "C" fn xberg_hierarchical_block_text(ptr: *const xberg::Hierar
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -36775,8 +32746,6 @@ pub unsafe extern "C" fn xberg_hierarchical_block_font_size(ptr: *const xberg::H
 }
 
 /// Get the `level` field from a `HierarchicalBlock`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36789,13 +32758,7 @@ pub unsafe extern "C" fn xberg_hierarchical_block_level(ptr: *const xberg::Hiera
         let obj = unsafe { &*ptr };
         match CString::new(obj.level.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -36876,8 +32839,6 @@ pub unsafe extern "C" fn xberg_qr_code_free(ptr: *mut xberg::QrCode) {
 }
 
 /// Get the `payload` field from a `QrCode`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -36890,13 +32851,7 @@ pub unsafe extern "C" fn xberg_qr_code_payload(ptr: *const xberg::QrCode) -> *mu
         let obj = unsafe { &*ptr };
         match CString::new(obj.payload.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -36920,8 +32875,6 @@ pub unsafe extern "C" fn xberg_qr_code_confidence(ptr: *const xberg::QrCode) -> 
 }
 
 /// Get the `bbox` field from a `QrCode`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_qr_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37150,8 +33103,6 @@ pub unsafe extern "C" fn xberg_redaction_report_free(ptr: *mut xberg::RedactionR
 }
 
 /// Get the `findings` field from a `RedactionReport`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37165,18 +33116,9 @@ pub unsafe extern "C" fn xberg_redaction_report_findings(ptr: *const xberg::Reda
         match serde_json::to_string(&obj.findings) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -37302,8 +33244,6 @@ pub unsafe extern "C" fn xberg_redaction_finding_end(ptr: *const xberg::Redactio
 }
 
 /// Get the `category` field from a `RedactionFinding`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_pii_category_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37321,8 +33261,6 @@ pub unsafe extern "C" fn xberg_redaction_finding_category(
 }
 
 /// Get the `strategy` field from a `RedactionFinding`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_redaction_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37340,8 +33278,6 @@ pub unsafe extern "C" fn xberg_redaction_finding_strategy(
 }
 
 /// Get the `replacement_token` field from a `RedactionFinding`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37356,13 +33292,7 @@ pub unsafe extern "C" fn xberg_redaction_finding_replacement_token(
         let obj = unsafe { &*ptr };
         match CString::new(obj.replacement_token.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -37473,8 +33403,6 @@ pub unsafe extern "C" fn xberg_cell_change_col(ptr: *const xberg::CellChange) ->
 }
 
 /// Get the `from` field from a `CellChange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37487,20 +33415,12 @@ pub unsafe extern "C" fn xberg_cell_change_from(ptr: *const xberg::CellChange) -
         let obj = unsafe { &*ptr };
         match CString::new(obj.from.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `to` field from a `CellChange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37513,13 +33433,7 @@ pub unsafe extern "C" fn xberg_cell_change_to(ptr: *const xberg::CellChange) -> 
         let obj = unsafe { &*ptr };
         match CString::new(obj.to.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -37600,8 +33514,6 @@ pub unsafe extern "C" fn xberg_property_change_free(ptr: *mut xberg::PropertyCha
 }
 
 /// Get the `name` field from a `PropertyChange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37614,20 +33526,12 @@ pub unsafe extern "C" fn xberg_property_change_name(ptr: *const xberg::PropertyC
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `from` field from a `PropertyChange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37641,13 +33545,7 @@ pub unsafe extern "C" fn xberg_property_change_from(ptr: *const xberg::PropertyC
         match &obj.from {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -37655,8 +33553,6 @@ pub unsafe extern "C" fn xberg_property_change_from(ptr: *const xberg::PropertyC
 }
 
 /// Get the `to` field from a `PropertyChange`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37670,13 +33566,7 @@ pub unsafe extern "C" fn xberg_property_change_to(ptr: *const xberg::PropertyCha
         match &obj.to {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -37759,8 +33649,6 @@ pub unsafe extern "C" fn xberg_document_revision_free(ptr: *mut xberg::DocumentR
 }
 
 /// Get the `revision_id` field from a `DocumentRevision`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37775,20 +33663,12 @@ pub unsafe extern "C" fn xberg_document_revision_revision_id(
         let obj = unsafe { &*ptr };
         match CString::new(obj.revision_id.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `author` field from a `DocumentRevision`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37802,13 +33682,7 @@ pub unsafe extern "C" fn xberg_document_revision_author(ptr: *const xberg::Docum
         match &obj.author {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -37816,8 +33690,6 @@ pub unsafe extern "C" fn xberg_document_revision_author(ptr: *const xberg::Docum
 }
 
 /// Get the `timestamp` field from a `DocumentRevision`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37833,13 +33705,7 @@ pub unsafe extern "C" fn xberg_document_revision_timestamp(
         match &obj.timestamp {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -37847,8 +33713,6 @@ pub unsafe extern "C" fn xberg_document_revision_timestamp(
 }
 
 /// Get the `kind` field from a `DocumentRevision`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_revision_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37864,8 +33728,6 @@ pub unsafe extern "C" fn xberg_document_revision_kind(ptr: *const xberg::Documen
 }
 
 /// Get the `anchor` field from a `DocumentRevision`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_revision_anchor_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37886,8 +33748,6 @@ pub unsafe extern "C" fn xberg_document_revision_anchor(
 }
 
 /// Get the `delta` field from a `DocumentRevision`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_revision_delta_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37980,8 +33840,6 @@ pub unsafe extern "C" fn xberg_revision_delta_free(ptr: *mut xberg::RevisionDelt
 }
 
 /// Get the `content` field from a `RevisionDelta`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -37995,25 +33853,14 @@ pub unsafe extern "C" fn xberg_revision_delta_content(ptr: *const xberg::Revisio
         match serde_json::to_string(&obj.content) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `table_changes` field from a `RevisionDelta`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38027,25 +33874,14 @@ pub unsafe extern "C" fn xberg_revision_delta_table_changes(ptr: *const xberg::R
         match serde_json::to_string(&obj.table_changes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `property_changes` field from a `RevisionDelta`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38061,18 +33897,9 @@ pub unsafe extern "C" fn xberg_revision_delta_property_changes(
         match serde_json::to_string(&obj.property_changes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -38153,8 +33980,6 @@ pub unsafe extern "C" fn xberg_document_summary_free(ptr: *mut xberg::DocumentSu
 }
 
 /// Get the `text` field from a `DocumentSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38167,20 +33992,12 @@ pub unsafe extern "C" fn xberg_document_summary_text(ptr: *const xberg::Document
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `strategy` field from a `DocumentSummary`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_summary_strategy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38291,8 +34108,6 @@ pub unsafe extern "C" fn xberg_table_free(ptr: *mut xberg::Table) {
 }
 
 /// Get the `cells` field from a `Table`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38306,25 +34121,14 @@ pub unsafe extern "C" fn xberg_table_cells(ptr: *const xberg::Table) -> *mut std
         match serde_json::to_string(&obj.cells) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `markdown` field from a `Table`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38337,13 +34141,7 @@ pub unsafe extern "C" fn xberg_table_markdown(ptr: *const xberg::Table) -> *mut 
         let obj = unsafe { &*ptr };
         match CString::new(obj.markdown.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -38364,8 +34162,6 @@ pub unsafe extern "C" fn xberg_table_page_number(ptr: *const xberg::Table) -> u3
 }
 
 /// Get the `bounding_box` field from a `Table`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_bounding_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38384,8 +34180,6 @@ pub unsafe extern "C" fn xberg_table_bounding_box(ptr: *const xberg::Table) -> *
 }
 
 /// Get the `table_id` field from a `Table`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38399,13 +34193,7 @@ pub unsafe extern "C" fn xberg_table_table_id(ptr: *const xberg::Table) -> *mut 
         match &obj.table_id {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -38413,8 +34201,6 @@ pub unsafe extern "C" fn xberg_table_table_id(ptr: *const xberg::Table) -> *mut 
 }
 
 /// Get the `columns` field from a `Table`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38429,18 +34215,9 @@ pub unsafe extern "C" fn xberg_table_columns(ptr: *const xberg::Table) -> *mut s
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -38523,8 +34300,6 @@ pub unsafe extern "C" fn xberg_table_cell_free(ptr: *mut xberg::TableCell) {
 }
 
 /// Get the `content` field from a `TableCell`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38537,13 +34312,7 @@ pub unsafe extern "C" fn xberg_table_cell_content(ptr: *const xberg::TableCell) 
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -38669,8 +34438,6 @@ pub unsafe extern "C" fn xberg_translation_free(ptr: *mut xberg::Translation) {
 }
 
 /// Get the `target_lang` field from a `Translation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38683,20 +34450,12 @@ pub unsafe extern "C" fn xberg_translation_target_lang(ptr: *const xberg::Transl
         let obj = unsafe { &*ptr };
         match CString::new(obj.target_lang.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `source_lang` field from a `Translation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38710,13 +34469,7 @@ pub unsafe extern "C" fn xberg_translation_source_lang(ptr: *const xberg::Transl
         match &obj.source_lang {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -38724,8 +34477,6 @@ pub unsafe extern "C" fn xberg_translation_source_lang(ptr: *const xberg::Transl
 }
 
 /// Get the `content` field from a `Translation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38738,20 +34489,12 @@ pub unsafe extern "C" fn xberg_translation_content(ptr: *const xberg::Translatio
         let obj = unsafe { &*ptr };
         match CString::new(obj.content.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `formatted_content` field from a `Translation`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38765,13 +34508,7 @@ pub unsafe extern "C" fn xberg_translation_formatted_content(ptr: *const xberg::
         match &obj.formatted_content {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -38854,8 +34591,6 @@ pub unsafe extern "C" fn xberg_extracted_uri_free(ptr: *mut xberg::ExtractedUri)
 }
 
 /// Get the `url` field from a `ExtractedUri`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38868,20 +34603,12 @@ pub unsafe extern "C" fn xberg_extracted_uri_url(ptr: *const xberg::ExtractedUri
         let obj = unsafe { &*ptr };
         match CString::new(obj.url.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `label` field from a `ExtractedUri`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -38895,13 +34622,7 @@ pub unsafe extern "C" fn xberg_extracted_uri_label(ptr: *const xberg::ExtractedU
         match &obj.label {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -38927,8 +34648,6 @@ pub unsafe extern "C" fn xberg_extracted_uri_page(ptr: *const xberg::ExtractedUr
 }
 
 /// Get the `kind` field from a `ExtractedUri`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_uri_kind_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39023,8 +34742,6 @@ pub unsafe extern "C" fn xberg_detect_response_free(ptr: *mut xberg::api::Detect
 
 #[cfg(feature = "api")]
 /// Get the `mime_type` field from a `DetectResponse`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39039,21 +34756,13 @@ pub unsafe extern "C" fn xberg_detect_response_mime_type(
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "api")]
 /// Get the `filename` field from a `DetectResponse`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39069,13 +34778,7 @@ pub unsafe extern "C" fn xberg_detect_response_filename(
         match &obj.filename {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -39309,8 +35012,6 @@ pub unsafe extern "C" fn xberg_extraction_diff_free(ptr: *mut xberg::ExtractionD
 
 #[cfg(feature = "diff")]
 /// Get the `content_diff` field from a `ExtractionDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39326,26 +35027,15 @@ pub unsafe extern "C" fn xberg_extraction_diff_content_diff(
         match serde_json::to_string(&obj.content_diff) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `tables_added` field from a `ExtractionDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39361,26 +35051,15 @@ pub unsafe extern "C" fn xberg_extraction_diff_tables_added(
         match serde_json::to_string(&obj.tables_added) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `tables_removed` field from a `ExtractionDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39396,26 +35075,15 @@ pub unsafe extern "C" fn xberg_extraction_diff_tables_removed(
         match serde_json::to_string(&obj.tables_removed) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `tables_changed` field from a `ExtractionDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39431,26 +35099,15 @@ pub unsafe extern "C" fn xberg_extraction_diff_tables_changed(
         match serde_json::to_string(&obj.tables_changed) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `metadata_changed` field from a `ExtractionDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39466,26 +35123,15 @@ pub unsafe extern "C" fn xberg_extraction_diff_metadata_changed(
         match serde_json::to_string(&obj.metadata_changed) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `embedded_changes` field from a `ExtractionDiff`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_embedded_changes_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39646,8 +35292,6 @@ pub unsafe extern "C" fn xberg_diff_hunk_to_count(ptr: *const xberg::DiffHunk) -
 
 #[cfg(feature = "diff")]
 /// Get the `lines` field from a `DiffHunk`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39661,18 +35305,9 @@ pub unsafe extern "C" fn xberg_diff_hunk_lines(ptr: *const xberg::DiffHunk) -> *
         match serde_json::to_string(&obj.lines) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -39789,8 +35424,6 @@ pub unsafe extern "C" fn xberg_table_diff_to_index(ptr: *const xberg::TableDiff)
 
 #[cfg(feature = "diff")]
 /// Get the `cell_changes` field from a `TableDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39804,18 +35437,9 @@ pub unsafe extern "C" fn xberg_table_diff_cell_changes(ptr: *const xberg::TableD
         match serde_json::to_string(&obj.cell_changes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -39900,8 +35524,6 @@ pub unsafe extern "C" fn xberg_embedded_changes_free(ptr: *mut xberg::EmbeddedCh
 
 #[cfg(feature = "diff")]
 /// Get the `added` field from a `EmbeddedChanges`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39915,26 +35537,15 @@ pub unsafe extern "C" fn xberg_embedded_changes_added(ptr: *const xberg::Embedde
         match serde_json::to_string(&obj.added) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `removed` field from a `EmbeddedChanges`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39948,26 +35559,15 @@ pub unsafe extern "C" fn xberg_embedded_changes_removed(ptr: *const xberg::Embed
         match serde_json::to_string(&obj.removed) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `changed` field from a `EmbeddedChanges`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -39981,18 +35581,9 @@ pub unsafe extern "C" fn xberg_embedded_changes_changed(ptr: *const xberg::Embed
         match serde_json::to_string(&obj.changed) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40077,8 +35668,6 @@ pub unsafe extern "C" fn xberg_embedded_diff_free(ptr: *mut xberg::EmbeddedDiff)
 
 #[cfg(feature = "diff")]
 /// Get the `path` field from a `EmbeddedDiff`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40091,21 +35680,13 @@ pub unsafe extern "C" fn xberg_embedded_diff_path(ptr: *const xberg::EmbeddedDif
         let obj = unsafe { &*ptr };
         match CString::new(obj.path.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "diff")]
 /// Get the `diff` field from a `EmbeddedDiff`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_extraction_diff_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40232,8 +35813,6 @@ pub unsafe extern "C" fn xberg_reranked_document_score(ptr: *const xberg::Rerank
 
 #[cfg(any(feature = "reranker-presets", feature = "reranker"))]
 /// Get the `document` field from a `RerankedDocument`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40248,13 +35827,7 @@ pub unsafe extern "C" fn xberg_reranked_document_document(
         let obj = unsafe { &*ptr };
         match CString::new(obj.document.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40339,8 +35912,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_free(ptr: *mut xberg::SparseEmbe
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `indices` field from a `SparseEmbedding`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40354,26 +35925,15 @@ pub unsafe extern "C" fn xberg_sparse_embedding_indices(ptr: *const xberg::Spars
         match serde_json::to_string(&obj.indices) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `values` field from a `SparseEmbedding`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40387,18 +35947,9 @@ pub unsafe extern "C" fn xberg_sparse_embedding_values(ptr: *const xberg::Sparse
         match serde_json::to_string(&obj.values) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40487,8 +36038,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_free(ptr: *mut xberg::Spa
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `name` field from a `SparseEmbeddingPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40503,21 +36052,13 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_name(
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `model_repo` field from a `SparseEmbeddingPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40532,21 +36073,13 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_model_repo(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_repo.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `model_file` field from a `SparseEmbeddingPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40561,21 +36094,13 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_model_file(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_file.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `additional_files` field from a `SparseEmbeddingPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40591,18 +36116,9 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_additional_files(
         match serde_json::to_string(&obj.additional_files) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40625,8 +36141,6 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_max_length(ptr: *const xb
 
 #[cfg(feature = "sparse-embedding-presets")]
 /// Get the `description` field from a `SparseEmbeddingPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40641,13 +36155,7 @@ pub unsafe extern "C" fn xberg_sparse_embedding_preset_description(
         let obj = unsafe { &*ptr };
         match CString::new(obj.description.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40766,8 +36274,6 @@ pub unsafe extern "C" fn xberg_multi_vector_embedding_dim(ptr: *const xberg::Mul
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `data` field from a `MultiVectorEmbedding`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40783,18 +36289,9 @@ pub unsafe extern "C" fn xberg_multi_vector_embedding_data(
         match serde_json::to_string(&obj.data) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -40920,8 +36417,6 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_free(ptr: *mut xberg::Lat
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `name` field from a `LateInteractionPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40936,21 +36431,13 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_name(
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `model_repo` field from a `LateInteractionPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40965,21 +36452,13 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_model_repo(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_repo.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `model_file` field from a `LateInteractionPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -40994,21 +36473,13 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_model_file(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_file.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `additional_files` field from a `LateInteractionPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41024,18 +36495,9 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_additional_files(
         match serde_json::to_string(&obj.additional_files) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -41092,8 +36554,6 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_dim(ptr: *const xberg::La
 
 #[cfg(feature = "late-interaction-presets")]
 /// Get the `description` field from a `LateInteractionPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41108,13 +36568,7 @@ pub unsafe extern "C" fn xberg_late_interaction_preset_description(
         let obj = unsafe { &*ptr };
         match CString::new(obj.description.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -41551,8 +37005,6 @@ pub unsafe extern "C" fn xberg_keyword_config_free(ptr: *mut xberg::KeywordConfi
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `algorithm` field from a `KeywordConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_keyword_algorithm_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41603,8 +37055,6 @@ pub unsafe extern "C" fn xberg_keyword_config_min_score(ptr: *const xberg::Keywo
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `language` field from a `KeywordConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41618,13 +37068,7 @@ pub unsafe extern "C" fn xberg_keyword_config_language(ptr: *const xberg::Keywor
         match &obj.language {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -41633,8 +37077,6 @@ pub unsafe extern "C" fn xberg_keyword_config_language(ptr: *const xberg::Keywor
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `yake_params` field from a `KeywordConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_yake_params_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41654,8 +37096,6 @@ pub unsafe extern "C" fn xberg_keyword_config_yake_params(ptr: *const xberg::Key
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `rake_params` field from a `KeywordConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_rake_params_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41771,8 +37211,6 @@ pub unsafe extern "C" fn xberg_keyword_free(ptr: *mut xberg::Keyword) {
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `text` field from a `Keyword`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41785,13 +37223,7 @@ pub unsafe extern "C" fn xberg_keyword_text(ptr: *const xberg::Keyword) -> *mut 
         let obj = unsafe { &*ptr };
         match CString::new(obj.text.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -41814,8 +37246,6 @@ pub unsafe extern "C" fn xberg_keyword_score(ptr: *const xberg::Keyword) -> f32 
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `algorithm` field from a `Keyword`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_keyword_algorithm_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41832,8 +37262,6 @@ pub unsafe extern "C" fn xberg_keyword_algorithm(ptr: *const xberg::Keyword) -> 
 
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 /// Get the `positions` field from a `Keyword`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41848,18 +37276,9 @@ pub unsafe extern "C" fn xberg_keyword_positions(ptr: *const xberg::Keyword) -> 
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -41946,8 +37365,6 @@ pub unsafe extern "C" fn xberg_document_metadata_free(ptr: *mut xberg::DocumentM
 
 #[cfg(feature = "heuristics")]
 /// Get the `mime_type` field from a `DocumentMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -41962,13 +37379,7 @@ pub unsafe extern "C" fn xberg_document_metadata_mime_type(
         let obj = unsafe { &*ptr };
         match CString::new(obj.mime_type.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -42026,8 +37437,6 @@ pub unsafe extern "C" fn xberg_document_metadata_force_ocr(ptr: *const xberg::Do
 
 #[cfg(feature = "heuristics")]
 /// Get the `user_chunk_config` field from a `DocumentMetadata`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_user_chunk_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -42143,8 +37552,6 @@ pub unsafe extern "C" fn xberg_user_chunk_config_free(ptr: *mut xberg::UserChunk
 
 #[cfg(feature = "heuristics")]
 /// Get the `page_ranges` field from a `UserChunkConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -42161,18 +37568,9 @@ pub unsafe extern "C" fn xberg_user_chunk_config_page_ranges(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -42347,8 +37745,6 @@ pub unsafe extern "C" fn xberg_extraction_confidence_ocr_aggregate(ptr: *const x
 
 #[cfg(feature = "heuristics")]
 /// Get the `schema_compliance` field from a `ExtractionConfidence`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_schema_compliance_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -42789,8 +38185,6 @@ pub unsafe extern "C" fn xberg_chunk_info_index(ptr: *const xberg::ChunkInfo) ->
 
 #[cfg(feature = "heuristics")]
 /// Get the `pages` field from a `ChunkInfo`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_page_range_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -43052,8 +38446,6 @@ pub unsafe extern "C" fn xberg_multidoc_input_page_count(ptr: *const xberg::Mult
 
 #[cfg(feature = "heuristics")]
 /// Get the `pages` field from a `MultidocInput`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -43067,18 +38459,9 @@ pub unsafe extern "C" fn xberg_multidoc_input_pages(ptr: *const xberg::MultidocI
         match serde_json::to_string(&obj.pages) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -43179,8 +38562,6 @@ pub unsafe extern "C" fn xberg_page_signals_page_number(ptr: *const xberg::PageS
 
 #[cfg(feature = "heuristics")]
 /// Get the `text_excerpt` field from a `PageSignals`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -43193,13 +38574,7 @@ pub unsafe extern "C" fn xberg_page_signals_text_excerpt(ptr: *const xberg::Page
         let obj = unsafe { &*ptr };
         match CString::new(obj.text_excerpt.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -43443,8 +38818,6 @@ pub unsafe extern "C" fn xberg_document_boundary_confidence(ptr: *const xberg::D
 
 #[cfg(feature = "heuristics")]
 /// Get the `reason` field from a `DocumentBoundary`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_boundary_reason_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -43607,7 +38980,6 @@ pub unsafe extern "C" fn xberg_meta_schema_free(ptr: *mut xberg::MetaSchema) {
     })
 }
 
-#[cfg(feature = "presets")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_meta_schema_compile(
     meta_schema_json: *const std::ffi::c_char,
@@ -43709,7 +39081,6 @@ pub unsafe extern "C" fn xberg_registry_free(ptr: *mut xberg::Registry) {
     })
 }
 
-#[cfg(feature = "presets")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_registry_load_embedded() -> *mut xberg::Registry {
     catch_ffi_panic(std::ptr::null_mut(), || {
@@ -43789,18 +39160,9 @@ pub unsafe extern "C" fn xberg_registry_summaries(this: *const xberg::Registry) 
         match serde_json::to_string(&result) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })) {
         Ok(value) => value,
@@ -44061,8 +39423,6 @@ pub unsafe extern "C" fn xberg_resolved_preset_free(ptr: *mut xberg::ResolvedPre
 
 #[cfg(feature = "presets")]
 /// Get the `id` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44075,21 +39435,13 @@ pub unsafe extern "C" fn xberg_resolved_preset_id(ptr: *const xberg::ResolvedPre
         let obj = unsafe { &*ptr };
         match CString::new(obj.id.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `version` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44102,21 +39454,13 @@ pub unsafe extern "C" fn xberg_resolved_preset_version(ptr: *const xberg::Resolv
         let obj = unsafe { &*ptr };
         match CString::new(obj.version.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `fingerprint` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44129,21 +39473,13 @@ pub unsafe extern "C" fn xberg_resolved_preset_fingerprint(ptr: *const xberg::Re
         let obj = unsafe { &*ptr };
         match CString::new(obj.fingerprint.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `schema_name` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44156,21 +39492,13 @@ pub unsafe extern "C" fn xberg_resolved_preset_schema_name(ptr: *const xberg::Re
         let obj = unsafe { &*ptr };
         match CString::new(obj.schema_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `schema` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44184,26 +39512,15 @@ pub unsafe extern "C" fn xberg_resolved_preset_schema(ptr: *const xberg::Resolve
         match serde_json::to_string(&obj.schema) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `system_prompt` field from a `ResolvedPreset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44218,21 +39535,13 @@ pub unsafe extern "C" fn xberg_resolved_preset_system_prompt(
         let obj = unsafe { &*ptr };
         match CString::new(obj.system_prompt.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `merge_mode` field from a `ResolvedPreset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_merge_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44249,8 +39558,6 @@ pub unsafe extern "C" fn xberg_resolved_preset_merge_mode(ptr: *const xberg::Res
 
 #[cfg(feature = "presets")]
 /// Get the `preferred_call_mode` field from a `ResolvedPreset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_call_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44363,8 +39670,6 @@ pub unsafe extern "C" fn xberg_preset_sample_free(ptr: *mut xberg::PresetSample)
 
 #[cfg(feature = "presets")]
 /// Get the `input_path` field from a `PresetSample`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44377,21 +39682,13 @@ pub unsafe extern "C" fn xberg_preset_sample_input_path(ptr: *const xberg::Prese
         let obj = unsafe { &*ptr };
         match CString::new(obj.input_path.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `output_path` field from a `PresetSample`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44404,13 +39701,7 @@ pub unsafe extern "C" fn xberg_preset_sample_output_path(ptr: *const xberg::Pres
         let obj = unsafe { &*ptr };
         match CString::new(obj.output_path.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -44495,8 +39786,6 @@ pub unsafe extern "C" fn xberg_preset_free(ptr: *mut xberg::Preset) {
 
 #[cfg(feature = "presets")]
 /// Get the `id` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44509,21 +39798,13 @@ pub unsafe extern "C" fn xberg_preset_id(ptr: *const xberg::Preset) -> *mut std:
         let obj = unsafe { &*ptr };
         match CString::new(obj.id.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `version` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44536,21 +39817,13 @@ pub unsafe extern "C" fn xberg_preset_version(ptr: *const xberg::Preset) -> *mut
         let obj = unsafe { &*ptr };
         match CString::new(obj.version.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `schema_name` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44563,21 +39836,13 @@ pub unsafe extern "C" fn xberg_preset_schema_name(ptr: *const xberg::Preset) -> 
         let obj = unsafe { &*ptr };
         match CString::new(obj.schema_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `description` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44590,21 +39855,13 @@ pub unsafe extern "C" fn xberg_preset_description(ptr: *const xberg::Preset) -> 
         let obj = unsafe { &*ptr };
         match CString::new(obj.description.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `category` field from a `Preset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_preset_category_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44621,8 +39878,6 @@ pub unsafe extern "C" fn xberg_preset_category(ptr: *const xberg::Preset) -> *mu
 
 #[cfg(feature = "presets")]
 /// Get the `tags` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44636,26 +39891,15 @@ pub unsafe extern "C" fn xberg_preset_tags(ptr: *const xberg::Preset) -> *mut st
         match serde_json::to_string(&obj.tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `schema` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44669,26 +39913,15 @@ pub unsafe extern "C" fn xberg_preset_schema(ptr: *const xberg::Preset) -> *mut 
         match serde_json::to_string(&obj.schema) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `system_prompt` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44701,21 +39934,13 @@ pub unsafe extern "C" fn xberg_preset_system_prompt(ptr: *const xberg::Preset) -
         let obj = unsafe { &*ptr };
         match CString::new(obj.system_prompt.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `context_template` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44729,13 +39954,7 @@ pub unsafe extern "C" fn xberg_preset_context_template(ptr: *const xberg::Preset
         match &obj.context_template {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -44744,8 +39963,6 @@ pub unsafe extern "C" fn xberg_preset_context_template(ptr: *const xberg::Preset
 
 #[cfg(feature = "presets")]
 /// Get the `merge_mode` field from a `Preset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_merge_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44762,8 +39979,6 @@ pub unsafe extern "C" fn xberg_preset_merge_mode(ptr: *const xberg::Preset) -> *
 
 #[cfg(feature = "presets")]
 /// Get the `preferred_call_mode` field from a `Preset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_call_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44796,8 +40011,6 @@ pub unsafe extern "C" fn xberg_preset_emit_citations(ptr: *const xberg::Preset) 
 
 #[cfg(feature = "presets")]
 /// Get the `sample` field from a `Preset`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_preset_sample_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44817,8 +40030,6 @@ pub unsafe extern "C" fn xberg_preset_sample(ptr: *const xberg::Preset) -> *mut 
 
 #[cfg(feature = "presets")]
 /// Get the `fingerprint` field from a `Preset`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44831,13 +40042,7 @@ pub unsafe extern "C" fn xberg_preset_fingerprint(ptr: *const xberg::Preset) -> 
         let obj = unsafe { &*ptr };
         match CString::new(obj.fingerprint.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -44922,8 +40127,6 @@ pub unsafe extern "C" fn xberg_preset_summary_free(ptr: *mut xberg::PresetSummar
 
 #[cfg(feature = "presets")]
 /// Get the `id` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44936,21 +40139,13 @@ pub unsafe extern "C" fn xberg_preset_summary_id(ptr: *const xberg::PresetSummar
         let obj = unsafe { &*ptr };
         match CString::new(obj.id.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `version` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44963,21 +40158,13 @@ pub unsafe extern "C" fn xberg_preset_summary_version(ptr: *const xberg::PresetS
         let obj = unsafe { &*ptr };
         match CString::new(obj.version.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `schema_name` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -44990,21 +40177,13 @@ pub unsafe extern "C" fn xberg_preset_summary_schema_name(ptr: *const xberg::Pre
         let obj = unsafe { &*ptr };
         match CString::new(obj.schema_name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `description` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45017,21 +40196,13 @@ pub unsafe extern "C" fn xberg_preset_summary_description(ptr: *const xberg::Pre
         let obj = unsafe { &*ptr };
         match CString::new(obj.description.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `category` field from a `PresetSummary`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_preset_category_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45048,8 +40219,6 @@ pub unsafe extern "C" fn xberg_preset_summary_category(ptr: *const xberg::Preset
 
 #[cfg(feature = "presets")]
 /// Get the `tags` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45063,26 +40232,15 @@ pub unsafe extern "C" fn xberg_preset_summary_tags(ptr: *const xberg::PresetSumm
         match serde_json::to_string(&obj.tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "presets")]
 /// Get the `preferred_call_mode` field from a `PresetSummary`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_call_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45117,8 +40275,6 @@ pub unsafe extern "C" fn xberg_preset_summary_emit_citations(ptr: *const xberg::
 
 #[cfg(feature = "presets")]
 /// Get the `fingerprint` field from a `PresetSummary`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45131,13 +40287,7 @@ pub unsafe extern "C" fn xberg_preset_summary_fingerprint(ptr: *const xberg::Pre
         let obj = unsafe { &*ptr };
         match CString::new(obj.fingerprint.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -45218,8 +40368,6 @@ pub unsafe extern "C" fn xberg_doctor_check_free(ptr: *mut xberg::DoctorCheck) {
 }
 
 /// Get the `name` field from a `DoctorCheck`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45232,20 +40380,12 @@ pub unsafe extern "C" fn xberg_doctor_check_name(ptr: *const xberg::DoctorCheck)
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `status` field from a `DoctorCheck`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_probe_status_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45261,8 +40401,6 @@ pub unsafe extern "C" fn xberg_doctor_check_status(ptr: *const xberg::DoctorChec
 }
 
 /// Get the `message` field from a `DoctorCheck`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45275,13 +40413,7 @@ pub unsafe extern "C" fn xberg_doctor_check_message(ptr: *const xberg::DoctorChe
         let obj = unsafe { &*ptr };
         match CString::new(obj.message.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -45546,8 +40678,6 @@ pub unsafe extern "C" fn xberg_doctor_report_free(ptr: *mut xberg::DoctorReport)
 }
 
 /// Get the `checks` field from a `DoctorReport`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45561,18 +40691,9 @@ pub unsafe extern "C" fn xberg_doctor_report_checks(ptr: *const xberg::DoctorRep
         match serde_json::to_string(&obj.checks) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -45683,8 +40804,6 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_free(ptr: *mut xberg::PaddleOcr
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `language` field from a `PaddleOcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45697,21 +40816,13 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_language(ptr: *const xberg::Pad
         let obj = unsafe { &*ptr };
         match CString::new(obj.language.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `cache_dir` field from a `PaddleOcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45727,13 +40838,7 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_cache_dir(
         match &obj.cache_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -45886,8 +40991,6 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_drop_score(ptr: *const xberg::P
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `model_tier` field from a `PaddleOcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45902,21 +41005,13 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_model_tier(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_tier.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `model_version` field from a `PaddleOcrConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -45931,21 +41026,13 @@ pub unsafe extern "C" fn xberg_paddle_ocr_config_model_version(
         let obj = unsafe { &*ptr };
         match CString::new(obj.model_version.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `inference_backend` field from a `PaddleOcrConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_paddle_inference_backend_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46484,8 +41571,6 @@ pub unsafe extern "C" fn xberg_model_paths_free(ptr: *mut xberg::ModelPaths) {
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `det_model` field from a `ModelPaths`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46498,21 +41583,13 @@ pub unsafe extern "C" fn xberg_model_paths_det_model(ptr: *const xberg::ModelPat
         let obj = unsafe { &*ptr };
         match CString::new(obj.det_model.to_string_lossy().to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI path value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `cls_model` field from a `ModelPaths`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46525,21 +41602,13 @@ pub unsafe extern "C" fn xberg_model_paths_cls_model(ptr: *const xberg::ModelPat
         let obj = unsafe { &*ptr };
         match CString::new(obj.cls_model.to_string_lossy().to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI path value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `rec_model` field from a `ModelPaths`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46552,21 +41621,13 @@ pub unsafe extern "C" fn xberg_model_paths_rec_model(ptr: *const xberg::ModelPat
         let obj = unsafe { &*ptr };
         match CString::new(obj.rec_model.to_string_lossy().to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI path value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "paddle-ocr-types")]
 /// Get the `dict_file` field from a `ModelPaths`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46579,13 +41640,7 @@ pub unsafe extern "C" fn xberg_model_paths_dict_file(ptr: *const xberg::ModelPat
         let obj = unsafe { &*ptr };
         match CString::new(obj.dict_file.to_string_lossy().to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI path value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -46922,8 +41977,6 @@ pub unsafe extern "C" fn xberg_layout_detection_free(ptr: *mut xberg::LayoutDete
 
 #[cfg(feature = "layout-types")]
 /// Get the `class_name` field from a `LayoutDetection`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_layout_class_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -46958,8 +42011,6 @@ pub unsafe extern "C" fn xberg_layout_detection_confidence(ptr: *const xberg::La
 
 #[cfg(feature = "layout-types")]
 /// Get the `bbox` field from a `LayoutDetection`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_b_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47054,8 +42105,6 @@ pub unsafe extern "C" fn xberg_recognized_table_free(ptr: *mut xberg::Recognized
 
 #[cfg(feature = "layout-types")]
 /// Get the `detection_bbox` field from a `RecognizedTable`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_b_box_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47072,8 +42121,6 @@ pub unsafe extern "C" fn xberg_recognized_table_detection_bbox(ptr: *const xberg
 
 #[cfg(feature = "layout-types")]
 /// Get the `cells` field from a `RecognizedTable`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47087,26 +42134,15 @@ pub unsafe extern "C" fn xberg_recognized_table_cells(ptr: *const xberg::Recogni
         match serde_json::to_string(&obj.cells) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "layout-types")]
 /// Get the `markdown` field from a `RecognizedTable`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47119,13 +42155,7 @@ pub unsafe extern "C" fn xberg_recognized_table_markdown(ptr: *const xberg::Reco
         let obj = unsafe { &*ptr };
         match CString::new(obj.markdown.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -47242,8 +42272,6 @@ pub unsafe extern "C" fn xberg_detection_result_page_height(ptr: *const xberg::D
 
 #[cfg(feature = "layout-types")]
 /// Get the `detections` field from a `DetectionResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47259,18 +42287,9 @@ pub unsafe extern "C" fn xberg_detection_result_detections(
         match serde_json::to_string(&obj.detections) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -47359,8 +42378,6 @@ pub unsafe extern "C" fn xberg_embedded_file_free(ptr: *mut xberg::pdf::embedded
 
 #[cfg(feature = "pdf")]
 /// Get the `name` field from a `EmbeddedFile`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47375,21 +42392,13 @@ pub unsafe extern "C" fn xberg_embedded_file_name(
         let obj = unsafe { &*ptr };
         match CString::new(obj.name.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 #[cfg(feature = "pdf")]
 /// Get the `data` field from a `EmbeddedFile`.
-/// The returned byte pointer is borrowed from `ptr` and must not be freed.
-/// It remains valid until `ptr` is destroyed or the field is mutated.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47434,8 +42443,6 @@ pub unsafe extern "C" fn xberg_embedded_file_compressed_size(
 
 #[cfg(feature = "pdf")]
 /// Get the `mime_type` field from a `EmbeddedFile`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47451,13 +42458,7 @@ pub unsafe extern "C" fn xberg_embedded_file_mime_type(
         match &obj.mime_type {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47544,8 +42545,6 @@ pub unsafe extern "C" fn xberg_pdf_metadata_free(ptr: *mut xberg::pdf::metadata:
 
 #[cfg(feature = "pdf")]
 /// Get the `pdf_version` field from a `PdfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47561,13 +42560,7 @@ pub unsafe extern "C" fn xberg_pdf_metadata_pdf_version(
         match &obj.pdf_version {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47576,8 +42569,6 @@ pub unsafe extern "C" fn xberg_pdf_metadata_pdf_version(
 
 #[cfg(feature = "pdf")]
 /// Get the `producer` field from a `PdfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47593,13 +42584,7 @@ pub unsafe extern "C" fn xberg_pdf_metadata_producer(
         match &obj.producer {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47703,8 +42688,6 @@ pub unsafe extern "C" fn xberg_pdf_metadata_scanned_confidence(ptr: *const xberg
 
 #[cfg(feature = "pdf")]
 /// Get the `scanned_pages` field from a `PdfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47721,18 +42704,9 @@ pub unsafe extern "C" fn xberg_pdf_metadata_scanned_pages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47741,8 +42715,6 @@ pub unsafe extern "C" fn xberg_pdf_metadata_scanned_pages(
 
 #[cfg(feature = "pdf")]
 /// Get the `layout_gated_pages` field from a `PdfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47759,18 +42731,9 @@ pub unsafe extern "C" fn xberg_pdf_metadata_layout_gated_pages(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47779,8 +42742,6 @@ pub unsafe extern "C" fn xberg_pdf_metadata_layout_gated_pages(
 
 #[cfg(feature = "pdf")]
 /// Get the `layout_gate_reasons` field from a `PdfMetadata`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47797,18 +42758,9 @@ pub unsafe extern "C" fn xberg_pdf_metadata_layout_gate_reasons(
             Some(val) => match serde_json::to_string(&val) {
                 Ok(s) => match CString::new(s) {
                     Ok(cs) => cs.into_raw(),
-                    Err(_) => {
-                        set_last_error(
-                            ALEF_FFI_CONVERSION_ERROR,
-                            "FFI JSON value contains an interior NUL byte",
-                        );
-                        std::ptr::null_mut()
-                    }
+                    Err(_) => std::ptr::null_mut(),
                 },
-                Err(_) => {
-                    set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47835,8 +42787,6 @@ pub unsafe extern "C" fn xberg_chunk_classification_enrichment_config_free(
 
 #[cfg(feature = "classification")]
 /// Get the `config` field from a `ChunkClassificationEnrichmentConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_chunk_classification_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47929,8 +42879,6 @@ pub unsafe extern "C" fn xberg_proxy_config_free(ptr: *mut crawlberg::ProxyConfi
 }
 
 /// Get the `url` field from a `ProxyConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47943,20 +42891,12 @@ pub unsafe extern "C" fn xberg_proxy_config_url(ptr: *const crawlberg::ProxyConf
         let obj = unsafe { &*ptr };
         match CString::new(obj.url.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `username` field from a `ProxyConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47970,13 +42910,7 @@ pub unsafe extern "C" fn xberg_proxy_config_username(ptr: *const crawlberg::Prox
         match &obj.username {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -47984,8 +42918,6 @@ pub unsafe extern "C" fn xberg_proxy_config_username(ptr: *const crawlberg::Prox
 }
 
 /// Get the `password` field from a `ProxyConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -47999,13 +42931,7 @@ pub unsafe extern "C" fn xberg_proxy_config_password(ptr: *const crawlberg::Prox
         match &obj.password {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48088,8 +43014,6 @@ pub unsafe extern "C" fn xberg_content_config_free(ptr: *mut crawlberg::ContentC
 }
 
 /// Get the `output_format` field from a `ContentConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48104,20 +43028,12 @@ pub unsafe extern "C" fn xberg_content_config_output_format(
         let obj = unsafe { &*ptr };
         match CString::new(obj.output_format.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `preprocessing_preset` field from a `ContentConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48132,13 +43048,7 @@ pub unsafe extern "C" fn xberg_content_config_preprocessing_preset(
         let obj = unsafe { &*ptr };
         match CString::new(obj.preprocessing_preset.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -48174,8 +43084,6 @@ pub unsafe extern "C" fn xberg_content_config_remove_forms(ptr: *const crawlberg
 }
 
 /// Get the `strip_tags` field from a `ContentConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48191,25 +43099,14 @@ pub unsafe extern "C" fn xberg_content_config_strip_tags(
         match serde_json::to_string(&obj.strip_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `preserve_tags` field from a `ContentConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48225,25 +43122,14 @@ pub unsafe extern "C" fn xberg_content_config_preserve_tags(
         match serde_json::to_string(&obj.preserve_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `exclude_selectors` field from a `ContentConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48259,18 +43145,9 @@ pub unsafe extern "C" fn xberg_content_config_exclude_selectors(
         match serde_json::to_string(&obj.exclude_selectors) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -48429,8 +43306,6 @@ pub unsafe extern "C" fn xberg_browser_config_free(ptr: *mut crawlberg::BrowserC
 }
 
 /// Get the `mode` field from a `BrowserConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_browser_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48448,8 +43323,6 @@ pub unsafe extern "C" fn xberg_browser_config_mode(
 }
 
 /// Get the `backend` field from a `BrowserConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_browser_backend_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48467,8 +43340,6 @@ pub unsafe extern "C" fn xberg_browser_config_backend(
 }
 
 /// Get the `endpoint` field from a `BrowserConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48482,13 +43353,7 @@ pub unsafe extern "C" fn xberg_browser_config_endpoint(ptr: *const crawlberg::Br
         match &obj.endpoint {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48511,8 +43376,6 @@ pub unsafe extern "C" fn xberg_browser_config_timeout(ptr: *const crawlberg::Bro
 }
 
 /// Get the `wait` field from a `BrowserConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_browser_wait_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48530,8 +43393,6 @@ pub unsafe extern "C" fn xberg_browser_config_wait(
 }
 
 /// Get the `wait_selector` field from a `BrowserConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48547,13 +43408,7 @@ pub unsafe extern "C" fn xberg_browser_config_wait_selector(
         match &obj.wait_selector {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48579,8 +43434,6 @@ pub unsafe extern "C" fn xberg_browser_config_extra_wait(ptr: *const crawlberg::
 }
 
 /// Get the `proxy` field from a `BrowserConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_proxy_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48601,8 +43454,6 @@ pub unsafe extern "C" fn xberg_browser_config_proxy(
 }
 
 /// Get the `block_url_patterns` field from a `BrowserConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48618,25 +43469,14 @@ pub unsafe extern "C" fn xberg_browser_config_block_url_patterns(
         match serde_json::to_string(&obj.block_url_patterns) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `eval_script` field from a `BrowserConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48652,13 +43492,7 @@ pub unsafe extern "C" fn xberg_browser_config_eval_script(
         match &obj.eval_script {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48666,8 +43500,6 @@ pub unsafe extern "C" fn xberg_browser_config_eval_script(
 }
 
 /// Get the `robots_user_agent` field from a `BrowserConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48683,13 +43515,7 @@ pub unsafe extern "C" fn xberg_browser_config_robots_user_agent(
         match &obj.robots_user_agent {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48904,8 +43730,6 @@ pub unsafe extern "C" fn xberg_crawl_config_soft_http_errors(ptr: *const crawlbe
 }
 
 /// Get the `user_agent` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48919,13 +43743,7 @@ pub unsafe extern "C" fn xberg_crawl_config_user_agent(ptr: *const crawlberg::Cr
         match &obj.user_agent {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -48963,8 +43781,6 @@ pub unsafe extern "C" fn xberg_crawl_config_allow_subdomains(ptr: *const crawlbe
 }
 
 /// Get the `include_paths` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -48978,25 +43794,14 @@ pub unsafe extern "C" fn xberg_crawl_config_include_paths(ptr: *const crawlberg:
         match serde_json::to_string(&obj.include_paths) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `exclude_paths` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49010,25 +43815,14 @@ pub unsafe extern "C" fn xberg_crawl_config_exclude_paths(ptr: *const crawlberg:
         match serde_json::to_string(&obj.exclude_paths) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `custom_headers` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49044,18 +43838,9 @@ pub unsafe extern "C" fn xberg_crawl_config_custom_headers(
         match serde_json::to_string(&obj.custom_headers) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -49124,8 +43909,6 @@ pub unsafe extern "C" fn xberg_crawl_config_retry_count(ptr: *const crawlberg::C
 }
 
 /// Get the `retry_codes` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49139,18 +43922,9 @@ pub unsafe extern "C" fn xberg_crawl_config_retry_codes(ptr: *const crawlberg::C
         match serde_json::to_string(&obj.retry_codes) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -49171,8 +43945,6 @@ pub unsafe extern "C" fn xberg_crawl_config_cookies_enabled(ptr: *const crawlber
 }
 
 /// Get the `auth` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_auth_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49209,8 +43981,6 @@ pub unsafe extern "C" fn xberg_crawl_config_max_body_size(ptr: *const crawlberg:
 }
 
 /// Get the `remove_tags` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49224,25 +43994,14 @@ pub unsafe extern "C" fn xberg_crawl_config_remove_tags(ptr: *const crawlberg::C
         match serde_json::to_string(&obj.remove_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `content` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_content_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49278,8 +44037,6 @@ pub unsafe extern "C" fn xberg_crawl_config_map_limit(ptr: *const crawlberg::Cra
 }
 
 /// Get the `map_search` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49293,13 +44050,7 @@ pub unsafe extern "C" fn xberg_crawl_config_map_search(ptr: *const crawlberg::Cr
         match &obj.map_search {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49322,8 +44073,6 @@ pub unsafe extern "C" fn xberg_crawl_config_download_assets(ptr: *const crawlber
 }
 
 /// Get the `asset_types` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49337,18 +44086,9 @@ pub unsafe extern "C" fn xberg_crawl_config_asset_types(ptr: *const crawlberg::C
         match serde_json::to_string(&obj.asset_types) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -49372,8 +44112,6 @@ pub unsafe extern "C" fn xberg_crawl_config_max_asset_size(ptr: *const crawlberg
 }
 
 /// Get the `browser` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_browser_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49391,8 +44129,6 @@ pub unsafe extern "C" fn xberg_crawl_config_browser(
 }
 
 /// Get the `proxy` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_proxy_config_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49411,8 +44147,6 @@ pub unsafe extern "C" fn xberg_crawl_config_proxy(ptr: *const crawlberg::CrawlCo
 }
 
 /// Get the `user_agents` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49426,18 +44160,9 @@ pub unsafe extern "C" fn xberg_crawl_config_user_agents(ptr: *const crawlberg::C
         match serde_json::to_string(&obj.user_agents) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -49524,8 +44249,6 @@ pub unsafe extern "C" fn xberg_crawl_config_document_max_size(ptr: *const crawlb
 }
 
 /// Get the `document_mime_types` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49541,25 +44264,14 @@ pub unsafe extern "C" fn xberg_crawl_config_document_mime_types(
         match serde_json::to_string(&obj.document_mime_types) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `document_output_dir` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49575,13 +44287,7 @@ pub unsafe extern "C" fn xberg_crawl_config_document_output_dir(
         match &obj.document_output_dir {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49589,8 +44295,6 @@ pub unsafe extern "C" fn xberg_crawl_config_document_output_dir(
 }
 
 /// Get the `document_content_encoding` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_document_content_encoding_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49611,8 +44315,6 @@ pub unsafe extern "C" fn xberg_crawl_config_document_content_encoding(
 }
 
 /// Get the `warc_output` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49626,13 +44328,7 @@ pub unsafe extern "C" fn xberg_crawl_config_warc_output(ptr: *const crawlberg::C
         match &obj.warc_output {
             Some(val) => match CString::new(val.to_string_lossy().to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI path value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49640,8 +44336,6 @@ pub unsafe extern "C" fn xberg_crawl_config_warc_output(ptr: *const crawlberg::C
 }
 
 /// Get the `browser_profile` field from a `CrawlConfig`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49657,13 +44351,7 @@ pub unsafe extern "C" fn xberg_crawl_config_browser_profile(
         match &obj.browser_profile {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49686,8 +44374,6 @@ pub unsafe extern "C" fn xberg_crawl_config_save_browser_profile(ptr: *const cra
 }
 
 /// Get the `ssrf` field from a `CrawlConfig`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_ssrf_policy_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49796,8 +44482,6 @@ pub unsafe extern "C" fn xberg_sitemap_url_free(ptr: *mut crawlberg::SitemapUrl)
 }
 
 /// Get the `url` field from a `SitemapUrl`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49810,20 +44494,12 @@ pub unsafe extern "C" fn xberg_sitemap_url_url(ptr: *const crawlberg::SitemapUrl
         let obj = unsafe { &*ptr };
         match CString::new(obj.url.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `lastmod` field from a `SitemapUrl`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49837,13 +44513,7 @@ pub unsafe extern "C" fn xberg_sitemap_url_lastmod(ptr: *const crawlberg::Sitema
         match &obj.lastmod {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49851,8 +44521,6 @@ pub unsafe extern "C" fn xberg_sitemap_url_lastmod(ptr: *const crawlberg::Sitema
 }
 
 /// Get the `changefreq` field from a `SitemapUrl`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49866,13 +44534,7 @@ pub unsafe extern "C" fn xberg_sitemap_url_changefreq(ptr: *const crawlberg::Sit
         match &obj.changefreq {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49880,8 +44542,6 @@ pub unsafe extern "C" fn xberg_sitemap_url_changefreq(ptr: *const crawlberg::Sit
 }
 
 /// Get the `priority` field from a `SitemapUrl`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49895,13 +44555,7 @@ pub unsafe extern "C" fn xberg_sitemap_url_priority(ptr: *const crawlberg::Sitem
         match &obj.priority {
             Some(val) => match CString::new(val.to_string()) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI field value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
             None => std::ptr::null_mut(),
         }
@@ -49984,8 +44638,6 @@ pub unsafe extern "C" fn xberg_map_result_free(ptr: *mut crawlberg::MapResult) {
 }
 
 /// Get the `urls` field from a `MapResult`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -49999,18 +44651,9 @@ pub unsafe extern "C" fn xberg_map_result_urls(ptr: *const crawlberg::MapResult)
         match serde_json::to_string(&obj.urls) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50106,8 +44749,6 @@ pub unsafe extern "C" fn xberg_ssrf_policy_deny_private(ptr: *const crawlberg::S
 }
 
 /// Get the `allowlist` field from a `SsrfPolicy`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50121,18 +44762,9 @@ pub unsafe extern "C" fn xberg_ssrf_policy_allowlist(ptr: *const crawlberg::Ssrf
         match serde_json::to_string(&obj.allowlist) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50232,8 +44864,6 @@ pub unsafe extern "C" fn xberg_conversion_options_free(ptr: *mut html_to_markdow
 }
 
 /// Get the `heading_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_heading_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50251,8 +44881,6 @@ pub unsafe extern "C" fn xberg_conversion_options_heading_style(
 }
 
 /// Get the `list_indent_type` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_list_indent_type_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50287,8 +44915,6 @@ pub unsafe extern "C" fn xberg_conversion_options_list_indent_width(
 }
 
 /// Get the `bullets` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50303,20 +44929,12 @@ pub unsafe extern "C" fn xberg_conversion_options_bullets(
         let obj = unsafe { &*ptr };
         match CString::new(obj.bullets.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `strong_em_symbol` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50331,13 +44949,7 @@ pub unsafe extern "C" fn xberg_conversion_options_strong_em_symbol(
         let obj = unsafe { &*ptr };
         match CString::new(obj.strong_em_symbol.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50411,8 +45023,6 @@ pub unsafe extern "C" fn xberg_conversion_options_escape_ascii(
 }
 
 /// Get the `code_language` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50427,13 +45037,7 @@ pub unsafe extern "C" fn xberg_conversion_options_code_language(
         let obj = unsafe { &*ptr };
         match CString::new(obj.code_language.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50505,8 +45109,6 @@ pub unsafe extern "C" fn xberg_conversion_options_compact_tables(
 }
 
 /// Get the `highlight_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_highlight_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50541,8 +45143,6 @@ pub unsafe extern "C" fn xberg_conversion_options_extract_metadata(
 }
 
 /// Get the `whitespace_mode` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_whitespace_mode_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50626,8 +45226,6 @@ pub unsafe extern "C" fn xberg_conversion_options_convert_as_inline(
 }
 
 /// Get the `sub_symbol` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50642,20 +45240,12 @@ pub unsafe extern "C" fn xberg_conversion_options_sub_symbol(
         let obj = unsafe { &*ptr };
         match CString::new(obj.sub_symbol.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `sup_symbol` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50670,20 +45260,12 @@ pub unsafe extern "C" fn xberg_conversion_options_sup_symbol(
         let obj = unsafe { &*ptr };
         match CString::new(obj.sup_symbol.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `newline_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_newline_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50701,8 +45283,6 @@ pub unsafe extern "C" fn xberg_conversion_options_newline_style(
 }
 
 /// Get the `code_block_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_code_block_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50720,8 +45300,6 @@ pub unsafe extern "C" fn xberg_conversion_options_code_block_style(
 }
 
 /// Get the `keep_inline_images_in` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50737,25 +45315,14 @@ pub unsafe extern "C" fn xberg_conversion_options_keep_inline_images_in(
         match serde_json::to_string(&obj.keep_inline_images_in) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `preprocessing` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_preprocessing_options_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50773,8 +45340,6 @@ pub unsafe extern "C" fn xberg_conversion_options_preprocessing(
 }
 
 /// Get the `encoding` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50789,13 +45354,7 @@ pub unsafe extern "C" fn xberg_conversion_options_encoding(
         let obj = unsafe { &*ptr };
         match CString::new(obj.encoding.to_string()) {
             Ok(cs) => cs.into_raw(),
-            Err(_) => {
-                set_last_error(
-                    ALEF_FFI_CONVERSION_ERROR,
-                    "FFI field value contains an interior NUL byte",
-                );
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50816,8 +45375,6 @@ pub unsafe extern "C" fn xberg_conversion_options_debug(ptr: *const html_to_mark
 }
 
 /// Get the `strip_tags` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50833,25 +45390,14 @@ pub unsafe extern "C" fn xberg_conversion_options_strip_tags(
         match serde_json::to_string(&obj.strip_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
 
 /// Get the `preserve_tags` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50867,18 +45413,9 @@ pub unsafe extern "C" fn xberg_conversion_options_preserve_tags(
         match serde_json::to_string(&obj.preserve_tags) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -50901,8 +45438,6 @@ pub unsafe extern "C" fn xberg_conversion_options_skip_images(
 }
 
 /// Get the `url_escape_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_url_escape_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -50920,8 +45455,6 @@ pub unsafe extern "C" fn xberg_conversion_options_url_escape_style(
 }
 
 /// Get the `link_style` field from a `ConversionOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_link_style_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -51010,8 +45543,6 @@ pub unsafe extern "C" fn xberg_conversion_options_max_depth(
 }
 
 /// Get the `exclude_selectors` field from a `ConversionOptions`.
-/// A non-null returned pointer is owned by the caller.
-/// It must be freed with `xberg_free_string`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -51027,18 +45558,9 @@ pub unsafe extern "C" fn xberg_conversion_options_exclude_selectors(
         match serde_json::to_string(&obj.exclude_selectors) {
             Ok(s) => match CString::new(s) {
                 Ok(cs) => cs.into_raw(),
-                Err(_) => {
-                    set_last_error(
-                        ALEF_FFI_CONVERSION_ERROR,
-                        "FFI JSON value contains an interior NUL byte",
-                    );
-                    std::ptr::null_mut()
-                }
+                Err(_) => std::ptr::null_mut(),
             },
-            Err(_) => {
-                set_last_error(ALEF_FFI_CONVERSION_ERROR, "failed to serialize FFI field value");
-                std::ptr::null_mut()
-            }
+            Err(_) => std::ptr::null_mut(),
         }
     })
 }
@@ -51140,8 +45662,6 @@ pub unsafe extern "C" fn xberg_preprocessing_options_enabled(
 }
 
 /// Get the `preset` field from a `PreprocessingOptions`.
-/// A non-null returned handle is owned by the caller.
-/// It must be freed with `xberg_preprocessing_preset_free`.
 /// # Safety
 /// Pointer must be a valid handle returned by this library.
 #[unsafe(no_mangle)]
@@ -51647,6 +46167,51 @@ pub unsafe extern "C" fn xberg_late_interaction_model_type_from_str(name: *const
             "plugin" => 2,
             _ => {
                 set_last_error(1, "Unknown LateInteractionModelType variant");
+                -1
+            }
+        }
+    })
+}
+
+/// Convert an integer to a `FormulaModel` variant. Returns -1 on invalid input.
+/// # Safety
+/// Caller must ensure all pointer arguments are valid or null.
+/// Returned pointers must be freed with the appropriate free function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_formula_model_from_i32(value: i32) -> i32 {
+    catch_ffi_panic(-1, || {
+        match value {
+            0 => 0, // LatexOcr
+            _ => {
+                set_last_error(1, "Invalid FormulaModel variant");
+                -1
+            }
+        }
+    })
+}
+
+/// Convert a `FormulaModel` serde wire value (C string) to its integer discriminant. Returns -1 on invalid input.
+/// # Safety
+/// Caller must ensure `ptr` is a valid pointer to a `c_char` or null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_formula_model_from_str(name: *const c_char) -> i32 {
+    catch_ffi_panic(-1, || {
+        if name.is_null() {
+            set_last_error(1, "Null pointer passed for enum name");
+            return -1;
+        }
+        // SAFETY: null check above guarantees name is a valid pointer; string is valid UTF-8 from caller.
+        let s = match unsafe { CStr::from_ptr(name) }.to_str() {
+            Ok(s) => s,
+            Err(_) => {
+                set_last_error(1, "Invalid UTF-8 in enum name");
+                return -1;
+            }
+        };
+        match s {
+            "latex_ocr" => 0,
+            _ => {
+                set_last_error(1, "Unknown FormulaModel variant");
                 -1
             }
         }
@@ -53553,9 +48118,10 @@ pub unsafe extern "C" fn xberg_element_type_from_i32(value: i32) -> i32 {
             5 => 5,   // Image
             6 => 6,   // PageBreak
             7 => 7,   // CodeBlock
-            8 => 8,   // BlockQuote
-            9 => 9,   // Footer
-            10 => 10, // Header
+            8 => 8,   // Formula
+            9 => 9,   // BlockQuote
+            10 => 10, // Footer
+            11 => 11, // Header
             _ => {
                 set_last_error(1, "Invalid ElementType variant");
                 -1
@@ -53591,9 +48157,10 @@ pub unsafe extern "C" fn xberg_element_type_from_str(name: *const c_char) -> i32
             "image" => 5,
             "page_break" => 6,
             "code_block" => 7,
-            "block_quote" => 8,
-            "footer" => 9,
-            "header" => 10,
+            "formula" => 8,
+            "block_quote" => 9,
+            "footer" => 10,
+            "header" => 11,
             _ => {
                 set_last_error(1, "Unknown ElementType variant");
                 -1
@@ -56670,6 +51237,80 @@ pub unsafe extern "C" fn xberg_late_interaction_model_type_to_string(
             Ok(cs) => cs.into_raw(),
             Err(_) => {
                 set_last_error(1, "LateInteractionModelType variant contained interior NUL byte");
+                std::ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Free a heap-allocated `FormulaModel` returned by a pointer-returning FFI function.
+/// # Safety
+/// Pointer must have been returned by this library, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_formula_model_free(ptr: *mut xberg::core::config::layout::FormulaModel) {
+    catch_ffi_panic((), || {
+        if !ptr.is_null() {
+            // SAFETY: ptr was allocated by Box::into_raw; caller ensures no aliases.
+            unsafe {
+                drop(Box::from_raw(ptr));
+            }
+        }
+    })
+}
+
+/// Serialize a heap-allocated `FormulaModel` to a JSON string.
+/// # Safety
+/// `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+/// The returned string must be freed with `xberg_free_string`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_formula_model_to_json(
+    ptr: *const xberg::core::config::layout::FormulaModel,
+) -> *mut c_char {
+    catch_ffi_panic(std::ptr::null_mut(), || {
+        if ptr.is_null() {
+            set_last_error(1, "Null pointer passed to xberg_formula_model_to_json");
+            return std::ptr::null_mut();
+        }
+        // SAFETY: null check above guarantees ptr is valid; no mutable aliases held.
+        let val = unsafe { &*ptr };
+        match serde_json::to_string(val) {
+            Ok(s) => match CString::new(s) {
+                Ok(cs) => cs.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
+            Err(e) => {
+                set_last_error(2, &e.to_string());
+                std::ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Render a heap-allocated `FormulaModel` as its string representation
+/// (the unit-variant name as serialized by serde — e.g. `"completed"`,
+/// without surrounding JSON quotes).
+/// # Safety
+/// `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+/// The returned string must be freed with `xberg_free_string`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn xberg_formula_model_to_string(
+    ptr: *const xberg::core::config::layout::FormulaModel,
+) -> *mut c_char {
+    catch_ffi_panic(std::ptr::null_mut(), || {
+        if ptr.is_null() {
+            set_last_error(1, "Null pointer passed to xberg_formula_model_to_string");
+            return std::ptr::null_mut();
+        }
+        // SAFETY: null check above guarantees ptr is valid; no mutable aliases held.
+        let val = unsafe { &*ptr };
+        let s: String = serde_json::to_value(val)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_default();
+        match CString::new(s) {
+            Ok(cs) => cs.into_raw(),
+            Err(_) => {
+                set_last_error(1, "FormulaModel variant contained interior NUL byte");
                 std::ptr::null_mut()
             }
         }
@@ -61146,22 +55787,21 @@ pub unsafe extern "C" fn xberg_map_url(
 pub unsafe extern "C" fn xberg_list_supported_formats() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_supported_formats", 0);
         let result = xberg::list_supported_formats();
         {
             match serde_json::to_string(&result) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_supported_formats", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_supported_formats", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_supported_formats", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             }
@@ -61182,7 +55822,7 @@ pub unsafe extern "C" fn xberg_list_supported_formats() -> *mut std::ffi::c_char
 /// with `xberg_list_supported_formats`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_supported_formats_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_supported_formats"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Ensure built-in extractors are registered.
@@ -61227,22 +55867,21 @@ pub unsafe extern "C" fn xberg_ensure_initialized() -> i32 {
 pub unsafe extern "C" fn xberg_list_embedding_backends() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_embedding_backends", 0);
         let result = xberg::list_embedding_backends();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_embedding_backends", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_embedding_backends", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_embedding_backends", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61267,7 +55906,7 @@ pub unsafe extern "C" fn xberg_list_embedding_backends() -> *mut std::ffi::c_cha
 /// with `xberg_list_embedding_backends`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_embedding_backends_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_embedding_backends"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List names of all registered document extractors.
@@ -61277,22 +55916,21 @@ pub unsafe extern "C" fn xberg_list_embedding_backends_len() -> usize {
 pub unsafe extern "C" fn xberg_list_document_extractors() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_document_extractors", 0);
         let result = xberg::list_document_extractors();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_document_extractors", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_document_extractors", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_document_extractors", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61317,7 +55955,7 @@ pub unsafe extern "C" fn xberg_list_document_extractors() -> *mut std::ffi::c_ch
 /// with `xberg_list_document_extractors`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_document_extractors_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_document_extractors"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List all registered OCR backends.
@@ -61338,22 +55976,21 @@ pub unsafe extern "C" fn xberg_list_document_extractors_len() -> usize {
 pub unsafe extern "C" fn xberg_list_ocr_backends() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_ocr_backends", 0);
         let result = xberg::list_ocr_backends();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_ocr_backends", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_ocr_backends", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_ocr_backends", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61378,7 +56015,7 @@ pub unsafe extern "C" fn xberg_list_ocr_backends() -> *mut std::ffi::c_char {
 /// with `xberg_list_ocr_backends`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_ocr_backends_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_ocr_backends"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List all registered post-processor names.
@@ -61401,22 +56038,21 @@ pub unsafe extern "C" fn xberg_list_ocr_backends_len() -> usize {
 pub unsafe extern "C" fn xberg_list_post_processors() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_post_processors", 0);
         let result = xberg::list_post_processors();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_post_processors", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_post_processors", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_post_processors", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61441,7 +56077,7 @@ pub unsafe extern "C" fn xberg_list_post_processors() -> *mut std::ffi::c_char {
 /// with `xberg_list_post_processors`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_post_processors_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_post_processors"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List names of all registered renderers.
@@ -61452,22 +56088,21 @@ pub unsafe extern "C" fn xberg_list_post_processors_len() -> usize {
 pub unsafe extern "C" fn xberg_list_renderers() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_renderers", 0);
         let result = xberg::list_renderers();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_renderers", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_renderers", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_renderers", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61492,7 +56127,7 @@ pub unsafe extern "C" fn xberg_list_renderers() -> *mut std::ffi::c_char {
 /// with `xberg_list_renderers`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_renderers_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_renderers"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List the names of all registered reranker backends.
@@ -61507,22 +56142,21 @@ pub unsafe extern "C" fn xberg_list_renderers_len() -> usize {
 pub unsafe extern "C" fn xberg_list_reranker_backends() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_reranker_backends", 0);
         let result = xberg::list_reranker_backends();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_reranker_backends", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_reranker_backends", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_reranker_backends", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61547,7 +56181,7 @@ pub unsafe extern "C" fn xberg_list_reranker_backends() -> *mut std::ffi::c_char
 /// with `xberg_list_reranker_backends`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_reranker_backends_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_reranker_backends"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List the names of all registered tokenizer backends.
@@ -61560,22 +56194,21 @@ pub unsafe extern "C" fn xberg_list_reranker_backends_len() -> usize {
 pub unsafe extern "C" fn xberg_list_tokenizer_backends() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_tokenizer_backends", 0);
         let result = xberg::list_tokenizer_backends();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_tokenizer_backends", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_tokenizer_backends", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_tokenizer_backends", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61600,7 +56233,7 @@ pub unsafe extern "C" fn xberg_list_tokenizer_backends() -> *mut std::ffi::c_cha
 /// with `xberg_list_tokenizer_backends`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_tokenizer_backends_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_tokenizer_backends"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// List names of all registered validators.
@@ -61610,22 +56243,21 @@ pub unsafe extern "C" fn xberg_list_tokenizer_backends_len() -> usize {
 pub unsafe extern "C" fn xberg_list_validators() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_list_validators", 0);
         let result = xberg::list_validators();
         match result {
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_list_validators", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_list_validators", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_list_validators", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61650,7 +56282,7 @@ pub unsafe extern "C" fn xberg_list_validators() -> *mut std::ffi::c_char {
 /// with `xberg_list_validators`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_list_validators_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_list_validators"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Run chunk classification against an extraction result.
@@ -61732,7 +56364,6 @@ pub unsafe extern "C" fn xberg_classify_chunks(
 pub unsafe extern "C" fn xberg_find_unmarked_claims(markdown: *const std::ffi::c_char) -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_find_unmarked_claims", 0);
         if markdown.is_null() {
             set_last_error(1, "Null pointer passed for parameter 'markdown'");
             return std::ptr::null_mut();
@@ -61750,16 +56381,16 @@ pub unsafe extern "C" fn xberg_find_unmarked_claims(markdown: *const std::ffi::c
             match serde_json::to_string(&result) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_find_unmarked_claims", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_find_unmarked_claims", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_find_unmarked_claims", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             }
@@ -61781,7 +56412,7 @@ pub unsafe extern "C" fn xberg_find_unmarked_claims(markdown: *const std::ffi::c
 #[cfg(feature = "markdown-footnotes")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_find_unmarked_claims_len(_markdown: *const std::ffi::c_char) -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_find_unmarked_claims"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Verify that an excerpt appears verbatim in source text.
@@ -61868,7 +56499,6 @@ pub unsafe extern "C" fn xberg_embed_sparse_async(
 ) -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_embed_sparse_async", 0);
         if texts.is_null() {
             set_last_error(1, "Null pointer passed for parameter 'texts'");
             return std::ptr::null_mut();
@@ -61899,16 +56529,16 @@ pub unsafe extern "C" fn xberg_embed_sparse_async(
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_embed_sparse_async", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_embed_sparse_async", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_embed_sparse_async", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -61944,7 +56574,7 @@ pub unsafe extern "C" fn xberg_embed_sparse_async_len(
     _texts: *const std::ffi::c_char,
     _config: *const xberg::SparseEmbeddingConfig,
 ) -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_embed_sparse_async"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Score a query against a document using ColBERT's MaxSim operator: for each
@@ -62015,7 +56645,6 @@ pub unsafe extern "C" fn xberg_max_sim_rank(
 ) -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_max_sim_rank", 0);
         if query.is_null() {
             set_last_error(1, "Null pointer passed for parameter 'query'");
             return std::ptr::null_mut();
@@ -62046,16 +56675,16 @@ pub unsafe extern "C" fn xberg_max_sim_rank(
             match serde_json::to_string(&result) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_max_sim_rank", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_max_sim_rank", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_max_sim_rank", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             }
@@ -62083,7 +56712,7 @@ pub unsafe extern "C" fn xberg_max_sim_rank_len(
     _query: *const xberg::MultiVectorEmbedding,
     _docs: *const std::ffi::c_char,
 ) -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_max_sim_rank"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Async wrapper over `embed_multi_vector`: runs the blocking ONNX inference
@@ -62108,7 +56737,6 @@ pub unsafe extern "C" fn xberg_embed_multi_vector_async(
 ) -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_embed_multi_vector_async", 0);
         if texts.is_null() {
             set_last_error(1, "Null pointer passed for parameter 'texts'");
             return std::ptr::null_mut();
@@ -62141,16 +56769,16 @@ pub unsafe extern "C" fn xberg_embed_multi_vector_async(
             Ok(val) => match serde_json::to_string(&val) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_embed_multi_vector_async", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_embed_multi_vector_async", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_embed_multi_vector_async", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             },
@@ -62187,7 +56815,7 @@ pub unsafe extern "C" fn xberg_embed_multi_vector_async_len(
     _config: *const xberg::LateInteractionConfig,
     _is_query: i32,
 ) -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_embed_multi_vector_async"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Probe the backends and settings in `config` and report what will actually
@@ -62299,22 +56927,21 @@ pub unsafe extern "C" fn xberg_install_pdf_render_diagnostics() -> i32 {
 pub unsafe extern "C" fn xberg_take_pdf_oxide_render_warnings() -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_take_pdf_oxide_render_warnings", 0);
         let result = xberg::pdf::render::take_pdf_oxide_render_warnings();
         {
             match serde_json::to_string(&result) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_take_pdf_oxide_render_warnings", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_take_pdf_oxide_render_warnings", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_take_pdf_oxide_render_warnings", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             }
@@ -62337,7 +56964,7 @@ pub unsafe extern "C" fn xberg_take_pdf_oxide_render_warnings() -> *mut std::ffi
 #[cfg(feature = "pdf")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn xberg_take_pdf_oxide_render_warnings_len() -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_take_pdf_oxide_render_warnings"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Build the four (or three) token Whisper decoder prompt.
@@ -62360,7 +56987,6 @@ pub unsafe extern "C" fn xberg_build_decoder_prompt_tokens(
 ) -> *mut std::ffi::c_char {
     clear_last_error();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        set_last_return_len("xberg_build_decoder_prompt_tokens", 0);
         let start_of_transcript_rs = start_of_transcript;
         let lang_id_rs = lang_id;
         let transcribe_rs = transcribe;
@@ -62377,16 +57003,16 @@ pub unsafe extern "C" fn xberg_build_decoder_prompt_tokens(
             match serde_json::to_string(&result) {
                 Ok(__alef_return) => match CString::new(__alef_return) {
                     Ok(cs) => {
-                        set_last_return_len("xberg_build_decoder_prompt_tokens", cs.as_bytes().len());
+                        set_last_return_len(cs.as_bytes().len());
                         cs.into_raw()
                     }
                     Err(_) => {
-                        set_last_return_len("xberg_build_decoder_prompt_tokens", 0);
+                        set_last_return_len(0);
                         std::ptr::null_mut()
                     }
                 },
                 Err(_) => {
-                    set_last_return_len("xberg_build_decoder_prompt_tokens", 0);
+                    set_last_return_len(0);
                     std::ptr::null_mut()
                 }
             }
@@ -62414,7 +57040,7 @@ pub unsafe extern "C" fn xberg_build_decoder_prompt_tokens_len(
     _no_timestamps: u32,
     _timestamps: i32,
 ) -> usize {
-    catch_ffi_panic_preserving_error(0, || last_return_len("xberg_build_decoder_prompt_tokens"))
+    catch_ffi_panic_preserving_error(0, last_return_len)
 }
 
 /// Convert a raw Whisper timestamp token ID to a millisecond offset from the

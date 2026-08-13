@@ -3005,6 +3005,15 @@ pub struct LayoutDetectionConfig {
     #[serde(skip_serializing_if = "String::is_empty")]
     #[serde(alias = "tableModel")]
     pub table_model: String,
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    #[php(prop, name = "formulaModel")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "formulaModel")]
+    pub formula_model: Option<String>,
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -3052,6 +3061,7 @@ impl LayoutDetectionConfig {
         confidenceThreshold: Option<f32>,
         applyHeuristics: bool,
         tableModel: String,
+        formulaModel: Option<String>,
         tableOverlapPreference: String,
         enableChartUnderstanding: bool,
     ) -> Self {
@@ -3060,6 +3070,7 @@ impl LayoutDetectionConfig {
             confidence_threshold: confidenceThreshold,
             apply_heuristics: applyHeuristics,
             table_model: tableModel,
+            formula_model: formulaModel,
             table_overlap_preference: tableOverlapPreference,
             acceleration: Default::default(),
             enable_chart_understanding: enableChartUnderstanding,
@@ -3080,6 +3091,10 @@ impl LayoutDetectionConfig {
 
     pub fn get_table_model(&self) -> String {
         self.table_model.clone()
+    }
+
+    pub fn get_formula_model(&self) -> Option<String> {
+        self.formula_model.clone().map(Into::into)
     }
 
     pub fn get_table_overlap_preference(&self) -> String {
@@ -9186,9 +9201,10 @@ pub struct ExtractedDocument {
     pub redaction_report: Option<RedactionReport>,
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     pub formulas: Vec<Formula>,
     /// Form fields extracted from a PDF's AcroForm or XFA structure.
     ///
@@ -11762,23 +11778,26 @@ impl ImagePreprocessingMetadata {
 #[php(name = "Xberg\\Formula")]
 #[serde(default)]
 pub struct Formula {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     #[php(prop, name = "latex")]
     pub latex: String,
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
-    pub bbox: BoundingBox,
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
+    pub bbox: Option<BoundingBox>,
+    /// 1-indexed page number the formula appears on. `None` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
     #[php(prop, name = "page")]
-    pub page: u32,
+    pub page: Option<u32>,
 }
 
 #[php_impl]
@@ -11789,7 +11808,7 @@ impl Formula {
     }
 
     #[php(constructor)]
-    pub fn new(latex: String, page: u32) -> Self {
+    pub fn new(latex: String, page: Option<u32>) -> Self {
         Self {
             latex,
             bbox: Default::default(),
@@ -11801,11 +11820,15 @@ impl Formula {
         self.latex.clone()
     }
 
-    pub fn get_bbox(&self) -> BoundingBox {
-        self.bbox.clone()
+    pub fn get_bbox(&self) -> Option<BoundingBox> {
+        self.bbox.clone().map(Into::into)
     }
 
-    pub fn get_page(&self) -> u32 {
+    pub fn set_bbox(&mut self, value: Option<&BoundingBox>) {
+        self.bbox = value.map(|value| value.clone().into());
+    }
+
+    pub fn get_page(&self) -> Option<u32> {
         self.page.clone()
     }
 }
@@ -20593,6 +20616,15 @@ impl LateInteractionModelType {
 }
 
 #[php_class]
+#[php(name = "Xberg\\FormulaModel")]
+pub struct FormulaModel {}
+
+#[php_impl]
+impl FormulaModel {
+    pub const LATEXOCR: &str = "LatexOcr";
+}
+
+#[php_class]
 #[php(name = "Xberg\\TableModel")]
 pub struct TableModel {}
 
@@ -21937,6 +21969,7 @@ impl ElementType {
     pub const IMAGE: &str = "Image";
     pub const PAGEBREAK: &str = "PageBreak";
     pub const CODEBLOCK: &str = "CodeBlock";
+    pub const FORMULA: &str = "Formula";
     pub const BLOCKQUOTE: &str = "BlockQuote";
     pub const FOOTER: &str = "Footer";
     pub const HEADER: &str = "Header";
@@ -27817,6 +27850,10 @@ impl From<LayoutDetectionConfig> for xberg::LayoutDetectionConfig {
                 "disabled" => xberg::TableModel::Disabled,
                 _ => Default::default(),
             },
+            formula_model: val.formula_model.as_deref().map(|s| match s {
+                "latex_ocr" => xberg::core::config::layout::FormulaModel::LatexOcr,
+                _ => xberg::core::config::layout::FormulaModel::LatexOcr,
+            }),
             table_overlap_preference: match val.table_overlap_preference.as_str() {
                 "content" => xberg::core::config::layout::TableOverlapPreference::Content,
                 "native" => xberg::core::config::layout::TableOverlapPreference::Native,
@@ -27844,6 +27881,12 @@ impl From<xberg::LayoutDetectionConfig> for LayoutDetectionConfig {
                 .ok()
                 .and_then(|s| s.as_str().map(String::from))
                 .unwrap_or_default(),
+            formula_model: val.formula_model.as_ref().map(|v| {
+                serde_json::to_value(v)
+                    .ok()
+                    .and_then(|s| s.as_str().map(String::from))
+                    .unwrap_or_default()
+            }),
             table_overlap_preference: serde_json::to_value(val.table_overlap_preference)
                 .ok()
                 .and_then(|s| s.as_str().map(String::from))
@@ -30260,6 +30303,7 @@ impl From<Element> for xberg::Element {
                 "image" => xberg::ElementType::Image,
                 "page_break" => xberg::ElementType::PageBreak,
                 "code_block" => xberg::ElementType::CodeBlock,
+                "formula" => xberg::ElementType::Formula,
                 "block_quote" => xberg::ElementType::BlockQuote,
                 "footer" => xberg::ElementType::Footer,
                 "header" => xberg::ElementType::Header,
@@ -30605,7 +30649,7 @@ impl From<Formula> for xberg::Formula {
     fn from(val: Formula) -> Self {
         Self {
             latex: val.latex,
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -30616,7 +30660,7 @@ impl From<xberg::Formula> for Formula {
     fn from(val: xberg::Formula) -> Self {
         Self {
             latex: val.latex.to_string(),
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -36420,6 +36464,7 @@ pub extern "C" fn get_module() -> *mut ::ext_php_rs::zend::ModuleEntry {
             .class::<JupyterCellRendering>()
             .class::<HtmlTheme>()
             .class::<LateInteractionModelType>()
+            .class::<FormulaModel>()
             .class::<TableModel>()
             .class::<TableOverlapPreference>()
             .class::<LayoutStrategy>()

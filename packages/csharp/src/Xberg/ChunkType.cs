@@ -14,123 +14,143 @@ namespace Xberg;
 /// Designed to be extended in future versions without breaking changes.
 /// </summary>
 [JsonConverter(typeof(ChunkTypeJsonConverter))]
-public enum ChunkType {
-  /// <summary>
-  /// Section heading or document title.
-  /// </summary>
-  [JsonPropertyName("heading")] Heading,
-  /// <summary>
-  /// Party list: names, addresses, and signatories.
-  /// </summary>
-  [JsonPropertyName("party_list")] PartyList,
-  /// <summary>
-  /// Definition clause ("X means…", "X shall mean…").
-  /// </summary>
-  [JsonPropertyName("definitions")] Definitions,
-  /// <summary>
-  /// Operative clause containing legal/contractual action verbs.
-  /// </summary>
-  [JsonPropertyName("operative_clause")] OperativeClause,
-  /// <summary>
-  /// Signature block with signatures, names, and dates.
-  /// </summary>
-  [JsonPropertyName("signature_block")] SignatureBlock,
-  /// <summary>
-  /// Schedule, annex, appendix, or exhibit section.
-  /// </summary>
-  [JsonPropertyName("schedule")] Schedule,
-  /// <summary>
-  /// Table-like content with aligned columns or repeated patterns.
-  /// </summary>
-  [JsonPropertyName("table_like")] TableLike,
-  /// <summary>
-  /// Mathematical formula or equation.
-  /// </summary>
-  [JsonPropertyName("formula")] Formula,
-  /// <summary>
-  /// Code block or preformatted content.
-  /// </summary>
-  [JsonPropertyName("code_block")] CodeBlock,
-  /// <summary>
-  /// Function or method definition (tree-sitter structured code chunking).
-  /// </summary>
-  [JsonPropertyName("function")] Function,
-  /// <summary>
-  /// Class, struct, interface, or trait definition (tree-sitter structured code
-  /// chunking).
-  /// </summary>
-  [JsonPropertyName("class")] Class,
-  /// <summary>
-  /// Module, namespace, or top-level file scope (tree-sitter structured code
-  /// chunking).
-  /// </summary>
-  [JsonPropertyName("module")] Module,
-  /// <summary>
-  /// Embedded or referenced image content.
-  /// </summary>
-  [JsonPropertyName("image")] Image,
-  /// <summary>
-  /// Organizational chart or hierarchy diagram.
-  /// </summary>
-  [JsonPropertyName("org_chart")] OrgChart,
-  /// <summary>
-  /// Diagram, figure, or visual illustration.
-  /// </summary>
-  [JsonPropertyName("diagram")] Diagram,
-  /// <summary>
-  /// Unclassified or mixed content.
-  /// </summary>
-  [JsonPropertyName("unknown")] Unknown,
+public enum ChunkType
+{
+    /// <summary>
+    /// Section heading or document title.
+    /// </summary>
+    [JsonPropertyName("heading")]
+    Heading,
+    /// <summary>
+    /// Party list: names, addresses, and signatories.
+    /// </summary>
+    [JsonPropertyName("party_list")]
+    PartyList,
+    /// <summary>
+    /// Definition clause ("X means…", "X shall mean…").
+    /// </summary>
+    [JsonPropertyName("definitions")]
+    Definitions,
+    /// <summary>
+    /// Operative clause containing legal/contractual action verbs.
+    /// </summary>
+    [JsonPropertyName("operative_clause")]
+    OperativeClause,
+    /// <summary>
+    /// Signature block with signatures, names, and dates.
+    /// </summary>
+    [JsonPropertyName("signature_block")]
+    SignatureBlock,
+    /// <summary>
+    /// Schedule, annex, appendix, or exhibit section.
+    /// </summary>
+    [JsonPropertyName("schedule")]
+    Schedule,
+    /// <summary>
+    /// Table-like content with aligned columns or repeated patterns.
+    /// </summary>
+    [JsonPropertyName("table_like")]
+    TableLike,
+    /// <summary>
+    /// Mathematical formula or equation.
+    /// </summary>
+    [JsonPropertyName("formula")]
+    Formula,
+    /// <summary>
+    /// Code block or preformatted content.
+    /// </summary>
+    [JsonPropertyName("code_block")]
+    CodeBlock,
+    /// <summary>
+    /// Function or method definition (tree-sitter structured code chunking).
+    /// </summary>
+    [JsonPropertyName("function")]
+    Function,
+    /// <summary>
+    /// Class, struct, interface, or trait definition (tree-sitter structured code chunking).
+    /// </summary>
+    [JsonPropertyName("class")]
+    Class,
+    /// <summary>
+    /// Module, namespace, or top-level file scope (tree-sitter structured code chunking).
+    /// </summary>
+    [JsonPropertyName("module")]
+    Module,
+    /// <summary>
+    /// Embedded or referenced image content.
+    /// </summary>
+    [JsonPropertyName("image")]
+    Image,
+    /// <summary>
+    /// Organizational chart or hierarchy diagram.
+    /// </summary>
+    [JsonPropertyName("org_chart")]
+    OrgChart,
+    /// <summary>
+    /// Diagram, figure, or visual illustration.
+    /// </summary>
+    [JsonPropertyName("diagram")]
+    Diagram,
+    /// <summary>
+    /// Unclassified or mixed content.
+    /// </summary>
+    [JsonPropertyName("unknown")]
+    Unknown,
 }
 
-/// <summary>
-/// Custom JSON converter for <see cref="ChunkType"/> that respects explicit
-/// variant names.
-/// </summary>
-internal sealed class ChunkTypeJsonConverter : JsonConverter<ChunkType> {
-  public override ChunkType Read(ref Utf8JsonReader reader, Type typeToConvert,
-                                 JsonSerializerOptions options) {
-    var value = reader.GetString();
-    return value switch { "heading" => ChunkType.Heading,
-                          "party_list" => ChunkType.PartyList,
-                          "definitions" => ChunkType.Definitions,
-                          "operative_clause" => ChunkType.OperativeClause,
-                          "signature_block" => ChunkType.SignatureBlock,
-                          "schedule" => ChunkType.Schedule,
-                          "table_like" => ChunkType.TableLike,
-                          "formula" => ChunkType.Formula,
-                          "code_block" => ChunkType.CodeBlock,
-                          "function" => ChunkType.Function,
-                          "class" => ChunkType.Class,
-                          "module" => ChunkType.Module,
-                          "image" => ChunkType.Image,
-                          "org_chart" => ChunkType.OrgChart,
-                          "diagram" => ChunkType.Diagram,
-                          "unknown" => ChunkType.Unknown,
-                          _ => throw new JsonException(
-                              $"Unknown ChunkType value: {value}") };
-  }
 
-  public override void Write(Utf8JsonWriter writer, ChunkType value,
-                             JsonSerializerOptions options) {
-    var str = value switch { ChunkType.Heading => "heading",
-                             ChunkType.PartyList => "party_list",
-                             ChunkType.Definitions => "definitions",
-                             ChunkType.OperativeClause => "operative_clause",
-                             ChunkType.SignatureBlock => "signature_block",
-                             ChunkType.Schedule => "schedule",
-                             ChunkType.TableLike => "table_like",
-                             ChunkType.Formula => "formula",
-                             ChunkType.CodeBlock => "code_block",
-                             ChunkType.Function => "function",
-                             ChunkType.Class => "class",
-                             ChunkType.Module => "module",
-                             ChunkType.Image => "image",
-                             ChunkType.OrgChart => "org_chart",
-                             ChunkType.Diagram => "diagram",
-                             ChunkType.Unknown => "unknown",
-                             _ => throw new JsonException(
-                                 $"Unknown ChunkType value: {value}") };
-    writer.WriteStringValue(str);
-  }
+/// <summary>
+/// Custom JSON converter for <see cref="ChunkType"/> that respects explicit variant names.
+/// </summary>
+internal sealed class ChunkTypeJsonConverter : JsonConverter<ChunkType>
+{
+    public override ChunkType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var value = reader.GetString();
+        return value switch
+        {
+            "heading" => ChunkType.Heading,
+            "party_list" => ChunkType.PartyList,
+            "definitions" => ChunkType.Definitions,
+            "operative_clause" => ChunkType.OperativeClause,
+            "signature_block" => ChunkType.SignatureBlock,
+            "schedule" => ChunkType.Schedule,
+            "table_like" => ChunkType.TableLike,
+            "formula" => ChunkType.Formula,
+            "code_block" => ChunkType.CodeBlock,
+            "function" => ChunkType.Function,
+            "class" => ChunkType.Class,
+            "module" => ChunkType.Module,
+            "image" => ChunkType.Image,
+            "org_chart" => ChunkType.OrgChart,
+            "diagram" => ChunkType.Diagram,
+            "unknown" => ChunkType.Unknown,
+            _ => throw new JsonException($"Unknown ChunkType value: {value}")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, ChunkType value, JsonSerializerOptions options)
+    {
+        var str = value switch
+        {
+            ChunkType.Heading => "heading",
+            ChunkType.PartyList => "party_list",
+            ChunkType.Definitions => "definitions",
+            ChunkType.OperativeClause => "operative_clause",
+            ChunkType.SignatureBlock => "signature_block",
+            ChunkType.Schedule => "schedule",
+            ChunkType.TableLike => "table_like",
+            ChunkType.Formula => "formula",
+            ChunkType.CodeBlock => "code_block",
+            ChunkType.Function => "function",
+            ChunkType.Class => "class",
+            ChunkType.Module => "module",
+            ChunkType.Image => "image",
+            ChunkType.OrgChart => "org_chart",
+            ChunkType.Diagram => "diagram",
+            ChunkType.Unknown => "unknown",
+            _ => throw new JsonException($"Unknown ChunkType value: {value}")
+        };
+        writer.WriteStringValue(str);
+    }
 }

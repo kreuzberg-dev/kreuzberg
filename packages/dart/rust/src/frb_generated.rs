@@ -28,7 +28,7 @@
 
 use crate::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -8281,7 +8281,10 @@ fn wire__crate__map_url_impl(
         },
     )
 }
-#[cfg(any(any(feature = "late-interaction-presets", feature = "late-interaction"),feature = "late-interaction-presets"))]
+#[cfg(any(
+    any(feature = "late-interaction-presets", feature = "late-interaction"),
+    feature = "late-interaction-presets"
+))]
 fn wire__crate__max_sim_rank_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -8311,7 +8314,10 @@ fn wire__crate__max_sim_rank_impl(
         },
     )
 }
-#[cfg(any(any(feature = "late-interaction-presets", feature = "late-interaction"),feature = "late-interaction-presets"))]
+#[cfg(any(
+    any(feature = "late-interaction-presets", feature = "late-interaction"),
+    feature = "late-interaction-presets"
+))]
 fn wire__crate__max_sim_score_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -9961,8 +9967,8 @@ const _: fn() = || {
     {
         let Formula = None::<crate::Formula>.unwrap();
         let _: String = Formula.latex;
-        let _: crate::BoundingBox = Formula.bbox;
-        let _: i64 = Formula.page;
+        let _: Option<crate::BoundingBox> = Formula.bbox;
+        let _: Option<i64> = Formula.page;
     }
     {
         let GridCell = None::<crate::GridCell>.unwrap();
@@ -10232,6 +10238,7 @@ const _: fn() = || {
         let _: Option<f64> = LayoutDetectionConfig.confidence_threshold;
         let _: bool = LayoutDetectionConfig.apply_heuristics;
         let _: crate::TableModel = LayoutDetectionConfig.table_model;
+        let _: Option<crate::FormulaModel> = LayoutDetectionConfig.formula_model;
         let _: crate::TableOverlapPreference = LayoutDetectionConfig.table_overlap_preference;
         let _: Option<crate::AccelerationConfig> = LayoutDetectionConfig.acceleration;
         let _: bool = LayoutDetectionConfig.enable_chart_understanding;
@@ -14037,9 +14044,10 @@ impl SseDecode for crate::ElementType {
             5 => crate::ElementType::Image,
             6 => crate::ElementType::PageBreak,
             7 => crate::ElementType::CodeBlock,
-            8 => crate::ElementType::BlockQuote,
-            9 => crate::ElementType::Footer,
-            10 => crate::ElementType::Header,
+            8 => crate::ElementType::Formula,
+            9 => crate::ElementType::BlockQuote,
+            10 => crate::ElementType::Footer,
+            11 => crate::ElementType::Header,
             _ => unreachable!("Invalid variant for ElementType: {}", inner),
         };
     }
@@ -15055,12 +15063,23 @@ impl SseDecode for crate::Formula {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_latex = <String>::sse_decode(deserializer);
-        let mut var_bbox = <crate::BoundingBox>::sse_decode(deserializer);
-        let mut var_page = <i64>::sse_decode(deserializer);
+        let mut var_bbox = <Option<crate::BoundingBox>>::sse_decode(deserializer);
+        let mut var_page = <Option<i64>>::sse_decode(deserializer);
         return crate::Formula {
             latex: var_latex,
             bbox: var_bbox,
             page: var_page,
+        };
+    }
+}
+
+impl SseDecode for crate::FormulaModel {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::FormulaModel::LatexOcr,
+            _ => unreachable!("Invalid variant for FormulaModel: {}", inner),
         };
     }
 }
@@ -15825,6 +15844,7 @@ impl SseDecode for crate::LayoutDetectionConfig {
         let mut var_confidenceThreshold = <Option<f64>>::sse_decode(deserializer);
         let mut var_applyHeuristics = <bool>::sse_decode(deserializer);
         let mut var_tableModel = <crate::TableModel>::sse_decode(deserializer);
+        let mut var_formulaModel = <Option<crate::FormulaModel>>::sse_decode(deserializer);
         let mut var_tableOverlapPreference = <crate::TableOverlapPreference>::sse_decode(deserializer);
         let mut var_acceleration = <Option<crate::AccelerationConfig>>::sse_decode(deserializer);
         let mut var_enableChartUnderstanding = <bool>::sse_decode(deserializer);
@@ -15833,6 +15853,7 @@ impl SseDecode for crate::LayoutDetectionConfig {
             confidence_threshold: var_confidenceThreshold,
             apply_heuristics: var_applyHeuristics,
             table_model: var_tableModel,
+            formula_model: var_formulaModel,
             table_overlap_preference: var_tableOverlapPreference,
             acceleration: var_acceleration,
             enable_chart_understanding: var_enableChartUnderstanding,
@@ -18223,6 +18244,17 @@ impl SseDecode for Option<crate::FormatMetadata> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::FormatMetadata>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::FormulaModel> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::FormulaModel>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -21692,9 +21724,15 @@ fn pde_ffi_dispatcher_primary_impl(
         278 => wire__crate__list_validators_impl(port, ptr, rust_vec_len, data_len),
         #[cfg(feature = "url-ingestion")]
         279 => wire__crate__map_url_impl(port, ptr, rust_vec_len, data_len),
-        #[cfg(any(any(feature = "late-interaction-presets", feature = "late-interaction"),feature = "late-interaction-presets"))]
+        #[cfg(any(
+            any(feature = "late-interaction-presets", feature = "late-interaction"),
+            feature = "late-interaction-presets"
+        ))]
         280 => wire__crate__max_sim_rank_impl(port, ptr, rust_vec_len, data_len),
-        #[cfg(any(any(feature = "late-interaction-presets", feature = "late-interaction"),feature = "late-interaction-presets"))]
+        #[cfg(any(
+            any(feature = "late-interaction-presets", feature = "late-interaction"),
+            feature = "late-interaction-presets"
+        ))]
         281 => wire__crate__max_sim_score_impl(port, ptr, rust_vec_len, data_len),
         282 => wire__crate__register_document_extractor_impl(port, ptr, rust_vec_len, data_len),
         283 => wire__crate__register_embedding_backend_impl(port, ptr, rust_vec_len, data_len),
@@ -23697,9 +23735,10 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::ElementType> {
             crate::ElementType::Image => 5.into_dart(),
             crate::ElementType::PageBreak => 6.into_dart(),
             crate::ElementType::CodeBlock => 7.into_dart(),
-            crate::ElementType::BlockQuote => 8.into_dart(),
-            crate::ElementType::Footer => 9.into_dart(),
-            crate::ElementType::Header => 10.into_dart(),
+            crate::ElementType::Formula => 8.into_dart(),
+            crate::ElementType::BlockQuote => 9.into_dart(),
+            crate::ElementType::Footer => 10.into_dart(),
+            crate::ElementType::Header => 11.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -24606,6 +24645,21 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::Formula>> for crate::Fo
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::FormulaModel> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::FormulaModel::LatexOcr => 0.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<crate::FormulaModel> {}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::FormulaModel>> for crate::FormulaModel {
+    fn into_into_dart(self) -> FrbWrapper<crate::FormulaModel> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::GridCell> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -25387,6 +25441,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::LayoutDetectionConfig> 
             self.0.confidence_threshold.into_into_dart().into_dart(),
             self.0.apply_heuristics.into_into_dart().into_dart(),
             self.0.table_model.into_into_dart().into_dart(),
+            self.0.formula_model.into_into_dart().into_dart(),
             self.0.table_overlap_preference.into_into_dart().into_dart(),
             self.0.acceleration.into_into_dart().into_dart(),
             self.0.enable_chart_understanding.into_into_dart().into_dart(),
@@ -30254,9 +30309,10 @@ impl SseEncode for crate::ElementType {
                 crate::ElementType::Image => 5,
                 crate::ElementType::PageBreak => 6,
                 crate::ElementType::CodeBlock => 7,
-                crate::ElementType::BlockQuote => 8,
-                crate::ElementType::Footer => 9,
-                crate::ElementType::Header => 10,
+                crate::ElementType::Formula => 8,
+                crate::ElementType::BlockQuote => 9,
+                crate::ElementType::Footer => 10,
+                crate::ElementType::Header => 11,
                 _ => {
                     unimplemented!("");
                 }
@@ -30974,8 +31030,23 @@ impl SseEncode for crate::Formula {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.latex, serializer);
-        <crate::BoundingBox>::sse_encode(self.bbox, serializer);
-        <i64>::sse_encode(self.page, serializer);
+        <Option<crate::BoundingBox>>::sse_encode(self.bbox, serializer);
+        <Option<i64>>::sse_encode(self.page, serializer);
+    }
+}
+
+impl SseEncode for crate::FormulaModel {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::FormulaModel::LatexOcr => 0,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 
@@ -31587,6 +31658,7 @@ impl SseEncode for crate::LayoutDetectionConfig {
         <Option<f64>>::sse_encode(self.confidence_threshold, serializer);
         <bool>::sse_encode(self.apply_heuristics, serializer);
         <crate::TableModel>::sse_encode(self.table_model, serializer);
+        <Option<crate::FormulaModel>>::sse_encode(self.formula_model, serializer);
         <crate::TableOverlapPreference>::sse_encode(self.table_overlap_preference, serializer);
         <Option<crate::AccelerationConfig>>::sse_encode(self.acceleration, serializer);
         <bool>::sse_encode(self.enable_chart_understanding, serializer);
@@ -33545,6 +33617,16 @@ impl SseEncode for Option<crate::FormatMetadata> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::FormatMetadata>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::FormulaModel> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::FormulaModel>::sse_encode(value, serializer);
         }
     }
 }
@@ -36178,7 +36260,7 @@ mod io {
     use super::*;
     use crate::*;
     use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -36483,7 +36565,7 @@ mod web {
     use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

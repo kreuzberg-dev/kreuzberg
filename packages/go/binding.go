@@ -576,6 +576,15 @@ func UnmarshalLateInteractionModelType(data []byte) (LateInteractionModelType, e
 	return nil, fmt.Errorf("unknown LateInteractionModelType type: %q", wire.Type)
 }
 
+// FormulaModel is an enumeration type.
+type FormulaModel string
+
+const (
+	// FormulaModelLatexOcr FormulaModelLatexOcr rapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+	// ~180 MB total, downloaded on demand.
+	FormulaModelLatexOcr FormulaModel = "latex_ocr"
+)
+
 // TableModel is an enumeration type.
 type TableModel string
 
@@ -2893,6 +2902,8 @@ const (
 	ElementTypePageBreak ElementType = "page_break"
 	// ElementTypeCodeBlock ElementTypeCodeBlock code block
 	ElementTypeCodeBlock ElementType = "code_block"
+	// ElementTypeFormula ElementTypeFormula mathematical formula (LaTeX source in `text`)
+	ElementTypeFormula ElementType = "formula"
 	// ElementTypeBlockQuote ElementTypeBlockQuote block quote
 	ElementTypeBlockQuote ElementType = "block_quote"
 	// ElementTypeFooter ElementTypeFooter footer text
@@ -5970,6 +5981,12 @@ type LayoutDetectionConfig struct {
 	// Controls which model is used for table cell detection within layout-detected
 	// table regions. Defaults to [`TableModel::Tatr`].
 	TableModel TableModel `json:"table_model,omitempty"`
+	// Formula recognition model for layout-detected formula regions.
+	//
+	// `None` (the default) keeps the plain OCR text of the region. Setting a
+	// model converts each formula region crop to LaTeX. Requires the
+	// `formula-recognition` feature; without it the setting is ignored.
+	FormulaModel *FormulaModel `json:"formula_model,omitempty"`
 	// How to resolve overlapping native vs layout tables.
 	//
 	// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -8357,9 +8374,10 @@ type ExtractedDocument struct {
 	RedactionReport *RedactionReport `json:"redaction_report,omitempty"`
 	// Mathematical formulas recognized in the document.
 	//
-	// Populated by the layout-guided formula pipeline when the
-	// `layout-detection` feature is enabled and the document contains regions
-	// classified as formulas. Empty otherwise.
+	// Populated from every source that produces formulas: layout-guided OCR
+	// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+	// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+	// without geometry). Empty when the document contains no formulas.
 	Formulas []Formula `json:"formulas,omitempty"`
 	// Form fields extracted from a PDF's AcroForm or XFA structure.
 	//
@@ -9092,30 +9110,33 @@ type ImagePreprocessingMetadata struct {
 	ResizeError *string `json:"resize_error,omitempty"`
 }
 
-// Formula mathematical formula detected and recognized in a document.
+// Formula mathematical formula extracted from a document.
 //
-// Populated by the layout-guided formula pipeline: regions classified as
-// `LayoutClass::Formula` are routed to the formula OCR task, which returns the
-// LaTeX source for the region. The field is always present on
-// [`ExtractedDocument`](super::extraction::ExtractedDocument) but only populated
-// when the `layout-detection` feature is active and the document contains
-// formula regions.
+// Three kinds of sources populate this type. Layout-guided OCR detects
+// formula regions and recognizes them; those formulas carry a `bbox` and a
+// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+// to LaTeX, also without geometry.
 type Formula struct {
-	// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+	// LaTeX source of the formula, without surrounding `$$` delimiters.
 	//
-	// This field contains the raw LaTeX code as produced by the OCR backend.
-	// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+	// Markup converters and formula OCR produce real LaTeX. The native PDF
+	// layout path stores the plain text of a detected formula region, which
+	// keeps the original Unicode math characters instead of LaTeX commands.
+	// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
 	Latex string `json:"latex"`
-	// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+	// Bounding box of the formula region on its page. `None` for markup sources.
 	//
-	// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-	// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-	// native PDF text extraction, which use PDF point coordinates.
-	Bbox BoundingBox `json:"bbox"`
-	// 1-indexed page number the formula appears on in the document.
-	//
-	// This is set by the extraction pipeline based on which page the formula was found on.
-	Page uint32 `json:"page"`
+	// PDF OCR sources report PDF point coordinates with the origin at the
+	// bottom-left of the page, comparable to native PDF geometry. Image
+	// sources, and PDF pages whose geometry is unavailable, report pixels of
+	// the image the OCR backend saw. The C FFI reports an absent bbox as a
+	// null pointer.
+	Bbox *BoundingBox `json:"bbox,omitempty"`
+	// 1-indexed page number the formula appears on. `None` when the source
+	// format has no page concept. The C FFI reports an absent page as `0`.
+	Page *uint32 `json:"page,omitempty"`
 }
 
 // CodeMetadata code-format metadata: the structural chunks produced by tree-sitter parsing.

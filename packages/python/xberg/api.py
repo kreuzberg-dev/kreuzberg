@@ -1121,6 +1121,8 @@ def _to_rust_layout_detection_config(
             value["strategy"] = _coerce_enum(_rust.LayoutStrategy, value["strategy"])
         if "table_model" in value and value["table_model"] is not None:
             value["table_model"] = _coerce_enum(_rust.TableModel, value["table_model"])
+        if "formula_model" in value and value["formula_model"] is not None:
+            value["formula_model"] = _coerce_enum(_rust.FormulaModel, value["formula_model"])
         if "table_overlap_preference" in value and value["table_overlap_preference"] is not None:
             value["table_overlap_preference"] = _coerce_enum(
                 _rust.TableOverlapPreference, value["table_overlap_preference"]
@@ -1136,6 +1138,11 @@ def _to_rust_layout_detection_config(
         confidence_threshold=value.confidence_threshold,
         apply_heuristics=value.apply_heuristics,
         **({"table_model": _coerce_enum(_rust.TableModel, value.table_model)} if value.table_model is not None else {}),
+        **(
+            {"formula_model": _coerce_enum(_rust.FormulaModel, value.formula_model)}
+            if value.formula_model is not None
+            else {}
+        ),
         **(
             {"table_overlap_preference": _coerce_enum(_rust.TableOverlapPreference, value.table_overlap_preference)}
             if value.table_overlap_preference is not None

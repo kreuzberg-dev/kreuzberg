@@ -2967,6 +2967,7 @@ pub struct WasmLayoutDetectionConfig {
     confidence_threshold: Option<f32>,
     apply_heuristics: bool,
     table_model: WasmTableModel,
+    formula_model: Option<WasmFormulaModel>,
     table_overlap_preference: WasmTableOverlapPreference,
     acceleration: Option<WasmAccelerationConfig>,
     enable_chart_understanding: bool,
@@ -2980,6 +2981,7 @@ impl Default for WasmLayoutDetectionConfig {
 
 #[wasm_bindgen]
 impl WasmLayoutDetectionConfig {
+    #[allow(clippy::too_many_arguments)]
     #[allow(non_snake_case)]
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -2989,6 +2991,7 @@ impl WasmLayoutDetectionConfig {
         tableOverlapPreference: Option<WasmTableOverlapPreference>,
         enableChartUnderstanding: Option<bool>,
         confidenceThreshold: Option<f32>,
+        formulaModel: Option<WasmFormulaModel>,
         acceleration: Option<WasmAccelerationConfig>,
     ) -> WasmLayoutDetectionConfig {
         WasmLayoutDetectionConfig {
@@ -2996,6 +2999,7 @@ impl WasmLayoutDetectionConfig {
             confidence_threshold: confidenceThreshold,
             apply_heuristics: applyHeuristics.unwrap_or(true),
             table_model: tableModel.unwrap_or_default(),
+            formula_model: formulaModel,
             table_overlap_preference: tableOverlapPreference.unwrap_or_default(),
             acceleration: acceleration,
             enable_chart_understanding: enableChartUnderstanding.unwrap_or(false),
@@ -3040,6 +3044,16 @@ impl WasmLayoutDetectionConfig {
     #[wasm_bindgen(setter, js_name = "tableModel")]
     pub fn set_table_model(&mut self, value: WasmTableModel) {
         self.table_model = value;
+    }
+
+    #[wasm_bindgen(getter, js_name = "formulaModel")]
+    pub fn formula_model(&self) -> Option<String> {
+        self.formula_model.map(|v| v.to_api_str().to_owned())
+    }
+
+    #[wasm_bindgen(setter, js_name = "formulaModel")]
+    pub fn set_formula_model(&mut self, value: Option<WasmFormulaModel>) {
+        self.formula_model = value;
     }
 
     #[wasm_bindgen(getter, js_name = "tableOverlapPreference")]
@@ -12118,27 +12132,27 @@ impl WasmImagePreprocessingMetadata {
     }
 }
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass.Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// `ExtractedDocument` but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 #[derive(Clone, Default)]
 #[wasm_bindgen]
 pub struct WasmFormula {
     latex: String,
-    bbox: WasmBoundingBox,
-    page: u32,
+    bbox: Option<WasmBoundingBox>,
+    page: Option<u32>,
 }
 
 #[wasm_bindgen]
 impl WasmFormula {
     #[allow(non_snake_case)]
     #[wasm_bindgen(constructor)]
-    pub fn new(latex: String, bbox: WasmBoundingBox, page: u32) -> WasmFormula {
+    pub fn new(latex: String, bbox: Option<WasmBoundingBox>, page: Option<u32>) -> WasmFormula {
         WasmFormula { latex, bbox, page }
     }
 
@@ -12159,22 +12173,22 @@ impl WasmFormula {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn bbox(&self) -> WasmBoundingBox {
+    pub fn bbox(&self) -> Option<WasmBoundingBox> {
         self.bbox.clone()
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_bbox(&mut self, value: WasmBoundingBox) {
+    pub fn set_bbox(&mut self, value: Option<WasmBoundingBox>) {
         self.bbox = value;
     }
 
     #[wasm_bindgen(getter)]
-    pub fn page(&self) -> u32 {
+    pub fn page(&self) -> Option<u32> {
         self.page
     }
 
     #[wasm_bindgen(setter)]
-    pub fn set_page(&mut self, value: u32) {
+    pub fn set_page(&mut self, value: Option<u32>) {
         self.page = value;
     }
 }
@@ -20684,6 +20698,38 @@ impl WasmLateInteractionModelType {
     }
 }
 
+/// Formula recognition model selection.
+
+#[wasm_bindgen]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WasmFormulaModel {
+    LatexOcr = 0,
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for WasmFormulaModel {
+    fn default() -> Self {
+        Self::LatexOcr
+    }
+}
+
+impl WasmFormulaModel {
+    /// Returns the serde wire string for this variant (e.g. `"stop"`, `"tool_calls"`).
+    pub fn to_api_str(self) -> &'static str {
+        match self {
+            Self::LatexOcr => "latex_ocr",
+        }
+    }
+
+    /// Parses a serde wire string and returns the corresponding variant, or None if unrecognized.
+    pub fn from_api_str(s: &str) -> Option<Self> {
+        match s {
+            "latex_ocr" => Some(Self::LatexOcr),
+            _ => None,
+        }
+    }
+}
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -22747,9 +22793,10 @@ pub enum WasmElementType {
     Image = 5,
     PageBreak = 6,
     CodeBlock = 7,
-    BlockQuote = 8,
-    Footer = 9,
-    Header = 10,
+    Formula = 8,
+    BlockQuote = 9,
+    Footer = 10,
+    Header = 11,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -22771,6 +22818,7 @@ impl WasmElementType {
             Self::Image => "image",
             Self::PageBreak => "page_break",
             Self::CodeBlock => "code_block",
+            Self::Formula => "formula",
             Self::BlockQuote => "block_quote",
             Self::Footer => "footer",
             Self::Header => "header",
@@ -22788,6 +22836,7 @@ impl WasmElementType {
             "image" => Some(Self::Image),
             "page_break" => Some(Self::PageBreak),
             "code_block" => Some(Self::CodeBlock),
+            "formula" => Some(Self::Formula),
             "block_quote" => Some(Self::BlockQuote),
             "footer" => Some(Self::Footer),
             "header" => Some(Self::Header),
@@ -30268,6 +30317,7 @@ impl From<WasmLayoutDetectionConfig> for xberg::LayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -30284,6 +30334,7 @@ impl From<xberg::LayoutDetectionConfig> for WasmLayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -32500,7 +32551,7 @@ impl From<WasmFormula> for xberg::Formula {
     fn from(val: WasmFormula) -> Self {
         Self {
             latex: val.latex,
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -32511,7 +32562,7 @@ impl From<xberg::Formula> for WasmFormula {
     fn from(val: xberg::Formula) -> Self {
         Self {
             latex: val.latex.to_string(),
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -34921,6 +34972,22 @@ impl From<xberg::LateInteractionModelType> for WasmLateInteractionModelType {
     }
 }
 
+impl From<WasmFormulaModel> for xberg::core::config::layout::FormulaModel {
+    fn from(val: WasmFormulaModel) -> Self {
+        match val {
+            WasmFormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
+impl From<xberg::core::config::layout::FormulaModel> for WasmFormulaModel {
+    fn from(val: xberg::core::config::layout::FormulaModel) -> Self {
+        match val {
+            xberg::core::config::layout::FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
 impl From<WasmTableModel> for xberg::TableModel {
     fn from(val: WasmTableModel) -> Self {
         match val {
@@ -36614,6 +36681,7 @@ impl From<WasmElementType> for xberg::ElementType {
             WasmElementType::Image => Self::Image,
             WasmElementType::PageBreak => Self::PageBreak,
             WasmElementType::CodeBlock => Self::CodeBlock,
+            WasmElementType::Formula => Self::Formula,
             WasmElementType::BlockQuote => Self::BlockQuote,
             WasmElementType::Footer => Self::Footer,
             WasmElementType::Header => Self::Header,
@@ -36632,6 +36700,7 @@ impl From<xberg::ElementType> for WasmElementType {
             xberg::ElementType::Image => Self::Image,
             xberg::ElementType::PageBreak => Self::PageBreak,
             xberg::ElementType::CodeBlock => Self::CodeBlock,
+            xberg::ElementType::Formula => Self::Formula,
             xberg::ElementType::BlockQuote => Self::BlockQuote,
             xberg::ElementType::Footer => Self::Footer,
             xberg::ElementType::Header => Self::Header,

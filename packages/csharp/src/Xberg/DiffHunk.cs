@@ -13,78 +13,72 @@ namespace Xberg;
 /// <summary>
 /// A single contiguous hunk in a unified diff.
 /// </summary>
-public sealed record DiffHunk {
-  /// <summary>
-  /// Starting line number in the old content (0-indexed).
-  /// </summary>
-  [JsonPropertyName("from_line")]
-  public ulong FromLine { get; init; } = 0;
+public sealed record DiffHunk
+{
+    /// <summary>
+    /// Starting line number in the old content (0-indexed).
+    /// </summary>
+    [JsonPropertyName("from_line")]
+    public ulong FromLine { get; init; } = 0;
 
-  /// <summary>
-  /// Number of lines from the old content in this hunk.
-  /// </summary>
-  [JsonPropertyName("from_count")]
-  public ulong FromCount {
-    get; init;
-  } = 0;
+    /// <summary>
+    /// Number of lines from the old content in this hunk.
+    /// </summary>
+    [JsonPropertyName("from_count")]
+    public ulong FromCount { get; init; } = 0;
 
-  /// <summary>
-  /// Starting line number in the new content (0-indexed).
-  /// </summary>
-  [JsonPropertyName("to_line")]
-  public ulong ToLine {
-    get; init;
-  } = 0;
+    /// <summary>
+    /// Starting line number in the new content (0-indexed).
+    /// </summary>
+    [JsonPropertyName("to_line")]
+    public ulong ToLine { get; init; } = 0;
 
-  /// <summary>
-  /// Number of lines from the new content in this hunk.
-  /// </summary>
-  [JsonPropertyName("to_count")]
-  public ulong ToCount {
-    get; init;
-  } = 0;
+    /// <summary>
+    /// Number of lines from the new content in this hunk.
+    /// </summary>
+    [JsonPropertyName("to_count")]
+    public ulong ToCount { get; init; } = 0;
 
-  /// <summary>
-  /// Lines that make up this hunk.
-  /// </summary>
-  [JsonPropertyName("lines")]
-  public List<DiffLine> Lines {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Lines that make up this hunk.
+    /// </summary>
+    [JsonPropertyName("lines")]
+    public List<DiffLine> Lines { get; init; } = [];
 
-  /// <summary>
-  /// Parse a <see cref="DiffHunk"/> from a JSON string.
-  /// </summary>
-  /// <exception cref="XbergException">When the JSON cannot be
-  /// deserialised.</exception>
-  public static DiffHunk FromJson(string json) {
-    try {
-      return JsonSerializer.Deserialize<DiffHunk>(json, JsonOptions) ??
-             throw new XbergException(
-                 $"Failed to parse DiffHunk from JSON: deserializer returned null");
-    } catch (XbergException) {
-      throw;
-    } catch (Exception e) {
-      throw new XbergException(
-          $"Failed to parse DiffHunk from JSON: {e.Message}", e);
+
+    /// <summary>
+    /// Parse a <see cref="DiffHunk"/> from a JSON string.
+    /// </summary>
+    /// <exception cref="XbergException">When the JSON cannot be deserialised.</exception>
+    public static DiffHunk FromJson(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<DiffHunk>(json, JsonOptions)
+                ?? throw new XbergException($"Failed to parse DiffHunk from JSON: deserializer returned null");
+        }
+        catch (XbergException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            throw new XbergException($"Failed to parse DiffHunk from JSON: {e.Message}", e);
+        }
     }
-  }
 
-  private static readonly JsonSerializerOptions JsonOptions = new() {
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower),
-                   new ByteArrayJsonConverter() },
-  };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 
-  /// <summary>Options for serializing config/input objects to FFI. Strips nulls
-  /// (nullable C# fields default to null and would override required Rust
-  /// fields with non-deserialisable nulls) but preserves explicit false/0 so
-  /// caller intent is kept.</summary>
-  private static readonly JsonSerializerOptions JsonSerializationOptions =
-      new() {
+    /// <summary>Options for serializing config/input objects to FFI. Strips nulls
+    /// (nullable C# fields default to null and would override required Rust fields with
+    /// non-deserialisable nulls) but preserves explicit false/0 so caller intent is kept.</summary>
+    private static readonly JsonSerializerOptions JsonSerializationOptions = new()
+    {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(
-                           JsonNamingPolicy.SnakeCaseLower),
-                       new ByteArrayJsonConverter() },
-      };
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 }

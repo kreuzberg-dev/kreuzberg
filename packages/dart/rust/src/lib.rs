@@ -969,6 +969,12 @@ pub struct LayoutDetectionConfig {
     /// Controls which model is used for table cell detection within layout-detected
     /// table regions. Defaults to [`TableModel::Tatr`].
     pub table_model: TableModel,
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    pub formula_model: Option<FormulaModel>,
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -3126,9 +3132,10 @@ pub struct ExtractedDocument {
     pub redaction_report: Option<RedactionReport>,
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     pub formulas: Vec<Formula>,
     /// Form fields extracted from a PDF's AcroForm or XFA structure.
     ///
@@ -3807,31 +3814,34 @@ pub struct ImagePreprocessingMetadata {
     pub resize_error: Option<String>,
 }
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass::Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// [`ExtractedDocument`](super::extraction::ExtractedDocument) but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 #[frb(mirror(Formula))]
 pub struct Formula {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     pub latex: String,
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
-    pub bbox: BoundingBox,
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
-    pub page: i64,
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
+    pub bbox: Option<BoundingBox>,
+    /// 1-indexed page number the formula appears on. `None` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
+    pub page: Option<i64>,
 }
 
 /// Code-format metadata: the structural chunks produced by tree-sitter parsing.
@@ -6518,6 +6528,14 @@ pub enum LateInteractionModelType {
     },
 }
 
+/// Formula recognition model selection.
+#[frb(mirror(FormulaModel), unignore)]
+pub enum FormulaModel {
+    /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+    /// ~180 MB total, downloaded on demand.
+    LatexOcr,
+}
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -7602,6 +7620,8 @@ pub enum ElementType {
     PageBreak,
     /// Code block
     CodeBlock,
+    /// Mathematical formula (LaTeX source in `text`)
+    Formula,
     /// Block quote
     BlockQuote,
     /// Footer text
@@ -8985,6 +9005,7 @@ impl From<xberg::LayoutDetectionConfig> for LayoutDetectionConfig {
             confidence_threshold: v.confidence_threshold.map(|x| x as _),
             apply_heuristics: v.apply_heuristics as _,
             table_model: TableModel::from(v.table_model),
+            formula_model: v.formula_model.map(FormulaModel::from),
             table_overlap_preference: TableOverlapPreference::from(v.table_overlap_preference),
             acceleration: v.acceleration.map(AccelerationConfig::from),
             enable_chart_understanding: v.enable_chart_understanding as _,
@@ -10310,8 +10331,8 @@ impl From<xberg::Formula> for Formula {
     fn from(v: xberg::Formula) -> Self {
         Formula {
             latex: v.latex.into(),
-            bbox: BoundingBox::from(v.bbox),
-            page: v.page as _,
+            bbox: v.bbox.map(BoundingBox::from),
+            page: v.page.map(|x| x as _),
         }
     }
 }
@@ -11830,6 +11851,14 @@ impl From<xberg::LateInteractionModelType> for LateInteractionModelType {
     }
 }
 
+impl From<xberg::core::config::layout::FormulaModel> for FormulaModel {
+    fn from(v: xberg::core::config::layout::FormulaModel) -> Self {
+        match v {
+            xberg::core::config::layout::FormulaModel::LatexOcr => FormulaModel::LatexOcr,
+        }
+    }
+}
+
 impl From<xberg::TableModel> for TableModel {
     fn from(v: xberg::TableModel) -> Self {
         match v {
@@ -12398,6 +12427,7 @@ impl From<xberg::ElementType> for ElementType {
             xberg::ElementType::Image => ElementType::Image,
             xberg::ElementType::PageBreak => ElementType::PageBreak,
             xberg::ElementType::CodeBlock => ElementType::CodeBlock,
+            xberg::ElementType::Formula => ElementType::Formula,
             xberg::ElementType::BlockQuote => ElementType::BlockQuote,
             xberg::ElementType::Footer => ElementType::Footer,
             xberg::ElementType::Header => ElementType::Header,
@@ -13388,6 +13418,7 @@ impl From<LayoutDetectionConfig> for xberg::LayoutDetectionConfig {
             confidence_threshold: v.confidence_threshold.map(|x| x as _),
             apply_heuristics: v.apply_heuristics as _,
             table_model: v.table_model.into(),
+            formula_model: v.formula_model.map(Into::into),
             table_overlap_preference: v.table_overlap_preference.into(),
             acceleration: v.acceleration.map(Into::into),
             enable_chart_understanding: v.enable_chart_understanding as _,
@@ -14439,8 +14470,8 @@ impl From<Formula> for xberg::Formula {
     fn from(v: Formula) -> Self {
         xberg::Formula {
             latex: v.latex.into(),
-            bbox: v.bbox.into(),
-            page: v.page as _,
+            bbox: v.bbox.map(Into::into),
+            page: v.page.map(|x| x as _),
         }
     }
 }
@@ -15560,6 +15591,14 @@ impl From<LateInteractionModelType> for xberg::LateInteractionModelType {
     }
 }
 
+impl From<FormulaModel> for xberg::core::config::layout::FormulaModel {
+    fn from(v: FormulaModel) -> Self {
+        match v {
+            FormulaModel::LatexOcr => xberg::core::config::layout::FormulaModel::LatexOcr,
+        }
+    }
+}
+
 impl From<TableModel> for xberg::TableModel {
     fn from(v: TableModel) -> Self {
         match v {
@@ -16071,6 +16110,7 @@ impl From<ElementType> for xberg::ElementType {
             ElementType::Image => xberg::ElementType::Image,
             ElementType::PageBreak => xberg::ElementType::PageBreak,
             ElementType::CodeBlock => xberg::ElementType::CodeBlock,
+            ElementType::Formula => xberg::ElementType::Formula,
             ElementType::BlockQuote => xberg::ElementType::BlockQuote,
             ElementType::Footer => xberg::ElementType::Footer,
             ElementType::Header => xberg::ElementType::Header,

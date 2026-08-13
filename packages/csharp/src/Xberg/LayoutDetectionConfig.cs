@@ -17,133 +17,126 @@ namespace Xberg;
 /// When set on `ExtractionConfig`, layout detection
 /// is enabled for PDF extraction.
 /// </summary>
-public sealed record LayoutDetectionConfig {
-  /// <summary>
-  /// Which pages the layout model runs on.
-  ///
-  /// Defaults to `LayoutStrategy.Always`, the historical behavior:
-  /// every page is rendered and inferred. `LayoutStrategy.Auto`
-  /// pre-screens pages with cheap signals and skips the model where it
-  /// cannot help.
-  /// </summary>
-  [JsonPropertyName("strategy")]
-  public LayoutStrategy ? Strategy { get; init; } = null;
+public sealed record LayoutDetectionConfig
+{
+    /// <summary>
+    /// Which pages the layout model runs on.
+    ///
+    /// Defaults to `LayoutStrategy.Always`, the historical behavior:
+    /// every page is rendered and inferred. `LayoutStrategy.Auto`
+    /// pre-screens pages with cheap signals and skips the model where it
+    /// cannot help.
+    /// </summary>
+    [JsonPropertyName("strategy")]
+    public LayoutStrategy? Strategy { get; init; } = null;
 
-  /// <summary>
-  /// Confidence threshold override (null = use model default).
-  /// </summary>
-  [JsonPropertyName("confidence_threshold")]
-  public float
-      ? ConfidenceThreshold {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Confidence threshold override (null = use model default).
+    /// </summary>
+    [JsonPropertyName("confidence_threshold")]
+    public float? ConfidenceThreshold { get; init; } = null;
 
-  /// <summary>
-  /// Whether to apply postprocessing heuristics (default: true).
-  /// </summary>
-  [JsonPropertyName("apply_heuristics")]
-  public bool ApplyHeuristics {
-    get; init;
-  } = true;
+    /// <summary>
+    /// Whether to apply postprocessing heuristics (default: true).
+    /// </summary>
+    [JsonPropertyName("apply_heuristics")]
+    public bool ApplyHeuristics { get; init; } = true;
 
-  /// <summary>
-  /// Table structure recognition model.
-  ///
-  /// Controls which model is used for table cell detection within
-  /// layout-detected table regions. Defaults to `TableModel.Tatr`.
-  /// </summary>
-  [JsonPropertyName("table_model")]
-  public TableModel
-      ? TableModel {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Table structure recognition model.
+    ///
+    /// Controls which model is used for table cell detection within layout-detected
+    /// table regions. Defaults to `TableModel.Tatr`.
+    /// </summary>
+    [JsonPropertyName("table_model")]
+    public TableModel? TableModel { get; init; } = null;
 
-  /// <summary>
-  /// How to resolve overlapping native vs layout tables.
-  ///
-  /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
-  /// same region, this controls which one is kept. Defaults to
-  /// `TableOverlapPreference.Content` (historical behavior: keep the table with
-  /// more content). Set to `TableOverlapPreference.Native` to favor source
-  /// reading order (higher text F1) over the model's cell reflow.
-  /// </summary>
-  [JsonPropertyName("table_overlap_preference")]
-  public TableOverlapPreference
-      ? TableOverlapPreference {
-          get; init;
-        } = null;
+    /// <summary>
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    /// </summary>
+    [JsonPropertyName("formula_model")]
+    public FormulaModel? FormulaModel { get; init; } = null;
 
-  /// <summary>
-  /// Hardware acceleration for ONNX models (layout detection + table
-  /// structure).
-  ///
-  /// When set, controls which execution provider (CPU, CUDA, CoreML, TensorRT)
-  /// is used for inference. Defaults to `None` (auto-select per platform).
-  /// </summary>
-  [JsonPropertyName("acceleration")]
-  public AccelerationConfig
-      ? Acceleration {
-          get; init;
-        } = null;
+    /// <summary>
+    /// How to resolve overlapping native vs layout tables.
+    ///
+    /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
+    /// same region, this controls which one is kept. Defaults to
+    /// `TableOverlapPreference.Content` (historical behavior: keep the table with
+    /// more content). Set to `TableOverlapPreference.Native` to favor source
+    /// reading order (higher text F1) over the model's cell reflow.
+    /// </summary>
+    [JsonPropertyName("table_overlap_preference")]
+    public TableOverlapPreference? TableOverlapPreference { get; init; } = null;
 
-  /// <summary>
-  /// Route regions classified as charts to the chart-understanding OCR task.
-  ///
-  /// When `true`, layout regions detected as charts are sent to the VLM
-  /// chart task (data-series/axis recovery) instead of being treated as
-  /// generic image regions. Defaults to `false` — chart understanding is
-  /// opt-in and has no effect on standard text/table extraction scores.
-  /// </summary>
-  [JsonPropertyName("enable_chart_understanding")]
-  public bool EnableChartUnderstanding {
-    get; init;
-  } = false;
+    /// <summary>
+    /// Hardware acceleration for ONNX models (layout detection + table structure).
+    ///
+    /// When set, controls which execution provider (CPU, CUDA, CoreML, TensorRT)
+    /// is used for inference. Defaults to `None` (auto-select per platform).
+    /// </summary>
+    [JsonPropertyName("acceleration")]
+    public AccelerationConfig? Acceleration { get; init; } = null;
 
-  /// <summary>
-  /// Parse a <see cref="LayoutDetectionConfig"/> from a JSON string.
-  /// </summary>
-  /// <exception cref="XbergException">When the JSON cannot be
-  /// deserialised.</exception>
-  public static LayoutDetectionConfig FromJson(string json) {
-    try {
-      return JsonSerializer.Deserialize<LayoutDetectionConfig>(json,
-                                                               JsonOptions) ??
-             throw new XbergException(
-                 $"Failed to parse LayoutDetectionConfig from JSON: deserializer returned null");
-    } catch (XbergException) {
-      throw;
-    } catch (Exception e) {
-      throw new XbergException(
-          $"Failed to parse LayoutDetectionConfig from JSON: {e.Message}", e);
+    /// <summary>
+    /// Route regions classified as charts to the chart-understanding OCR task.
+    ///
+    /// When `true`, layout regions detected as charts are sent to the VLM
+    /// chart task (data-series/axis recovery) instead of being treated as
+    /// generic image regions. Defaults to `false` — chart understanding is
+    /// opt-in and has no effect on standard text/table extraction scores.
+    /// </summary>
+    [JsonPropertyName("enable_chart_understanding")]
+    public bool EnableChartUnderstanding { get; init; } = false;
+
+
+    /// <summary>
+    /// Parse a <see cref="LayoutDetectionConfig"/> from a JSON string.
+    /// </summary>
+    /// <exception cref="XbergException">When the JSON cannot be deserialised.</exception>
+    public static LayoutDetectionConfig FromJson(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<LayoutDetectionConfig>(json, JsonOptions)
+                ?? throw new XbergException($"Failed to parse LayoutDetectionConfig from JSON: deserializer returned null");
+        }
+        catch (XbergException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            throw new XbergException($"Failed to parse LayoutDetectionConfig from JSON: {e.Message}", e);
+        }
     }
-  }
 
-  private static readonly JsonSerializerOptions JsonOptions = new() {
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower),
-                   new ByteArrayJsonConverter() },
-  };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 
-  /// <summary>Options for serializing config/input objects to FFI. Strips nulls
-  /// (nullable C# fields default to null and would override required Rust
-  /// fields with non-deserialisable nulls) but preserves explicit false/0 so
-  /// caller intent is kept.</summary>
-  private static readonly JsonSerializerOptions JsonSerializationOptions =
-      new() {
+    /// <summary>Options for serializing config/input objects to FFI. Strips nulls
+    /// (nullable C# fields default to null and would override required Rust fields with
+    /// non-deserialisable nulls) but preserves explicit false/0 so caller intent is kept.</summary>
+    private static readonly JsonSerializerOptions JsonSerializationOptions = new()
+    {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(
-                           JsonNamingPolicy.SnakeCaseLower),
-                       new ByteArrayJsonConverter() },
-      };
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 
-  public static LayoutDetectionConfig Default() {
-    var nativeResult = NativeMethods.LayoutDetectionConfigDefault();
-    var jsonPtr = NativeMethods.LayoutDetectionConfigToJson(nativeResult);
-    var json =
-        global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8(jsonPtr);
-    NativeMethods.FreeString(jsonPtr);
-    NativeMethods.LayoutDetectionConfigFree(nativeResult);
-    return JsonSerializer.Deserialize<LayoutDetectionConfig>(json ?? "null",
-                                                             JsonOptions)!;
-  }
+    public static LayoutDetectionConfig Default()
+    {
+        var nativeResult = NativeMethods.LayoutDetectionConfigDefault();
+        var jsonPtr = NativeMethods.LayoutDetectionConfigToJson(nativeResult);
+        var json = global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8(jsonPtr);
+        NativeMethods.FreeString(jsonPtr);
+        NativeMethods.LayoutDetectionConfigFree(nativeResult);
+        return JsonSerializer.Deserialize<LayoutDetectionConfig>(json ?? "null", JsonOptions)!;
+    }
 }

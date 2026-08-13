@@ -315,11 +315,12 @@ def initialize: (?results: Array[ExtractedDocument], ?errors: Array[ExtractionEr
         attr_accessor confidence_threshold: Float?
         attr_accessor apply_heuristics: bool?
         attr_accessor table_model: TableModel?
+        attr_accessor formula_model: FormulaModel?
         attr_accessor table_overlap_preference: TableOverlapPreference?
         attr_accessor acceleration: AccelerationConfig?
         attr_accessor enable_chart_understanding: bool?
 
-    def initialize: (?strategy: LayoutStrategy, ?confidence_threshold: Float, ?apply_heuristics: bool, ?table_model: TableModel, ?table_overlap_preference: TableOverlapPreference, ?acceleration: AccelerationConfig, ?enable_chart_understanding: bool) -> void
+    def initialize: (?strategy: LayoutStrategy, ?confidence_threshold: Float, ?apply_heuristics: bool, ?table_model: TableModel, ?formula_model: FormulaModel, ?table_overlap_preference: TableOverlapPreference, ?acceleration: AccelerationConfig, ?enable_chart_understanding: bool) -> void
     def self.default: () -> LayoutDetectionConfig
     end
 
@@ -1394,7 +1395,7 @@ def initialize: (?language: Array[String], ?psm: Integer, ?output_format: String
         attr_reader bbox: BoundingBox
         attr_reader page: Integer
 
-    def initialize: (latex: String, bbox: BoundingBox, page: Integer) -> void
+    def initialize: (latex: String, ?bbox: BoundingBox, ?page: Integer) -> void
     end
 
     class CodeMetadata
@@ -2585,6 +2586,10 @@ def initialize: (?heading_style: HeadingStyle, ?list_indent_type: ListIndentType
     class LateInteractionModelType
     end
 
+    class FormulaModel
+        type value = :latex_ocr
+    end
+
     class TableModel
         type value = :tatr | :slanet_wired | :slanet_wireless | :slanet_plus | :slanet_auto | :disabled
     end
@@ -2712,7 +2717,7 @@ def initialize: (?heading_style: HeadingStyle, ?list_indent_type: ListIndentType
     end
 
     class ElementType
-        type value = :title | :narrative_text | :heading | :list_item | :table | :image | :page_break | :code_block | :block_quote | :footer | :header
+        type value = :title | :narrative_text | :heading | :list_item | :table | :image | :page_break | :code_block | :formula | :block_quote | :footer | :header
     end
 
     class FormFieldType

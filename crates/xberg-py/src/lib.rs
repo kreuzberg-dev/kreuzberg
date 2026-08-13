@@ -2339,6 +2339,13 @@ pub struct LayoutDetectionConfig {
     /// table regions. Defaults to `TableModel.Tatr`.
     #[pyo3(get)]
     pub table_model: TableModel,
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    #[pyo3(get)]
+    pub formula_model: Option<FormulaModel>,
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -2374,7 +2381,7 @@ impl Default for LayoutDetectionConfig {
 impl LayoutDetectionConfig {
     #[allow(clippy::too_many_arguments)]
     #[must_use]
-    #[pyo3(signature = (strategy=Self::default().strategy, apply_heuristics=Self::default().apply_heuristics, table_model=Self::default().table_model, table_overlap_preference=Self::default().table_overlap_preference, enable_chart_understanding=Self::default().enable_chart_understanding, confidence_threshold=None, acceleration=None))]
+    #[pyo3(signature = (strategy=Self::default().strategy, apply_heuristics=Self::default().apply_heuristics, table_model=Self::default().table_model, table_overlap_preference=Self::default().table_overlap_preference, enable_chart_understanding=Self::default().enable_chart_understanding, confidence_threshold=None, formula_model=None, acceleration=None))]
     #[new]
     pub fn new(
         strategy: LayoutStrategy,
@@ -2383,6 +2390,7 @@ impl LayoutDetectionConfig {
         table_overlap_preference: TableOverlapPreference,
         enable_chart_understanding: bool,
         confidence_threshold: Option<f32>,
+        formula_model: Option<FormulaModel>,
         acceleration: Option<AccelerationConfig>,
     ) -> Self {
         Self {
@@ -2390,6 +2398,7 @@ impl LayoutDetectionConfig {
             confidence_threshold,
             apply_heuristics,
             table_model,
+            formula_model,
             table_overlap_preference,
             acceleration,
             enable_chart_understanding,
@@ -7059,9 +7068,10 @@ pub struct ExtractedDocument {
     pub redaction_report: Option<RedactionReport>,
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     #[pyo3(get)]
     pub formulas: Vec<Formula>,
     /// Form fields extracted from a PDF's AcroForm or XFA structure.
@@ -8767,33 +8777,36 @@ impl ImagePreprocessingMetadata {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[pyclass(frozen, from_py_object)]
 pub struct Formula {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     #[pyo3(get)]
     pub latex: String,
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
     #[pyo3(get)]
-    pub bbox: BoundingBox,
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
+    pub bbox: Option<BoundingBox>,
+    /// 1-indexed page number the formula appears on. `None` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
     #[pyo3(get)]
-    pub page: u32,
+    pub page: Option<u32>,
 }
 
 #[pymethods]
 impl Formula {
     #[allow(clippy::too_many_arguments)]
     #[must_use]
-    #[pyo3(signature = (latex, bbox, page))]
+    #[pyo3(signature = (latex, bbox=None, page=None))]
     #[new]
-    pub fn new(latex: String, bbox: BoundingBox, page: u32) -> Self {
+    pub fn new(latex: String, bbox: Option<BoundingBox>, page: Option<u32>) -> Self {
         Self { latex, bbox, page }
     }
 
@@ -15535,7 +15548,7 @@ impl ImageOutputFormat {
     }
 
     #[getter]
-    fn native(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn native(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15543,15 +15556,16 @@ impl ImageOutputFormat {
         if tag_value != "native" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn png(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn png(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15559,15 +15573,16 @@ impl ImageOutputFormat {
         if tag_value != "png" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn jpeg(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn jpeg(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15575,15 +15590,16 @@ impl ImageOutputFormat {
         if tag_value != "jpeg" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn webp(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn webp(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15591,15 +15607,16 @@ impl ImageOutputFormat {
         if tag_value != "webp" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn heif(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn heif(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15607,15 +15624,16 @@ impl ImageOutputFormat {
         if tag_value != "heif" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn svg(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn svg(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -15623,11 +15641,12 @@ impl ImageOutputFormat {
         if tag_value != "svg" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -15920,147 +15939,139 @@ impl OutputFormat {
     }
 
     #[getter]
-    fn plain(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn plain(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "plain" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("plain") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "plain" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn markdown(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn markdown(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "markdown" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("markdown") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "markdown" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn djot(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn djot(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "djot" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("djot") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "djot" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn html(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn html(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "html" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("html") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "html" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn json(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn json(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "json" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("json") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "json" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn structured(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn structured(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "structured" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("structured") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "structured" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn doc_tags(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn doc_tags(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "doctags" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("doctags") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "doc_tags" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "custom" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("custom") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "custom" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 }
 
@@ -16278,7 +16289,7 @@ impl LateInteractionModelType {
     }
 
     #[getter]
-    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16286,15 +16297,16 @@ impl LateInteractionModelType {
         if tag_value != "preset" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16302,15 +16314,16 @@ impl LateInteractionModelType {
         if tag_value != "custom" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16318,11 +16331,12 @@ impl LateInteractionModelType {
         if tag_value != "plugin" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -16398,6 +16412,53 @@ impl<'de> serde::Deserialize<'de> for LateInteractionModelType {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let inner = xberg::LateInteractionModelType::deserialize(deserializer)?;
         Ok(Self { inner })
+    }
+}
+
+#[derive(Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[pyclass(eq, eq_int, from_py_object)]
+pub enum FormulaModel {
+    #[pyo3(name = "LATEX_OCR")]
+    #[default]
+    LatexOcr = 0,
+}
+#[pymethods]
+impl FormulaModel {
+    #[new]
+    fn __new__(value: pyo3::Bound<'_, pyo3::PyAny>) -> pyo3::PyResult<Self> {
+        use pyo3::prelude::*;
+        // Try to extract as string first
+        if let Ok(s) = value.extract::<&str>() {
+            let s_lower = s.to_lowercase();
+            if matches!(s_lower.as_str(), "latexocr" | "latex_ocr") {
+                return Ok(Self::LatexOcr);
+            }
+        }
+        // Try to extract as integer (by discriminant value)
+        if let Ok(n) = value.extract::<i32>() {
+            if n == 0 {
+                return Ok(Self::LatexOcr);
+            }
+        }
+        let type_name = stringify!(FormulaModel);
+        Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "invalid value for {}: {:#?}. Expected variant name (str) or discriminant (int)",
+            type_name, value
+        )))
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        serde_json::to_value(self)
+            .map(|value| match value {
+                serde_json::Value::String(value) => value,
+                other => other.to_string(),
+            })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Failed to serialize FormulaModel: {e}")))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        self.__str__()
     }
 }
 
@@ -16645,7 +16706,7 @@ impl CredentialProviderConfig {
     }
 
     #[getter]
-    fn azure_ad(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn azure_ad(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16653,15 +16714,16 @@ impl CredentialProviderConfig {
         if tag_value != "azure_ad" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn vertex_oauth2(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn vertex_oauth2(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16669,15 +16731,16 @@ impl CredentialProviderConfig {
         if tag_value != "vertex_oauth2" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn vertex_adc(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn vertex_adc(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16685,15 +16748,16 @@ impl CredentialProviderConfig {
         if tag_value != "vertex_adc" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn bedrock_web_identity(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn bedrock_web_identity(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -16701,11 +16765,12 @@ impl CredentialProviderConfig {
         if tag_value != "bedrock_web_identity" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -17032,7 +17097,7 @@ impl VlmFallbackPolicy {
     }
 
     #[getter]
-    fn disabled(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn disabled(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "mode";
@@ -17040,15 +17105,16 @@ impl VlmFallbackPolicy {
         if tag_value != "disabled" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn on_low_quality(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn on_low_quality(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "mode";
@@ -17056,15 +17122,16 @@ impl VlmFallbackPolicy {
         if tag_value != "on_low_quality" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn always(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn always(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "mode";
@@ -17072,11 +17139,12 @@ impl VlmFallbackPolicy {
         if tag_value != "always" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -17184,7 +17252,7 @@ impl OcrStrategy {
     }
 
     #[getter]
-    fn auto(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn auto(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "mode";
@@ -17192,15 +17260,16 @@ impl OcrStrategy {
         if tag_value != "auto" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn scanned_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn scanned_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "mode";
@@ -17208,11 +17277,12 @@ impl OcrStrategy {
         if tag_value != "scanned_pages" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -17437,7 +17507,7 @@ impl ChunkSizing {
     }
 
     #[getter]
-    fn characters(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn characters(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17445,15 +17515,16 @@ impl ChunkSizing {
         if tag_value != "characters" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn tokenizer(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn tokenizer(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17461,11 +17532,12 @@ impl ChunkSizing {
         if tag_value != "tokenizer" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -17579,7 +17651,7 @@ impl EmbeddingModelType {
     }
 
     #[getter]
-    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17587,15 +17659,16 @@ impl EmbeddingModelType {
         if tag_value != "preset" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17603,15 +17676,16 @@ impl EmbeddingModelType {
         if tag_value != "custom" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn llm(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn llm(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17619,15 +17693,16 @@ impl EmbeddingModelType {
         if tag_value != "llm" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17635,11 +17710,12 @@ impl EmbeddingModelType {
         if tag_value != "plugin" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -17830,7 +17906,7 @@ impl RerankerModelType {
     }
 
     #[getter]
-    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17838,15 +17914,16 @@ impl RerankerModelType {
         if tag_value != "preset" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17854,15 +17931,16 @@ impl RerankerModelType {
         if tag_value != "custom" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn llm(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn llm(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17870,15 +17948,16 @@ impl RerankerModelType {
         if tag_value != "llm" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -17886,11 +17965,12 @@ impl RerankerModelType {
         if tag_value != "plugin" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -18040,7 +18120,7 @@ impl SparseEmbeddingModelType {
     }
 
     #[getter]
-    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn preset(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -18048,15 +18128,16 @@ impl SparseEmbeddingModelType {
         if tag_value != "preset" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -18064,15 +18145,16 @@ impl SparseEmbeddingModelType {
         if tag_value != "custom" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn plugin(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -18080,11 +18162,12 @@ impl SparseEmbeddingModelType {
         if tag_value != "plugin" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -19042,7 +19125,7 @@ impl NodeContent {
     }
 
     #[getter]
-    fn title(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn title(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19050,15 +19133,16 @@ impl NodeContent {
         if tag_value != "title" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn heading(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn heading(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19066,15 +19150,16 @@ impl NodeContent {
         if tag_value != "heading" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn paragraph(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn paragraph(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19082,15 +19167,16 @@ impl NodeContent {
         if tag_value != "paragraph" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn list(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19098,15 +19184,16 @@ impl NodeContent {
         if tag_value != "list" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn list_item(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn list_item(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19114,15 +19201,16 @@ impl NodeContent {
         if tag_value != "list_item" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn table(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn table(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19130,15 +19218,16 @@ impl NodeContent {
         if tag_value != "table" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn image(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn image(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19146,15 +19235,16 @@ impl NodeContent {
         if tag_value != "image" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19162,15 +19252,16 @@ impl NodeContent {
         if tag_value != "code" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn quote(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn quote(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19178,15 +19269,16 @@ impl NodeContent {
         if tag_value != "quote" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn formula(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn formula(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19194,15 +19286,16 @@ impl NodeContent {
         if tag_value != "formula" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn footnote(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn footnote(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19210,15 +19303,16 @@ impl NodeContent {
         if tag_value != "footnote" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn comment(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn comment(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19226,15 +19320,16 @@ impl NodeContent {
         if tag_value != "comment" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn group(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn group(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19242,15 +19337,16 @@ impl NodeContent {
         if tag_value != "group" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn page_break(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn page_break(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19258,15 +19354,16 @@ impl NodeContent {
         if tag_value != "page_break" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn slide(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn slide(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19274,15 +19371,16 @@ impl NodeContent {
         if tag_value != "slide" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn definition_list(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn definition_list(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19290,15 +19388,16 @@ impl NodeContent {
         if tag_value != "definition_list" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn definition_item(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn definition_item(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19306,15 +19405,16 @@ impl NodeContent {
         if tag_value != "definition_item" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn citation(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn citation(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19322,15 +19422,16 @@ impl NodeContent {
         if tag_value != "citation" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn admonition(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn admonition(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19338,15 +19439,16 @@ impl NodeContent {
         if tag_value != "admonition" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn raw_block(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn raw_block(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19354,15 +19456,16 @@ impl NodeContent {
         if tag_value != "raw_block" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn metadata_block(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn metadata_block(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "node_type";
@@ -19370,11 +19473,12 @@ impl NodeContent {
         if tag_value != "metadata_block" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -19625,7 +19729,7 @@ impl AnnotationKind {
     }
 
     #[getter]
-    fn bold(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn bold(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19633,15 +19737,16 @@ impl AnnotationKind {
         if tag_value != "bold" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn italic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn italic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19649,15 +19754,16 @@ impl AnnotationKind {
         if tag_value != "italic" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn underline(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn underline(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19665,15 +19771,16 @@ impl AnnotationKind {
         if tag_value != "underline" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn strikethrough(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn strikethrough(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19681,15 +19788,16 @@ impl AnnotationKind {
         if tag_value != "strikethrough" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19697,15 +19805,16 @@ impl AnnotationKind {
         if tag_value != "code" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn subscript(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn subscript(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19713,15 +19822,16 @@ impl AnnotationKind {
         if tag_value != "subscript" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn superscript(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn superscript(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19729,15 +19839,16 @@ impl AnnotationKind {
         if tag_value != "superscript" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn link(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn link(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19745,15 +19856,16 @@ impl AnnotationKind {
         if tag_value != "link" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn highlight(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn highlight(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19761,15 +19873,16 @@ impl AnnotationKind {
         if tag_value != "highlight" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn color(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn color(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19777,15 +19890,16 @@ impl AnnotationKind {
         if tag_value != "color" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn font_size(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn font_size(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19793,15 +19907,16 @@ impl AnnotationKind {
         if tag_value != "font_size" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "annotation_type";
@@ -19809,11 +19924,12 @@ impl AnnotationKind {
         if tag_value != "custom" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -19947,201 +20063,190 @@ impl EntityCategory {
     }
 
     #[getter]
-    fn person(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn person(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "person" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("person") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "person" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn organization(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn organization(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "organization" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("organization") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "organization" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn location(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn location(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "location" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("location") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "location" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn date(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn date(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "date" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("date") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "date" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn time(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn time(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "time" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("time") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "time" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn money(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn money(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "money" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("money") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "money" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn percent(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn percent(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "percent" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("percent") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "percent" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn email(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn email(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "email" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("email") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "email" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn phone(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn phone(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "phone" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("phone") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "phone" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn url(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn url(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "url" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("url") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "url" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "custom" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("custom") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "custom" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 }
 
@@ -20521,12 +20626,14 @@ pub enum ElementType {
     PageBreak = 6,
     #[pyo3(name = "CODE_BLOCK")]
     CodeBlock = 7,
+    #[pyo3(name = "FORMULA")]
+    Formula = 8,
     #[pyo3(name = "BLOCK_QUOTE")]
-    BlockQuote = 8,
+    BlockQuote = 9,
     #[pyo3(name = "FOOTER")]
-    Footer = 9,
+    Footer = 10,
     #[pyo3(name = "HEADER")]
-    Header = 10,
+    Header = 11,
 }
 #[pymethods]
 impl ElementType {
@@ -20549,6 +20656,7 @@ impl ElementType {
                 "page_break" => return Ok(Self::PageBreak),
                 "codeblock" => return Ok(Self::CodeBlock),
                 "code_block" => return Ok(Self::CodeBlock),
+                "formula" => return Ok(Self::Formula),
                 "blockquote" => return Ok(Self::BlockQuote),
                 "block_quote" => return Ok(Self::BlockQuote),
                 "footer" => return Ok(Self::Footer),
@@ -20567,9 +20675,10 @@ impl ElementType {
                 5 => return Ok(Self::Image),
                 6 => return Ok(Self::PageBreak),
                 7 => return Ok(Self::CodeBlock),
-                8 => return Ok(Self::BlockQuote),
-                9 => return Ok(Self::Footer),
-                10 => return Ok(Self::Header),
+                8 => return Ok(Self::Formula),
+                9 => return Ok(Self::BlockQuote),
+                10 => return Ok(Self::Footer),
+                11 => return Ok(Self::Header),
                 _ => {}
             }
         }
@@ -21274,7 +21383,7 @@ impl OcrBoundingGeometry {
     }
 
     #[getter]
-    fn rectangle(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn rectangle(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -21282,15 +21391,16 @@ impl OcrBoundingGeometry {
         if tag_value != "rectangle" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn quadrilateral(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn quadrilateral(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -21298,11 +21408,12 @@ impl OcrBoundingGeometry {
         if tag_value != "quadrilateral" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -21597,237 +21708,224 @@ impl PiiCategory {
     }
 
     #[getter]
-    fn email(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn email(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "email" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("email") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "email" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn phone(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn phone(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "phone" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("phone") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "phone" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn ssn(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn ssn(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "ssn" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("ssn") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "ssn" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn credit_card(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn credit_card(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "credit_card" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("credit_card") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "credit_card" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn postal_code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn postal_code(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "postal_code" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("postal_code") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "postal_code" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn ip_address(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn ip_address(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "ip_address" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("ip_address") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "ip_address" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn iban(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn iban(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "iban" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("iban") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "iban" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn swift_bic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn swift_bic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "swift_bic" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("swift_bic") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "swift_bic" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn date_of_birth(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn date_of_birth(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "date_of_birth" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("date_of_birth") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "date_of_birth" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn person(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn person(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "person" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("person") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "person" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn organization(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn organization(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "organization" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("organization") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "organization" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn location(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn location(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "location" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("location") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "location" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn custom(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        let payload = match &json {
-            serde_json::Value::String(value) if value == "custom" => serde_json::json!({}),
-            serde_json::Value::Object(values) => match values.get("custom") {
-                Some(value) => value.clone(),
-                None => return Ok(None),
-            },
-            _ => return Ok(None),
-        };
-        let json_str = payload.to_string();
+        let tag_field = "tag";
+        let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
+        if tag_value != "custom" {
+            return Ok(None);
+        }
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 }
 
@@ -21918,7 +22016,7 @@ impl DiffLine {
     }
 
     #[getter]
-    fn context(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn context(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "kind";
@@ -21926,15 +22024,16 @@ impl DiffLine {
         if tag_value != "context" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn added(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn added(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "kind";
@@ -21942,15 +22041,16 @@ impl DiffLine {
         if tag_value != "added" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn removed(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn removed(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "kind";
@@ -21958,11 +22058,12 @@ impl DiffLine {
         if tag_value != "removed" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -22125,7 +22226,7 @@ impl RevisionAnchor {
     }
 
     #[getter]
-    fn paragraph(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn paragraph(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -22133,15 +22234,16 @@ impl RevisionAnchor {
         if tag_value != "paragraph" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn table_cell(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn table_cell(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -22149,15 +22251,16 @@ impl RevisionAnchor {
         if tag_value != "table_cell" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn page(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn page(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -22165,15 +22268,16 @@ impl RevisionAnchor {
         if tag_value != "page" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn slide(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn slide(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -22181,15 +22285,16 @@ impl RevisionAnchor {
         if tag_value != "slide" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn sheet(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn sheet(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -22197,11 +22302,12 @@ impl RevisionAnchor {
         if tag_value != "sheet" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -22700,99 +22806,105 @@ impl NoChunkingReason {
     }
 
     #[getter]
-    fn small_file(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn small_file(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "SmallFile" {
+        if tag_value != "small_file" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn few_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn few_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "FewPages" {
+        if tag_value != "few_pages" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn text_layer_detected(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn text_layer_detected(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "TextLayerDetected" {
+        if tag_value != "text_layer_detected" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn format_not_chunkable(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn format_not_chunkable(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "FormatNotChunkable" {
+        if tag_value != "format_not_chunkable" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn chunking_disabled(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn chunking_disabled(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "ChunkingDisabled" {
+        if tag_value != "chunking_disabled" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn fast_text_extraction(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn fast_text_extraction(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "FastTextExtraction" {
+        if tag_value != "fast_text_extraction" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -22930,67 +23042,71 @@ impl ChunkingReason {
     }
 
     #[getter]
-    fn large_file(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn large_file(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "LargeFile" {
+        if tag_value != "large_file" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn many_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn many_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "ManyPages" {
+        if tag_value != "many_pages" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn ocr_required(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn ocr_required(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "OcrRequired" {
+        if tag_value != "ocr_required" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn large_and_many_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn large_and_many_pages(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
         let tag_value = json.get(tag_field).and_then(|v| v.as_str()).unwrap_or("");
-        if tag_value != "LargeAndManyPages" {
+        if tag_value != "large_and_many_pages" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -23924,7 +24040,7 @@ impl AuthConfig {
     }
 
     #[getter]
-    fn basic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn basic(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -23932,15 +24048,16 @@ impl AuthConfig {
         if tag_value != "basic" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn bearer(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn bearer(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -23948,15 +24065,16 @@ impl AuthConfig {
         if tag_value != "bearer" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn header(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn header(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -23964,11 +24082,12 @@ impl AuthConfig {
         if tag_value != "header" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -24177,7 +24296,7 @@ impl HostMatcher {
     }
 
     #[getter]
-    fn exact(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn exact(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -24185,15 +24304,16 @@ impl HostMatcher {
         if tag_value != "exact" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn suffix(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn suffix(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -24201,15 +24321,16 @@ impl HostMatcher {
         if tag_value != "suffix" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
-    fn cidr(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::PyAny>>> {
+    fn cidr(&self, py: Python<'_>) -> PyResult<Option<pyo3::Py<pyo3::types::PyDict>>> {
         let json =
             serde_json::to_value(&self.inner).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         let tag_field = "type";
@@ -24217,11 +24338,12 @@ impl HostMatcher {
         if tag_value != "cidr" {
             return Ok(None);
         }
-        let payload = json;
-        let json_str = payload.to_string();
+        let json_str = json.to_string();
         let json_mod = py.import("json")?;
-        let value = json_mod.call_method1("loads", (&json_str,))?;
-        Ok(Some(value.unbind()))
+        let py_dict = json_mod
+            .call_method1("loads", (&json_str,))?
+            .cast_into::<pyo3::types::PyDict>()?;
+        Ok(Some(py_dict.unbind()))
     }
 
     #[getter]
@@ -28729,6 +28851,7 @@ impl From<LayoutDetectionConfig> for xberg::LayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -28745,6 +28868,7 @@ impl From<xberg::LayoutDetectionConfig> for LayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -31191,7 +31315,7 @@ impl From<Formula> for xberg::Formula {
     fn from(val: Formula) -> Self {
         Self {
             latex: val.latex,
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -31202,7 +31326,7 @@ impl From<xberg::Formula> for Formula {
     fn from(val: xberg::Formula) -> Self {
         Self {
             latex: val.latex.to_string(),
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -33976,6 +34100,22 @@ impl From<xberg::HtmlTheme> for HtmlTheme {
     }
 }
 
+impl From<FormulaModel> for xberg::core::config::layout::FormulaModel {
+    fn from(val: FormulaModel) -> Self {
+        match val {
+            FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
+impl From<xberg::core::config::layout::FormulaModel> for FormulaModel {
+    fn from(val: xberg::core::config::layout::FormulaModel) -> Self {
+        match val {
+            xberg::core::config::layout::FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
 impl From<TableModel> for xberg::TableModel {
     fn from(val: TableModel) -> Self {
         match val {
@@ -34581,6 +34721,7 @@ impl From<ElementType> for xberg::ElementType {
             ElementType::Image => Self::Image,
             ElementType::PageBreak => Self::PageBreak,
             ElementType::CodeBlock => Self::CodeBlock,
+            ElementType::Formula => Self::Formula,
             ElementType::BlockQuote => Self::BlockQuote,
             ElementType::Footer => Self::Footer,
             ElementType::Header => Self::Header,
@@ -34599,6 +34740,7 @@ impl From<xberg::ElementType> for ElementType {
             xberg::ElementType::Image => Self::Image,
             xberg::ElementType::PageBreak => Self::PageBreak,
             xberg::ElementType::CodeBlock => Self::CodeBlock,
+            xberg::ElementType::Formula => Self::Formula,
             xberg::ElementType::BlockQuote => Self::BlockQuote,
             xberg::ElementType::Footer => Self::Footer,
             xberg::ElementType::Header => Self::Header,
@@ -35604,6 +35746,7 @@ pub fn _xberg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<JupyterCellRendering>()?;
     m.add_class::<HtmlTheme>()?;
     m.add_class::<LateInteractionModelType>()?;
+    m.add_class::<FormulaModel>()?;
     m.add_class::<TableModel>()?;
     m.add_class::<TableOverlapPreference>()?;
     m.add_class::<LayoutStrategy>()?;

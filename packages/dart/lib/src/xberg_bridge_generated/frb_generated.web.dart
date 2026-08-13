@@ -735,6 +735,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FormatMetadata dco_decode_box_autoadd_format_metadata(dynamic raw);
 
   @protected
+  FormulaModel dco_decode_box_autoadd_formula_model(dynamic raw);
+
+  @protected
   HeadingContext dco_decode_box_autoadd_heading_context(dynamic raw);
 
   @protected
@@ -1285,6 +1288,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Formula dco_decode_formula(dynamic raw);
+
+  @protected
+  FormulaModel dco_decode_formula_model(dynamic raw);
 
   @protected
   GridCell dco_decode_grid_cell(dynamic raw);
@@ -1929,6 +1935,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FormatMetadata? dco_decode_opt_box_autoadd_format_metadata(dynamic raw);
+
+  @protected
+  FormulaModel? dco_decode_opt_box_autoadd_formula_model(dynamic raw);
 
   @protected
   HeadingContext? dco_decode_opt_box_autoadd_heading_context(dynamic raw);
@@ -3205,6 +3214,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  FormulaModel sse_decode_box_autoadd_formula_model(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   HeadingContext sse_decode_box_autoadd_heading_context(
     SseDeserializer deserializer,
   );
@@ -3859,6 +3873,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Formula sse_decode_formula(SseDeserializer deserializer);
+
+  @protected
+  FormulaModel sse_decode_formula_model(SseDeserializer deserializer);
 
   @protected
   GridCell sse_decode_grid_cell(SseDeserializer deserializer);
@@ -4685,6 +4702,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FormatMetadata? sse_decode_opt_box_autoadd_format_metadata(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  FormulaModel? sse_decode_opt_box_autoadd_formula_model(
     SseDeserializer deserializer,
   );
 
@@ -6373,6 +6395,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_formula_model(
+    FormulaModel self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_heading_context(
     HeadingContext self,
     SseSerializer serializer,
@@ -7259,6 +7287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_formula(Formula self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_formula_model(FormulaModel self, SseSerializer serializer);
 
   @protected
   void sse_encode_grid_cell(GridCell self, SseSerializer serializer);
@@ -8301,6 +8332,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_format_metadata(
     FormatMetadata? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_formula_model(
+    FormulaModel? self,
     SseSerializer serializer,
   );
 

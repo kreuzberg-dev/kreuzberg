@@ -13,92 +13,115 @@ namespace Xberg;
 /// Supports the element types commonly found in Unstructured documents.
 /// </summary>
 [JsonConverter(typeof(ElementTypeJsonConverter))]
-public enum ElementType {
-  /// <summary>
-  /// Document title
-  /// </summary>
-  [JsonPropertyName("title")] Title,
-  /// <summary>
-  /// Main narrative text body
-  /// </summary>
-  [JsonPropertyName("narrative_text")] NarrativeText,
-  /// <summary>
-  /// Section heading
-  /// </summary>
-  [JsonPropertyName("heading")] Heading,
-  /// <summary>
-  /// List item (bullet, numbered, etc.)
-  /// </summary>
-  [JsonPropertyName("list_item")] ListItem,
-  /// <summary>
-  /// Table element
-  /// </summary>
-  [JsonPropertyName("table")] Table,
-  /// <summary>
-  /// Image element
-  /// </summary>
-  [JsonPropertyName("image")] Image,
-  /// <summary>
-  /// Page break marker
-  /// </summary>
-  [JsonPropertyName("page_break")] PageBreak,
-  /// <summary>
-  /// Code block
-  /// </summary>
-  [JsonPropertyName("code_block")] CodeBlock,
-  /// <summary>
-  /// Block quote
-  /// </summary>
-  [JsonPropertyName("block_quote")] BlockQuote,
-  /// <summary>
-  /// Footer text
-  /// </summary>
-  [JsonPropertyName("footer")] Footer,
-  /// <summary>
-  /// Header text
-  /// </summary>
-  [JsonPropertyName("header")] Header,
+public enum ElementType
+{
+    /// <summary>
+    /// Document title
+    /// </summary>
+    [JsonPropertyName("title")]
+    Title,
+    /// <summary>
+    /// Main narrative text body
+    /// </summary>
+    [JsonPropertyName("narrative_text")]
+    NarrativeText,
+    /// <summary>
+    /// Section heading
+    /// </summary>
+    [JsonPropertyName("heading")]
+    Heading,
+    /// <summary>
+    /// List item (bullet, numbered, etc.)
+    /// </summary>
+    [JsonPropertyName("list_item")]
+    ListItem,
+    /// <summary>
+    /// Table element
+    /// </summary>
+    [JsonPropertyName("table")]
+    Table,
+    /// <summary>
+    /// Image element
+    /// </summary>
+    [JsonPropertyName("image")]
+    Image,
+    /// <summary>
+    /// Page break marker
+    /// </summary>
+    [JsonPropertyName("page_break")]
+    PageBreak,
+    /// <summary>
+    /// Code block
+    /// </summary>
+    [JsonPropertyName("code_block")]
+    CodeBlock,
+    /// <summary>
+    /// Mathematical formula (LaTeX source in `text`)
+    /// </summary>
+    [JsonPropertyName("formula")]
+    Formula,
+    /// <summary>
+    /// Block quote
+    /// </summary>
+    [JsonPropertyName("block_quote")]
+    BlockQuote,
+    /// <summary>
+    /// Footer text
+    /// </summary>
+    [JsonPropertyName("footer")]
+    Footer,
+    /// <summary>
+    /// Header text
+    /// </summary>
+    [JsonPropertyName("header")]
+    Header,
 }
 
-/// <summary>
-/// Custom JSON converter for <see cref="ElementType"/> that respects explicit
-/// variant names.
-/// </summary>
-internal sealed class ElementTypeJsonConverter : JsonConverter<ElementType> {
-  public override ElementType Read(ref Utf8JsonReader reader,
-                                   Type typeToConvert,
-                                   JsonSerializerOptions options) {
-    var value = reader.GetString();
-    return value switch { "title" => ElementType.Title,
-                          "narrative_text" => ElementType.NarrativeText,
-                          "heading" => ElementType.Heading,
-                          "list_item" => ElementType.ListItem,
-                          "table" => ElementType.Table,
-                          "image" => ElementType.Image,
-                          "page_break" => ElementType.PageBreak,
-                          "code_block" => ElementType.CodeBlock,
-                          "block_quote" => ElementType.BlockQuote,
-                          "footer" => ElementType.Footer,
-                          "header" => ElementType.Header,
-                          _ => throw new JsonException(
-                              $"Unknown ElementType value: {value}") };
-  }
 
-  public override void Write(Utf8JsonWriter writer, ElementType value,
-                             JsonSerializerOptions options) {
-    var str = value switch { ElementType.Title => "title",
-                             ElementType.NarrativeText => "narrative_text",
-                             ElementType.Heading => "heading",
-                             ElementType.ListItem => "list_item",
-                             ElementType.Table => "table",
-                             ElementType.Image => "image",
-                             ElementType.PageBreak => "page_break",
-                             ElementType.CodeBlock => "code_block",
-                             ElementType.BlockQuote => "block_quote",
-                             ElementType.Footer => "footer",
-                             ElementType.Header => "header",
-                             _ => throw new JsonException(
-                                 $"Unknown ElementType value: {value}") };
-    writer.WriteStringValue(str);
-  }
+/// <summary>
+/// Custom JSON converter for <see cref="ElementType"/> that respects explicit variant names.
+/// </summary>
+internal sealed class ElementTypeJsonConverter : JsonConverter<ElementType>
+{
+    public override ElementType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var value = reader.GetString();
+        return value switch
+        {
+            "title" => ElementType.Title,
+            "narrative_text" => ElementType.NarrativeText,
+            "heading" => ElementType.Heading,
+            "list_item" => ElementType.ListItem,
+            "table" => ElementType.Table,
+            "image" => ElementType.Image,
+            "page_break" => ElementType.PageBreak,
+            "code_block" => ElementType.CodeBlock,
+            "formula" => ElementType.Formula,
+            "block_quote" => ElementType.BlockQuote,
+            "footer" => ElementType.Footer,
+            "header" => ElementType.Header,
+            _ => throw new JsonException($"Unknown ElementType value: {value}")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, ElementType value, JsonSerializerOptions options)
+    {
+        var str = value switch
+        {
+            ElementType.Title => "title",
+            ElementType.NarrativeText => "narrative_text",
+            ElementType.Heading => "heading",
+            ElementType.ListItem => "list_item",
+            ElementType.Table => "table",
+            ElementType.Image => "image",
+            ElementType.PageBreak => "page_break",
+            ElementType.CodeBlock => "code_block",
+            ElementType.Formula => "formula",
+            ElementType.BlockQuote => "block_quote",
+            ElementType.Footer => "footer",
+            ElementType.Header => "header",
+            _ => throw new JsonException($"Unknown ElementType value: {value}")
+        };
+        writer.WriteStringValue(str);
+    }
 }

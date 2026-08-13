@@ -7,23 +7,24 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import org.jspecify.annotations.Nullable;
 
 /**
- * A mathematical formula detected and recognized in a document.
+ * A mathematical formula extracted from a document.
  *
- * Populated by the layout-guided formula pipeline: regions classified as
- * {@code LayoutClass.Formula} are routed to the formula OCR task, which returns the
- * LaTeX source for the region. The field is always present on
- * ExtractedDocument(super.extraction.ExtractedDocument) but only populated
- * when the {@code layout-detection} feature is active and the document contains
- * formula regions.
+ * Three kinds of sources populate this type. Layout-guided OCR detects
+ * formula regions and recognizes them; those formulas carry a {@code bbox} and a
+ * {@code page}. VLM OCR recognizes formulas in transcribed text without layout, so
+ * its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+ * HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+ * to LaTeX, also without geometry.
  */
 @JsonInclude(JsonInclude.Include.NON_ABSENT)
 @JsonDeserialize(builder = Formula.Builder.class)
 public record Formula(
     @JsonProperty("latex") String latex,
-    @JsonProperty("bbox") BoundingBox bbox,
-    @JsonProperty("page") int page
+    @Nullable @JsonProperty("bbox") BoundingBox bbox,
+    @Nullable @JsonProperty("page") Integer page
 ) {
     /** Creates a new Builder for constructing instances of this record. */
     public static Builder builder() {
@@ -37,8 +38,8 @@ public record Formula(
     public static final class Builder {
 
         private String latex;
-        private BoundingBox bbox;
-        private int page;
+        @Nullable private BoundingBox bbox;
+        @Nullable private Integer page;
 
         /** Sets the latex field. */
         @JsonProperty("latex")
@@ -49,14 +50,14 @@ public record Formula(
 
         /** Sets the bbox field. */
         @JsonProperty("bbox")
-        public Builder withBbox(final BoundingBox value) {
+        public Builder withBbox(final @Nullable BoundingBox value) {
             this.bbox = value;
             return this;
         }
 
         /** Sets the page field. */
         @JsonProperty("page")
-        public Builder withPage(final int value) {
+        public Builder withPage(final @Nullable Integer value) {
             this.page = value;
             return this;
         }

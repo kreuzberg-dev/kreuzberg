@@ -5,8 +5,9 @@
 """E2e tests for category: batch."""
 
 from pathlib import Path
-import pytest  # noqa: F401
-from xberg import extract_batch, ExtractInput
+
+import pytest
+from xberg import ExtractInput, extract_batch
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -29,17 +30,20 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_bytes_happy() -> None:
     """extract_batch: happy path with mixed inputs."""
-    inputs = [ExtractInput(bytes=[72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33], kind="bytes", mime_type="text/plain"), ExtractInput(bytes=Path("test_documents/html/html.html").read_bytes(), kind="bytes", mime_type="text/html")]
+    inputs = [
+        ExtractInput(
+            bytes=[72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33], kind="bytes", mime_type="text/plain"
+        ),
+        ExtractInput(bytes=Path("test_documents/html/html.html").read_bytes(), kind="bytes", mime_type="text/html"),
+    ]
 
     result = await extract_batch(inputs, None)
-    assert len(result.results) >= 1  # noqa: S101
+    assert len(result.results) >= 1
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_bytes_invalid_mime() -> None:
     """extract_batch with invalid bytes MIME type."""
     inputs = [ExtractInput(bytes=[72, 101, 108, 108, 111], kind="bytes", mime_type="application/x-nonexistent")]
@@ -48,16 +52,20 @@ async def test_extract_batch_bytes_invalid_mime() -> None:
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_bytes_mixed_format() -> None:
     """extract_batch: handles unsupported MIME gracefully."""
-    inputs = [ExtractInput(bytes=[80, 68, 70, 32, 112, 108, 97, 99, 101, 104, 111, 108, 100, 101, 114], kind="bytes", mime_type="application/x-unknown")]
+    inputs = [
+        ExtractInput(
+            bytes=[80, 68, 70, 32, 112, 108, 97, 99, 101, 104, 111, 108, 100, 101, 114],
+            kind="bytes",
+            mime_type="application/x-unknown",
+        )
+    ]
 
     _ = await extract_batch(inputs, None)
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_bytes_unsupported_mime() -> None:
     """extract_batch with unsupported bytes MIME type."""
     inputs = [ExtractInput(bytes=[100, 97, 116, 97], kind="bytes", mime_type="application/x-unknown")]
@@ -66,17 +74,15 @@ async def test_extract_batch_bytes_unsupported_mime() -> None:
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_empty_inputs() -> None:
     """extract_batch: empty batch."""
     inputs = []
 
     result = await extract_batch(inputs, None)
-    assert len(result.results) == 0  # noqa: S101
+    assert len(result.results) == 0
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_uri_all_missing() -> None:
     """extract_batch with missing URI inputs."""
     inputs = [ExtractInput(kind="uri", uri="/nonexistent/a.pdf"), ExtractInput(kind="uri", uri="/nonexistent/b.txt")]
@@ -85,16 +91,15 @@ async def test_extract_batch_uri_all_missing() -> None:
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_uri_basic() -> None:
     """extract_batch over URI inputs."""
     inputs = [ExtractInput(kind="uri", uri="pdf/fake_memo.pdf"), ExtractInput(kind="uri", uri="text/fake_text.txt")]
 
     result = await extract_batch(inputs, None)
+    assert len(result.results) >= 2
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_uri_not_found() -> None:
     """extract_batch with missing URI input."""
     inputs = [ExtractInput(kind="uri", uri="/nonexistent/a.pdf")]
@@ -103,7 +108,6 @@ async def test_extract_batch_uri_not_found() -> None:
 
 
 @pytest.mark.asyncio
-
 async def test_extract_batch_uri_partial_failure() -> None:
     """extract_batch with mixed valid and missing URI inputs."""
     inputs = [ExtractInput(kind="uri", uri="text/plain.txt"), ExtractInput(kind="uri", uri="/nonexistent/missing.pdf")]

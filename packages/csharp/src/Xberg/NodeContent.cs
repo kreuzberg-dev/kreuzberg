@@ -17,53 +17,55 @@ namespace Xberg;
 /// Uses `#[serde(tag = "node_type")]` to avoid "type" keyword collision in
 /// Go/Java/TypeScript bindings.
 /// </summary>
-[JsonConverter(typeof(NodeContentJsonConverter))]
-public abstract record NodeContent {
-  /// <summary>
-  /// Document title.
-  /// </summary>
-  public sealed record Title([property : JsonPropertyName("text")] string Text)
-      : NodeContent;
+    [JsonConverter(typeof(NodeContentJsonConverter))]
+public abstract record NodeContent
+{
+    /// <summary>
+    /// Document title.
+    /// </summary>
+    public sealed record Title(
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
-  /// <summary>
-  /// Section heading with level (1-6).
-  /// </summary>
-  public sealed record Heading(
-      [property : JsonPropertyName("level")] byte Level,
-      [property : JsonPropertyName("text")] string Text)
-      : NodeContent;
+    /// <summary>
+    /// Section heading with level (1-6).
+    /// </summary>
+    public sealed record Heading(
+        [property: JsonPropertyName("level")] byte Level,
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
-  /// <summary>
-  /// Body text paragraph.
-  /// </summary>
-  public sealed record Paragraph(
-      [property : JsonPropertyName("text")] string Text)
-      : NodeContent;
+    /// <summary>
+    /// Body text paragraph.
+    /// </summary>
+    public sealed record Paragraph(
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
-  /// <summary>
-  /// List container — children are `ListItem` nodes.
-  /// </summary>
-  public sealed record List(
-      [property : JsonPropertyName("ordered")] bool Ordered)
-      : NodeContent;
+    /// <summary>
+    /// List container — children are `ListItem` nodes.
+    /// </summary>
+    public sealed record List(
+        [property: JsonPropertyName("ordered")] bool Ordered
+    ) : NodeContent;
 
-  /// <summary>
-  /// Individual list item.
-  /// </summary>
-  public sealed record ListItem(
-      [property : JsonPropertyName("text")] string Text)
-      : NodeContent;
+    /// <summary>
+    /// Individual list item.
+    /// </summary>
+    public sealed record ListItem(
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
-  /// <summary>
-  /// Table with structured cell grid.
-  /// </summary>
-  public sealed record Table(
-      [property : JsonPropertyName("grid")] TableGrid Grid)
-      : NodeContent;
+    /// <summary>
+    /// Table with structured cell grid.
+    /// </summary>
+    public sealed record Table(
+        [property: JsonPropertyName("grid")] TableGrid Grid
+    ) : NodeContent;
 
-  /// <summary>
-  /// Image reference.
-  /// </summary>
+    /// <summary>
+    /// Image reference.
+    /// </summary>
     public sealed record Image(
         [property: JsonPropertyName("description")] string? Description,
         [property: JsonPropertyName("image_index")] uint? ImageIndex,
@@ -87,27 +89,26 @@ public abstract record NodeContent {
     /// Mathematical formula / equation.
     /// </summary>
     public sealed record Formula(
-        [property : JsonPropertyName("text")] string Text)
-        : NodeContent;
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
     /// <summary>
     /// Footnote reference content.
     /// </summary>
     public sealed record Footnote(
-        [property : JsonPropertyName("text")] string Text)
-        : NodeContent;
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
     /// <summary>
     /// Reviewer/editor comment content (e.g. DOCX comments).
     ///
     /// Distinct from `NodeContent.Footnote` (xberg-io/xberg#300): comments and
-    /// footnotes both reach the internal document via a marker/definition pair,
-    /// but a consumer needs to tell a reviewer comment apart from an authored
-    /// footnote.
+    /// footnotes both reach the internal document via a marker/definition pair, but
+    /// a consumer needs to tell a reviewer comment apart from an authored footnote.
     /// </summary>
     public sealed record Comment(
-        [property : JsonPropertyName("text")] string Text)
-        : NodeContent;
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
     /// <summary>
     /// Logical grouping container (section, key-value area).
@@ -143,17 +144,17 @@ public abstract record NodeContent {
     /// Individual definition list entry with term and definition.
     /// </summary>
     public sealed record DefinitionItem(
-        [property : JsonPropertyName("term")] string Term,
-        [property : JsonPropertyName("definition")] string Definition)
-        : NodeContent;
+        [property: JsonPropertyName("term")] string Term,
+        [property: JsonPropertyName("definition")] string Definition
+    ) : NodeContent;
 
     /// <summary>
     /// Citation or bibliographic reference.
     /// </summary>
     public sealed record Citation(
-        [property : JsonPropertyName("key")] string Key,
-        [property : JsonPropertyName("text")] string Text)
-        : NodeContent;
+        [property: JsonPropertyName("key")] string Key,
+        [property: JsonPropertyName("text")] string Text
+    ) : NodeContent;
 
     /// <summary>
     /// Admonition / callout container (note, warning, tip, etc.).
@@ -172,266 +173,152 @@ public abstract record NodeContent {
     /// (e.g. JSX in MDX, raw LaTeX in markdown, embedded HTML).
     /// </summary>
     public sealed record RawBlock(
-        [property : JsonPropertyName("format")] string Format,
-        [property : JsonPropertyName("content")] string Content)
-        : NodeContent;
+        [property: JsonPropertyName("format")] string Format,
+        [property: JsonPropertyName("content")] string Content
+    ) : NodeContent;
 
     /// <summary>
     /// Structured metadata block (email headers, YAML frontmatter, etc.).
     /// </summary>
     public sealed record MetadataBlock(
-        [property : JsonPropertyName(
-            "entries")] global::System.Collections.Generic
-            .List<global::System.Collections.Generic.List<string>> Entries)
-        : NodeContent;
+        [property: JsonPropertyName("entries")] global::System.Collections.Generic.List<global::System.Collections.Generic.List<string>> Entries
+    ) : NodeContent;
+
 }
 
 /// <summary>
 /// Custom converter for NodeContent sealed union with flattened variant fields.
 /// </summary>
 /// <remarks>
-/// Handles JSON objects with a discriminator field (node_type) and
-/// variant-specific fields at the same level. System.Text.Json's
-/// [JsonPolymorphic] cannot handle this layout, so we manually deserialize
-/// here.
+/// Handles JSON objects with a discriminator field (node_type) and variant-specific
+/// fields at the same level. System.Text.Json's [JsonPolymorphic] cannot handle
+/// this layout, so we manually deserialize here.
 /// </remarks>
-public sealed class NodeContentJsonConverter : JsonConverter<NodeContent> {
-  public override NodeContent Read(ref Utf8JsonReader reader,
-                                   Type typeToConvert,
-                                   JsonSerializerOptions options) {
-    if (reader.TokenType != JsonTokenType.StartObject) {
-      throw new JsonException($"Expected JSON object, got {reader.TokenType}");
-    }
-
-    using var doc = JsonDocument.ParseValue(ref reader);
-    var root = doc.RootElement;
-
-    if (!root.TryGetProperty("node_type", out var tagElement)) {
-      throw new JsonException($"Missing discriminator field: node_type");
-    }
-
-    var tagValue = tagElement.GetString();
-    if (tagValue == null) {
-      throw new JsonException("Discriminator field is null");
-    }
-
-    // Tuple-variant records (`Variant(InnerStruct value)`) expect a single
-    // "Value" field holding the inner struct's JSON, so wrap the remaining
-    // fields under "Value". Struct-variant records (`Variant { field1,
-    // field2 }`) have positional record components annotated with
-    // [JsonPropertyName(...)] for each named field, so pass the remaining
-    // fields through directly without the wrap.
-    using var ms = new MemoryStream();
-    using var writer = new Utf8JsonWriter(ms);
-    writer.WriteStartObject();
-    foreach (var prop in root.EnumerateObject()) {
-      if (prop.Name != "node_type") {
-        writer.WritePropertyName(prop.Name);
-        prop.Value.WriteTo(writer);
-      }
-    }
-    writer.WriteEndObject();
-    writer.Flush();
-    ms.Position = 0;
-    var flatJson = ms.ToArray();
-
-    using var msWrapped = new MemoryStream();
-    using var writerWrapped = new Utf8JsonWriter(msWrapped);
-    writerWrapped.WriteStartObject();
-    writerWrapped.WritePropertyName("Value");
-    writerWrapped.WriteStartObject();
-    foreach (var prop in root.EnumerateObject()) {
-      if (prop.Name != "node_type") {
-        writerWrapped.WritePropertyName(prop.Name);
-        prop.Value.WriteTo(writerWrapped);
-      }
-    }
-    writerWrapped.WriteEndObject();
-    writerWrapped.WriteEndObject();
-    writerWrapped.Flush();
-    msWrapped.Position = 0;
-    var wrappedJson = msWrapped.ToArray();
-
-    return tagValue switch {
-      "title" =>
-          JsonSerializer.Deserialize<NodeContent.Title>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "heading" =>
-          JsonSerializer.Deserialize<NodeContent.Heading>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "paragraph" => JsonSerializer.Deserialize<NodeContent.Paragraph>(
-                         flatJson, options) ??
-                     throw new JsonException("Failed to deserialize variant"),
-      "list" =>
-          JsonSerializer.Deserialize<NodeContent.List>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "list_item" =>
-          JsonSerializer.Deserialize<NodeContent.ListItem>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "table" =>
-          JsonSerializer.Deserialize<NodeContent.Table>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "image" =>
-          JsonSerializer.Deserialize<NodeContent.Image>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "code" =>
-          JsonSerializer.Deserialize<NodeContent.Code>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "quote" => new NodeContent.Quote(),
-      "formula" =>
-          JsonSerializer.Deserialize<NodeContent.Formula>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "footnote" =>
-          JsonSerializer.Deserialize<NodeContent.Footnote>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "comment" =>
-          JsonSerializer.Deserialize<NodeContent.Comment>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "group" =>
-          JsonSerializer.Deserialize<NodeContent.Group>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "page_break" => new NodeContent.PageBreak(),
-      "slide" =>
-          JsonSerializer.Deserialize<NodeContent.Slide>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "definition_list" => new NodeContent.DefinitionList(),
-      "definition_item" =>
-          JsonSerializer.Deserialize<NodeContent.DefinitionItem>(flatJson,
-                                                                 options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "citation" =>
-          JsonSerializer.Deserialize<NodeContent.Citation>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "admonition" => JsonSerializer.Deserialize<NodeContent.Admonition>(
-                          flatJson, options) ??
-                      throw new JsonException("Failed to deserialize variant"),
-      "raw_block" =>
-          JsonSerializer.Deserialize<NodeContent.RawBlock>(flatJson, options) ??
-          throw new JsonException("Failed to deserialize variant"),
-      "metadata_block" =>
-          JsonSerializer.Deserialize<NodeContent.MetadataBlock>(flatJson,
-                                                                options) ??
-          throw new JsonException(
-              "Failed to deserialize variant"), // Unknown discriminator:
-                                                // forward compatibility for
-                                                // unknown variants
-      _ => throw new JsonException(
-          $"Unknown NodeContent discriminator: {tagValue}")
-    };
-  }
-
-  public override void Write(Utf8JsonWriter writer, NodeContent value,
-                             JsonSerializerOptions options) {
-    // Emit the discriminator tag plus the inner variant's fields flattened at
-    // the same level — mirrors the Java sealed-union serializer pattern. Turn
-    // `Message.User(UserMessage value)` into
-    // `{"node_type":"user","content":...}` not `{"value":{...}}`. Without this,
-    // sending a chat request to FFI fails with "missing field node_type" inside
-    // Rust serde.
-    string tag;
-    object? inner;
-    switch (value) {
-    case NodeContent.Title v_title:
-      tag = "title";
-      inner = v_title;
-      break;
-    case NodeContent.Heading v_heading:
-      tag = "heading";
-      inner = v_heading;
-      break;
-    case NodeContent.Paragraph v_paragraph:
-      tag = "paragraph";
-      inner = v_paragraph;
-      break;
-    case NodeContent.List v_list:
-      tag = "list";
-      inner = v_list;
-      break;
-    case NodeContent.ListItem v_listitem:
-      tag = "list_item";
-      inner = v_listitem;
-      break;
-    case NodeContent.Table v_table:
-      tag = "table";
-      inner = v_table;
-      break;
-    case NodeContent.Image v_image:
-      tag = "image";
-      inner = v_image;
-      break;
-    case NodeContent.Code v_code:
-      tag = "code";
-      inner = v_code;
-      break;
-    case NodeContent.Quote _:
-      tag = "quote";
-      inner = null;
-      break;
-    case NodeContent.Formula v_formula:
-      tag = "formula";
-      inner = v_formula;
-      break;
-    case NodeContent.Footnote v_footnote:
-      tag = "footnote";
-      inner = v_footnote;
-      break;
-    case NodeContent.Comment v_comment:
-      tag = "comment";
-      inner = v_comment;
-      break;
-    case NodeContent.Group v_group:
-      tag = "group";
-      inner = v_group;
-      break;
-    case NodeContent.PageBreak _:
-      tag = "page_break";
-      inner = null;
-      break;
-    case NodeContent.Slide v_slide:
-      tag = "slide";
-      inner = v_slide;
-      break;
-    case NodeContent.DefinitionList _:
-      tag = "definition_list";
-      inner = null;
-      break;
-    case NodeContent.DefinitionItem v_definitionitem:
-      tag = "definition_item";
-      inner = v_definitionitem;
-      break;
-    case NodeContent.Citation v_citation:
-      tag = "citation";
-      inner = v_citation;
-      break;
-    case NodeContent.Admonition v_admonition:
-      tag = "admonition";
-      inner = v_admonition;
-      break;
-    case NodeContent.RawBlock v_rawblock:
-      tag = "raw_block";
-      inner = v_rawblock;
-      break;
-    case NodeContent.MetadataBlock v_metadatablock:
-      tag = "metadata_block";
-      inner = v_metadatablock;
-      break;
-    default:
-      throw new JsonException(
-          $"Unknown NodeContent variant: {value.GetType().Name}");
-    }
-
-    writer.WriteStartObject();
-    writer.WriteString("node_type", tag);
-    if (inner != null) {
-      using var doc =
-          JsonSerializer.SerializeToDocument(inner, inner.GetType(), options);
-      if (doc.RootElement.ValueKind == JsonValueKind.Object) {
-        foreach (var prop in doc.RootElement.EnumerateObject()) {
-          writer.WritePropertyName(prop.Name);
-          prop.Value.WriteTo(writer);
+public sealed class NodeContentJsonConverter : JsonConverter<NodeContent>
+{
+    public override NodeContent Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            throw new JsonException($"Expected JSON object, got {reader.TokenType}");
         }
-      }
+
+        using var doc = JsonDocument.ParseValue(ref reader);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("node_type", out var tagElement))
+        {
+            throw new JsonException($"Missing discriminator field: node_type");
+        }
+
+        var tagValue = tagElement.GetString();
+        if (tagValue == null)
+        {
+            throw new JsonException("Discriminator field is null");
+        }
+
+        // Tuple-variant records (`Variant(InnerStruct value)`) expect a single
+        // "Value" field holding the inner struct's JSON, so wrap the remaining
+        // fields under "Value". Struct-variant records (`Variant { field1,
+        // field2 }`) have positional record components annotated with
+        // [JsonPropertyName(...)] for each named field, so pass the remaining
+        // fields through directly without the wrap.
+        using var ms = new MemoryStream();
+        using var writer = new Utf8JsonWriter(ms);
+        writer.WriteStartObject();
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (prop.Name != "node_type")
+            {
+                writer.WritePropertyName(prop.Name);
+                prop.Value.WriteTo(writer);
+            }
+        }
+        writer.WriteEndObject();
+        writer.Flush();
+        ms.Position = 0;
+        var flatJson = ms.ToArray();
+
+        using var msWrapped = new MemoryStream();
+        using var writerWrapped = new Utf8JsonWriter(msWrapped);
+        writerWrapped.WriteStartObject();
+        writerWrapped.WritePropertyName("Value");
+        writerWrapped.WriteStartObject();
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (prop.Name != "node_type")
+            {
+                writerWrapped.WritePropertyName(prop.Name);
+                prop.Value.WriteTo(writerWrapped);
+            }
+        }
+        writerWrapped.WriteEndObject();
+        writerWrapped.WriteEndObject();
+        writerWrapped.Flush();
+        msWrapped.Position = 0;
+        var wrappedJson = msWrapped.ToArray();
+
+        return tagValue switch
+        {            "title" => JsonSerializer.Deserialize<NodeContent.Title>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "heading" => JsonSerializer.Deserialize<NodeContent.Heading>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "paragraph" => JsonSerializer.Deserialize<NodeContent.Paragraph>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "list" => JsonSerializer.Deserialize<NodeContent.List>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "list_item" => JsonSerializer.Deserialize<NodeContent.ListItem>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "table" => JsonSerializer.Deserialize<NodeContent.Table>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "image" => JsonSerializer.Deserialize<NodeContent.Image>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "code" => JsonSerializer.Deserialize<NodeContent.Code>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "quote" => new NodeContent.Quote(),            "formula" => JsonSerializer.Deserialize<NodeContent.Formula>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "footnote" => JsonSerializer.Deserialize<NodeContent.Footnote>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "comment" => JsonSerializer.Deserialize<NodeContent.Comment>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "group" => JsonSerializer.Deserialize<NodeContent.Group>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "page_break" => new NodeContent.PageBreak(),            "slide" => JsonSerializer.Deserialize<NodeContent.Slide>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "definition_list" => new NodeContent.DefinitionList(),            "definition_item" => JsonSerializer.Deserialize<NodeContent.DefinitionItem>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "citation" => JsonSerializer.Deserialize<NodeContent.Citation>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "admonition" => JsonSerializer.Deserialize<NodeContent.Admonition>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "raw_block" => JsonSerializer.Deserialize<NodeContent.RawBlock>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            "metadata_block" => JsonSerializer.Deserialize<NodeContent.MetadataBlock>(flatJson, options) ?? throw new JsonException("Failed to deserialize variant"),            // Unknown discriminator: forward compatibility for unknown variants
+            _ => throw new JsonException($"Unknown NodeContent discriminator: {tagValue}")
+        };
     }
-    writer.WriteEndObject();
-  }
+
+    public override void Write(Utf8JsonWriter writer, NodeContent value, JsonSerializerOptions options)
+    {
+        // Emit the discriminator tag plus the inner variant's fields flattened at
+        // the same level — mirrors the Java sealed-union serializer pattern. Turn
+        // `Message.User(UserMessage value)` into `{"node_type":"user","content":...}`
+        // not `{"value":{...}}`. Without this, sending a chat request to FFI fails
+        // with "missing field node_type" inside Rust serde.
+        string tag;
+        object? inner;
+        switch (value)
+        {            case NodeContent.Title v_title:
+                tag = "title";                inner = v_title;                break;            case NodeContent.Heading v_heading:
+                tag = "heading";                inner = v_heading;                break;            case NodeContent.Paragraph v_paragraph:
+                tag = "paragraph";                inner = v_paragraph;                break;            case NodeContent.List v_list:
+                tag = "list";                inner = v_list;                break;            case NodeContent.ListItem v_listitem:
+                tag = "list_item";                inner = v_listitem;                break;            case NodeContent.Table v_table:
+                tag = "table";                inner = v_table;                break;            case NodeContent.Image v_image:
+                tag = "image";                inner = v_image;                break;            case NodeContent.Code v_code:
+                tag = "code";                inner = v_code;                break;            case NodeContent.Quote _:
+                tag = "quote";
+                inner = null;
+                break;            case NodeContent.Formula v_formula:
+                tag = "formula";                inner = v_formula;                break;            case NodeContent.Footnote v_footnote:
+                tag = "footnote";                inner = v_footnote;                break;            case NodeContent.Comment v_comment:
+                tag = "comment";                inner = v_comment;                break;            case NodeContent.Group v_group:
+                tag = "group";                inner = v_group;                break;            case NodeContent.PageBreak _:
+                tag = "page_break";
+                inner = null;
+                break;            case NodeContent.Slide v_slide:
+                tag = "slide";                inner = v_slide;                break;            case NodeContent.DefinitionList _:
+                tag = "definition_list";
+                inner = null;
+                break;            case NodeContent.DefinitionItem v_definitionitem:
+                tag = "definition_item";                inner = v_definitionitem;                break;            case NodeContent.Citation v_citation:
+                tag = "citation";                inner = v_citation;                break;            case NodeContent.Admonition v_admonition:
+                tag = "admonition";                inner = v_admonition;                break;            case NodeContent.RawBlock v_rawblock:
+                tag = "raw_block";                inner = v_rawblock;                break;            case NodeContent.MetadataBlock v_metadatablock:
+                tag = "metadata_block";                inner = v_metadatablock;                break;            default:
+                throw new JsonException($"Unknown NodeContent variant: {value.GetType().Name}");
+        }
+
+        writer.WriteStartObject();
+        writer.WriteString("node_type", tag);
+        if (inner != null)
+        {
+            using var doc = JsonSerializer.SerializeToDocument(inner, inner.GetType(), options);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    writer.WritePropertyName(prop.Name);
+                    prop.Value.WriteTo(writer);
+                }
+            }
+        }
+        writer.WriteEndObject();
+    }
 }

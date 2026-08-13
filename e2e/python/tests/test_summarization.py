@@ -6,8 +6,9 @@
 
 import json
 import os
-import pytest  # noqa: F401
-from xberg import extract, ExtractInput, ExtractionConfig
+
+import pytest
+from xberg import ExtractInput, ExtractionConfig, extract
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -30,15 +31,16 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 
 @pytest.mark.asyncio
-
 async def test_summarization_extractive_smoke() -> None:
     """TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/summarization_extractive_smoke'
-    input_json = "{\"kind\":\"uri\",\"uri\":\"$mock_url/text/book_war_and_peace_1p.txt\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/summarization_extractive_smoke"
+    input_json = '{"kind":"uri","uri":"$mock_url/text/book_war_and_peace_1p.txt"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
     config = ExtractionConfig(summarization={"max_tokens": 80, "strategy": "extractive"})
 
     result = await extract(input, config)
-    assert _alef_e2e_text(result.results[0].mime_type).lower() == "text/plain".lower()  # noqa: S101
-    assert result.results[0].summary.text  # noqa: S101
-    assert _alef_e2e_text(result.results[0].summary.strategy).lower() == "extractive".lower()  # noqa: S101
+    assert _alef_e2e_text(result.results[0].mime_type).lower() == "text/plain".lower()
+    assert result.results[0].summary.text
+    assert _alef_e2e_text(result.results[0].summary.strategy).lower() == "extractive".lower()

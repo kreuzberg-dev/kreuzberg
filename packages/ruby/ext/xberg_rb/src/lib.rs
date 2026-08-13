@@ -2975,6 +2975,7 @@ pub struct LayoutDetectionConfig {
     confidence_threshold: Option<f32>,
     apply_heuristics: bool,
     table_model: TableModel,
+    formula_model: Option<FormulaModel>,
     table_overlap_preference: TableOverlapPreference,
     acceleration: Option<AccelerationConfig>,
     enable_chart_understanding: bool,
@@ -3036,6 +3037,9 @@ impl LayoutDetectionConfig {
                 .get(ruby.to_symbol("table_model"))
                 .and_then(|v| TableModel::try_convert(v).ok())
                 .unwrap_or_default(),
+            formula_model: kwargs
+                .get(ruby.to_symbol("formula_model"))
+                .and_then(|v| FormulaModel::try_convert(v).ok()),
             table_overlap_preference: kwargs
                 .get(ruby.to_symbol("table_overlap_preference"))
                 .and_then(|v| TableOverlapPreference::try_convert(v).ok())
@@ -3064,6 +3068,10 @@ impl LayoutDetectionConfig {
 
     fn table_model(&self) -> TableModel {
         self.table_model.clone()
+    }
+
+    fn formula_model(&self) -> Option<FormulaModel> {
+        self.formula_model.clone()
     }
 
     fn table_overlap_preference(&self) -> TableOverlapPreference {
@@ -12889,8 +12897,8 @@ impl ImagePreprocessingMetadata {
 #[magnus::wrap(class = "Xberg::Formula")]
 pub struct Formula {
     latex: String,
-    bbox: BoundingBox,
-    page: u32,
+    bbox: Option<BoundingBox>,
+    page: Option<u32>,
 }
 
 unsafe impl IntoValueFromNative for Formula {}
@@ -12921,6 +12929,16 @@ impl magnus::TryConvert for Formula {
 
 unsafe impl TryConvertOwned for Formula {}
 
+impl Default for Formula {
+    fn default() -> Self {
+        Self {
+            latex: String::new(),
+            bbox: None,
+            page: None,
+        }
+    }
+}
+
 impl Formula {
     fn new(args: &[magnus::Value]) -> Result<Self, magnus::Error> {
         let ruby = unsafe { magnus::Ruby::get_unchecked() };
@@ -12934,17 +12952,10 @@ impl Formula {
                 .unwrap_or_default(),
             bbox: kwargs
                 .get(ruby.to_symbol("bbox"))
-                .and_then(|v| BoundingBox::try_convert(v).ok())
-                .ok_or_else(|| {
-                    magnus::Error::new(
-                        unsafe { magnus::Ruby::get_unchecked() }.exception_arg_error(),
-                        "missing required field: bbox",
-                    )
-                })?,
+                .and_then(|v| BoundingBox::try_convert(v).ok()),
             page: kwargs
                 .get(ruby.to_symbol("page"))
-                .and_then(|v| u32::try_convert(v).ok())
-                .unwrap_or_default(),
+                .and_then(|v| u32::try_convert(v).ok()),
         })
     }
 
@@ -12952,11 +12963,11 @@ impl Formula {
         self.latex.clone()
     }
 
-    fn bbox(&self) -> BoundingBox {
+    fn bbox(&self) -> Option<BoundingBox> {
         self.bbox.clone()
     }
 
-    fn page(&self) -> u32 {
+    fn page(&self) -> Option<u32> {
         self.page
     }
 }
@@ -24398,6 +24409,45 @@ impl LateInteractionModelType {}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum FormulaModel {
+    LatexOcr,
+}
+
+impl Default for FormulaModel {
+    fn default() -> Self {
+        Self::LatexOcr
+    }
+}
+
+impl magnus::IntoValue for FormulaModel {
+    fn into_value_with(self, handle: &Ruby) -> magnus::Value {
+        let sym = match self {
+            FormulaModel::LatexOcr => "latex_ocr",
+        };
+        handle.to_symbol(sym).into_value_with(handle)
+    }
+}
+
+impl magnus::TryConvert for FormulaModel {
+    fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
+        let s: String = magnus::TryConvert::try_convert(val)?;
+        // Accept the serde wire name (snake_case), the PascalCase Rust variant name,
+        // and a lowercase fallback so fixtures written in any of those styles work.
+        match s.as_str() {
+            "latex_ocr" | "LatexOcr" => Ok(FormulaModel::LatexOcr),
+            other => Err(magnus::Error::new(
+                unsafe { Ruby::get_unchecked() }.exception_arg_error(),
+                format!("invalid FormulaModel value: {other}"),
+            )),
+        }
+    }
+}
+
+unsafe impl IntoValueFromNative for FormulaModel {}
+unsafe impl TryConvertOwned for FormulaModel {}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TableModel {
     Tatr,
     SlanetWired,
@@ -26431,6 +26481,7 @@ pub enum ElementType {
     Image,
     PageBreak,
     CodeBlock,
+    Formula,
     BlockQuote,
     Footer,
     Header,
@@ -26453,6 +26504,7 @@ impl magnus::IntoValue for ElementType {
             ElementType::Image => "image",
             ElementType::PageBreak => "page_break",
             ElementType::CodeBlock => "code_block",
+            ElementType::Formula => "formula",
             ElementType::BlockQuote => "block_quote",
             ElementType::Footer => "footer",
             ElementType::Header => "header",
@@ -26475,6 +26527,7 @@ impl magnus::TryConvert for ElementType {
             "image" | "Image" => Ok(ElementType::Image),
             "page_break" | "PageBreak" => Ok(ElementType::PageBreak),
             "code_block" | "CodeBlock" => Ok(ElementType::CodeBlock),
+            "formula" | "Formula" => Ok(ElementType::Formula),
             "block_quote" | "BlockQuote" => Ok(ElementType::BlockQuote),
             "footer" | "Footer" => Ok(ElementType::Footer),
             "header" | "Header" => Ok(ElementType::Header),
@@ -33164,6 +33217,7 @@ impl From<LayoutDetectionConfig> for xberg::LayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -33180,6 +33234,7 @@ impl From<xberg::LayoutDetectionConfig> for LayoutDetectionConfig {
             confidence_threshold: val.confidence_threshold,
             apply_heuristics: val.apply_heuristics,
             table_model: val.table_model.into(),
+            formula_model: val.formula_model.map(Into::into),
             table_overlap_preference: val.table_overlap_preference.into(),
             acceleration: val.acceleration.map(Into::into),
             enable_chart_understanding: val.enable_chart_understanding,
@@ -35626,7 +35681,7 @@ impl From<Formula> for xberg::Formula {
     fn from(val: Formula) -> Self {
         Self {
             latex: val.latex,
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -35637,7 +35692,7 @@ impl From<xberg::Formula> for Formula {
     fn from(val: xberg::Formula) -> Self {
         Self {
             latex: val.latex.to_string(),
-            bbox: val.bbox.into(),
+            bbox: val.bbox.map(Into::into),
             page: val.page,
         }
     }
@@ -38504,6 +38559,22 @@ impl From<xberg::LateInteractionModelType> for LateInteractionModelType {
     }
 }
 
+impl From<FormulaModel> for xberg::core::config::layout::FormulaModel {
+    fn from(val: FormulaModel) -> Self {
+        match val {
+            FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
+impl From<xberg::core::config::layout::FormulaModel> for FormulaModel {
+    fn from(val: xberg::core::config::layout::FormulaModel) -> Self {
+        match val {
+            xberg::core::config::layout::FormulaModel::LatexOcr => Self::LatexOcr,
+        }
+    }
+}
+
 impl From<TableModel> for xberg::TableModel {
     fn from(val: TableModel) -> Self {
         match val {
@@ -39600,6 +39671,7 @@ impl From<ElementType> for xberg::ElementType {
             ElementType::Image => Self::Image,
             ElementType::PageBreak => Self::PageBreak,
             ElementType::CodeBlock => Self::CodeBlock,
+            ElementType::Formula => Self::Formula,
             ElementType::BlockQuote => Self::BlockQuote,
             ElementType::Footer => Self::Footer,
             ElementType::Header => Self::Header,
@@ -39618,6 +39690,7 @@ impl From<xberg::ElementType> for ElementType {
             xberg::ElementType::Image => Self::Image,
             xberg::ElementType::PageBreak => Self::PageBreak,
             xberg::ElementType::CodeBlock => Self::CodeBlock,
+            xberg::ElementType::Formula => Self::Formula,
             xberg::ElementType::BlockQuote => Self::BlockQuote,
             xberg::ElementType::Footer => Self::Footer,
             xberg::ElementType::Header => Self::Header,
@@ -39966,9 +40039,9 @@ impl From<xberg::PiiCategory> for PiiCategory {
 impl From<DiffLine> for xberg::DiffLine {
     fn from(val: DiffLine) -> Self {
         match val {
-            DiffLine::Context { _0 } => Self::Context(_0),
-            DiffLine::Added { _0 } => Self::Added(_0),
-            DiffLine::Removed { _0 } => Self::Removed(_0),
+            DiffLine::Context(_0) => Self::Context(_0),
+            DiffLine::Added(_0) => Self::Added(_0),
+            DiffLine::Removed(_0) => Self::Removed(_0),
         }
     }
 }
@@ -39976,9 +40049,9 @@ impl From<DiffLine> for xberg::DiffLine {
 impl From<xberg::DiffLine> for DiffLine {
     fn from(val: xberg::DiffLine) -> Self {
         match val {
-            xberg::DiffLine::Context(_0) => Self::Context { _0: _0.to_string() },
-            xberg::DiffLine::Added(_0) => Self::Added { _0: _0.to_string() },
-            xberg::DiffLine::Removed(_0) => Self::Removed { _0: _0.to_string() },
+            xberg::DiffLine::Context(_0) => Self::Context(_0),
+            xberg::DiffLine::Added(_0) => Self::Added(_0),
+            xberg::DiffLine::Removed(_0) => Self::Removed(_0),
         }
     }
 }
@@ -41289,6 +41362,8 @@ fn ruby_init(ruby: &Ruby) -> Result<(), Error> {
     class.define_method("apply_heuristics", method!(LayoutDetectionConfig::apply_heuristics, 0))?;
 
     class.define_method("table_model", method!(LayoutDetectionConfig::table_model, 0))?;
+
+    class.define_method("formula_model", method!(LayoutDetectionConfig::formula_model, 0))?;
 
     class.define_method(
         "table_overlap_preference",

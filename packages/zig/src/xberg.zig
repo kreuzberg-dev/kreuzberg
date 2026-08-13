@@ -1044,6 +1044,12 @@ pub const LayoutDetectionConfig = struct {
     /// Controls which model is used for table cell detection within layout-detected
     /// table regions. Defaults to `TableModel.Tatr`.
     table_model: TableModel,
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `null` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    formula_model: ?FormulaModel,
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -3088,9 +3094,10 @@ pub const ExtractedDocument = struct {
     redaction_report: ?RedactionReport,
     /// Mathematical formulas recognized in the document.
     ///
-    /// Populated by the layout-guided formula pipeline when the
-    /// `layout-detection` feature is enabled and the document contains regions
-    /// classified as formulas. Empty otherwise.
+    /// Populated from every source that produces formulas: layout-guided OCR
+    /// (with geometry), VLM OCR (text only), and markup extraction (DOCX,
+    /// PPTX, ODT, EPUB, HTML, JATS, LaTeX, Markdown, and related formats,
+    /// without geometry). Empty when the document contains no formulas.
     formulas: []const Formula,
     /// Form fields extracted from a PDF's AcroForm or XFA structure.
     ///
@@ -3744,30 +3751,33 @@ pub const ImagePreprocessingMetadata = struct {
     resize_error: ?[]const u8,
 };
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass.Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// `ExtractedDocument` but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 pub const Formula = struct {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     latex: []const u8,
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `null` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
-    bbox: BoundingBox,
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
-    page: u32,
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
+    bbox: ?BoundingBox,
+    /// 1-indexed page number the formula appears on. `null` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
+    page: ?u32,
 };
 
 /// Code-format metadata: the structural chunks produced by tree-sitter parsing.
@@ -6163,6 +6173,13 @@ pub const LateInteractionModelType = union(enum) {
     plugin: []const u8,
 };
 
+/// Formula recognition model selection.
+pub const FormulaModel = enum {
+    /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+    /// ~180 MB total, downloaded on demand.
+    latex_ocr,
+};
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -7044,6 +7061,8 @@ pub const ElementType = enum {
     page_break,
     /// Code block
     code_block,
+    /// Mathematical formula (LaTeX source in `text`)
+    formula,
     /// Block quote
     block_quote,
     /// Footer text
@@ -10513,7 +10532,7 @@ pub const Registry = struct {
     pub fn is_empty(self: *Registry) error{HandleClosed}!bool {
     const handle = self._handle orelse return error.HandleClosed;
         const _result = c.xberg_registry_is_empty(@as(*c.XBERGRegistry, @ptrCast(handle)));
-        return _result != 0;
+        return _result;
     }
 
     /// Read raw sample bytes for `<preset_id>` from

@@ -5,7 +5,13 @@
 """E2e tests for category: registry."""
 
 import pytest  # noqa: F401
-from xberg import list_embedding_backends, list_ocr_backends, list_post_processors, list_renderers, list_validators
+from xberg import (
+    list_embedding_backends,
+    list_ocr_backends,
+    list_post_processors,
+    list_renderers,
+    list_validators,
+)
 
 
 def _alef_e2e_text(value: object) -> str:

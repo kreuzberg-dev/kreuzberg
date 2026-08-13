@@ -14,13 +14,17 @@ import (
 type testStub_register_embedding_backend_trait_bridge struct{}
 
 func (testStub_register_embedding_backend_trait_bridge) Dimensions() uint { return 768 }
-func (testStub_register_embedding_backend_trait_bridge) Embed(texts []string) ([][]float32, error) { return nil, nil }
-func (testStub_register_embedding_backend_trait_bridge) Name() string { return "test-embedding-backend" }
-func (testStub_register_embedding_backend_trait_bridge) Version() string { return "" }
-func (testStub_register_embedding_backend_trait_bridge) Initialize() error { return nil }
-func (testStub_register_embedding_backend_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_embedding_backend_trait_bridge) Embed(texts []string) ([][]float32, error) {
+	return nil, nil
+}
+func (testStub_register_embedding_backend_trait_bridge) Name() string {
+	return "test-embedding-backend"
+}
+func (testStub_register_embedding_backend_trait_bridge) Version() string     { return "" }
+func (testStub_register_embedding_backend_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_embedding_backend_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_embedding_backend_trait_bridge) Description() string { return "" }
-func (testStub_register_embedding_backend_trait_bridge) Author() string { return "" }
+func (testStub_register_embedding_backend_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterEmbeddingBackendTraitBridge(t *testing.T) {
 	// register_embedding_backend: trait bridge
@@ -32,21 +36,29 @@ func Test_RegisterEmbeddingBackendTraitBridge(t *testing.T) {
 
 type testStub_register_ocr_backend_trait_bridge struct{}
 
-func (testStub_register_ocr_backend_trait_bridge) ProcessImage(imageBytes []byte, config xberg.OcrConfig) (xberg.ExtractedDocument, error) { return xberg.ExtractedDocument{}, nil }
-func (testStub_register_ocr_backend_trait_bridge) ProcessImageFile(path string, config xberg.OcrConfig) (xberg.ExtractedDocument, error) { return xberg.ExtractedDocument{}, nil }
+func (testStub_register_ocr_backend_trait_bridge) ProcessImage(imageBytes []byte, config xberg.OcrConfig) (xberg.ExtractedDocument, error) {
+	return xberg.ExtractedDocument{}, nil
+}
+func (testStub_register_ocr_backend_trait_bridge) ProcessImageFile(path string, config xberg.OcrConfig) (xberg.ExtractedDocument, error) {
+	return xberg.ExtractedDocument{}, nil
+}
 func (testStub_register_ocr_backend_trait_bridge) SupportsLanguage(lang string) bool { return false }
-func (testStub_register_ocr_backend_trait_bridge) BackendType() xberg.OcrBackendType { return xberg.OcrBackendTypeTesseract }
-func (testStub_register_ocr_backend_trait_bridge) SupportedLanguages() []string { return nil }
-func (testStub_register_ocr_backend_trait_bridge) SupportsTableDetection() bool { return false }
+func (testStub_register_ocr_backend_trait_bridge) BackendType() xberg.OcrBackendType {
+	return xberg.OcrBackendTypeTesseract
+}
+func (testStub_register_ocr_backend_trait_bridge) SupportedLanguages() []string     { return nil }
+func (testStub_register_ocr_backend_trait_bridge) SupportsTableDetection() bool     { return false }
 func (testStub_register_ocr_backend_trait_bridge) SupportsDocumentProcessing() bool { return false }
-func (testStub_register_ocr_backend_trait_bridge) EmitsStructuredMarkdown() bool { return false }
-func (testStub_register_ocr_backend_trait_bridge) ProcessDocument(path string, config xberg.OcrConfig) (xberg.ExtractedDocument, error) { return xberg.ExtractedDocument{}, nil }
-func (testStub_register_ocr_backend_trait_bridge) Name() string { return "test-backend" }
-func (testStub_register_ocr_backend_trait_bridge) Version() string { return "" }
-func (testStub_register_ocr_backend_trait_bridge) Initialize() error { return nil }
-func (testStub_register_ocr_backend_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_ocr_backend_trait_bridge) EmitsStructuredMarkdown() bool    { return false }
+func (testStub_register_ocr_backend_trait_bridge) ProcessDocument(path string, config xberg.OcrConfig) (xberg.ExtractedDocument, error) {
+	return xberg.ExtractedDocument{}, nil
+}
+func (testStub_register_ocr_backend_trait_bridge) Name() string        { return "test-backend" }
+func (testStub_register_ocr_backend_trait_bridge) Version() string     { return "" }
+func (testStub_register_ocr_backend_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_ocr_backend_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_ocr_backend_trait_bridge) Description() string { return "" }
-func (testStub_register_ocr_backend_trait_bridge) Author() string { return "" }
+func (testStub_register_ocr_backend_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterOcrBackendTraitBridge(t *testing.T) {
 	// register_ocr_backend: trait bridge
@@ -58,17 +70,25 @@ func Test_RegisterOcrBackendTraitBridge(t *testing.T) {
 
 type testStub_register_post_processor_trait_bridge struct{}
 
-func (testStub_register_post_processor_trait_bridge) Process(resultArg xberg.ExtractedDocument, config xberg.ExtractionConfig) error { return nil }
-func (testStub_register_post_processor_trait_bridge) ProcessingStage() xberg.ProcessingStage { return xberg.ProcessingStageEarly }
-func (testStub_register_post_processor_trait_bridge) ShouldProcess(result xberg.ExtractedDocument, config xberg.ExtractionConfig) bool { return false }
-func (testStub_register_post_processor_trait_bridge) EstimatedDurationMs(result xberg.ExtractedDocument) uint64 { return 0 }
-func (testStub_register_post_processor_trait_bridge) Priority() int32 { return 0 }
-func (testStub_register_post_processor_trait_bridge) Name() string { return "" }
-func (testStub_register_post_processor_trait_bridge) Version() string { return "" }
-func (testStub_register_post_processor_trait_bridge) Initialize() error { return nil }
-func (testStub_register_post_processor_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_post_processor_trait_bridge) Process(resultArg xberg.ExtractedDocument, config xberg.ExtractionConfig) error {
+	return nil
+}
+func (testStub_register_post_processor_trait_bridge) ProcessingStage() xberg.ProcessingStage {
+	return xberg.ProcessingStageEarly
+}
+func (testStub_register_post_processor_trait_bridge) ShouldProcess(result xberg.ExtractedDocument, config xberg.ExtractionConfig) bool {
+	return false
+}
+func (testStub_register_post_processor_trait_bridge) EstimatedDurationMs(result xberg.ExtractedDocument) uint64 {
+	return 0
+}
+func (testStub_register_post_processor_trait_bridge) Priority() int32     { return 0 }
+func (testStub_register_post_processor_trait_bridge) Name() string        { return "" }
+func (testStub_register_post_processor_trait_bridge) Version() string     { return "" }
+func (testStub_register_post_processor_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_post_processor_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_post_processor_trait_bridge) Description() string { return "" }
-func (testStub_register_post_processor_trait_bridge) Author() string { return "" }
+func (testStub_register_post_processor_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterPostProcessorTraitBridge(t *testing.T) {
 	// register_post_processor: trait bridge
@@ -80,13 +100,15 @@ func Test_RegisterPostProcessorTraitBridge(t *testing.T) {
 
 type testStub_register_reranker_backend_trait_bridge struct{}
 
-func (testStub_register_reranker_backend_trait_bridge) Rerank(query string, documents []string) ([]float32, error) { return nil, nil }
-func (testStub_register_reranker_backend_trait_bridge) Name() string { return "test-reranker-backend" }
-func (testStub_register_reranker_backend_trait_bridge) Version() string { return "" }
-func (testStub_register_reranker_backend_trait_bridge) Initialize() error { return nil }
-func (testStub_register_reranker_backend_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_reranker_backend_trait_bridge) Rerank(query string, documents []string) ([]float32, error) {
+	return nil, nil
+}
+func (testStub_register_reranker_backend_trait_bridge) Name() string        { return "test-reranker-backend" }
+func (testStub_register_reranker_backend_trait_bridge) Version() string     { return "" }
+func (testStub_register_reranker_backend_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_reranker_backend_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_reranker_backend_trait_bridge) Description() string { return "" }
-func (testStub_register_reranker_backend_trait_bridge) Author() string { return "" }
+func (testStub_register_reranker_backend_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterRerankerBackendTraitBridge(t *testing.T) {
 	// register_reranker_backend: trait bridge
@@ -96,12 +118,14 @@ func Test_RegisterRerankerBackendTraitBridge(t *testing.T) {
 type testStub_register_tokenizer_backend_trait_bridge struct{}
 
 func (testStub_register_tokenizer_backend_trait_bridge) CountTokens(text string) uint { return 3 }
-func (testStub_register_tokenizer_backend_trait_bridge) Name() string { return "test-tokenizer-backend" }
-func (testStub_register_tokenizer_backend_trait_bridge) Version() string { return "" }
-func (testStub_register_tokenizer_backend_trait_bridge) Initialize() error { return nil }
-func (testStub_register_tokenizer_backend_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_tokenizer_backend_trait_bridge) Name() string {
+	return "test-tokenizer-backend"
+}
+func (testStub_register_tokenizer_backend_trait_bridge) Version() string     { return "" }
+func (testStub_register_tokenizer_backend_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_tokenizer_backend_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_tokenizer_backend_trait_bridge) Description() string { return "" }
-func (testStub_register_tokenizer_backend_trait_bridge) Author() string { return "" }
+func (testStub_register_tokenizer_backend_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterTokenizerBackendTraitBridge(t *testing.T) {
 	// register_tokenizer_backend: trait bridge
@@ -110,15 +134,19 @@ func Test_RegisterTokenizerBackendTraitBridge(t *testing.T) {
 
 type testStub_register_validator_trait_bridge struct{}
 
-func (testStub_register_validator_trait_bridge) Validate(resultArg xberg.ExtractedDocument, config xberg.ExtractionConfig) error { return nil }
-func (testStub_register_validator_trait_bridge) ShouldValidate(result xberg.ExtractedDocument, config xberg.ExtractionConfig) bool { return false }
-func (testStub_register_validator_trait_bridge) Priority() int32 { return 0 }
-func (testStub_register_validator_trait_bridge) Name() string { return "" }
-func (testStub_register_validator_trait_bridge) Version() string { return "" }
-func (testStub_register_validator_trait_bridge) Initialize() error { return nil }
-func (testStub_register_validator_trait_bridge) Shutdown() error { return nil }
+func (testStub_register_validator_trait_bridge) Validate(resultArg xberg.ExtractedDocument, config xberg.ExtractionConfig) error {
+	return nil
+}
+func (testStub_register_validator_trait_bridge) ShouldValidate(result xberg.ExtractedDocument, config xberg.ExtractionConfig) bool {
+	return false
+}
+func (testStub_register_validator_trait_bridge) Priority() int32     { return 0 }
+func (testStub_register_validator_trait_bridge) Name() string        { return "" }
+func (testStub_register_validator_trait_bridge) Version() string     { return "" }
+func (testStub_register_validator_trait_bridge) Initialize() error   { return nil }
+func (testStub_register_validator_trait_bridge) Shutdown() error     { return nil }
 func (testStub_register_validator_trait_bridge) Description() string { return "" }
-func (testStub_register_validator_trait_bridge) Author() string { return "" }
+func (testStub_register_validator_trait_bridge) Author() string      { return "" }
 
 func Test_RegisterValidatorTraitBridge(t *testing.T) {
 	// register_validator: trait bridge

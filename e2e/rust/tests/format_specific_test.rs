@@ -11,6 +11,32 @@ use mock_server::{MockRoute, MockServer};
 use xberg::ExtractInput;
 
 #[tokio::test]
+async fn test_format_docx_equations() {
+    // DOCX equations extract to LaTeX math in markdown output
+    let input_mock_base_url = std::env::var("MOCK_SERVER_FORMAT_DOCX_EQUATIONS").unwrap_or_else(|_| {
+        let _ = common::mock_server_url();
+        std::env::var("MOCK_SERVER_FORMAT_DOCX_EQUATIONS")
+            .unwrap_or_else(|_| format!("{}/fixtures/{}", common::mock_server_url(), "format_docx_equations"))
+    });
+    let input_json_text = r#"{"filename":"equations.docx","kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","uri":"$mock_url/docx/equations.docx"}"#.replace("$mock_url", &input_mock_base_url);
+    let input_json: serde_json::Value = serde_json::from_str(&input_json_text).unwrap();
+    let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();
+    let config_json: serde_json::Value = serde_json::from_str(r#"{"output_format":"markdown"}"#).unwrap();
+    let config = serde_json::from_value(config_json).unwrap();
+    let result = extract(input, &config).await.expect("call failed");
+    assert!(
+        result.results[0].content.len() >= 20,
+        "expected length >= 20, got {}",
+        result.results[0].content.len()
+    );
+    assert!(
+        result.results[0].content.contains(r#"$"#),
+        "expected to contain: {}",
+        r#"$"#
+    );
+}
+
+#[tokio::test]
 async fn test_format_docx_standalone() {
     // Standalone DOCX extraction using extract
     let input_mock_base_url = std::env::var("MOCK_SERVER_FORMAT_DOCX_STANDALONE").unwrap_or_else(|_| {

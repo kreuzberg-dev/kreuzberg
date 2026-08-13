@@ -14,28 +14,56 @@ defmodule E2e.ErrorTest do
 
   describe "error_empty_mime" do
     test "error_empty_mime" do
-      input_value = %Xberg.ExtractInput{bytes: File.read!("test_documents/text/plain.txt"), config: %{}, filename: "plain.txt", kind: "bytes", mime_type: ""}
+      input_value = %Xberg.ExtractInput{
+        bytes: File.read!("test_documents/text/plain.txt"),
+        config: %{},
+        filename: "plain.txt",
+        kind: "bytes",
+        mime_type: ""
+      }
+
       assert {:error, _} = Xberg.extract(input: input_value, config: "{}")
     end
   end
 
   describe "error_extract_input_conflicting_ocr" do
     test "error_extract_input_conflicting_ocr" do
-      input_value = %Xberg.ExtractInput{bytes: File.read!("test_documents/text/fake_text.txt"), config: %{"disable_ocr" => true, "force_ocr" => true}, filename: "fake_text.txt", kind: "bytes", mime_type: "text/plain"}
+      input_value = %Xberg.ExtractInput{
+        bytes: File.read!("test_documents/text/fake_text.txt"),
+        config: %{"disable_ocr" => true, "force_ocr" => true},
+        filename: "fake_text.txt",
+        kind: "bytes",
+        mime_type: "text/plain"
+      }
+
       assert {:error, _} = Xberg.extract(input: input_value, config: "{\"disable_ocr\":true,\"force_ocr\":true}")
     end
   end
 
   describe "error_invalid_mime_format" do
     test "error_invalid_mime_format" do
-      input_value = %Xberg.ExtractInput{bytes: File.read!("test_documents/text/plain.txt"), config: %{}, filename: "plain.txt", kind: "bytes", mime_type: "not-a-mime"}
+      input_value = %Xberg.ExtractInput{
+        bytes: File.read!("test_documents/text/plain.txt"),
+        config: %{},
+        filename: "plain.txt",
+        kind: "bytes",
+        mime_type: "not-a-mime"
+      }
+
       assert {:error, _} = Xberg.extract(input: input_value, config: "{}")
     end
   end
 
   describe "error_unsupported_mime" do
     test "error_unsupported_mime" do
-      input_value = %Xberg.ExtractInput{bytes: File.read!("test_documents/text/plain.txt"), config: %{}, filename: "plain.txt", kind: "bytes", mime_type: "application/x-nonexistent"}
+      input_value = %Xberg.ExtractInput{
+        bytes: File.read!("test_documents/text/plain.txt"),
+        config: %{},
+        filename: "plain.txt",
+        kind: "bytes",
+        mime_type: "application/x-nonexistent"
+      }
+
       assert {:error, _} = Xberg.extract(input: input_value, config: "{}")
     end
   end

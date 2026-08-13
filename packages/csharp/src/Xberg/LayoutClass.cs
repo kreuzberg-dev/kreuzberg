@@ -16,136 +16,157 @@ namespace Xberg;
 /// Wire format is snake_case in all serializers (JSON, TOML, YAML).
 /// </summary>
 [JsonConverter(typeof(LayoutClassJsonConverter))]
-public enum LayoutClass {
-  /// <summary>
-  /// Figure or table caption text.
-  /// </summary>
-  [JsonPropertyName("caption")] Caption,
-  /// <summary>
-  /// Chart or graph visualization.
-  /// </summary>
-  [JsonPropertyName("chart")] Chart,
-  /// <summary>
-  /// Footnote or endnote text.
-  /// </summary>
-  [JsonPropertyName("footnote")] Footnote,
-  /// <summary>
-  /// Mathematical formula or equation.
-  /// </summary>
-  [JsonPropertyName("formula")] Formula,
-  /// <summary>
-  /// A single item in a bulleted or numbered list.
-  /// </summary>
-  [JsonPropertyName("list_item")] ListItem,
-  /// <summary>
-  /// Running footer at the bottom of a page.
-  /// </summary>
-  [JsonPropertyName("page_footer")] PageFooter,
-  /// <summary>
-  /// Running header at the top of a page.
-  /// </summary>
-  [JsonPropertyName("page_header")] PageHeader,
-  /// <summary>
-  /// Image, chart, or other graphical element.
-  /// </summary>
-  [JsonPropertyName("picture")] Picture,
-  /// <summary>
-  /// Section heading.
-  /// </summary>
-  [JsonPropertyName("section_header")] SectionHeader,
-  /// <summary>
-  /// Data table.
-  /// </summary>
-  [JsonPropertyName("table")] Table,
-  /// <summary>
-  /// Body text paragraph.
-  /// </summary>
-  [JsonPropertyName("text")] Text,
-  /// <summary>
-  /// Document or chapter title.
-  /// </summary>
-  [JsonPropertyName("title")] Title,
-  /// <summary>
-  /// Table of contents or index.
-  /// </summary>
-  [JsonPropertyName("document_index")] DocumentIndex,
-  /// <summary>
-  /// Source code block.
-  /// </summary>
-  [JsonPropertyName("code")] Code,
-  /// <summary>
-  /// Checkbox in selected state.
-  /// </summary>
-  [JsonPropertyName("checkbox_selected")] CheckboxSelected,
-  /// <summary>
-  /// Checkbox in unselected state.
-  /// </summary>
-  [JsonPropertyName("checkbox_unselected")] CheckboxUnselected,
-  /// <summary>
-  /// Form field or form element.
-  /// </summary>
-  [JsonPropertyName("form")] Form,
-  /// <summary>
-  /// Key-value pair region (e.g. label + value in a form).
-  /// </summary>
-  [JsonPropertyName("key_value_region")] KeyValueRegion,
+public enum LayoutClass
+{
+    /// <summary>
+    /// Figure or table caption text.
+    /// </summary>
+    [JsonPropertyName("caption")]
+    Caption,
+    /// <summary>
+    /// Chart or graph visualization.
+    /// </summary>
+    [JsonPropertyName("chart")]
+    Chart,
+    /// <summary>
+    /// Footnote or endnote text.
+    /// </summary>
+    [JsonPropertyName("footnote")]
+    Footnote,
+    /// <summary>
+    /// Mathematical formula or equation.
+    /// </summary>
+    [JsonPropertyName("formula")]
+    Formula,
+    /// <summary>
+    /// A single item in a bulleted or numbered list.
+    /// </summary>
+    [JsonPropertyName("list_item")]
+    ListItem,
+    /// <summary>
+    /// Running footer at the bottom of a page.
+    /// </summary>
+    [JsonPropertyName("page_footer")]
+    PageFooter,
+    /// <summary>
+    /// Running header at the top of a page.
+    /// </summary>
+    [JsonPropertyName("page_header")]
+    PageHeader,
+    /// <summary>
+    /// Image, chart, or other graphical element.
+    /// </summary>
+    [JsonPropertyName("picture")]
+    Picture,
+    /// <summary>
+    /// Section heading.
+    /// </summary>
+    [JsonPropertyName("section_header")]
+    SectionHeader,
+    /// <summary>
+    /// Data table.
+    /// </summary>
+    [JsonPropertyName("table")]
+    Table,
+    /// <summary>
+    /// Body text paragraph.
+    /// </summary>
+    [JsonPropertyName("text")]
+    Text,
+    /// <summary>
+    /// Document or chapter title.
+    /// </summary>
+    [JsonPropertyName("title")]
+    Title,
+    /// <summary>
+    /// Table of contents or index.
+    /// </summary>
+    [JsonPropertyName("document_index")]
+    DocumentIndex,
+    /// <summary>
+    /// Source code block.
+    /// </summary>
+    [JsonPropertyName("code")]
+    Code,
+    /// <summary>
+    /// Checkbox in selected state.
+    /// </summary>
+    [JsonPropertyName("checkbox_selected")]
+    CheckboxSelected,
+    /// <summary>
+    /// Checkbox in unselected state.
+    /// </summary>
+    [JsonPropertyName("checkbox_unselected")]
+    CheckboxUnselected,
+    /// <summary>
+    /// Form field or form element.
+    /// </summary>
+    [JsonPropertyName("form")]
+    Form,
+    /// <summary>
+    /// Key-value pair region (e.g. label + value in a form).
+    /// </summary>
+    [JsonPropertyName("key_value_region")]
+    KeyValueRegion,
 }
 
-/// <summary>
-/// Custom JSON converter for <see cref="LayoutClass"/> that respects explicit
-/// variant names.
-/// </summary>
-internal sealed class LayoutClassJsonConverter : JsonConverter<LayoutClass> {
-  public override LayoutClass Read(ref Utf8JsonReader reader,
-                                   Type typeToConvert,
-                                   JsonSerializerOptions options) {
-    var value = reader.GetString();
-    return value switch {
-      "caption" => LayoutClass.Caption,
-      "chart" => LayoutClass.Chart,
-      "footnote" => LayoutClass.Footnote,
-      "formula" => LayoutClass.Formula,
-      "list_item" => LayoutClass.ListItem,
-      "page_footer" => LayoutClass.PageFooter,
-      "page_header" => LayoutClass.PageHeader,
-      "picture" => LayoutClass.Picture,
-      "section_header" => LayoutClass.SectionHeader,
-      "table" => LayoutClass.Table,
-      "text" => LayoutClass.Text,
-      "title" => LayoutClass.Title,
-      "document_index" => LayoutClass.DocumentIndex,
-      "code" => LayoutClass.Code,
-      "checkbox_selected" => LayoutClass.CheckboxSelected,
-      "checkbox_unselected" => LayoutClass.CheckboxUnselected,
-      "form" => LayoutClass.Form,
-      "key_value_region" => LayoutClass.KeyValueRegion,
-      _ => throw new JsonException($"Unknown LayoutClass value: {value}")
-    };
-  }
 
-  public override void Write(Utf8JsonWriter writer, LayoutClass value,
-                             JsonSerializerOptions options) {
-    var str = value switch {
-      LayoutClass.Caption => "caption",
-      LayoutClass.Chart => "chart",
-      LayoutClass.Footnote => "footnote",
-      LayoutClass.Formula => "formula",
-      LayoutClass.ListItem => "list_item",
-      LayoutClass.PageFooter => "page_footer",
-      LayoutClass.PageHeader => "page_header",
-      LayoutClass.Picture => "picture",
-      LayoutClass.SectionHeader => "section_header",
-      LayoutClass.Table => "table",
-      LayoutClass.Text => "text",
-      LayoutClass.Title => "title",
-      LayoutClass.DocumentIndex => "document_index",
-      LayoutClass.Code => "code",
-      LayoutClass.CheckboxSelected => "checkbox_selected",
-      LayoutClass.CheckboxUnselected => "checkbox_unselected",
-      LayoutClass.Form => "form",
-      LayoutClass.KeyValueRegion => "key_value_region",
-      _ => throw new JsonException($"Unknown LayoutClass value: {value}")
-    };
-    writer.WriteStringValue(str);
-  }
+/// <summary>
+/// Custom JSON converter for <see cref="LayoutClass"/> that respects explicit variant names.
+/// </summary>
+internal sealed class LayoutClassJsonConverter : JsonConverter<LayoutClass>
+{
+    public override LayoutClass Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var value = reader.GetString();
+        return value switch
+        {
+            "caption" => LayoutClass.Caption,
+            "chart" => LayoutClass.Chart,
+            "footnote" => LayoutClass.Footnote,
+            "formula" => LayoutClass.Formula,
+            "list_item" => LayoutClass.ListItem,
+            "page_footer" => LayoutClass.PageFooter,
+            "page_header" => LayoutClass.PageHeader,
+            "picture" => LayoutClass.Picture,
+            "section_header" => LayoutClass.SectionHeader,
+            "table" => LayoutClass.Table,
+            "text" => LayoutClass.Text,
+            "title" => LayoutClass.Title,
+            "document_index" => LayoutClass.DocumentIndex,
+            "code" => LayoutClass.Code,
+            "checkbox_selected" => LayoutClass.CheckboxSelected,
+            "checkbox_unselected" => LayoutClass.CheckboxUnselected,
+            "form" => LayoutClass.Form,
+            "key_value_region" => LayoutClass.KeyValueRegion,
+            _ => throw new JsonException($"Unknown LayoutClass value: {value}")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, LayoutClass value, JsonSerializerOptions options)
+    {
+        var str = value switch
+        {
+            LayoutClass.Caption => "caption",
+            LayoutClass.Chart => "chart",
+            LayoutClass.Footnote => "footnote",
+            LayoutClass.Formula => "formula",
+            LayoutClass.ListItem => "list_item",
+            LayoutClass.PageFooter => "page_footer",
+            LayoutClass.PageHeader => "page_header",
+            LayoutClass.Picture => "picture",
+            LayoutClass.SectionHeader => "section_header",
+            LayoutClass.Table => "table",
+            LayoutClass.Text => "text",
+            LayoutClass.Title => "title",
+            LayoutClass.DocumentIndex => "document_index",
+            LayoutClass.Code => "code",
+            LayoutClass.CheckboxSelected => "checkbox_selected",
+            LayoutClass.CheckboxUnselected => "checkbox_unselected",
+            LayoutClass.Form => "form",
+            LayoutClass.KeyValueRegion => "key_value_region",
+            _ => throw new JsonException($"Unknown LayoutClass value: {value}")
+        };
+        writer.WriteStringValue(str);
+    }
 }

@@ -16,6 +16,35 @@ import (
 	xberg "github.com/xberg-io/xberg/packages/go"
 )
 
+func Test_FormatDocxEquations(t *testing.T) {
+	// DOCX equations extract to LaTeX math in markdown output
+	inputMockBaseURL := os.Getenv("MOCK_SERVER_FORMAT_DOCX_EQUATIONS")
+	if inputMockBaseURL == "" {
+		inputMockBaseURL = os.Getenv("MOCK_SERVER_URL") + "/fixtures/format_docx_equations"
+	}
+	inputJSON := strings.ReplaceAll(`{"filename":"equations.docx","kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","uri":"$mock_url/docx/equations.docx"}`, "$mock_url", inputMockBaseURL)
+	var input xberg.ExtractInput
+	if err := json.Unmarshal([]byte(inputJSON), &input); err != nil {
+		t.Fatalf("config parse failed: %v", err)
+	}
+	var config xberg.ExtractionConfig
+	if err := json.Unmarshal([]byte(`{"output_format":"markdown"}`), &config); err != nil {
+		t.Fatalf("config parse failed: %v", err)
+	}
+	result, err := xberg.Extract(input, config)
+	if err != nil {
+		t.Fatalf("call failed: %v", err)
+	}
+	if len(result.Results) > 0 {
+		assert.GreaterOrEqual(t, len(result.Results[0].Content), 20, "expected length >= 20")
+	}
+	if len(result.Results) > 0 {
+		if !strings.Contains(string(result.Results[0].Content), `$`) {
+			t.Errorf("expected to contain %s, got %v", `$`, result.Results[0].Content)
+		}
+	}
+}
+
 func Test_FormatDocxStandalone(t *testing.T) {
 	// Standalone DOCX extraction using extract
 	inputMockBaseURL := os.Getenv("MOCK_SERVER_FORMAT_DOCX_STANDALONE")
@@ -82,8 +111,12 @@ func Test_FormatPdfText(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `May`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `May`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}

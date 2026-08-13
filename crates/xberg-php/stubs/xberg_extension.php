@@ -2336,6 +2336,16 @@ namespace Xberg {
             public readonly bool $enableChartUnderstanding,
             /** @var ?float Confidence threshold override (None = use model default). */
             public readonly ?float $confidenceThreshold = null,
+            /**
+             * Formula recognition model for layout-detected formula regions.
+             *
+             * `None` (the default) keeps the plain OCR text of the region. Setting a
+             * model converts each formula region crop to LaTeX. Requires the
+             * `formula-recognition` feature; without it the setting is ignored.
+             *
+             * @var ?FormulaModel
+             */
+            public readonly ?FormulaModel $formulaModel = null,
         ) {}
 
         /**
@@ -2362,6 +2372,11 @@ namespace Xberg {
         }
 
         public function getTableModel(): TableModel
+        {
+            throw new \RuntimeException('Not implemented — provided by the native extension.');
+        }
+
+        public function getFormulaModel(): ?FormulaModel
         {
             throw new \RuntimeException('Not implemented — provided by the native extension.');
         }
@@ -9539,35 +9554,36 @@ namespace Xberg {
     }
 
     /**
-     * A mathematical formula detected and recognized in a document.
+     * A mathematical formula extracted from a document.
      *
-     * Populated by the layout-guided formula pipeline: regions classified as
-     * `LayoutClass.Formula` are routed to the formula OCR task, which returns the
-     * LaTeX source for the region. The field is always present on
-     * `ExtractedDocument` but only populated
-     * when the `layout-detection` feature is active and the document contains
-     * formula regions.
+     * Three kinds of sources populate this type. Layout-guided OCR detects
+     * formula regions and recognizes them; those formulas carry a `bbox` and a
+     * `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+     * its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+     * HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+     * to LaTeX, also without geometry.
      */
     final class Formula
     {
         public function __construct(
             /**
-             * LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+             * LaTeX source of the formula, without surrounding `$$` delimiters.
              *
-             * This field contains the raw LaTeX code as produced by the OCR backend.
-             * To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+             * Markup converters and formula OCR produce real LaTeX. The native PDF
+             * layout path stores the plain text of a detected formula region, which
+             * keeps the original Unicode math characters instead of LaTeX commands.
+             * To render the formula in Markdown or other formats, wrap it in `$$..$$`.
              *
              * @var string
              */
             public readonly string $latex,
             /**
-             * 1-indexed page number the formula appears on in the document.
+             * 1-indexed page number the formula appears on. `None` when the source
+             * format has no page concept. The C FFI reports an absent page as `0`.
              *
-             * This is set by the extraction pipeline based on which page the formula was found on.
-             *
-             * @var int
+             * @var ?int
              */
-            public readonly int $page,
+            public readonly ?int $page = null,
         ) {}
 
         /**
@@ -9586,12 +9602,12 @@ namespace Xberg {
         /**
          * @readonly Not settable via the constructor — this field's type has no ext-php-rs #[php(prop)]/constructor-param support, so it can only be read via this getter.
          */
-        public function getBbox(): BoundingBox
+        public function getBbox(): ?BoundingBox
         {
             throw new \RuntimeException('Not implemented — provided by the native extension.');
         }
 
-        public function getPage(): int
+        public function getPage(): ?int
         {
             throw new \RuntimeException('Not implemented — provided by the native extension.');
         }
@@ -16459,6 +16475,11 @@ namespace Xberg {
         }
     }
 
+    enum FormulaModel: string
+    {
+        case LatexOcr = 'latex_ocr';
+    }
+
     enum TableModel: string
     {
         case Tatr = 'tatr';
@@ -17049,6 +17070,7 @@ namespace Xberg {
         case Image = 'image';
         case PageBreak = 'page_break';
         case CodeBlock = 'code_block';
+        case Formula = 'formula';
         case BlockQuote = 'block_quote';
         case Footer = 'footer';
         case Header = 'header';

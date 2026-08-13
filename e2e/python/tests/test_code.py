@@ -6,8 +6,9 @@
 
 import json
 import os
-import pytest  # noqa: F401
-from xberg import extract, ExtractInput
+
+import pytest
+from xberg import ExtractInput, extract
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -30,15 +31,16 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 
 @pytest.mark.asyncio
-
 async def test_code_shebang_detection() -> None:
     """Test language detection from shebang line via bytes input."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/code_shebang_detection'
-    input_json = "{\"kind\":\"uri\",\"mime_type\":\"text/x-source-code\",\"uri\":\"$mock_url/code/script.sh\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/code_shebang_detection"
+    input_json = '{"kind":"uri","mime_type":"text/x-source-code","uri":"$mock_url/code/script.sh"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
     result = await extract(input, None)
-    assert _alef_e2e_text(result.results[0].mime_type).lower() == "text/x-source-code".lower()  # noqa: S101
-    assert len(result.results[0].content) >= 10  # noqa: S101
-    assert "build".lower() in str(result.results[0].content).lower()  # noqa: S101
-    assert "clean".lower() in str(result.results[0].content).lower()  # noqa: S101
+    assert _alef_e2e_text(result.results[0].mime_type).lower() == "text/x-source-code".lower()
+    assert len(result.results[0].content) >= 10
+    assert "build".lower() in str(result.results[0].content).lower()
+    assert "clean".lower() in str(result.results[0].content).lower()

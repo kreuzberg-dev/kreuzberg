@@ -39,6 +39,7 @@
     "c/extract/extract_bytes_input.md",
     "c/extract/extract_bytes_input_empty_mime.md",
     "c/extract/extract_bytes_input_invalid_mime.md",
+    "c/format_specific/format_docx_equations.md",
     "c/format_specific/format_docx_standalone.md",
     "c/format_specific/format_hwpx_standalone.md",
     "c/format_specific/format_pdf_text.md",
@@ -122,6 +123,7 @@
     "csharp/extract/extract_bytes_input.md",
     "csharp/extract/extract_bytes_input_empty_mime.md",
     "csharp/extract/extract_bytes_input_invalid_mime.md",
+    "csharp/format_specific/format_docx_equations.md",
     "csharp/format_specific/format_docx_standalone.md",
     "csharp/format_specific/format_hwpx_standalone.md",
     "csharp/format_specific/format_pdf_text.md",
@@ -205,6 +207,7 @@
     "dart/extract/extract_bytes_input.md",
     "dart/extract/extract_bytes_input_empty_mime.md",
     "dart/extract/extract_bytes_input_invalid_mime.md",
+    "dart/format_specific/format_docx_equations.md",
     "dart/format_specific/format_docx_standalone.md",
     "dart/format_specific/format_hwpx_standalone.md",
     "dart/format_specific/format_pdf_text.md",
@@ -288,6 +291,7 @@
     "elixir/extract/extract_bytes_input.md",
     "elixir/extract/extract_bytes_input_empty_mime.md",
     "elixir/extract/extract_bytes_input_invalid_mime.md",
+    "elixir/format_specific/format_docx_equations.md",
     "elixir/format_specific/format_docx_standalone.md",
     "elixir/format_specific/format_hwpx_standalone.md",
     "elixir/format_specific/format_pdf_text.md",
@@ -371,6 +375,7 @@
     "go/extract/extract_bytes_input.md",
     "go/extract/extract_bytes_input_empty_mime.md",
     "go/extract/extract_bytes_input_invalid_mime.md",
+    "go/format_specific/format_docx_equations.md",
     "go/format_specific/format_docx_standalone.md",
     "go/format_specific/format_hwpx_standalone.md",
     "go/format_specific/format_pdf_text.md",
@@ -454,6 +459,7 @@
     "java/extract/extract_bytes_input.md",
     "java/extract/extract_bytes_input_empty_mime.md",
     "java/extract/extract_bytes_input_invalid_mime.md",
+    "java/format_specific/format_docx_equations.md",
     "java/format_specific/format_docx_standalone.md",
     "java/format_specific/format_hwpx_standalone.md",
     "java/format_specific/format_pdf_text.md",
@@ -537,6 +543,7 @@
     "kotlin-android/extract/extract_bytes_input.md",
     "kotlin-android/extract/extract_bytes_input_empty_mime.md",
     "kotlin-android/extract/extract_bytes_input_invalid_mime.md",
+    "kotlin-android/format_specific/format_docx_equations.md",
     "kotlin-android/format_specific/format_docx_standalone.md",
     "kotlin-android/format_specific/format_hwpx_standalone.md",
     "kotlin-android/format_specific/format_pdf_text.md",
@@ -620,6 +627,7 @@
     "php/extract/extract_bytes_input.md",
     "php/extract/extract_bytes_input_empty_mime.md",
     "php/extract/extract_bytes_input_invalid_mime.md",
+    "php/format_specific/format_docx_equations.md",
     "php/format_specific/format_docx_standalone.md",
     "php/format_specific/format_hwpx_standalone.md",
     "php/format_specific/format_pdf_text.md",
@@ -703,6 +711,7 @@
     "python/extract/extract_bytes_input.md",
     "python/extract/extract_bytes_input_empty_mime.md",
     "python/extract/extract_bytes_input_invalid_mime.md",
+    "python/format_specific/format_docx_equations.md",
     "python/format_specific/format_docx_standalone.md",
     "python/format_specific/format_hwpx_standalone.md",
     "python/format_specific/format_pdf_text.md",
@@ -786,6 +795,7 @@
     "ruby/extract/extract_bytes_input.md",
     "ruby/extract/extract_bytes_input_empty_mime.md",
     "ruby/extract/extract_bytes_input_invalid_mime.md",
+    "ruby/format_specific/format_docx_equations.md",
     "ruby/format_specific/format_docx_standalone.md",
     "ruby/format_specific/format_hwpx_standalone.md",
     "ruby/format_specific/format_pdf_text.md",
@@ -869,6 +879,7 @@
     "rust/extract/extract_bytes_input.md",
     "rust/extract/extract_bytes_input_empty_mime.md",
     "rust/extract/extract_bytes_input_invalid_mime.md",
+    "rust/format_specific/format_docx_equations.md",
     "rust/format_specific/format_docx_standalone.md",
     "rust/format_specific/format_hwpx_standalone.md",
     "rust/format_specific/format_pdf_text.md",
@@ -952,6 +963,7 @@
     "swift/extract/extract_bytes_input.md",
     "swift/extract/extract_bytes_input_empty_mime.md",
     "swift/extract/extract_bytes_input_invalid_mime.md",
+    "swift/format_specific/format_docx_equations.md",
     "swift/format_specific/format_docx_standalone.md",
     "swift/format_specific/format_hwpx_standalone.md",
     "swift/format_specific/format_pdf_text.md",
@@ -1035,6 +1047,7 @@
     "typescript/extract/extract_bytes_input.md",
     "typescript/extract/extract_bytes_input_empty_mime.md",
     "typescript/extract/extract_bytes_input_invalid_mime.md",
+    "typescript/format_specific/format_docx_equations.md",
     "typescript/format_specific/format_docx_standalone.md",
     "typescript/format_specific/format_hwpx_standalone.md",
     "typescript/format_specific/format_pdf_text.md",
@@ -1118,6 +1131,7 @@
     "wasm/extract/extract_bytes_input.md",
     "wasm/extract/extract_bytes_input_empty_mime.md",
     "wasm/extract/extract_bytes_input_invalid_mime.md",
+    "wasm/format_specific/format_docx_equations.md",
     "wasm/format_specific/format_docx_standalone.md",
     "wasm/format_specific/format_hwpx_standalone.md",
     "wasm/format_specific/format_pdf_text.md",
@@ -1201,6 +1215,7 @@
     "zig/extract/extract_bytes_input.md",
     "zig/extract/extract_bytes_input_empty_mime.md",
     "zig/extract/extract_bytes_input_invalid_mime.md",
+    "zig/format_specific/format_docx_equations.md",
     "zig/format_specific/format_docx_standalone.md",
     "zig/format_specific/format_hwpx_standalone.md",
     "zig/format_specific/format_pdf_text.md",
@@ -1703,6 +1718,18 @@
       "session": "c",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "c"
+      },
+      "path": "c/format_specific/format_docx_equations.md",
+      "language": "c",
+      "target": "c",
+      "session": "c",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -2702,6 +2729,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "csharp"
+      },
+      "path": "csharp/format_specific/format_docx_equations.md",
+      "language": "csharp",
+      "target": "csharp",
+      "session": "csharp",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "csharp"
       },
@@ -3695,6 +3734,18 @@
       "session": "dart",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "dart"
+      },
+      "path": "dart/format_specific/format_docx_equations.md",
+      "language": "dart",
+      "target": "dart",
+      "session": "dart",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -4694,6 +4745,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "elixir"
+      },
+      "path": "elixir/format_specific/format_docx_equations.md",
+      "language": "elixir",
+      "target": "elixir",
+      "session": "elixir",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "elixir"
       },
@@ -5687,6 +5750,18 @@
       "session": "go",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "go"
+      },
+      "path": "go/format_specific/format_docx_equations.md",
+      "language": "go",
+      "target": "go",
+      "session": "go",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -6686,6 +6761,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "java"
+      },
+      "path": "java/format_specific/format_docx_equations.md",
+      "language": "java",
+      "target": "java",
+      "session": "java",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "java"
       },
@@ -7679,6 +7766,18 @@
       "session": "kotlin_android",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "kotlin_android"
+      },
+      "path": "kotlin-android/format_specific/format_docx_equations.md",
+      "language": "kotlin",
+      "target": "kotlin_android",
+      "session": "kotlin_android",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -8678,6 +8777,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "php"
+      },
+      "path": "php/format_specific/format_docx_equations.md",
+      "language": "php",
+      "target": "php",
+      "session": "php",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "php"
       },
@@ -9671,6 +9782,18 @@
       "session": "python",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "python"
+      },
+      "path": "python/format_specific/format_docx_equations.md",
+      "language": "python",
+      "target": "python",
+      "session": "python",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -10670,6 +10793,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "ruby"
+      },
+      "path": "ruby/format_specific/format_docx_equations.md",
+      "language": "ruby",
+      "target": "ruby",
+      "session": "ruby",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "ruby"
       },
@@ -11663,6 +11798,18 @@
       "session": "rust",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "rust"
+      },
+      "path": "rust/format_specific/format_docx_equations.md",
+      "language": "rust",
+      "target": "rust",
+      "session": "rust",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -12662,6 +12809,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "swift"
+      },
+      "path": "swift/format_specific/format_docx_equations.md",
+      "language": "swift",
+      "target": "swift",
+      "session": "swift",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "swift"
       },
@@ -13655,6 +13814,18 @@
       "session": "node",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "node"
+      },
+      "path": "typescript/format_specific/format_docx_equations.md",
+      "language": "typescript",
+      "target": "node",
+      "session": "node",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -14654,6 +14825,18 @@
     },
     {
       "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "wasm"
+      },
+      "path": "wasm/format_specific/format_docx_equations.md",
+      "language": "typescript",
+      "target": "wasm",
+      "session": "wasm",
+      "requires": [],
+      "side_effect": "server"
+    },
+    {
+      "key": {
         "fixture_id": "format_docx_standalone",
         "language": "wasm"
       },
@@ -15647,6 +15830,18 @@
       "session": "zig",
       "requires": [],
       "side_effect": "safe"
+    },
+    {
+      "key": {
+        "fixture_id": "format_docx_equations",
+        "language": "zig"
+      },
+      "path": "zig/format_specific/format_docx_equations.md",
+      "language": "zig",
+      "target": "zig",
+      "session": "zig",
+      "requires": [],
+      "side_effect": "server"
     },
     {
       "key": {
@@ -18528,6 +18723,66 @@
     },
     {
       "fixture_id": "extract_bytes_input_invalid_mime",
+      "language": "zig"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "c"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "csharp"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "dart"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "elixir"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "go"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "java"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "kotlin_android"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "node"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "php"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "python"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "ruby"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "rust"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "swift"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "wasm"
+    },
+    {
+      "fixture_id": "format_docx_equations",
       "language": "zig"
     },
     {
@@ -23873,6 +24128,66 @@
       "language": "zig"
     },
     {
+      "fixture_id": "format_docx_equations",
+      "language": "c"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "csharp"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "dart"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "elixir"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "go"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "java"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "kotlin_android"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "node"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "php"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "python"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "ruby"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "rust"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "swift"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "wasm"
+    },
+    {
+      "fixture_id": "format_docx_equations",
+      "language": "zig"
+    },
+    {
       "fixture_id": "format_docx_standalone",
       "language": "c"
     },
@@ -26513,637 +26828,727 @@
       "language": "zig"
     }
   ],
-  "missing": [
+  "missing": [],
+  "documented_exceptions": [
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_embedding_backend_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_ocr_backend_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_post_processor_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_reranker_backend_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_tokenizer_backend_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "c"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "csharp"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "dart"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "elixir"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "go"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "java"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "kotlin_android"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "node"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "php"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "python"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "ruby"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "rust"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "swift"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "wasm"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     },
     {
       "key": {
         "fixture_id": "register_validator_trait_bridge",
         "language": "zig"
       },
-      "reason": "test-backend fixture requires an extension-owned documentation recipe"
+      "reason": "test-backend fixture requires an extension-owned documentation recipe",
+      "reference": "docs-site/src/content/docs/guides/plugins.mdx"
     }
-  ],
-  "documented_exceptions": []
+  ]
 }

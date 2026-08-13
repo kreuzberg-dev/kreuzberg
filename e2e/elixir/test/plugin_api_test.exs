@@ -3,233 +3,263 @@
 # To verify freshness: alef verify --exit-code
 # E2e tests for category: plugin_api
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridge do
-def name, do: "test-embedding-backend"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def dimensions, do: 1
-def embed(texts), do: {:ok, []}
+  defmodule E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridge do
+    def name, do: "test-embedding-backend"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def dimensions, do: 1
+    def embed(texts), do: {:ok, []}
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("dimensions", args), do: []
+    defp __alef_ordered_args__("embed", args), do: [args["texts"]]
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterEmbeddingBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("dimensions", args), do: []
-defp __alef_ordered_args__("embed", args), do: [args["texts"]]
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterOcrBackendTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterOcrBackendTraitBridge do
-def name, do: "test-backend"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def process_image(image_bytes, config), do: {:ok, %{}}
-def process_image_file(path, config), do: {:ok, %{}}
-def supports_language(lang), do: false
-def backend_type, do: %{}
-def supported_languages, do: []
-def supports_table_detection, do: false
-def supports_document_processing, do: false
-def emits_structured_markdown, do: false
-def process_document(_path, _config), do: {:ok, %{}}
+  defmodule E2e.TestStubs.TestStubRegisterOcrBackendTraitBridge do
+    def name, do: "test-backend"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def process_image(image_bytes, config), do: {:ok, %{}}
+    def process_image_file(path, config), do: {:ok, %{}}
+    def supports_language(lang), do: false
+    def backend_type, do: %{}
+    def supported_languages, do: []
+    def supports_table_detection, do: false
+    def supports_document_processing, do: false
+    def emits_structured_markdown, do: false
+    def process_document(_path, _config), do: {:ok, %{}}
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterOcrBackendTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterOcrBackendTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterOcrBackendTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterOcrBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("process_image", args), do: [args["image_bytes"], args["config"]]
+    defp __alef_ordered_args__("process_image_file", args), do: [args["path"], args["config"]]
+    defp __alef_ordered_args__("supports_language", args), do: [args["lang"]]
+    defp __alef_ordered_args__("backend_type", args), do: []
+    defp __alef_ordered_args__("supported_languages", args), do: []
+    defp __alef_ordered_args__("supports_table_detection", args), do: []
+    defp __alef_ordered_args__("supports_document_processing", args), do: []
+    defp __alef_ordered_args__("emits_structured_markdown", args), do: []
+    defp __alef_ordered_args__("process_document", args), do: [args["_path"], args["_config"]]
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterOcrBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("process_image", args), do: [args["image_bytes"], args["config"]]
-defp __alef_ordered_args__("process_image_file", args), do: [args["path"], args["config"]]
-defp __alef_ordered_args__("supports_language", args), do: [args["lang"]]
-defp __alef_ordered_args__("backend_type", args), do: []
-defp __alef_ordered_args__("supported_languages", args), do: []
-defp __alef_ordered_args__("supports_table_detection", args), do: []
-defp __alef_ordered_args__("supports_document_processing", args), do: []
-defp __alef_ordered_args__("emits_structured_markdown", args), do: []
-defp __alef_ordered_args__("process_document", args), do: [args["_path"], args["_config"]]
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterPostProcessorTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterPostProcessorTraitBridge do
-def name, do: "test-processor"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def process(result, config), do: {:ok, nil}
-def processing_stage, do: %{}
-def should_process(_result, _config), do: false
-def estimated_duration_ms(_result), do: 1
-def priority, do: 1
+  defmodule E2e.TestStubs.TestStubRegisterPostProcessorTraitBridge do
+    def name, do: "test-processor"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def process(result, config), do: {:ok, nil}
+    def processing_stage, do: %{}
+    def should_process(_result, _config), do: false
+    def estimated_duration_ms(_result), do: 1
+    def priority, do: 1
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterPostProcessorTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterPostProcessorTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterPostProcessorTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterPostProcessorTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("process", args), do: [args["result"], args["config"]]
+    defp __alef_ordered_args__("processing_stage", args), do: []
+    defp __alef_ordered_args__("should_process", args), do: [args["_result"], args["_config"]]
+    defp __alef_ordered_args__("estimated_duration_ms", args), do: [args["_result"]]
+    defp __alef_ordered_args__("priority", args), do: []
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterPostProcessorTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("process", args), do: [args["result"], args["config"]]
-defp __alef_ordered_args__("processing_stage", args), do: []
-defp __alef_ordered_args__("should_process", args), do: [args["_result"], args["_config"]]
-defp __alef_ordered_args__("estimated_duration_ms", args), do: [args["_result"]]
-defp __alef_ordered_args__("priority", args), do: []
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridge do
-def name, do: "test-reranker-backend"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def rerank(query, documents), do: {:ok, []}
+  defmodule E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridge do
+    def name, do: "test-reranker-backend"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def rerank(query, documents), do: {:ok, []}
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("rerank", args), do: [args["query"], args["documents"]]
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterRerankerBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("rerank", args), do: [args["query"], args["documents"]]
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridge do
-def name, do: "test-tokenizer-backend"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def count_tokens(text), do: 1
+  defmodule E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridge do
+    def name, do: "test-tokenizer-backend"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def count_tokens(text), do: 1
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("count_tokens", args), do: [args["text"]]
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterTokenizerBackendTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("count_tokens", args), do: [args["text"]]
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterValidatorTraitBridge) do
-defmodule E2e.TestStubs.TestStubRegisterValidatorTraitBridge do
-def name, do: "test-validator"
-def version, do: "test"
-def initialize, do: :ok
-def shutdown, do: :ok
-def validate(result, config), do: {:ok, nil}
-def should_validate(_result, _config), do: false
-def priority, do: 1
+  defmodule E2e.TestStubs.TestStubRegisterValidatorTraitBridge do
+    def name, do: "test-validator"
+    def version, do: "test"
+    def initialize, do: :ok
+    def shutdown, do: :ok
+    def validate(result, config), do: {:ok, nil}
+    def should_validate(_result, _config), do: false
+    def priority, do: 1
+  end
 end
-end
+
 unless Code.ensure_loaded?(E2e.TestStubs.TestStubRegisterValidatorTraitBridgeGenServer) do
-defmodule E2e.TestStubs.TestStubRegisterValidatorTraitBridgeGenServer do
-use GenServer
-def start_link(_opts) do
-GenServer.start_link(__MODULE__, nil)
+  defmodule E2e.TestStubs.TestStubRegisterValidatorTraitBridgeGenServer do
+    use GenServer
+
+    def start_link(_opts) do
+      GenServer.start_link(__MODULE__, nil)
+    end
+
+    @impl true
+    def init(_), do: {:ok, nil}
+    @impl true
+    def handle_info({:trait_call, method_atom, args, reply_id}, state) do
+      method_name = to_string(method_atom)
+      ordered_args = __alef_ordered_args__(method_name, args)
+      result = apply(E2e.TestStubs.TestStubRegisterValidatorTraitBridge, String.to_existing_atom(method_name), ordered_args)
+      result_json = Jason.encode!(result)
+      Xberg.Native.complete_trait_call(reply_id, result_json)
+      {:noreply, state}
+    end
+
+    defp __alef_ordered_args__("validate", args), do: [args["result"], args["config"]]
+    defp __alef_ordered_args__("should_validate", args), do: [args["_result"], args["_config"]]
+    defp __alef_ordered_args__("priority", args), do: []
+    defp __alef_ordered_args__("version", _args), do: []
+    defp __alef_ordered_args__("initialize", _args), do: []
+    defp __alef_ordered_args__("shutdown", _args), do: []
+    defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
+  end
 end
-@impl true
-def init(_), do: {:ok, nil}
-@impl true
-def handle_info({:trait_call, method_atom, args, reply_id}, state) do
-method_name = to_string(method_atom)
-ordered_args = __alef_ordered_args__(method_name, args)
-result = apply(E2e.TestStubs.TestStubRegisterValidatorTraitBridge, String.to_existing_atom(method_name), ordered_args)
-result_json = Jason.encode!(result)
-Xberg.Native.complete_trait_call(reply_id, result_json)
-{:noreply, state}
-end
-defp __alef_ordered_args__("validate", args), do: [args["result"], args["config"]]
-defp __alef_ordered_args__("should_validate", args), do: [args["_result"], args["_config"]]
-defp __alef_ordered_args__("priority", args), do: []
-defp __alef_ordered_args__("version", _args), do: []
-defp __alef_ordered_args__("initialize", _args), do: []
-defp __alef_ordered_args__("shutdown", _args), do: []
-defp __alef_ordered_args__(_method, args) when map_size(args) == 0, do: []
-end
-end
+
 defmodule E2e.PluginApiTest do
   use ExUnit.Case, async: false
 

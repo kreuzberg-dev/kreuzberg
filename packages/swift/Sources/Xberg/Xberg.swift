@@ -835,6 +835,12 @@ public struct LayoutDetectionConfig: Codable, Sendable, Hashable {
     /// Controls which model is used for table cell detection within layout-detected
     /// table regions. Defaults to [`TableModel::Tatr`].
     public let tableModel: TableModel
+    /// Formula recognition model for layout-detected formula regions.
+    ///
+    /// `None` (the default) keeps the plain OCR text of the region. Setting a
+    /// model converts each formula region crop to LaTeX. Requires the
+    /// `formula-recognition` feature; without it the setting is ignored.
+    public let formulaModel: FormulaModel?
     /// How to resolve overlapping native vs layout tables.
     ///
     /// When a native oxide table and a layout (TATR/SLANeXT) table overlap on the
@@ -855,11 +861,12 @@ public struct LayoutDetectionConfig: Codable, Sendable, Hashable {
     /// generic image regions. Defaults to `false` — chart understanding is
     /// opt-in and has no effect on standard text/table extraction scores.
     public let enableChartUnderstanding: Bool
-    public init(strategy: LayoutStrategy, confidenceThreshold: Float? = nil, applyHeuristics: Bool, tableModel: TableModel, tableOverlapPreference: TableOverlapPreference, acceleration: AccelerationConfig? = nil, enableChartUnderstanding: Bool) {
+    public init(strategy: LayoutStrategy, confidenceThreshold: Float? = nil, applyHeuristics: Bool, tableModel: TableModel, formulaModel: FormulaModel? = nil, tableOverlapPreference: TableOverlapPreference, acceleration: AccelerationConfig? = nil, enableChartUnderstanding: Bool) {
         self.strategy = strategy
         self.confidenceThreshold = confidenceThreshold
         self.applyHeuristics = applyHeuristics
         self.tableModel = tableModel
+        self.formulaModel = formulaModel
         self.tableOverlapPreference = tableOverlapPreference
         self.acceleration = acceleration
         self.enableChartUnderstanding = enableChartUnderstanding
@@ -869,6 +876,7 @@ public struct LayoutDetectionConfig: Codable, Sendable, Hashable {
         case confidenceThreshold = "confidence_threshold"
         case applyHeuristics = "apply_heuristics"
         case tableModel = "table_model"
+        case formulaModel = "formula_model"
         case tableOverlapPreference = "table_overlap_preference"
         case acceleration = "acceleration"
         case enableChartUnderstanding = "enable_chart_understanding"
@@ -879,6 +887,7 @@ public struct LayoutDetectionConfig: Codable, Sendable, Hashable {
         self.confidenceThreshold = try container.decodeIfPresent(Float.self, forKey: .confidenceThreshold) ?? nil
         self.applyHeuristics = try container.decodeIfPresent(Bool.self, forKey: .applyHeuristics) ?? true
         self.tableModel = try container.decode(TableModel.self, forKey: .tableModel)
+        self.formulaModel = try container.decodeIfPresent(FormulaModel.self, forKey: .formulaModel) ?? nil
         self.tableOverlapPreference = try container.decode(TableOverlapPreference.self, forKey: .tableOverlapPreference)
         self.acceleration = try container.decodeIfPresent(AccelerationConfig.self, forKey: .acceleration) ?? nil
         self.enableChartUnderstanding = try container.decodeIfPresent(Bool.self, forKey: .enableChartUnderstanding) ?? false
@@ -892,6 +901,7 @@ internal extension LayoutDetectionConfig {
         self.confidenceThreshold = rb.confidenceThreshold()
         self.applyHeuristics = rb.applyHeuristics()
         self.tableModel = try { let rawValue = rb.tableModel().toString(); guard let value = TableModel(rawValue: rawValue) else { throw XbergError.validation(message: "Unknown TableModel variant", source: rawValue) }; return value }()
+        self.formulaModel = rb.formulaModel().flatMap { FormulaModel(rawValue: $0.toString()) }
         self.tableOverlapPreference = try { let rawValue = rb.tableOverlapPreference().toString(); guard let value = TableOverlapPreference(rawValue: rawValue) else { throw XbergError.validation(message: "Unknown TableOverlapPreference variant", source: rawValue) }; return value }()
         self.acceleration = try rb.acceleration().map { try AccelerationConfig($0) }
         self.enableChartUnderstanding = rb.enableChartUnderstanding()
@@ -4202,31 +4212,34 @@ internal extension ImagePreprocessingMetadata {
     }
 }
 
-/// A mathematical formula detected and recognized in a document.
+/// A mathematical formula extracted from a document.
 ///
-/// Populated by the layout-guided formula pipeline: regions classified as
-/// `LayoutClass::Formula` are routed to the formula OCR task, which returns the
-/// LaTeX source for the region. The field is always present on
-/// [`ExtractedDocument`](super::extraction::ExtractedDocument) but only populated
-/// when the `layout-detection` feature is active and the document contains
-/// formula regions.
+/// Three kinds of sources populate this type. Layout-guided OCR detects
+/// formula regions and recognizes them; those formulas carry a `bbox` and a
+/// `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+/// its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+/// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+/// to LaTeX, also without geometry.
 public struct Formula: Codable, Sendable, Hashable {
-    /// LaTeX source of the recognized formula, without surrounding `$$` delimiters.
+    /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
-    /// This field contains the raw LaTeX code as produced by the OCR backend.
-    /// To render the formula in Markdown or other formats, wrap with `$$..$$` delimiters as needed.
+    /// Markup converters and formula OCR produce real LaTeX. The native PDF
+    /// layout path stores the plain text of a detected formula region, which
+    /// keeps the original Unicode math characters instead of LaTeX commands.
+    /// To render the formula in Markdown or other formats, wrap it in `$$..$$`.
     public let latex: String
-    /// Bounding box of the formula region on its page, in rendered-image pixel coordinates.
+    /// Bounding box of the formula region on its page. `None` for markup sources.
     ///
-    /// The coordinates are in the space of the OCR-rendered page image at the OCR DPI
-    /// (typically 300 DPI). These coordinates are NOT comparable to bounding boxes from
-    /// native PDF text extraction, which use PDF point coordinates.
-    public let bbox: BoundingBox
-    /// 1-indexed page number the formula appears on in the document.
-    ///
-    /// This is set by the extraction pipeline based on which page the formula was found on.
-    public let page: UInt32
-    public init(latex: String, bbox: BoundingBox, page: UInt32) {
+    /// PDF OCR sources report PDF point coordinates with the origin at the
+    /// bottom-left of the page, comparable to native PDF geometry. Image
+    /// sources, and PDF pages whose geometry is unavailable, report pixels of
+    /// the image the OCR backend saw. The C FFI reports an absent bbox as a
+    /// null pointer.
+    public let bbox: BoundingBox?
+    /// 1-indexed page number the formula appears on. `None` when the source
+    /// format has no page concept. The C FFI reports an absent page as `0`.
+    public let page: UInt32?
+    public init(latex: String, bbox: BoundingBox? = nil, page: UInt32? = nil) {
         self.latex = latex
         self.bbox = bbox
         self.page = page
@@ -4237,7 +4250,7 @@ public struct Formula: Codable, Sendable, Hashable {
 internal extension Formula {
     init(_ rb: RustBridge.FormulaRef) throws {
         self.latex = rb.latex().toString()
-        self.bbox = try BoundingBox(rb.bbox())
+        self.bbox = try rb.bbox().map { try BoundingBox($0) }
         self.page = rb.page()
     }
 
@@ -8996,6 +9009,20 @@ extension LateInteractionModelType {
     }
 }
 
+/// Formula recognition model selection.
+public enum FormulaModel: String, Codable, Sendable, Hashable {
+    /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
+    /// ~180 MB total, downloaded on demand.
+    case latexOcr = "latex_ocr"
+}
+extension FormulaModel {
+    func intoRust() throws -> RustBridge.FormulaModel {
+        let data = try JSONEncoder().encode(self)
+        let json = String(data: data, encoding: .utf8) ?? "null"
+        return try RustBridge.formulaModelFromJson(json)
+    }
+}
+
 /// Which table structure recognition model to use.
 ///
 /// Controls the model used for table cell detection within layout-detected
@@ -10470,6 +10497,8 @@ public enum ElementType: String, Codable, Sendable, Hashable {
     case pageBreak = "page_break"
     /// Code block
     case codeBlock = "code_block"
+    /// Mathematical formula (LaTeX source in `text`)
+    case formula
     /// Block quote
     case blockQuote = "block_quote"
     /// Footer text
@@ -12691,6 +12720,10 @@ public func htmlThemeFromJson(_ json: String) throws -> HtmlTheme {
 public func lateInteractionModelTypeFromJson(_ json: String) throws -> LateInteractionModelType {
     let data = json.data(using: .utf8) ?? Data()
     return try JSONDecoder().decode(LateInteractionModelType.self, from: data)
+}
+public func formulaModelFromJson(_ json: String) throws -> FormulaModel {
+    let data = json.data(using: .utf8) ?? Data()
+    return try JSONDecoder().decode(FormulaModel.self, from: data)
 }
 public func tableModelFromJson(_ json: String) throws -> TableModel {
     let data = json.data(using: .utf8) ?? Data()

@@ -1287,6 +1287,9 @@ public func htmlThemeFromJson<GenericIntoRustString: IntoRustString>(_ json: Gen
 public func lateInteractionModelTypeFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> LateInteractionModelType {
     try { let val = __swift_bridge__$late_interaction_model_type_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return LateInteractionModelType(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
 }
+public func formulaModelFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> FormulaModel {
+    try { let val = __swift_bridge__$formula_model_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return FormulaModel(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
+}
 public func tableModelFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> TableModel {
     try { let val = __swift_bridge__$table_model_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return TableModel(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
 }
@@ -2375,6 +2378,9 @@ public func __alef_phantom_vec_chunk_classification_enrichment_config() -> RustV
 }
 public func __alef_phantom_vec_html_theme() -> RustVec<HtmlTheme> {
     RustVec(ptr: __swift_bridge__$__alef_phantom_vec_html_theme())
+}
+public func __alef_phantom_vec_formula_model() -> RustVec<FormulaModel> {
+    RustVec(ptr: __swift_bridge__$__alef_phantom_vec_formula_model())
 }
 public func __alef_phantom_vec_table_model() -> RustVec<TableModel> {
     RustVec(ptr: __swift_bridge__$__alef_phantom_vec_table_model())
@@ -4899,8 +4905,8 @@ public class LayoutDetectionConfig: LayoutDetectionConfigRefMut {
     }
 }
 extension LayoutDetectionConfig {
-    public convenience init(_ strategy: LayoutStrategy, _ confidence_threshold: Optional<Float>, _ apply_heuristics: Bool, _ table_model: TableModel, _ table_overlap_preference: TableOverlapPreference, _ acceleration: Optional<AccelerationConfig>, _ enable_chart_understanding: Bool) {
-        self.init(ptr: __swift_bridge__$LayoutDetectionConfig$new({strategy.isOwned = false; return strategy.ptr;}(), confidence_threshold.intoFfiRepr(), apply_heuristics, {table_model.isOwned = false; return table_model.ptr;}(), {table_overlap_preference.isOwned = false; return table_overlap_preference.ptr;}(), { if let val = acceleration { val.isOwned = false; return val.ptr } else { return nil } }(), enable_chart_understanding))
+    public convenience init(_ strategy: LayoutStrategy, _ confidence_threshold: Optional<Float>, _ apply_heuristics: Bool, _ table_model: TableModel, _ formula_model: Optional<FormulaModel>, _ table_overlap_preference: TableOverlapPreference, _ acceleration: Optional<AccelerationConfig>, _ enable_chart_understanding: Bool) {
+        self.init(ptr: __swift_bridge__$LayoutDetectionConfig$new({strategy.isOwned = false; return strategy.ptr;}(), confidence_threshold.intoFfiRepr(), apply_heuristics, {table_model.isOwned = false; return table_model.ptr;}(), { if let val = formula_model { val.isOwned = false; return val.ptr } else { return nil } }(), {table_overlap_preference.isOwned = false; return table_overlap_preference.ptr;}(), { if let val = acceleration { val.isOwned = false; return val.ptr } else { return nil } }(), enable_chart_understanding))
     }
 }
 public class LayoutDetectionConfigRefMut: LayoutDetectionConfigRef {
@@ -4930,6 +4936,10 @@ extension LayoutDetectionConfigRef {
 
     public func tableModel() -> RustString {
         RustString(ptr: __swift_bridge__$LayoutDetectionConfig$table_model(ptr))
+    }
+
+    public func formulaModel() -> Optional<RustString> {
+        { let val = __swift_bridge__$LayoutDetectionConfig$formula_model(ptr); if val != nil { return RustString(ptr: val!) } else { return nil } }()
     }
 
     public func tableOverlapPreference() -> RustString {
@@ -14158,12 +14168,12 @@ extension FormulaRef {
         RustString(ptr: __swift_bridge__$Formula$latex(ptr))
     }
 
-    public func bbox() -> BoundingBox {
-        BoundingBox(ptr: __swift_bridge__$Formula$bbox(ptr))
+    public func bbox() -> Optional<BoundingBox> {
+        { let val = __swift_bridge__$Formula$bbox(ptr); if val != nil { return BoundingBox(ptr: val!) } else { return nil } }()
     }
 
-    public func page() -> UInt32 {
-        __swift_bridge__$Formula$page(ptr)
+    public func page() -> Optional<UInt32> {
+        __swift_bridge__$Formula$page(ptr).intoSwiftRepr()
     }
 }
 extension Formula: Vectorizable {
@@ -25780,6 +25790,86 @@ extension LateInteractionModelType: Vectorizable {
 
     public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
         __swift_bridge__$Vec_LateInteractionModelType$len(vecPtr)
+    }
+}
+
+
+public class FormulaModel: FormulaModelRefMut {
+    public var isOwned: Bool = true
+
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+
+    deinit {
+        if isOwned {
+            __swift_bridge__$FormulaModel$_free(ptr)
+        }
+    }
+}
+public class FormulaModelRefMut: FormulaModelRef {
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+}
+public class FormulaModelRef {
+    public var ptr: UnsafeMutableRawPointer
+
+    public init(ptr: UnsafeMutableRawPointer) {
+        self.ptr = ptr
+    }
+}
+extension FormulaModelRef {
+    public func to_string() -> RustString {
+        RustString(ptr: __swift_bridge__$FormulaModel$to_string(ptr))
+    }
+}
+extension FormulaModel: Vectorizable {
+    public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
+        __swift_bridge__$Vec_FormulaModel$new()
+    }
+
+    public static func vecOfSelfFree(vecPtr: UnsafeMutableRawPointer) {
+        __swift_bridge__$Vec_FormulaModel$drop(vecPtr)
+    }
+
+    public static func vecOfSelfPush(vecPtr: UnsafeMutableRawPointer, value: FormulaModel) {
+        __swift_bridge__$Vec_FormulaModel$push(vecPtr, {value.isOwned = false; return value.ptr;}())
+    }
+
+    public static func vecOfSelfPop(vecPtr: UnsafeMutableRawPointer) -> Optional<Self> {
+        let pointer = __swift_bridge__$Vec_FormulaModel$pop(vecPtr)
+        if pointer == nil {
+            return nil
+        } else {
+            return (FormulaModel(ptr: pointer!) as! Self)
+        }
+    }
+
+    public static func vecOfSelfGet(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<FormulaModelRef> {
+        let pointer = __swift_bridge__$Vec_FormulaModel$get(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return FormulaModelRef(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfGetMut(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<FormulaModelRefMut> {
+        let pointer = __swift_bridge__$Vec_FormulaModel$get_mut(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return FormulaModelRefMut(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfAsPtr(vecPtr: UnsafeMutableRawPointer) -> UnsafePointer<FormulaModelRef> {
+        UnsafePointer<FormulaModelRef>(OpaquePointer(__swift_bridge__$Vec_FormulaModel$as_ptr(vecPtr)))
+    }
+
+    public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
+        __swift_bridge__$Vec_FormulaModel$len(vecPtr)
     }
 }
 

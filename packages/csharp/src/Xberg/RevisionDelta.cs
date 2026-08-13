@@ -18,62 +18,60 @@ namespace Xberg;
 /// changes, `property_changes` carries normalized before/after formatting
 /// values when the source document exposes them.
 /// </summary>
-public sealed record RevisionDelta {
-  /// <summary>
-  /// Line-level content changes for this revision.
-  /// </summary>
-  [JsonPropertyName("content")]
-  public List<DiffLine> Content { get; init; } = [];
+public sealed record RevisionDelta
+{
+    /// <summary>
+    /// Line-level content changes for this revision.
+    /// </summary>
+    [JsonPropertyName("content")]
+    public List<DiffLine> Content { get; init; } = [];
 
-  /// <summary>
-  /// Cell-level table changes for this revision.
-  /// </summary>
-  [JsonPropertyName("table_changes")]
-  public List<CellChange> TableChanges {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Cell-level table changes for this revision.
+    /// </summary>
+    [JsonPropertyName("table_changes")]
+    public List<CellChange> TableChanges { get; init; } = [];
 
-  /// <summary>
-  /// Formatting or metadata property changes for this revision.
-  /// </summary>
-  [JsonPropertyName("property_changes")]
-  public List<PropertyChange> PropertyChanges {
-    get; init;
-  } = [];
+    /// <summary>
+    /// Formatting or metadata property changes for this revision.
+    /// </summary>
+    [JsonPropertyName("property_changes")]
+    public List<PropertyChange> PropertyChanges { get; init; } = [];
 
-  /// <summary>
-  /// Parse a <see cref="RevisionDelta"/> from a JSON string.
-  /// </summary>
-  /// <exception cref="XbergException">When the JSON cannot be
-  /// deserialised.</exception>
-  public static RevisionDelta FromJson(string json) {
-    try {
-      return JsonSerializer.Deserialize<RevisionDelta>(json, JsonOptions) ??
-             throw new XbergException(
-                 $"Failed to parse RevisionDelta from JSON: deserializer returned null");
-    } catch (XbergException) {
-      throw;
-    } catch (Exception e) {
-      throw new XbergException(
-          $"Failed to parse RevisionDelta from JSON: {e.Message}", e);
+
+    /// <summary>
+    /// Parse a <see cref="RevisionDelta"/> from a JSON string.
+    /// </summary>
+    /// <exception cref="XbergException">When the JSON cannot be deserialised.</exception>
+    public static RevisionDelta FromJson(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<RevisionDelta>(json, JsonOptions)
+                ?? throw new XbergException($"Failed to parse RevisionDelta from JSON: deserializer returned null");
+        }
+        catch (XbergException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            throw new XbergException($"Failed to parse RevisionDelta from JSON: {e.Message}", e);
+        }
     }
-  }
 
-  private static readonly JsonSerializerOptions JsonOptions = new() {
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-    Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower),
-                   new ByteArrayJsonConverter() },
-  };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 
-  /// <summary>Options for serializing config/input objects to FFI. Strips nulls
-  /// (nullable C# fields default to null and would override required Rust
-  /// fields with non-deserialisable nulls) but preserves explicit false/0 so
-  /// caller intent is kept.</summary>
-  private static readonly JsonSerializerOptions JsonSerializationOptions =
-      new() {
+    /// <summary>Options for serializing config/input objects to FFI. Strips nulls
+    /// (nullable C# fields default to null and would override required Rust fields with
+    /// non-deserialisable nulls) but preserves explicit false/0 so caller intent is kept.</summary>
+    private static readonly JsonSerializerOptions JsonSerializationOptions = new()
+    {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(
-                           JsonNamingPolicy.SnakeCaseLower),
-                       new ByteArrayJsonConverter() },
-      };
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower), new ByteArrayJsonConverter() },
+    };
 }

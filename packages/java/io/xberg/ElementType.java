@@ -47,6 +47,10 @@ public enum ElementType {
      */
     CodeBlock("code_block"),
     /**
+     * Mathematical formula (LaTeX source in {@code text})
+     */
+    Formula("formula"),
+    /**
      * Block quote
      */
     BlockQuote("block_quote"),

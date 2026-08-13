@@ -952,16 +952,20 @@ typedef struct XBERGFormatMetadata XBERGFormatMetadata;
  */
 typedef struct XBERGFormattedBlock XBERGFormattedBlock;
 /**
- * A mathematical formula detected and recognized in a document.
+ * A mathematical formula extracted from a document.
  *
- * Populated by the layout-guided formula pipeline: regions classified as
- * `LayoutClass::Formula` are routed to the formula OCR task, which returns the
- * LaTeX source for the region. The field is always present on
- * `ExtractedDocument` (super::extraction::ExtractedDocument) but only populated
- * when the `layout-detection` feature is active and the document contains
- * formula regions.
+ * Three kinds of sources populate this type. Layout-guided OCR detects
+ * formula regions and recognizes them; those formulas carry a `bbox` and a
+ * `page`. VLM OCR recognizes formulas in transcribed text without layout, so
+ * its formulas carry no geometry. Markup extraction (DOCX, PPTX, ODT, EPUB,
+ * HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
+ * to LaTeX, also without geometry.
  */
 typedef struct XBERGFormula XBERGFormula;
+/**
+ * Formula recognition model selection.
+ */
+typedef struct XBERGFormulaModel XBERGFormulaModel;
 /**
  * Individual grid cell with position and span metadata.
  */
@@ -2797,6 +2801,7 @@ exclude = [
   "FileHeader",
   "FinalizedOutput",
   "FontScheme",
+  "FormulaModelPaths",
   "GenericCache",
   "GlineBackend",
   "GlinerManifestEntry",

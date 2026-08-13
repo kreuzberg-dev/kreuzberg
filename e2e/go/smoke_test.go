@@ -37,10 +37,18 @@ func Test_OcrImagePng(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `Hello`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `World`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `hello`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `world`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `Hello`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `World`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `hello`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `world`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -74,10 +82,18 @@ func Test_SmokeDocxBasic(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `Lorem`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `ipsum`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `document`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `text`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `Lorem`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `ipsum`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `document`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `text`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -111,10 +127,18 @@ func Test_SmokeHtmlBasic(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `Sample Data Table`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Laptop`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Electronics`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `Product`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `Sample Data Table`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Laptop`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Electronics`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `Product`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}
@@ -199,8 +223,12 @@ func Test_SmokePdfBasic(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `To Whom it May Concern`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `May 5, 2023`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `To Whom it May Concern`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}

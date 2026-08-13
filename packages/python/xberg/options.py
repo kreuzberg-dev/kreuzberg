@@ -30,6 +30,7 @@ from ._xberg import (
     ExtractInputKind,  # noqa: TC001
     ExtractionMethod,  # noqa: TC001
     FormatMetadata,  # noqa: TC001
+    FormulaModel,  # noqa: TC001
     HeadingStyle,  # noqa: TC001
     HighlightStyle,  # noqa: TC001
     HostMatcher,  # noqa: TC001
@@ -360,6 +361,8 @@ class ElementType(str, Enum):
     page_break = "page_break"
 
     code_block = "code_block"
+
+    formula = "formula"
 
     block_quote = "block_quote"
 
@@ -1268,6 +1271,10 @@ class LayoutDetectionConfig:
     table_model: TableModel | str = "tatr"
 
     """Table structure recognition model."""
+
+    formula_model: FormulaModel | str | None = None
+
+    """Formula recognition model for layout-detected formula regions."""
 
     table_overlap_preference: TableOverlapPreference | str = "content"
 
@@ -5049,6 +5056,7 @@ def _from_native_layout_detection_config(native: Any) -> LayoutDetectionConfig:
         confidence_threshold=native.confidence_threshold,
         apply_heuristics=native.apply_heuristics,
         table_model=native.table_model,
+        formula_model=native.formula_model,
         table_overlap_preference=native.table_overlap_preference,
         acceleration=(None if native.acceleration is None else _from_native_acceleration_config(native.acceleration)),
         enable_chart_understanding=native.enable_chart_understanding,

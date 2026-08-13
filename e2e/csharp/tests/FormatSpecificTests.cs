@@ -22,6 +22,18 @@ namespace Xberg
             private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
         [Fact]
+        public async Task Test_FormatDocxEquations()
+        {
+            // DOCX equations extract to LaTeX math in markdown output
+            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_FORMAT_DOCX_EQUATIONS") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/format_docx_equations";
+            var Input_Json = "{\"filename\":\"equations.docx\",\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"uri\":\"$mock_url/docx/equations.docx\"}".Replace("$mock_url", Input_MockBaseUrl);
+            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{\"output_format\":\"markdown\"}"));
+    Assert.True(result.Results[0].Content.Length >= 20, "expected length >= 20");
+    Assert.Contains("$", result.Results[0].Content.ToString());
+
+        }
+
+        [Fact]
         public async Task Test_FormatDocxStandalone()
         {
             // Standalone DOCX extraction using extract
