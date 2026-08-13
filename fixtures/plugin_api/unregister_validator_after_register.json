@@ -17,5 +17,9 @@
 			"type": "not_error"
 		}
 	],
-	"tags": ["plugin-lifecycle", "trait-bridge"]
+	"tags": ["plugin-lifecycle", "trait-bridge"],
+	"skip": {
+		"languages": ["c"],
+		"reason": "The plugin registries take a host-language callback, so the C API does not expose registration or the clear and unregister calls that pair with it. With no C function to name, the built-in c snippet recipe has no function identity and the fixture cannot be documented for c. Every other language keeps this fixture."
+	}
 }
