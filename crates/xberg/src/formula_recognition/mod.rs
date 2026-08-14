@@ -296,8 +296,15 @@ impl FormulaRecognizer {
         let resizer = build_session(&paths.resizer.to_string_lossy(), accel, threads)?;
         let encoder = build_session(&paths.encoder.to_string_lossy(), accel, threads)?;
         let decoder = build_session(&paths.decoder.to_string_lossy(), accel, threads)?;
-        let tokenizer = tokenizers::Tokenizer::from_file(&paths.tokenizer)
+        let mut tokenizer = tokenizers::Tokenizer::from_file(&paths.tokenizer)
             .map_err(|e| LayoutError::ModelDownload(format!("formula tokenizer failed to load: {e}")))?;
+        // The published tokenizer.json carries a ByteLevel pre-tokenizer but
+        // no decoder, so `decode` keeps the byte-level space markers (Ġ) in
+        // its output. Attach the matching decoder; a file that ships its own
+        // decoder keeps it.
+        if tokenizer.get_decoder().is_none() {
+            tokenizer.with_decoder(Some(tokenizers::decoders::byte_level::ByteLevel::default()));
+        }
         Ok(Self {
             resizer,
             encoder,
@@ -322,7 +329,7 @@ impl FormulaRecognizer {
         }
         let raw = self
             .tokenizer
-            .decode(&ids.iter().map(|&i| i as u32).collect::<Vec<_>>(), false)
+            .decode(&ids.iter().map(|&i| i as u32).collect::<Vec<_>>(), true)
             .map_err(|e| LayoutError::InvalidOutput(format!("formula token decode failed: {e}")))?;
         let cleaned = post_process(&raw);
         Ok(if cleaned.is_empty() { None } else { Some(cleaned) })

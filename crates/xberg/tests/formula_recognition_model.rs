@@ -82,6 +82,11 @@ fn recognizes_a_formula_shaped_crop_end_to_end() {
     // runaway repetition.
     assert!(latex.len() < 4096, "runaway decode: {latex}");
 
+    // The tokenizer file ships without a decoder; the loader must attach the
+    // ByteLevel decoder so byte-level markers never reach the output.
+    assert!(!latex.contains('Ġ'), "undecoded byte-level markers in output: {latex}");
+    assert!(!latex.contains("[EOS]"), "special tokens in output: {latex}");
+
     let blank = RgbImage::from_pixel(96, 48, Rgb([255, 255, 255]));
     let blank_result = xberg::formula_recognition::recognize_for_test(&blank).expect("blank crop must not fail");
     assert!(
