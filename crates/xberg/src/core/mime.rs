@@ -1223,6 +1223,7 @@ fn detect_zip_package<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
 #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
 fn detect_zip_mimetype_entry<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> Option<&'static str> {
     /// The value an HWPX package stores in its `mimetype` entry.
+    #[cfg(feature = "hwpx")]
     const HWPX_PACKAGE_MIMETYPE: &[u8] = b"application/hwp+zip";
     const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
 

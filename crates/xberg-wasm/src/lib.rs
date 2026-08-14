@@ -813,7 +813,7 @@ impl WasmExtractionConfig {
             email: email,
             csv: csv,
             url: url.unwrap_or_default(),
-            max_archive_depth: maxArchiveDepth.unwrap_or_else(|| default_archive_depth()),
+            max_archive_depth: maxArchiveDepth.unwrap_or_else(|| xberg::ExtractionConfig::default().max_archive_depth),
             structured_extraction: structuredExtraction,
             ner: ner,
             redaction: redaction,
@@ -2284,7 +2284,7 @@ impl WasmUrlExtractionConfig {
     ) -> WasmUrlExtractionConfig {
         WasmUrlExtractionConfig {
             mode: mode.unwrap_or_default(),
-            crawl: crawl.unwrap_or_else(|| default_xberg_crawl_config()),
+            crawl: crawl.unwrap_or_else(|| xberg::UrlExtractionConfig::default().crawl.into()),
             document_url_pattern: documentUrlPattern,
             max_document_urls_per_result: maxDocumentUrlsPerResult,
             max_total_urls: maxTotalUrls,
@@ -2615,7 +2615,7 @@ impl WasmTokenReductionOptions {
     #[wasm_bindgen(constructor)]
     pub fn new(mode: Option<String>, preserveImportantWords: Option<bool>) -> WasmTokenReductionOptions {
         WasmTokenReductionOptions {
-            mode: mode.unwrap_or_else(|| default_reduction_mode()),
+            mode: mode.unwrap_or_else(|| xberg::TokenReductionOptions::default().mode),
             preserve_important_words: preserveImportantWords.unwrap_or(true),
         }
     }
@@ -2754,7 +2754,7 @@ impl WasmHtmlOutputConfig {
             css: css,
             css_file: cssFile,
             theme: theme.unwrap_or_default(),
-            class_prefix: classPrefix.unwrap_or_else(|| default_class_prefix()),
+            class_prefix: classPrefix.unwrap_or_else(|| xberg::HtmlOutputConfig::default().class_prefix),
             embed_css: embedCss.unwrap_or(true),
         }
     }
@@ -2857,10 +2857,10 @@ impl WasmLateInteractionConfig {
         maxEmbedDurationSecs: Option<u64>,
     ) -> WasmLateInteractionConfig {
         WasmLateInteractionConfig {
-            model: model.unwrap_or_else(|| default_late_interaction_model()),
-            batch_size: batchSize.unwrap_or_else(|| default_batch_size()),
-            max_length: maxLength.unwrap_or_else(|| default_max_length()),
-            query_max_length: queryMaxLength.unwrap_or_else(|| default_query_max_length()),
+            model: model.unwrap_or_else(|| serde_wasm_bindgen::to_value(&xberg::LateInteractionConfig::default().model).unwrap_or(JsValue::NULL)),
+            batch_size: batchSize.unwrap_or_else(|| xberg::LateInteractionConfig::default().batch_size),
+            max_length: maxLength.unwrap_or_else(|| xberg::LateInteractionConfig::default().max_length),
+            query_max_length: queryMaxLength.unwrap_or_else(|| xberg::LateInteractionConfig::default().query_max_length),
             show_download_progress: showDownloadProgress.unwrap_or(false),
             cache_dir: cacheDir,
             acceleration: acceleration,
@@ -4215,11 +4215,11 @@ impl WasmOcrQualityThresholds {
             non_text_min_chars: nonTextMinChars.unwrap_or(20),
             alnum_ws_ratio_threshold: alnumWsRatioThreshold.unwrap_or(0.4),
             pipeline_min_quality: pipelineMinQuality.unwrap_or(0.5),
-            min_undecodable_ratio: minUndecodableRatio.unwrap_or_else(|| default_min_undecodable_ratio()),
+            min_undecodable_ratio: minUndecodableRatio.unwrap_or_else(|| xberg::OcrQualityThresholds::default().min_undecodable_ratio),
             enable_provenance_ocr_routing: enableProvenanceOcrRouting
-                .unwrap_or_else(|| default_enable_provenance_ocr_routing()),
+                .unwrap_or_else(|| xberg::OcrQualityThresholds::default().enable_provenance_ocr_routing),
             min_provenance_fallback_ratio: minProvenanceFallbackRatio
-                .unwrap_or_else(|| default_min_provenance_fallback_ratio()),
+                .unwrap_or_else(|| xberg::OcrQualityThresholds::default().min_provenance_fallback_ratio),
         }
     }
 
@@ -4645,7 +4645,7 @@ impl WasmOcrConfig {
     ) -> WasmOcrConfig {
         WasmOcrConfig {
             enabled: enabled.unwrap_or(true),
-            backend: backend.unwrap_or_else(|| default_tesseract_backend()),
+            backend: backend.unwrap_or_else(|| xberg::OcrConfig::default().backend),
             language: language.unwrap_or_default(),
             tesseract_config: tesseractConfig,
             output_format: outputFormat,
@@ -6035,9 +6035,9 @@ impl WasmSparseEmbeddingConfig {
         maxEmbedDurationSecs: Option<u64>,
     ) -> WasmSparseEmbeddingConfig {
         WasmSparseEmbeddingConfig {
-            model: model.unwrap_or_else(|| default_sparse_model()),
-            batch_size: batchSize.unwrap_or_else(|| default_batch_size()),
-            max_length: maxLength.unwrap_or_else(|| default_max_length()),
+            model: model.unwrap_or_else(|| serde_wasm_bindgen::to_value(&xberg::SparseEmbeddingConfig::default().model).unwrap_or(JsValue::NULL)),
+            batch_size: batchSize.unwrap_or_else(|| xberg::SparseEmbeddingConfig::default().batch_size),
+            max_length: maxLength.unwrap_or_else(|| xberg::SparseEmbeddingConfig::default().max_length),
             show_download_progress: showDownloadProgress.unwrap_or(false),
             cache_dir: cacheDir,
             acceleration: acceleration,
@@ -18964,7 +18964,7 @@ impl WasmCrawlConfig {
             warc_output: warcOutput,
             browser_profile: browserProfile,
             save_browser_profile: saveBrowserProfile.unwrap_or(false),
-            ssrf: ssrf.unwrap_or_else(|| SsrfPolicy::from_env()),
+            ssrf: ssrf.unwrap_or_else(|| crawlberg::SsrfPolicy::from_env().into()),
             ssrf_deny_private_explicit: ssrfDenyPrivateExplicit,
         }
     }
