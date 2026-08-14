@@ -75,18 +75,18 @@ object Xberg {
     }
 
     private val mapper = jacksonObjectMapper()
-    .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
-    .registerModule(byteArrayModule)
-    .registerModule(
-        com.fasterxml.jackson.module.kotlin.KotlinModule.Builder()
-        .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullIsSameAsDefault, true)
-        .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyCollection, true)
-        .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyMap, true)
-        .build(),
-    )
-    .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-    .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
+        .registerModule(byteArrayModule)
+        .registerModule(
+            com.fasterxml.jackson.module.kotlin.KotlinModule.Builder()
+                .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullIsSameAsDefault, true)
+                .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyCollection, true)
+                .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyMap, true)
+                .build(),
+        )
+        .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+        .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
     /** Extract content from a single bytes or URI input. */
     fun extract(input: ExtractInput, config: ExtractionConfig): ExtractionResult {

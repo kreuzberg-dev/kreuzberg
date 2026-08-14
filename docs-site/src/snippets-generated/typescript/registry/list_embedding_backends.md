@@ -13,6 +13,7 @@ List embedding backends
 import { listEmbeddingBackends } from "@xberg-io/xberg";
 function main() {
   const result = listEmbeddingBackends();
+  console.log(result);
 }
 
 void main();

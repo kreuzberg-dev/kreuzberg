@@ -1115,7 +1115,11 @@ jobs:
           php-ts: nts
           dry-run: ${{ needs.prepare.outputs.dry_run }}
 
+      # alef is a third-party tool. The job-wide `-D warnings` turns its own
+      # lint warnings into build errors, which has no bearing on this repo. ~keep
       - uses: xberg-io/actions/install-alef@v1
+        env:
+          RUSTFLAGS: ""
 
       - uses: xberg-io/actions/package-php-pie@v1
         with:

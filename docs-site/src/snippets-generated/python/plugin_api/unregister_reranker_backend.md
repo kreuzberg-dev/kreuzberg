@@ -14,7 +14,7 @@ from xberg import unregister_reranker_backend, ExtractionConfig
 
 def main() -> None:
     name = "test-reranker-backend"
-    _ = unregister_reranker_backend(name)
+    unregister_reranker_backend(name)
 
 main()
 

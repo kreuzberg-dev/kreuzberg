@@ -12,7 +12,7 @@ register_ocr_backend: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterOcrBackendTraitBridge : IOcrBackend {
     override fun name(): String = "register_ocr_backend_trait_bridge"
     override suspend fun processImage(imageBytes: ByteArray, config: OcrConfig): ExtractedDocument = ExtractedDocument()

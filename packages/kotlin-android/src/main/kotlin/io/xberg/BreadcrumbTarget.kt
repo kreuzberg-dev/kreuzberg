@@ -27,45 +27,45 @@
 package io.xberg
 
 /**
-* **Deprecated and inert.** Chunking no longer writes a heading breadcrumb into
-* `content` for either variant of this enum — see the revised design adopted in
-* <https://github.com/xberg-io/xberg/issues/1393>. Setting this field has no
-* effect on chunking output any more. It is kept only so the ~15 alef-generated
-* binding packages that construct it keep compiling; removing it outright is a
-* separate, coordinated breaking change.
-*
-* # Why this became inert
-*
-* The original design (this enum, plus
-* `ChunkingConfig.prepend_heading_context`)
-* let `Content` mode prepend the heading breadcrumb directly into a chunk's
-* `content`. GH#1393's follow-up discussion argued that a single flag on the
-* chunker cannot serve all three retrieval consumers of the same chunk: dense/
-* embedding retrieval wants the breadcrumb inline, but lexical (BM25/TF-IDF) and
-* sparse learned (SPLADE) retrieval are actively harmed by it — SPLADE worse
-* than BM25, because its term-expansion pulls each heading's whole learned
-* neighbourhood (e.g. `"Authentication"` → `auth`, `login`, `credential`,
-* `oauth`) into every chunk of that section, and that damage cannot be
-* corrected by re-indexing since the expansion comes from a pretrained encoder,
-* not the collection being indexed. Mutating `content` also desynced it from
-* `byte_start`/`byte_end` (#1294): `chunk.content.len() != byte_end - byte_start`
-* whenever a breadcrumb had been prepended, so slicing the source document by a
-* chunk's own offsets silently returned different text than `content`.
-*
-* The revised design removes the mutation entirely: `chunk.content` now always
-* equals the exact `[byte_start, byte_end)` source span, regardless of this
-* enum's value or `prepend_heading_context`.
-*
-* # What to do instead
-*
-* Call `render_heading_breadcrumb`
-* explicitly at index time, with a chunk's (always-clean) `content` and its
-* `heading_context` — only for
-* the consumer that wants the breadcrumb inline (typically dense/embedding).
-* BM25 and SPLADE consumers need no special handling: index `chunk.content` as
-* returned. See the `rag` module docs for the full
-* per-consumer guidance.
-*/
+ * **Deprecated and inert.** Chunking no longer writes a heading breadcrumb into
+ * `content` for either variant of this enum — see the revised design adopted in
+ * <https://github.com/xberg-io/xberg/issues/1393>. Setting this field has no
+ * effect on chunking output any more. It is kept only so the ~15 alef-generated
+ * binding packages that construct it keep compiling; removing it outright is a
+ * separate, coordinated breaking change.
+ *
+ * # Why this became inert
+ *
+ * The original design (this enum, plus
+ * `ChunkingConfig.prepend_heading_context`)
+ * let `Content` mode prepend the heading breadcrumb directly into a chunk's
+ * `content`. GH#1393's follow-up discussion argued that a single flag on the
+ * chunker cannot serve all three retrieval consumers of the same chunk: dense/
+ * embedding retrieval wants the breadcrumb inline, but lexical (BM25/TF-IDF) and
+ * sparse learned (SPLADE) retrieval are actively harmed by it — SPLADE worse
+ * than BM25, because its term-expansion pulls each heading's whole learned
+ * neighbourhood (e.g. `"Authentication"` → `auth`, `login`, `credential`,
+ * `oauth`) into every chunk of that section, and that damage cannot be
+ * corrected by re-indexing since the expansion comes from a pretrained encoder,
+ * not the collection being indexed. Mutating `content` also desynced it from
+ * `byte_start`/`byte_end` (#1294): `chunk.content.len() != byte_end - byte_start`
+ * whenever a breadcrumb had been prepended, so slicing the source document by a
+ * chunk's own offsets silently returned different text than `content`.
+ *
+ * The revised design removes the mutation entirely: `chunk.content` now always
+ * equals the exact `[byte_start, byte_end)` source span, regardless of this
+ * enum's value or `prepend_heading_context`.
+ *
+ * # What to do instead
+ *
+ * Call `render_heading_breadcrumb`
+ * explicitly at index time, with a chunk's (always-clean) `content` and its
+ * `heading_context` — only for
+ * the consumer that wants the breadcrumb inline (typically dense/embedding).
+ * BM25 and SPLADE consumers need no special handling: index `chunk.content` as
+ * returned. See the `rag` module docs for the full
+ * per-consumer guidance.
+ */
 enum class BreadcrumbTarget {
     /**
      * Inert (#1393). Previously prepended the heading breadcrumb into chunk
@@ -82,19 +82,19 @@ enum class BreadcrumbTarget {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        CONTENT -> "content"
-        METADATA -> "metadata"
-    }
+        when (this) {
+            CONTENT -> "content"
+            METADATA -> "metadata"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BreadcrumbTarget =
-        when (value) {
-            "content" -> CONTENT
-            "metadata" -> METADATA
-            else -> throw IllegalArgumentException("Unknown BreadcrumbTarget value: $value")
-        }
+            when (value) {
+                "content" -> CONTENT
+                "metadata" -> METADATA
+                else -> throw IllegalArgumentException("Unknown BreadcrumbTarget value: $value")
+            }
     }
 }

@@ -11,5 +11,6 @@ List OCR backends
 
 ```elixir title="Elixir"
 result = Xberg.list_ocr_backends()
+IO.inspect(result)
 
 ```

@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// PDF analysis step failed (only when `heuristics-pdf` feature is active).
 /// </summary>
-public class PdfAnalysisErrorException : HeuristicsErrorException {
-  public PdfAnalysisErrorException(string message) : base(message) {}
+public class PdfAnalysisErrorException : HeuristicsErrorException
+{
+    public PdfAnalysisErrorException(string message) : base(message) { }
 
-  public PdfAnalysisErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public PdfAnalysisErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

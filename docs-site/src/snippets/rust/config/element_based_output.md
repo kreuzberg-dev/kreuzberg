@@ -1,6 +1,6 @@
 ```rust title="Element-Based Output (Rust)"
 use xberg::{extract, ExtractionConfig, ExtractInput};
-use xberg::types::OutputFormat as ResultFormat;
+use xberg::ResultFormat;
 
 #[tokio::main]
 async fn main() -> xberg::Result<()> {

@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Link rendering style in Markdown output.
-*
-* Controls whether links and images use inline `[text](url)` syntax or
-* reference-style `[text][1]` syntax with definitions collected at the end.
-*/
+ * Link rendering style in Markdown output.
+ *
+ * Controls whether links and images use inline `[text](url)` syntax or
+ * reference-style `[text][1]` syntax with definitions collected at the end.
+ */
 enum class LinkStyle {
     /** Inline links: `[text](url)`. Default. */
     @com.fasterxml.jackson.annotation.JsonProperty("Inline") INLINE,
@@ -40,21 +40,21 @@ enum class LinkStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        INLINE -> "Inline"
-        REFERENCE -> "Reference"
-    }
+        when (this) {
+            INLINE -> "Inline"
+            REFERENCE -> "Reference"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): LinkStyle =
-        when (value) {
-            "Inline",
-            "inline" -> INLINE
-            "Reference",
-            "reference" -> REFERENCE
-            else -> throw IllegalArgumentException("Unknown LinkStyle value: $value")
-        }
+            when (value) {
+                "Inline",
+                "inline" -> INLINE
+                "Reference",
+                "reference" -> REFERENCE
+                else -> throw IllegalArgumentException("Unknown LinkStyle value: $value")
+            }
     }
 }

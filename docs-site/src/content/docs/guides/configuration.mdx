@@ -3,6 +3,10 @@ title: "Configuration Guide"
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_python_getting_started_basic_usage } from "../../../snippets/python/getting-started/basic_usage.md";
+import { Content as Snip_typescript_getting_started_basic_usage } from "../../../snippets/typescript/getting-started/basic_usage.md";
+import { Content as Snip_rust_getting_started_basic_usage } from "../../../snippets/rust/getting-started/basic_usage.md";
+import { Content as Snip_typescript_config_config_discovery } from "../../../snippets/typescript/config/config_discovery.md";
 import { Content as Snip_python_config_config_basic } from "../../../snippets/python/config/config_basic.md";
 import { Content as Snip_typescript_config_config_basic } from "../../../snippets/typescript/config/config_basic.md";
 import { Content as Snip_rust_config_config_basic } from "../../../snippets/rust/config/config_basic.md";
@@ -175,6 +179,10 @@ When no `--config` path is supplied, Xberg walks up from the current working dir
 </TabItem>
 </Tabs>
 
+Automatic discovery is a CLI and server feature. The Node binding has no discovery helper, so read the file yourself and pass the parsed object as `config`:
+
+<Snip_typescript_config_config_discovery />
+
 ### Environment Variable Overrides
 
 `ExtractionConfig::apply_env_overrides()` applies `XBERG_*` variables on top of an already-loaded config. Each variable that is set overrides the matching config-file value; unset variables are ignored. The `serve` and `mcp` commands call it automatically after loading the config. The `extract` and `batch` commands do not apply it — use flags or `--config-json` there.
@@ -212,6 +220,28 @@ For the `extract` and `batch` commands, sources are applied highest to lowest:
 The `serve` and `mcp` commands add environment variables on top of the loaded config via `apply_env_overrides()`, so a set `XBERG_*` variable overrides the config-file value in those modes.
 
 ## Common Use Cases
+
+### Cache and Quality Processing
+
+Two flags carry most of the cost and quality trade-off. `use_cache` reuses the result of an earlier extraction of the same input. `enable_quality_processing` cleans up the extracted text before it is returned:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+
+<Snip_python_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="TypeScript">
+
+<Snip_typescript_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="Rust">
+
+<Snip_rust_getting_started_basic_usage />
+
+</TabItem>
+</Tabs>
 
 ### Setting Up OCR
 

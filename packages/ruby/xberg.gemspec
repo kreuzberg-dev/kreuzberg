@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   candidate_files    = Dir.glob(%w[README* LICENSE* lib/**/* ext/**/* sig/**/* Steepfile]).select { |f| File.file?(f) }
-  spec.files         = candidate_files.reject { |f| f.include?("/native/target/") || f.include?("/native/tmp/") }
+  spec.files         = candidate_files.reject { |f| f.match?(%r{/(?:target|tmp)/|\.(?:bundle|so|dylib|dll|o|a|log)\z|\.dSYM/}) }
   spec.require_paths = ["lib"]
   spec.extensions    = ["ext/xberg_rb/native/extconf.rb"]
 

@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Code block fence style in Markdown output.
-*
-* Determines how code blocks (`<pre><code>`) are rendered in Markdown.
-*/
+ * Code block fence style in Markdown output.
+ *
+ * Determines how code blocks (`<pre><code>`) are rendered in Markdown.
+ */
 enum class CodeBlockStyle {
     /** Indented code blocks (4 spaces). `CommonMark` standard. */
     @com.fasterxml.jackson.annotation.JsonProperty("Indented") INDENTED,
@@ -41,24 +41,24 @@ enum class CodeBlockStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        INDENTED -> "Indented"
-        BACKTICKS -> "Backticks"
-        TILDES -> "Tildes"
-    }
+        when (this) {
+            INDENTED -> "Indented"
+            BACKTICKS -> "Backticks"
+            TILDES -> "Tildes"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): CodeBlockStyle =
-        when (value) {
-            "Indented",
-            "indented" -> INDENTED
-            "Backticks",
-            "backticks" -> BACKTICKS
-            "Tildes",
-            "tildes" -> TILDES
-            else -> throw IllegalArgumentException("Unknown CodeBlockStyle value: $value")
-        }
+            when (value) {
+                "Indented",
+                "indented" -> INDENTED
+                "Backticks",
+                "backticks" -> BACKTICKS
+                "Tildes",
+                "tildes" -> TILDES
+                else -> throw IllegalArgumentException("Unknown CodeBlockStyle value: $value")
+            }
     }
 }

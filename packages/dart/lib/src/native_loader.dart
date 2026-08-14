@@ -112,10 +112,10 @@ String nativeAssetBlob() {
   final os = _osName();
   final abi = Abi.current();
   final arch = (abi == Abi.macosArm64 ||
-    abi == Abi.linuxArm64 ||
-    abi == Abi.windowsArm64)
-  ? 'aarch64'
-  : 'x86_64';
+          abi == Abi.linuxArm64 ||
+          abi == Abi.windowsArm64)
+      ? 'aarch64'
+      : 'x86_64';
   return '$os-$arch';
 }
 

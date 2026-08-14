@@ -450,13 +450,41 @@ pub(crate) fn assemble(
     )
     .map(|median| median * UNLABELLED_DECORATION_RATIO);
 
+    // A renderer that writes a label onto an edge puts an opaque box behind the
+    // text so the line does not run through it. The box is the text's own
+    // background rather than a shape in the drawing, and it only reaches here
+    // from a PDF writer: mermaid states the same background as a CSS fill on an
+    // HTML label, which the SVG carries as no path at all and a PDF writer
+    // turns into a real filled rectangle.
+    //
+    // Two things together tell it from a node, and one alone would not. It is
+    // far smaller than the shapes that are nodes, which is the same measure
+    // decoration is judged by. And every word written in it sits on a
+    // connector, which is where an edge label goes and where a node's caption
+    // does not. Dropped here, the text returns to the free labels and reaches
+    // the edge it belongs to.
+    let edge_label_reach = snap * EDGE_LABEL_REACH;
+    let label_backgrounds: Vec<bool> = kept
+        .iter()
+        .enumerate()
+        .map(|(i, outline)| {
+            !owned[i].is_empty()
+                && decoration_cutoff.is_some_and(|cutoff| outline.bbox.area() < cutoff)
+                && owned[i].iter().all(|label| {
+                    connectors
+                        .iter()
+                        .any(|c| (label.x - c.midpoint.0).hypot(label.y - c.midpoint.1) <= edge_label_reach)
+                })
+        })
+        .collect();
+
     // Arrowheads are geometry belonging to the connector that ends in them, not
     // shapes in their own right, so they never become nodes.
     let node_indices: Vec<usize> = (0..kept.len())
         .filter(|i| {
             let anonymous_decoration = owned[*i].is_empty()
                 && (overlapping[*i] || decoration_cutoff.is_some_and(|cutoff| kept[*i].bbox.area() < cutoff));
-            !arrowheads[*i] && !grids[*i] && !is_container[*i] && !anonymous_decoration
+            !arrowheads[*i] && !grids[*i] && !is_container[*i] && !anonymous_decoration && !label_backgrounds[*i]
         })
         .collect();
     if node_indices.is_empty() {
@@ -1130,6 +1158,56 @@ mod tests {
     /// Landing points for a drawing whose connectors reach none of its shapes.
     fn nowhere(outlines: usize) -> Vec<Vec<(f32, f32)>> {
         vec![Vec::new(); outlines]
+    }
+
+    /// A box drawn behind an edge label so the line does not run through the
+    /// text is the label's background, not a node. Mermaid states it as a CSS
+    /// fill on an HTML label, which no SVG path carries and a PDF writer turns
+    /// into a real filled rectangle, so only the PDF side ever sees it.
+    #[test]
+    fn a_box_behind_an_edge_label_is_not_a_node() {
+        let mut background = outline(55.0, 115.0, 75.0, 135.0);
+        background.fill = Some("#e8e8e8".to_string());
+
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![outline(0.0, 0.0, 100.0, 50.0), background, outline(0.0, 200.0, 100.0, 250.0)],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            vec![label(50.0, 25.0, "Start"), label(65.0, 125.0, "yes"), label(50.0, 225.0, "End")],
+        )
+        .expect("graph");
+
+        let names: Vec<&str> = graph.nodes.iter().map(|n| n.label.as_str()).collect();
+        assert_eq!(names, ["Start", "End"]);
+        // The text the background held returns to the edge it was written on.
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].label.as_deref(), Some("yes"));
+    }
+
+    /// Only text sitting on a connector reads as an edge label. A small node
+    /// whose caption is nowhere near a connector keeps its own name.
+    #[test]
+    fn a_small_node_away_from_every_connector_keeps_its_label() {
+        let graph = assemble(
+            None,
+            (400.0, 400.0),
+            vec![
+                outline(0.0, 0.0, 100.0, 50.0),
+                outline(300.0, 300.0, 320.0, 320.0),
+                outline(0.0, 200.0, 100.0, 250.0),
+            ],
+            vec![connector((50.0, 50.0), (50.0, 200.0))],
+            vec![
+                label(50.0, 25.0, "Start"),
+                label(50.0, 225.0, "End"),
+                label(310.0, 310.0, "Aside"),
+            ],
+        )
+        .expect("graph");
+
+        let names: Vec<&str> = graph.nodes.iter().map(|n| n.label.as_str()).collect();
+        assert_eq!(names, ["Start", "End", "Aside"]);
     }
 
     /// A connector leaving a node and returning to it is a self-loop, and the

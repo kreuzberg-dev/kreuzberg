@@ -13,6 +13,7 @@ List OCR backends
 import { listOcrBackends } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listOcrBackends();
+  console.log(result);
 }
 
 void main();

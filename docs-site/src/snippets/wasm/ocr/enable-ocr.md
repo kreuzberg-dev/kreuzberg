@@ -1,3 +1,4 @@
+```typescript title="Wasm"
 import { enableOcr, ExtractInputKind, extract, initWasm } from "@xberg-io/xberg-wasm";
 
 async function extractWithOcr() {
@@ -33,3 +34,4 @@ async function extractWithOcr() {
 }
 
 extractWithOcr().catch(console.error);
+```

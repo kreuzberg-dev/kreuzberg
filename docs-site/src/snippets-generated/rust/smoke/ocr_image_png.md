@@ -15,7 +15,7 @@ use xberg::ExtractInput;
 
 #[tokio::main]
 async fn main() {
-    let input_json: serde_json::Value = serde_json::from_str(r#"{"bytes":"test_documents/images/test_hello_world.png","config":{},"filename":"test_hello_world.png","kind":"bytes","mime_type":"image/png"}"#).unwrap();
+    let mut input_json: serde_json::Value = serde_json::from_str(r#"{"bytes":"test_documents/images/test_hello_world.png","config":{},"filename":"test_hello_world.png","kind":"bytes","mime_type":"image/png"}"#).unwrap();
     let input_file_0 = std::fs::read(r#"test_documents/images/test_hello_world.png"#).expect("file read failed");
     *input_json.pointer_mut(r#"/bytes"#).expect("docs file field missing") = serde_json::json!(input_file_0);
     let input = serde_json::from_value::<ExtractInput>(input_json).unwrap();

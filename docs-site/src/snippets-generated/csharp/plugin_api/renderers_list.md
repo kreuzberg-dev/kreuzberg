@@ -10,8 +10,10 @@ side_effect: safe
 List all registered renderers
 
 ```csharp title="C#"
+using System;
 using Xberg;
 
 var result = XbergConverter.ListRenderers();
+Console.WriteLine(result);
 
 ```

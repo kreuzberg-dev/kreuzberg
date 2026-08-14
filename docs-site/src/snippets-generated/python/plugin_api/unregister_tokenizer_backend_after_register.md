@@ -14,7 +14,7 @@ from xberg import unregister_tokenizer_backend, ExtractionConfig
 
 def main() -> None:
     name = "test-tokenizer-backend"
-    _ = unregister_tokenizer_backend(name)
+    unregister_tokenizer_backend(name)
 
 main()
 

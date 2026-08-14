@@ -13,7 +13,8 @@ List all registered tokenizer backends
 from xberg import list_tokenizer_backends
 
 def main() -> None:
-    _ = list_tokenizer_backends()
+    list_tokenizer_backends()
+    print(result)
 
 main()
 

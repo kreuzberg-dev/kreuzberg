@@ -36,17 +36,17 @@ enum class FormulaModel {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        LATEX_OCR -> "latex_ocr"
-    }
+        when (this) {
+            LATEX_OCR -> "latex_ocr"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): FormulaModel =
-        when (value) {
-            "latex_ocr" -> LATEX_OCR
-            else -> throw IllegalArgumentException("Unknown FormulaModel value: $value")
-        }
+            when (value) {
+                "latex_ocr" -> LATEX_OCR
+                else -> throw IllegalArgumentException("Unknown FormulaModel value: $value")
+            }
     }
 }

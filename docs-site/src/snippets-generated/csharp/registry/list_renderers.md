@@ -10,8 +10,10 @@ side_effect: safe
 List renderers
 
 ```csharp title="C#"
+using System;
 using Xberg;
 
 var result = XbergConverter.ListRenderers();
+Console.WriteLine(result);
 
 ```

@@ -2,13 +2,14 @@
 import io.xberg.ExtractionConfig;
 import io.xberg.OcrConfig;
 import io.xberg.TesseractConfig;
+import java.util.List;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .ocr(OcrConfig.builder()
-        .backend("tesseract")
-        .language("eng+fra")
-        .tesseractConfig(TesseractConfig.builder()
-            .psm(3)
+    .withOcr(OcrConfig.builder()
+        .withBackend("tesseract")
+        .withLanguage(List.of("eng", "fra"))
+        .withTesseractConfig(TesseractConfig.builder()
+            .withPsm(3)
             .build())
         .build())
     .build();

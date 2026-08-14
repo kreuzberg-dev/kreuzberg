@@ -12,5 +12,6 @@ extract_batch over URI inputs
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract_batch([{ 'kind' => 'uri', 'uri' => 'pdf/fake_memo.pdf' }, { 'kind' => 'uri', 'uri' => 'text/fake_text.txt' }])
+puts result.inspect
 
 ```

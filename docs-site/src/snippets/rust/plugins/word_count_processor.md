@@ -1,6 +1,6 @@
 ```rust title="Rust"
 use xberg::plugins::{Plugin, PostProcessor, ProcessingStage};
-use xberg::{Result, ExtractedDocument, ExtractionConfig};
+use xberg::{Result, ExtractedDocument, ExtractionConfig, ProcessingWarning};
 use async_trait::async_trait;
 
 struct WordCountProcessor;
@@ -22,8 +22,8 @@ impl PostProcessor for WordCountProcessor {
         let word_count = result.content.split_whitespace().count();
 
         result.processing_warnings.push(ProcessingWarning {
-            source: "word-count".to_string(),
-            message: format!("Processed with word count: {}", word_count)
+            source: "word-count".into(),
+            message: format!("Processed with word count: {}", word_count).into()
         });
 
         Ok(())

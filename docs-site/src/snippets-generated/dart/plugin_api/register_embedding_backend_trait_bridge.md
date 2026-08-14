@@ -11,8 +11,14 @@ register_embedding_backend: trait bridge
 
 ```dart title="Dart"
 import 'package:xberg/xberg.dart';
+import 'package:xberg/src/xberg_bridge_generated/frb_generated.dart' show RustLib;
 Future<void> main() async {
-  final result = await XbergBridge.registerEmbeddingBackend(await _createTestStubRegisterEmbeddingBackendTraitBridgeWrapper());
+  await RustLib.init();
+  try {
+    final result = await XbergBridge.registerEmbeddingBackend(await _createTestStubRegisterEmbeddingBackendTraitBridgeWrapper());
+  } finally {
+    RustLib.dispose();
+  }
 }
 
 ```

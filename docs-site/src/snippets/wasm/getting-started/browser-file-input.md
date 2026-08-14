@@ -1,3 +1,4 @@
+```typescript title="Wasm"
 import { ExtractInputKind, extract, initWasm } from "@xberg-io/xberg-wasm";
 
 async function setupFileInput() {
@@ -34,3 +35,4 @@ function displayResults(result: any) {
 }
 
 setupFileInput().catch(console.error);
+```

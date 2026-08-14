@@ -27,14 +27,14 @@
 package io.xberg
 
 /**
-* Which PDF pages the layout model runs on.
-*
-* Layout detection renders each selected page to a raster and runs ONNX
-* inference on it, which dominates extraction cost. This controls page
-* selection; `LayoutStrategy.Always` preserves the historical behavior of
-* running on every page. Wire format is snake_case in all serializers
-* (JSON, TOML, YAML).
-*/
+ * Which PDF pages the layout model runs on.
+ *
+ * Layout detection renders each selected page to a raster and runs ONNX
+ * inference on it, which dominates extraction cost. This controls page
+ * selection; `LayoutStrategy.Always` preserves the historical behavior of
+ * running on every page. Wire format is snake_case in all serializers
+ * (JSON, TOML, YAML).
+ */
 enum class LayoutStrategy {
     /** Run layout detection unconditionally on every page. */
     @com.fasterxml.jackson.annotation.JsonProperty("always") ALWAYS,
@@ -52,19 +52,19 @@ enum class LayoutStrategy {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ALWAYS -> "always"
-        AUTO -> "auto"
-    }
+        when (this) {
+            ALWAYS -> "always"
+            AUTO -> "auto"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): LayoutStrategy =
-        when (value) {
-            "always" -> ALWAYS
-            "auto" -> AUTO
-            else -> throw IllegalArgumentException("Unknown LayoutStrategy value: $value")
-        }
+            when (value) {
+                "always" -> ALWAYS
+                "auto" -> AUTO
+                else -> throw IllegalArgumentException("Unknown LayoutStrategy value: $value")
+            }
     }
 }

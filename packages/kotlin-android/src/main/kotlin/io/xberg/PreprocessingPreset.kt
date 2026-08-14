@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* HTML preprocessing aggressiveness level.
-*
-* Controls the extent of cleanup performed before conversion. Higher levels remove more elements.
-*/
+ * HTML preprocessing aggressiveness level.
+ *
+ * Controls the extent of cleanup performed before conversion. Higher levels remove more elements.
+ */
 enum class PreprocessingPreset {
     /** Minimal cleanup. Remove only essential noise (scripts, styles). */
     @com.fasterxml.jackson.annotation.JsonProperty("Minimal") MINIMAL,
@@ -41,24 +41,24 @@ enum class PreprocessingPreset {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        MINIMAL -> "Minimal"
-        STANDARD -> "Standard"
-        AGGRESSIVE -> "Aggressive"
-    }
+        when (this) {
+            MINIMAL -> "Minimal"
+            STANDARD -> "Standard"
+            AGGRESSIVE -> "Aggressive"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PreprocessingPreset =
-        when (value) {
-            "Minimal",
-            "minimal" -> MINIMAL
-            "Standard",
-            "standard" -> STANDARD
-            "Aggressive",
-            "aggressive" -> AGGRESSIVE
-            else -> throw IllegalArgumentException("Unknown PreprocessingPreset value: $value")
-        }
+            when (value) {
+                "Minimal",
+                "minimal" -> MINIMAL
+                "Standard",
+                "standard" -> STANDARD
+                "Aggressive",
+                "aggressive" -> AGGRESSIVE
+                else -> throw IllegalArgumentException("Unknown PreprocessingPreset value: $value")
+            }
     }
 }

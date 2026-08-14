@@ -13,7 +13,7 @@ Clear all reranker backends and verify list is empty
 from xberg import clear_reranker_backends
 
 def main() -> None:
-    _ = clear_reranker_backends()
+    clear_reranker_backends()
 
 main()
 

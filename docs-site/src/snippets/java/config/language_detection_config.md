@@ -3,9 +3,9 @@ import io.xberg.ExtractionConfig;
 import io.xberg.LanguageDetectionConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .languageDetection(LanguageDetectionConfig.builder()
-        .enabled(true)
-        .minConfidence(0.8)
+    .withLanguageDetection(LanguageDetectionConfig.builder()
+        .withEnabled(true)
+        .withMinConfidence(0.8)
         .build())
     .build();
 ```

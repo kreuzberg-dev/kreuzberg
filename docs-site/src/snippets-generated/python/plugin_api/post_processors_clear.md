@@ -13,7 +13,7 @@ Clear all post-processors and verify list is empty
 from xberg import clear_post_processors
 
 def main() -> None:
-    _ = clear_post_processors()
+    clear_post_processors()
 
 main()
 

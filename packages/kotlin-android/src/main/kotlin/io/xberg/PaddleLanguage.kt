@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Supported languages in PaddleOCR.
-*
-* Maps user-friendly language codes to paddle-ocr-rs language identifiers.
-*/
+ * Supported languages in PaddleOCR.
+ *
+ * Maps user-friendly language codes to paddle-ocr-rs language identifiers.
+ */
 enum class PaddleLanguage {
     /** English */
     @com.fasterxml.jackson.annotation.JsonProperty("English") ENGLISH,
@@ -67,63 +67,63 @@ enum class PaddleLanguage {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ENGLISH -> "English"
-        CHINESE -> "Chinese"
-        JAPANESE -> "Japanese"
-        KOREAN -> "Korean"
-        GERMAN -> "German"
-        FRENCH -> "French"
-        LATIN -> "Latin"
-        CYRILLIC -> "Cyrillic"
-        TRADITIONAL_CHINESE -> "TraditionalChinese"
-        THAI -> "Thai"
-        GREEK -> "Greek"
-        EAST_SLAVIC -> "EastSlavic"
-        ARABIC -> "Arabic"
-        DEVANAGARI -> "Devanagari"
-        TAMIL -> "Tamil"
-        TELUGU -> "Telugu"
-    }
+        when (this) {
+            ENGLISH -> "English"
+            CHINESE -> "Chinese"
+            JAPANESE -> "Japanese"
+            KOREAN -> "Korean"
+            GERMAN -> "German"
+            FRENCH -> "French"
+            LATIN -> "Latin"
+            CYRILLIC -> "Cyrillic"
+            TRADITIONAL_CHINESE -> "TraditionalChinese"
+            THAI -> "Thai"
+            GREEK -> "Greek"
+            EAST_SLAVIC -> "EastSlavic"
+            ARABIC -> "Arabic"
+            DEVANAGARI -> "Devanagari"
+            TAMIL -> "Tamil"
+            TELUGU -> "Telugu"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PaddleLanguage =
-        when (value) {
-            "English",
-            "english" -> ENGLISH
-            "Chinese",
-            "chinese" -> CHINESE
-            "Japanese",
-            "japanese" -> JAPANESE
-            "Korean",
-            "korean" -> KOREAN
-            "German",
-            "german" -> GERMAN
-            "French",
-            "french" -> FRENCH
-            "Latin",
-            "latin" -> LATIN
-            "Cyrillic",
-            "cyrillic" -> CYRILLIC
-            "TraditionalChinese",
-            "traditionalchinese" -> TRADITIONAL_CHINESE
-            "Thai",
-            "thai" -> THAI
-            "Greek",
-            "greek" -> GREEK
-            "EastSlavic",
-            "eastslavic" -> EAST_SLAVIC
-            "Arabic",
-            "arabic" -> ARABIC
-            "Devanagari",
-            "devanagari" -> DEVANAGARI
-            "Tamil",
-            "tamil" -> TAMIL
-            "Telugu",
-            "telugu" -> TELUGU
-            else -> throw IllegalArgumentException("Unknown PaddleLanguage value: $value")
-        }
+            when (value) {
+                "English",
+                "english" -> ENGLISH
+                "Chinese",
+                "chinese" -> CHINESE
+                "Japanese",
+                "japanese" -> JAPANESE
+                "Korean",
+                "korean" -> KOREAN
+                "German",
+                "german" -> GERMAN
+                "French",
+                "french" -> FRENCH
+                "Latin",
+                "latin" -> LATIN
+                "Cyrillic",
+                "cyrillic" -> CYRILLIC
+                "TraditionalChinese",
+                "traditionalchinese" -> TRADITIONAL_CHINESE
+                "Thai",
+                "thai" -> THAI
+                "Greek",
+                "greek" -> GREEK
+                "EastSlavic",
+                "eastslavic" -> EAST_SLAVIC
+                "Arabic",
+                "arabic" -> ARABIC
+                "Devanagari",
+                "devanagari" -> DEVANAGARI
+                "Tamil",
+                "tamil" -> TAMIL
+                "Telugu",
+                "telugu" -> TELUGU
+                else -> throw IllegalArgumentException("Unknown PaddleLanguage value: $value")
+            }
     }
 }

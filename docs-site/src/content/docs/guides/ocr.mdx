@@ -3,6 +3,14 @@ title: "OCR (Optical Character Recognition)"
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_c_getting_started_extract_with_ocr } from "../../../snippets/c/getting-started/extract_with_ocr.md";
+import { Content as Snip_go_getting_started_extract_with_ocr } from "../../../snippets/go/getting-started/extract_with_ocr.md";
+import { Content as Snip_python_getting_started_extract_with_ocr } from "../../../snippets/python/getting-started/extract_with_ocr.md";
+import { Content as Snip_ruby_getting_started_extract_with_ocr } from "../../../snippets/ruby/getting-started/extract_with_ocr.md";
+import { Content as Snip_rust_getting_started_extract_with_ocr } from "../../../snippets/rust/getting-started/extract_with_ocr.md";
+import { Content as Snip_csharp_ocr_tesseract_backend } from "../../../snippets/csharp/ocr/tesseract_backend.md";
+import { Content as Snip_php_ocr_basic_ocr } from "../../../snippets/php/ocr/basic_ocr.md";
+import { Content as Snip_wasm_ocr_enable_ocr } from "../../../snippets/wasm/ocr/enable-ocr.md";
 import { Content as Snip_python_ocr_ocr_extraction } from "../../../snippets/python/ocr/ocr_extraction.md";
 import { Content as Snip_typescript_ocr_ocr_extraction } from "../../../snippets/typescript/ocr/ocr_extraction.md";
 import { Content as Snip_rust_ocr_ocr_extraction } from "../../../snippets/rust/ocr/ocr_extraction.md";
@@ -122,6 +130,54 @@ sudo apt-get install tesseract-ocr-fra  # French
 # Verify installed languages
 tesseract --list-langs
 ```
+
+### Tesseract in Wasm
+
+The Wasm package ships Tesseract as a separate module. Call `enableOcr()` after `initWasm()` to load it, then pass the `tesseract-wasm` backend in the config:
+
+<Snip_wasm_ocr_enable_ocr />
+
+### Verify Tesseract from your binding
+
+Run one OCR extraction to confirm that your binding finds Tesseract. `force_ocr` makes the pipeline run OCR even on a PDF that already has a text layer:
+
+<Tabs syncKey="lang">
+<TabItem label="C">
+
+<Snip_c_getting_started_extract_with_ocr />
+
+</TabItem>
+<TabItem label="C#">
+
+<Snip_csharp_ocr_tesseract_backend />
+
+</TabItem>
+<TabItem label="Go">
+
+<Snip_go_getting_started_extract_with_ocr />
+
+</TabItem>
+<TabItem label="PHP">
+
+<Snip_php_ocr_basic_ocr />
+
+</TabItem>
+<TabItem label="Python">
+
+<Snip_python_getting_started_extract_with_ocr />
+
+</TabItem>
+<TabItem label="Ruby">
+
+<Snip_ruby_getting_started_extract_with_ocr />
+
+</TabItem>
+<TabItem label="Rust">
+
+<Snip_rust_getting_started_extract_with_ocr />
+
+</TabItem>
+</Tabs>
 
 ### PaddleOCR
 

@@ -10,8 +10,10 @@ side_effect: safe
 List all registered validators
 
 ```csharp title="C#"
+using System;
 using Xberg;
 
 var result = XbergConverter.ListValidators();
+Console.WriteLine(result);
 
 ```

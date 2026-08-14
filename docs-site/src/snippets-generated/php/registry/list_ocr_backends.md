@@ -18,5 +18,6 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Xberg\Xberg;
 $result = Xberg::listOcrBackends();
+var_dump($result);
 
 ```

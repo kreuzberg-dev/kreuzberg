@@ -12,5 +12,6 @@ List validators
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.list_validators()
+puts result.inspect
 
 ```

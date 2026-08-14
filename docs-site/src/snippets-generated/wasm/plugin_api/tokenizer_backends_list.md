@@ -13,6 +13,7 @@ List all registered tokenizer backends
 import { listTokenizerBackends } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listTokenizerBackends();
+  console.log(result);
 }
 
 void main();

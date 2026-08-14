@@ -27,30 +27,30 @@
 package io.xberg
 
 /**
-* Opt-in encoding applied to a downloaded document's bytes for callers who need the
-* content available in a serializable field rather than reading it from disk.
-*
-* `null` (the `CrawlConfig.document_content_encoding` default) produces neither — unlike
-* screenshots, base64-encoding a document by default would duplicate an already
-* up-to-`document_max_size` buffer (50 MB default) in memory per document.
-*/
+ * Opt-in encoding applied to a downloaded document's bytes for callers who need the
+ * content available in a serializable field rather than reading it from disk.
+ *
+ * `null` (the `CrawlConfig.document_content_encoding` default) produces neither — unlike
+ * screenshots, base64-encoding a document by default would duplicate an already
+ * up-to-`document_max_size` buffer (50 MB default) in memory per document.
+ */
 enum class DocumentContentEncoding {
     /** Populate `DownloadedDocument.content_base64` with a base64-encoded copy. */
     @com.fasterxml.jackson.annotation.JsonProperty("base64") BASE64;
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        BASE64 -> "base64"
-    }
+        when (this) {
+            BASE64 -> "base64"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): DocumentContentEncoding =
-        when (value) {
-            "base64" -> BASE64
-            else -> throw IllegalArgumentException("Unknown DocumentContentEncoding value: $value")
-        }
+            when (value) {
+                "base64" -> BASE64
+                else -> throw IllegalArgumentException("Unknown DocumentContentEncoding value: $value")
+            }
     }
 }

@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Invalid configuration value.
 /// </summary>
-public class ConfigErrorException : HeuristicsErrorException {
-  public ConfigErrorException(string message) : base(message) {}
+public class ConfigErrorException : HeuristicsErrorException
+{
+    public ConfigErrorException(string message) : base(message) { }
 
-  public ConfigErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ConfigErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

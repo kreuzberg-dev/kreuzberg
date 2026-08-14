@@ -8,18 +8,18 @@ var config = new ExtractionConfig
 
 var result = (await XbergConverter.ExtractAsync(ExtractInput.FromUri("document.pdf"), config)).Results[0];
 
-if (result.Metadata?.Format.Pdf != null)
+if (result.Metadata?.Format is FormatMetadata.Pdf pdfFormat)
 {
-    var pdfMeta = result.Metadata.Format.Pdf;
+    var pdfMeta = pdfFormat.Value;
     Console.WriteLine($"Pages: {pdfMeta.PageCount}");
-    Console.WriteLine($"Author: {pdfMeta.Author}");
-    Console.WriteLine($"Title: {pdfMeta.Title}");
+    Console.WriteLine($"Author: {string.Join(", ", result.Metadata.Authors ?? new List<string>())}");
+    Console.WriteLine($"Title: {result.Metadata.Title}");
 }
 
 var htmlResult = (await XbergConverter.ExtractAsync(ExtractInput.FromUri("page.html"), config)).Results[0];
-if (htmlResult.Metadata?.Format.Html != null)
+if (htmlResult.Metadata?.Format is FormatMetadata.Html htmlFormat)
 {
-    var htmlMeta = htmlResult.Metadata.Format.Html;
+    var htmlMeta = htmlFormat.Value;
     Console.WriteLine($"Title: {htmlMeta.Title}");
     Console.WriteLine($"Description: {htmlMeta.Description}");
 

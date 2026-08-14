@@ -35,19 +35,19 @@ enum class KeywordAlgorithm {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        YAKE -> "yake"
-        RAKE -> "rake"
-    }
+        when (this) {
+            YAKE -> "yake"
+            RAKE -> "rake"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): KeywordAlgorithm =
-        when (value) {
-            "yake" -> YAKE
-            "rake" -> RAKE
-            else -> throw IllegalArgumentException("Unknown KeywordAlgorithm value: $value")
-        }
+            when (value) {
+                "yake" -> YAKE
+                "rake" -> RAKE
+                else -> throw IllegalArgumentException("Unknown KeywordAlgorithm value: $value")
+            }
     }
 }

@@ -23,9 +23,7 @@ $config = \Xberg\ExtractionConfig::from_json(json_encode(["securityLimits" => ["
 try {
     Xberg::extractBatch([ExtractInput::from_json('{"bytes":"test_documents/text/fake_text.txt","kind":"bytes","mime_type":"text/plain"}')], $config);
 } catch (Throwable $error) {
-    echo "Call failed as expected: {$error->getMessage()}\n";
-    return;
+    echo $error::class . ': ' . $error->getMessage() . "\n";
 }
-throw new RuntimeException('expected call to fail');
 
 ```

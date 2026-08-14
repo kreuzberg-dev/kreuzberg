@@ -12,7 +12,7 @@ register_reranker_backend: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterRerankerBackendTraitBridge : IRerankerBackend {
     override fun name(): String = "register_reranker_backend_trait_bridge"
     override suspend fun rerank(query: String, documents: List<String>): List<Float> = emptyList()

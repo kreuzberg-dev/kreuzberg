@@ -22,14 +22,13 @@ namespace Xberg;
 /// - `Serialization` - JSON/MessagePack serialization errors
 /// - `MissingDependency` - Missing optional dependencies (tesseract, etc.)
 /// - `Plugin` - Plugin-specific errors
-/// - `LockPoisoned` - Mutex/RwLock poisoning (should not happen in normal
-/// operation)
+/// - `LockPoisoned` - Mutex/RwLock poisoning (should not happen in normal operation)
 /// - `UnsupportedFormat` - Unsupported MIME type or file format
 /// - `Other` - Catch-all for uncommon errors
 /// </summary>
-public class XbergErrorException : XbergException {
-  public XbergErrorException(string message) : base(message) {}
+public class XbergErrorException : XbergException
+{
+    public XbergErrorException(string message) : base(message) { }
 
-  public XbergErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public XbergErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

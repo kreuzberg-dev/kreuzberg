@@ -63,47 +63,47 @@ enum class BlockType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        PARAGRAPH -> "paragraph"
-        HEADING -> "heading"
-        BLOCKQUOTE -> "blockquote"
-        CODE_BLOCK -> "code_block"
-        LIST_ITEM -> "list_item"
-        ORDERED_LIST -> "ordered_list"
-        BULLET_LIST -> "bullet_list"
-        TASK_LIST -> "task_list"
-        DEFINITION_LIST -> "definition_list"
-        DEFINITION_TERM -> "definition_term"
-        DEFINITION_DESCRIPTION -> "definition_description"
-        DIV -> "div"
-        SECTION -> "section"
-        THEMATIC_BREAK -> "thematic_break"
-        RAW_BLOCK -> "raw_block"
-        MATH_DISPLAY -> "math_display"
-    }
+        when (this) {
+            PARAGRAPH -> "paragraph"
+            HEADING -> "heading"
+            BLOCKQUOTE -> "blockquote"
+            CODE_BLOCK -> "code_block"
+            LIST_ITEM -> "list_item"
+            ORDERED_LIST -> "ordered_list"
+            BULLET_LIST -> "bullet_list"
+            TASK_LIST -> "task_list"
+            DEFINITION_LIST -> "definition_list"
+            DEFINITION_TERM -> "definition_term"
+            DEFINITION_DESCRIPTION -> "definition_description"
+            DIV -> "div"
+            SECTION -> "section"
+            THEMATIC_BREAK -> "thematic_break"
+            RAW_BLOCK -> "raw_block"
+            MATH_DISPLAY -> "math_display"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BlockType =
-        when (value) {
-            "paragraph" -> PARAGRAPH
-            "heading" -> HEADING
-            "blockquote" -> BLOCKQUOTE
-            "code_block" -> CODE_BLOCK
-            "list_item" -> LIST_ITEM
-            "ordered_list" -> ORDERED_LIST
-            "bullet_list" -> BULLET_LIST
-            "task_list" -> TASK_LIST
-            "definition_list" -> DEFINITION_LIST
-            "definition_term" -> DEFINITION_TERM
-            "definition_description" -> DEFINITION_DESCRIPTION
-            "div" -> DIV
-            "section" -> SECTION
-            "thematic_break" -> THEMATIC_BREAK
-            "raw_block" -> RAW_BLOCK
-            "math_display" -> MATH_DISPLAY
-            else -> throw IllegalArgumentException("Unknown BlockType value: $value")
-        }
+            when (value) {
+                "paragraph" -> PARAGRAPH
+                "heading" -> HEADING
+                "blockquote" -> BLOCKQUOTE
+                "code_block" -> CODE_BLOCK
+                "list_item" -> LIST_ITEM
+                "ordered_list" -> ORDERED_LIST
+                "bullet_list" -> BULLET_LIST
+                "task_list" -> TASK_LIST
+                "definition_list" -> DEFINITION_LIST
+                "definition_term" -> DEFINITION_TERM
+                "definition_description" -> DEFINITION_DESCRIPTION
+                "div" -> DIV
+                "section" -> SECTION
+                "thematic_break" -> THEMATIC_BREAK
+                "raw_block" -> RAW_BLOCK
+                "math_display" -> MATH_DISPLAY
+                else -> throw IllegalArgumentException("Unknown BlockType value: $value")
+            }
     }
 }

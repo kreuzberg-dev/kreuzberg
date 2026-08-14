@@ -7,8 +7,8 @@ import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .useCache(true)
-    .enableQualityProcessing(true)
+    .withUseCache(true)
+    .withEnableQualityProcessing(true)
     .build();
 ExtractionResult output = Xberg.extract(
     ExtractInput.builder().withKind(ExtractInputKind.Uri).withUri("document.pdf").build(),

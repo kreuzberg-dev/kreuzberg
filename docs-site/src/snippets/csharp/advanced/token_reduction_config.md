@@ -3,12 +3,10 @@ using Xberg;
 
 var config = new ExtractionConfig
 {
-    TokenReduction = new TokenReductionConfig
+    TokenReduction = new TokenReductionOptions
     {
-        Mode = "moderate",              // "off", "moderate", or "aggressive"
-        PreserveMarkdown = true,
-        PreserveCode = true,
-        LanguageHint = "eng"
+        Mode = "moderate",              // "off", "light", "moderate", "aggressive", or "maximum"
+        PreserveImportantWords = true
     }
 };
 ```

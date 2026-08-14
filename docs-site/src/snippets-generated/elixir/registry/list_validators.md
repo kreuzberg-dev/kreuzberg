@@ -11,5 +11,6 @@ List validators
 
 ```elixir title="Elixir"
 result = Xberg.list_validators()
+IO.inspect(result)
 
 ```

@@ -3,6 +3,7 @@ title: "API Server"
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_typescript_api_client_extract_single_file } from "../../../snippets/typescript/api/client_extract_single_file.md";
 import { Content as Snip_api_server_cli } from "../../../snippets/api_server/cli.md";
 import { Content as Snip_api_server_docker } from "../../../snippets/api_server/docker.md";
 import { Content as Snip_api_server_python } from "../../../snippets/api_server/python.md";
@@ -276,6 +277,10 @@ curl http://localhost:8000/jobs/550e8400-e29b-41d4-a716-446655440000
 
 </TabItem>
 </Tabs>
+
+A client reads the error body from any non-2xx response. This Node example uploads a file, prints `error_type` and `message` when the request fails, and prints the content when it succeeds:
+
+<Snip_typescript_api_client_extract_single_file />
 
 ### Configuration
 

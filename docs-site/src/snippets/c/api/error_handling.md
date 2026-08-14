@@ -4,12 +4,12 @@
 #include <stdlib.h>
 
 int main(void) {
-    XBERGExtractionConfig *config = xberg_extraction_config_default();
+    XBERGAlefHandle config = xberg_extraction_config_from_json("{}");
 
     /* Pass an unsupported MIME type to trigger an error. */
-    XBERGExtractInput *input =
+    XBERGAlefHandle input =
         xberg_extract_input_from_bytes(NULL, 0, "application/x-unknown", NULL);
-    if (!input) {
+    if (input == 0) {
         int32_t code = xberg_last_error_code();
         const char *message = xberg_last_error_context();
         /* message is valid until the next FFI call on this thread — copy if needed. */
@@ -18,8 +18,8 @@ int main(void) {
         return code != 0 ? code : 1;
     }
 
-    XBERGExtractionResult *result = xberg_extract(input, config);
-    if (!result) {
+    XBERGAlefHandle result = xberg_extract(input, config);
+    if (result == 0) {
         int32_t code = xberg_last_error_code();
         const char *message = xberg_last_error_context();
         fprintf(stderr, "error %d: %s\n", code, message ? message : "(no message)");

@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { bytes: await (await import("node:fs/promises")).readFile("test_documents/pdf/fake_memo.pdf"), config: { outputFormat: OutputFormat.Markdown }, filename: "fake_memo.pdf", kind: ExtractInputKind.Bytes, mimeType: "application/pdf" };
   const config: ExtractionConfig = { outputFormat: OutputFormat.Markdown };
   const result = await extract(input, config);
+  console.log(result);
 }
 
 void main();

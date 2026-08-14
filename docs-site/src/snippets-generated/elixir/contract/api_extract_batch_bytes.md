@@ -11,5 +11,6 @@ Tests batch bytes extraction API (extract_batch)
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([%{"bytes" => "test_documents/pdf/fake_memo.pdf", "filename" => "fake_memo.pdf", "kind" => "bytes"}])
+IO.inspect(result)
 
 ```

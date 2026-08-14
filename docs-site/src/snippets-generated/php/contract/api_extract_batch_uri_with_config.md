@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 use Xberg\ExtractionConfig;
 $result = Xberg::extractBatch([ExtractInput::from_json('{"config":{"output_format":"markdown"},"kind":"uri","uri":"https://example.com/pdf/fake_memo.pdf"}')], \Xberg\ExtractionConfig::from_json('{}'));
+var_dump($result);
 
 ```

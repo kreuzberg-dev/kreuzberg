@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "uri" => "https://example.com/docx/fake.docx"]));
 $result = Xberg::extract($input, ["include_document_structure" => true]);
+var_dump($result);
 
 ```

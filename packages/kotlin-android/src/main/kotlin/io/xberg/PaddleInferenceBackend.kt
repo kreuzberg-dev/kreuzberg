@@ -27,13 +27,13 @@
 package io.xberg
 
 /**
-* Which concrete ONNX inference engine PaddleOCR model loading uses.
-*
-* Mirrors `sceptre.Backend` for the PaddleOCR backend: `Ort` is the native,
-* full-featured path (acceleration/execution-provider hook, ONNX-embedded
-* dictionary metadata); `Tract` is the pure-Rust, CPU-only path used on targets
-* where `ort` cannot link (Android x86_64 emulator, WASM once wired).
-*/
+ * Which concrete ONNX inference engine PaddleOCR model loading uses.
+ *
+ * Mirrors `sceptre.Backend` for the PaddleOCR backend: `Ort` is the native,
+ * full-featured path (acceleration/execution-provider hook, ONNX-embedded
+ * dictionary metadata); `Tract` is the pure-Rust, CPU-only path used on targets
+ * where `ort` cannot link (Android x86_64 emulator, WASM once wired).
+ */
 enum class PaddleInferenceBackend {
     /** Native ONNX Runtime (requires the `paddle-ocr-ort` feature). */
     @com.fasterxml.jackson.annotation.JsonProperty("ort") ORT,
@@ -42,19 +42,19 @@ enum class PaddleInferenceBackend {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ORT -> "ort"
-        TRACT -> "tract"
-    }
+        when (this) {
+            ORT -> "ort"
+            TRACT -> "tract"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PaddleInferenceBackend =
-        when (value) {
-            "ort" -> ORT
-            "tract" -> TRACT
-            else -> throw IllegalArgumentException("Unknown PaddleInferenceBackend value: $value")
-        }
+            when (value) {
+                "ort" -> ORT
+                "tract" -> TRACT
+                else -> throw IllegalArgumentException("Unknown PaddleInferenceBackend value: $value")
+            }
     }
 }

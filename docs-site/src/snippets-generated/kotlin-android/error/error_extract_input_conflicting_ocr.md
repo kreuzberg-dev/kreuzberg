@@ -17,13 +17,12 @@ fun main() = kotlinx.coroutines.runBlocking {
     val mapper = jacksonObjectMapper()
     try {
     val inputFile0 = java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(java.nio.file.Path.of("test_documents/text/fake_text.txt")))
-    val input = mapper.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{\"disable_ocr\":true,\"force_ocr\":true},\"filename\":\"fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractionConfig::class.java)
+    val input = mapper.readValue("{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{\"disable_ocr\":true,\"force_ocr\":true},\"filename\":\"fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}".replace("__ALEF_DOC_FILE_0__", inputFile0), ExtractInput::class.java)
     val config = mapper.readValue("{\"disable_ocr\":true,\"force_ocr\":true}", ExtractionConfig::class.java)
     val result = Xberg.extract(input, config)
     } catch (error: Exception) {
-        System.err.println("Call failed as expected: ${error.message}")
-        return@runBlocking    }
-    throw AssertionError("expected call to fail")
+        System.err.println("${error::class.simpleName}: ${error.message}")
+    }
 }
 
 ```

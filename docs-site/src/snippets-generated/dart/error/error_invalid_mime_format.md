@@ -20,11 +20,9 @@ Future<void> main() async {
       final _input = await createExtractInputFromJson(json: '{"bytes":"test_documents/text/plain.txt","config":{},"filename":"plain.txt","kind":"bytes","mime_type":"not-a-mime"}');
       final _config = await createExtractionConfigFromJson(json: '{}');
       final result = await XbergBridge.extract(_input, config: _config);
-    } catch (error) {
-      stderr.writeln('Call failed as expected: $error');
-      return;
+    } on XbergError catch (error) {
+      stderr.writeln('${error.runtimeType}: $error');
     }
-    throw StateError('expected call to fail');
   } finally {
     RustLib.dispose();
   }

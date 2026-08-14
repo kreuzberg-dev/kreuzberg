@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The extraction operation exceeded the configured time limit.
 /// </summary>
-public class TimeoutException : XbergErrorException {
-  public TimeoutException(string message) : base(message) {}
+public class TimeoutException : XbergErrorException
+{
+    public TimeoutException(string message) : base(message) { }
 
-  public TimeoutException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public TimeoutException(string message, Exception innerException) : base(message, innerException) { }
 }

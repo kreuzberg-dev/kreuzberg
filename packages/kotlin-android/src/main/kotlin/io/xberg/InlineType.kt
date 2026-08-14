@@ -63,47 +63,47 @@ enum class InlineType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TEXT -> "text"
-        STRONG -> "strong"
-        EMPHASIS -> "emphasis"
-        HIGHLIGHT -> "highlight"
-        SUBSCRIPT -> "subscript"
-        SUPERSCRIPT -> "superscript"
-        INSERT -> "insert"
-        DELETE -> "delete"
-        CODE -> "code"
-        LINK -> "link"
-        IMAGE -> "image"
-        SPAN -> "span"
-        MATH -> "math"
-        RAW_INLINE -> "raw_inline"
-        FOOTNOTE_REF -> "footnote_ref"
-        SYMBOL -> "symbol"
-    }
+        when (this) {
+            TEXT -> "text"
+            STRONG -> "strong"
+            EMPHASIS -> "emphasis"
+            HIGHLIGHT -> "highlight"
+            SUBSCRIPT -> "subscript"
+            SUPERSCRIPT -> "superscript"
+            INSERT -> "insert"
+            DELETE -> "delete"
+            CODE -> "code"
+            LINK -> "link"
+            IMAGE -> "image"
+            SPAN -> "span"
+            MATH -> "math"
+            RAW_INLINE -> "raw_inline"
+            FOOTNOTE_REF -> "footnote_ref"
+            SYMBOL -> "symbol"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): InlineType =
-        when (value) {
-            "text" -> TEXT
-            "strong" -> STRONG
-            "emphasis" -> EMPHASIS
-            "highlight" -> HIGHLIGHT
-            "subscript" -> SUBSCRIPT
-            "superscript" -> SUPERSCRIPT
-            "insert" -> INSERT
-            "delete" -> DELETE
-            "code" -> CODE
-            "link" -> LINK
-            "image" -> IMAGE
-            "span" -> SPAN
-            "math" -> MATH
-            "raw_inline" -> RAW_INLINE
-            "footnote_ref" -> FOOTNOTE_REF
-            "symbol" -> SYMBOL
-            else -> throw IllegalArgumentException("Unknown InlineType value: $value")
-        }
+            when (value) {
+                "text" -> TEXT
+                "strong" -> STRONG
+                "emphasis" -> EMPHASIS
+                "highlight" -> HIGHLIGHT
+                "subscript" -> SUBSCRIPT
+                "superscript" -> SUPERSCRIPT
+                "insert" -> INSERT
+                "delete" -> DELETE
+                "code" -> CODE
+                "link" -> LINK
+                "image" -> IMAGE
+                "span" -> SPAN
+                "math" -> MATH
+                "raw_inline" -> RAW_INLINE
+                "footnote_ref" -> FOOTNOTE_REF
+                "symbol" -> SYMBOL
+                else -> throw IllegalArgumentException("Unknown InlineType value: $value")
+            }
     }
 }

@@ -6,18 +6,19 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 import io.xberg.ChunkingConfig;
+import io.xberg.Chunk;
 import io.xberg.EmbeddingConfig;
 import io.xberg.EmbeddingModelType;
 import java.util.List;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .chunking(ChunkingConfig.builder()
-        .maxChars(500)
-        .maxOverlap(50)
-        .embedding(EmbeddingConfig.builder()
-            .model(EmbeddingModelType.preset("all-mpnet-base-v2"))
-            .normalize(true)
-            .batchSize(16)
+    .withChunking(ChunkingConfig.builder()
+        .withMaxCharacters(500L)
+        .withOverlap(50L)
+        .withEmbedding(EmbeddingConfig.builder()
+            .withModel(new EmbeddingModelType.Preset("all-mpnet-base-v2"))
+            .withNormalize(true)
+            .withBatchSize(16L)
             .build())
         .build())
     .build();
@@ -27,11 +28,11 @@ try {
         config
     );
     ExtractedDocument result = output.results().get(0);
-    List<Object> chunks = result.chunks() != null ? result.chunks() : List.of();
+    List<Chunk> chunks = result.chunks() != null ? result.chunks() : List.of();
     System.out.println("Found " + chunks.size() + " chunks for RAG pipeline");
     for (int i = 0; i < Math.min(3, chunks.size()); i++) {
-        Object chunk = chunks.get(i);
-        System.out.println("Chunk " + i + ": " + chunk.toString().substring(0, Math.min(80, chunk.toString().length())) + "...");
+        Chunk chunk = chunks.get(i);
+        System.out.println("Chunk " + i + ": " + chunk.content().substring(0, Math.min(80, chunk.content().length())) + "...");
     }
 } catch (Exception ex) {
     System.err.println("RAG extraction failed: " + ex.getMessage());

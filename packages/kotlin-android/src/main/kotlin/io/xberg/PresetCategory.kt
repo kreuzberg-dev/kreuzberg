@@ -45,29 +45,29 @@ enum class PresetCategory {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        FINANCE -> "finance"
-        IDENTITY -> "identity"
-        LEGAL -> "legal"
-        LOGISTICS -> "logistics"
-        MEDICAL -> "medical"
-        HR -> "hr"
-        OTHER -> "other"
-    }
+        when (this) {
+            FINANCE -> "finance"
+            IDENTITY -> "identity"
+            LEGAL -> "legal"
+            LOGISTICS -> "logistics"
+            MEDICAL -> "medical"
+            HR -> "hr"
+            OTHER -> "other"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PresetCategory =
-        when (value) {
-            "finance" -> FINANCE
-            "identity" -> IDENTITY
-            "legal" -> LEGAL
-            "logistics" -> LOGISTICS
-            "medical" -> MEDICAL
-            "hr" -> HR
-            "other" -> OTHER
-            else -> throw IllegalArgumentException("Unknown PresetCategory value: $value")
-        }
+            when (value) {
+                "finance" -> FINANCE
+                "identity" -> IDENTITY
+                "legal" -> LEGAL
+                "logistics" -> LOGISTICS
+                "medical" -> MEDICAL
+                "hr" -> HR
+                "other" -> OTHER
+                else -> throw IllegalArgumentException("Unknown PresetCategory value: $value")
+            }
     }
 }

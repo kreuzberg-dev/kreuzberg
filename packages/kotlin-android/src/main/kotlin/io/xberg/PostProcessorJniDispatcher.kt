@@ -20,52 +20,52 @@ import kotlinx.coroutines.runBlocking
  */
 class PostProcessorJniDispatcher(private val impl: IPostProcessor) {
     private val mapper = jacksonObjectMapper()
-    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
 
     /** JSON array of the Rust-side names of the methods this host provides. */
     fun implementedMethods(): String =
-    mapper.writeValueAsString(
-        listOf(
-            "process",
-            "processing_stage",
-            "should_process",
-            "estimated_duration_ms",
-            "priority",
-            "name",
-            "version",
-            "initialize",
-            "shutdown",
-        ),
-    )
+        mapper.writeValueAsString(
+            listOf(
+                "process",
+                "processing_stage",
+                "should_process",
+                "estimated_duration_ms",
+                "priority",
+                "name",
+                "version",
+                "initialize",
+                "shutdown",
+            ),
+        )
 
     @Suppress("UNUSED_PARAMETER", "CyclomaticComplexMethod")
     fun dispatch(method: String, argsJson: String): String =
-    try {
-        val args = mapper.readTree(argsJson)
-        val result: Any? =
-        when (method) {
-            "process" -> {
-                runBlocking { impl.process(mapper.convertValue(args.get("result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {})) }
-                null
-            }
-            "processing_stage" -> impl.processingStage()
-            "should_process" -> impl.shouldProcess(mapper.convertValue(args.get("_result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}), mapper.convertValue(args.get("_config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {}))
-            "estimated_duration_ms" -> impl.estimatedDurationMs(mapper.convertValue(args.get("_result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}))
-            "priority" -> impl.priority()
-            "name" -> impl.name()
-            "version" -> impl.version()
-            "initialize" -> {
-                impl.initialize()
-                null
-            }
-            "shutdown" -> {
-                impl.shutdown()
-                null
-            }
-            else -> throw IllegalArgumentException("unknown trait method: $method")
+        try {
+            val args = mapper.readTree(argsJson)
+            val result: Any? =
+                when (method) {
+                    "process" -> {
+                        runBlocking { impl.process(mapper.convertValue(args.get("result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {})) }
+                        null
+                    }
+                    "processing_stage" -> impl.processingStage()
+                    "should_process" -> impl.shouldProcess(mapper.convertValue(args.get("_result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}), mapper.convertValue(args.get("_config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {}))
+                    "estimated_duration_ms" -> impl.estimatedDurationMs(mapper.convertValue(args.get("_result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}))
+                    "priority" -> impl.priority()
+                    "name" -> impl.name()
+                    "version" -> impl.version()
+                    "initialize" -> {
+                        impl.initialize()
+                        null
+                    }
+                    "shutdown" -> {
+                        impl.shutdown()
+                        null
+                    }
+                    else -> throw IllegalArgumentException("unknown trait method: $method")
+                }
+            mapper.writeValueAsString(mapOf("ok" to result))
+        } catch (t: Throwable) {
+            mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
         }
-        mapper.writeValueAsString(mapOf("ok" to result))
-    } catch (t: Throwable) {
-        mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
-    }
 }

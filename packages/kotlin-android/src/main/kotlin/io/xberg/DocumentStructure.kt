@@ -94,14 +94,14 @@ data class DocumentStructure(
 // boundary. The naming strategy, null handling, and unknown-property tolerance
 // must match the module facade's mapper — both feed the same Rust serde types.
 private val VALUE_METHOD_MAPPER = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
-.registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
-.registerModule(
-    com.fasterxml.jackson.module.kotlin.KotlinModule.Builder()
-    .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullIsSameAsDefault, true)
-    .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyCollection, true)
-    .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyMap, true)
-    .build(),
-)
-.setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
-.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
+    .registerModule(
+        com.fasterxml.jackson.module.kotlin.KotlinModule.Builder()
+            .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullIsSameAsDefault, true)
+            .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyCollection, true)
+            .configure(com.fasterxml.jackson.module.kotlin.KotlinFeature.NullToEmptyMap, true)
+            .build(),
+    )
+    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+    .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)

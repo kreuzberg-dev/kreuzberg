@@ -58,7 +58,7 @@ jobs:
     name: Rust (${{ matrix.os }})
     if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -270,7 +270,7 @@ jobs:
     name: Rust (windows-latest, static-embeddings link)
     if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
         with:

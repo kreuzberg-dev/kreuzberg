@@ -6,11 +6,12 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 import io.xberg.OcrConfig;
+import java.util.List;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .ocr(OcrConfig.builder()
-        .backend("tesseract")
-        .language("eng+deu+fra")
+    .withOcr(OcrConfig.builder()
+        .withBackend("tesseract")
+        .withLanguage(List.of("eng", "deu", "fra"))
         .build())
     .build();
 ExtractionResult output = Xberg.extract(

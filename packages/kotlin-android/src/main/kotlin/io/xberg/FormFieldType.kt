@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Kind of a PDF form field.
-*
-* Mirrors `pdf_oxide`'s widget field taxonomy without leaking the upstream
-* type across the binding surface.
-*/
+ * Kind of a PDF form field.
+ *
+ * Mirrors `pdf_oxide`'s widget field taxonomy without leaking the upstream
+ * type across the binding surface.
+ */
 enum class FormFieldType {
     /** Single- or multi-line text input. */
     @com.fasterxml.jackson.annotation.JsonProperty("text") TEXT,
@@ -50,29 +50,29 @@ enum class FormFieldType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TEXT -> "text"
-        CHECKBOX -> "checkbox"
-        RADIO -> "radio"
-        CHOICE -> "choice"
-        SIGNATURE -> "signature"
-        BUTTON -> "button"
-        UNKNOWN -> "unknown"
-    }
+        when (this) {
+            TEXT -> "text"
+            CHECKBOX -> "checkbox"
+            RADIO -> "radio"
+            CHOICE -> "choice"
+            SIGNATURE -> "signature"
+            BUTTON -> "button"
+            UNKNOWN -> "unknown"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): FormFieldType =
-        when (value) {
-            "text" -> TEXT
-            "checkbox" -> CHECKBOX
-            "radio" -> RADIO
-            "choice" -> CHOICE
-            "signature" -> SIGNATURE
-            "button" -> BUTTON
-            "unknown" -> UNKNOWN
-            else -> throw IllegalArgumentException("Unknown FormFieldType value: $value")
-        }
+            when (value) {
+                "text" -> TEXT
+                "checkbox" -> CHECKBOX
+                "radio" -> RADIO
+                "choice" -> CHOICE
+                "signature" -> SIGNATURE
+                "button" -> BUTTON
+                "unknown" -> UNKNOWN
+                else -> throw IllegalArgumentException("Unknown FormFieldType value: $value")
+            }
     }
 }

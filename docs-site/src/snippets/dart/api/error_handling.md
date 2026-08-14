@@ -3,7 +3,11 @@ import 'package:xberg/xberg.dart';
 
 Future<void> main() async {
   try {
-    final result = await XbergBridge.extract(ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'), config: ExtractionConfig());
+    final config = await createExtractionConfigFromJson(json: '{}');
+    final result = await XbergBridge.extract(
+      const ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'),
+      config,
+    );
     print(result.results[0].content);
   } on Exception catch (e) {
     // flutter_rust_bridge converts every XbergError variant

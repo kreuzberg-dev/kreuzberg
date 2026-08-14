@@ -1,3 +1,4 @@
+```typescript title="Wasm"
 import { extract, getWasmCapabilities, initWasm } from "@xberg-io/xberg-wasm";
 
 async function extractDocuments(files: Uint8Array[], mimeTypes: string[]) {
@@ -24,3 +25,4 @@ const mimes = ["application/pdf"];
 extractDocuments(fileBytes, mimes)
   .then((results) => console.log(results))
   .catch(console.error);
+```

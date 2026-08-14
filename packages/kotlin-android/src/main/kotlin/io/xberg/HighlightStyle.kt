@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Highlight rendering style for `<mark>` elements.
-*
-* Controls how highlighted text is rendered in Markdown output.
-*/
+ * Highlight rendering style for `<mark>` elements.
+ *
+ * Controls how highlighted text is rendered in Markdown output.
+ */
 enum class HighlightStyle {
     /** Double equals syntax (==text==). Default. Pandoc-compatible. */
     @com.fasterxml.jackson.annotation.JsonProperty("DoubleEqual") DOUBLE_EQUAL,
@@ -43,27 +43,27 @@ enum class HighlightStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        DOUBLE_EQUAL -> "DoubleEqual"
-        HTML -> "Html"
-        BOLD -> "Bold"
-        NONE -> "None"
-    }
+        when (this) {
+            DOUBLE_EQUAL -> "DoubleEqual"
+            HTML -> "Html"
+            BOLD -> "Bold"
+            NONE -> "None"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): HighlightStyle =
-        when (value) {
-            "DoubleEqual",
-            "doubleequal" -> DOUBLE_EQUAL
-            "Html",
-            "html" -> HTML
-            "Bold",
-            "bold" -> BOLD
-            "None",
-            "none" -> NONE
-            else -> throw IllegalArgumentException("Unknown HighlightStyle value: $value")
-        }
+            when (value) {
+                "DoubleEqual",
+                "doubleequal" -> DOUBLE_EQUAL
+                "Html",
+                "html" -> HTML
+                "Bold",
+                "bold" -> BOLD
+                "None",
+                "none" -> NONE
+                else -> throw IllegalArgumentException("Unknown HighlightStyle value: $value")
+            }
     }
 }

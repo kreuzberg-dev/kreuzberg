@@ -11,5 +11,6 @@ extract_batch with missing URI input
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([%{"kind" => "uri", "uri" => "/nonexistent/a.pdf"}])
+IO.inspect(result)
 
 ```

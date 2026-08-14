@@ -12,5 +12,6 @@ extract: remote text document URL
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", uri: "https://example.com"}
 result = Xberg.extract_async(input_value, "{\"url\":{\"mode\":\"document\"}}")
+IO.inspect(result)
 
 ```

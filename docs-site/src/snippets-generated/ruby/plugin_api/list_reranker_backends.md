@@ -12,5 +12,6 @@ List all registered reranker backends
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.list_reranker_backends()
+puts result.inspect
 
 ```

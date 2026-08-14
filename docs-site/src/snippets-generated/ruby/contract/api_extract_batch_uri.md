@@ -12,5 +12,6 @@ Tests batch URI extraction API (extract_batch)
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract_batch([{ 'kind' => 'uri', 'uri' => 'https://example.com/pdf/fake_memo.pdf' }])
+puts result.inspect
 
 ```

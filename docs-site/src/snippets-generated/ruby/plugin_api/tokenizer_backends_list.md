@@ -12,5 +12,6 @@ List all registered tokenizer backends
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.list_tokenizer_backends()
+puts result.inspect
 
 ```

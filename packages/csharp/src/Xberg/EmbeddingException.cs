@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The embedding model or embedding pipeline returned an error.
 /// </summary>
-public class EmbeddingException : XbergErrorException {
-  public EmbeddingException(string message) : base(message) {}
+public class EmbeddingException : XbergErrorException
+{
+    public EmbeddingException(string message) : base(message) { }
 
-  public EmbeddingException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public EmbeddingException(string message, Exception innerException) : base(message, innerException) { }
 }

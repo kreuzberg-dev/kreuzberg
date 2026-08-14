@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/archives/documents.zip" };
   const config: ExtractionConfig = { securityLimits: { maxArchiveSize: 104857600, maxCompressionRatio: 50, maxFilesInArchive: 100 } };
   const result = await extract(input, config);
+  console.log(result);
 }
 
 void main();

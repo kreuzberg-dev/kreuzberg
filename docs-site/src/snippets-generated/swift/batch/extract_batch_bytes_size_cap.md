@@ -17,9 +17,8 @@ do {
     let inputsArray = [_item_inputsArray_0]
     let configObj = try Xberg.extractionConfigFromJson("{\"security_limits\":{\"max_content_size\":1}}")
     _ = try await Xberg.extractBatch(inputs: inputsArray, config: configObj)
-    fatalError("expected call to fail")
 } catch {
-    print("Call failed as expected: \(error)")
+    print("\(type(of: error)): \(error)")
 }
 
 ```

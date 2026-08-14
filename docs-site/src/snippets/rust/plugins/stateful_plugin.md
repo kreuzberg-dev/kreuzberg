@@ -1,7 +1,10 @@
 ```rust title="Rust"
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use xberg::XbergError;
+use xberg::plugins::{Plugin, PostProcessor, ProcessingStage};
+use xberg::{ExtractedDocument, ExtractionConfig, Result, XbergError};
+use async_trait::async_trait;
 
 struct StatefulPlugin {
     call_count: AtomicUsize,
@@ -34,8 +37,8 @@ impl PostProcessor for StatefulPlugin {
         self.call_count.fetch_add(1, Ordering::AcqRel);
 
         let mut cache = self.cache.lock()
-            .map_err(|_| XbergError::plugin("Cache lock poisoned"))?;
-        cache.insert("last_mime".to_string(), result.mime_type.clone());
+            .map_err(|_| XbergError::LockPoisoned("stateful-plugin cache".to_string()))?;
+        cache.insert("last_mime".to_string(), result.mime_type.to_string());
 
         Ok(())
     }

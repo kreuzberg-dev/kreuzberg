@@ -13,6 +13,7 @@ List renderers
 import { listRenderers } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listRenderers();
+  console.log(result);
 }
 
 void main();

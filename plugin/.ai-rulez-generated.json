@@ -1,6 +1,6 @@
 {
   "schema_version": "v1",
-  "source_hash": "blake3:5907a9cc29a5d72bbd3eaf5b820cac5133c8724895664c64fa8eafc2227716af",
+  "source_hash": "blake3:ac8bab9ae4a76e61f437af29b4a45a38326056a50769a177038927c69353edaf",
   "outputs": {
     ".claude-plugin/plugin.json": {
       "content_hash": "blake3:2ead42b8ceed0c52d629d642506b46747c1b071c5667743c96d75704c941a8aa"
@@ -174,7 +174,7 @@
       "content_hash": "blake3:fb833dea5339267fea0d60b49da9c96666cde90bd78df8d594e2f5ab98ac8e34"
     },
     ".opencode/plugins/xberg.js": {
-      "content_hash": "blake3:a176d5615df7d9fc0f850b5d83d3355f87d3045645f185d67c0d1e5edfb4a6c6"
+      "content_hash": "blake3:2380ff0219d0c12a18e22859fe1445061d369937db65645f35550507230edbd9"
     },
     "assets/icon.svg": {
       "content_hash": "blake3:f962ae760ae5633adde662363248fb30390a9940d6a4bb7834eff79a5bed6e05"

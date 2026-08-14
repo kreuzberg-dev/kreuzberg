@@ -11,7 +11,7 @@ var output = await XbergConverter.ExtractBatchAsync(
             "note.txt"
         ),
     },
-    ExtractionConfig.Default()
+    new ExtractionConfig()
 );
 
 foreach (var result in output.Results)

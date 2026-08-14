@@ -67,51 +67,51 @@ enum class PdfAnnotationType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TEXT -> "text"
-        HIGHLIGHT -> "highlight"
-        LINK -> "link"
-        STAMP -> "stamp"
-        UNDERLINE -> "underline"
-        STRIKE_OUT -> "strike_out"
-        SQUIGGLY -> "squiggly"
-        INK -> "ink"
-        SQUARE -> "square"
-        CIRCLE -> "circle"
-        POLYGON -> "polygon"
-        POLY_LINE -> "poly_line"
-        LINE -> "line"
-        CARET -> "caret"
-        FILE_ATTACHMENT -> "file_attachment"
-        SOUND -> "sound"
-        MOVIE -> "movie"
-        OTHER -> "other"
-    }
+        when (this) {
+            TEXT -> "text"
+            HIGHLIGHT -> "highlight"
+            LINK -> "link"
+            STAMP -> "stamp"
+            UNDERLINE -> "underline"
+            STRIKE_OUT -> "strike_out"
+            SQUIGGLY -> "squiggly"
+            INK -> "ink"
+            SQUARE -> "square"
+            CIRCLE -> "circle"
+            POLYGON -> "polygon"
+            POLY_LINE -> "poly_line"
+            LINE -> "line"
+            CARET -> "caret"
+            FILE_ATTACHMENT -> "file_attachment"
+            SOUND -> "sound"
+            MOVIE -> "movie"
+            OTHER -> "other"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PdfAnnotationType =
-        when (value) {
-            "text" -> TEXT
-            "highlight" -> HIGHLIGHT
-            "link" -> LINK
-            "stamp" -> STAMP
-            "underline" -> UNDERLINE
-            "strike_out" -> STRIKE_OUT
-            "squiggly" -> SQUIGGLY
-            "ink" -> INK
-            "square" -> SQUARE
-            "circle" -> CIRCLE
-            "polygon" -> POLYGON
-            "poly_line" -> POLY_LINE
-            "line" -> LINE
-            "caret" -> CARET
-            "file_attachment" -> FILE_ATTACHMENT
-            "sound" -> SOUND
-            "movie" -> MOVIE
-            "other" -> OTHER
-            else -> throw IllegalArgumentException("Unknown PdfAnnotationType value: $value")
-        }
+            when (value) {
+                "text" -> TEXT
+                "highlight" -> HIGHLIGHT
+                "link" -> LINK
+                "stamp" -> STAMP
+                "underline" -> UNDERLINE
+                "strike_out" -> STRIKE_OUT
+                "squiggly" -> SQUIGGLY
+                "ink" -> INK
+                "square" -> SQUARE
+                "circle" -> CIRCLE
+                "polygon" -> POLYGON
+                "poly_line" -> POLY_LINE
+                "line" -> LINE
+                "caret" -> CARET
+                "file_attachment" -> FILE_ATTACHMENT
+                "sound" -> SOUND
+                "movie" -> MOVIE
+                "other" -> OTHER
+                else -> throw IllegalArgumentException("Unknown PdfAnnotationType value: $value")
+            }
     }
 }

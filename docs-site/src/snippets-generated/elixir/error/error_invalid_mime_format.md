@@ -14,9 +14,7 @@ try do
   input_value = %Xberg.ExtractInput{bytes: File.read!("test_documents/text/plain.txt"), config: %{}, filename: "plain.txt", kind: "bytes", mime_type: "not-a-mime"}
   result = Xberg.extract_async(input_value, "{}")
 rescue
-  error -> IO.puts(:stderr, "Call failed as expected: #{Exception.message(error)}")
-else
-  _ -> raise "expected call to fail"
+  error -> IO.puts(:stderr, "#{inspect(error.__struct__)}: #{Exception.message(error)}")
 end
 
 ```

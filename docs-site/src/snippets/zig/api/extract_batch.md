@@ -13,6 +13,6 @@ pub fn main() !void {
     const output_json = try xberg.extract_batch(inputs_json, "{}");
     defer std.heap.c_allocator.free(output_json);
 
-    try std.io.getStdOut().writer().print("{s}\n", .{output_json});
+    std.debug.print("{s}\n", .{output_json});
 }
 ```

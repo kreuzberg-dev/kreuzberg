@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A required optional system dependency (e.g. `tesseract`) was not found.
 /// </summary>
-public class MissingDependencyException : XbergErrorException {
-  public MissingDependencyException(string message) : base(message) {}
+public class MissingDependencyException : XbergErrorException
+{
+    public MissingDependencyException(string message) : base(message) { }
 
-  public MissingDependencyException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public MissingDependencyException(string message, Exception innerException) : base(message, innerException) { }
 }

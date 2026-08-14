@@ -12,5 +12,6 @@ TextRank extractive summary over a multi-paragraph plain text document. Pure-Rus
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: 'https://example.com/text/book_war_and_peace_1p.txt'), { 'summarization' => { 'max_tokens' => 80, 'strategy' => 'extractive' } })
+puts result.inspect
 
 ```

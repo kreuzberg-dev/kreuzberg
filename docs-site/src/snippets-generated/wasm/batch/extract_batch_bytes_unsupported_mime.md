@@ -13,6 +13,7 @@ extract_batch with unsupported bytes MIME type
 import { extractBatch } from "@xberg-io/xberg-wasm";
 async function main() {
   const result = await extractBatch([{ bytes: [100, 97, 116, 97], kind: "bytes", mimeType: "application/x-unknown" }], undefined);
+  console.log(result);
 }
 
 void main();

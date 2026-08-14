@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The meta-schema itself failed to compile.
 /// </summary>
-public class BadMetaSchemaException : LoadErrorException {
-  public BadMetaSchemaException(string message) : base(message) {}
+public class BadMetaSchemaException : LoadErrorException
+{
+    public BadMetaSchemaException(string message) : base(message) { }
 
-  public BadMetaSchemaException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public BadMetaSchemaException(string message, Exception innerException) : base(message, innerException) { }
 }

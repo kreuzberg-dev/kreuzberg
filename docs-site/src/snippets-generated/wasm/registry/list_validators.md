@@ -13,6 +13,7 @@ List validators
 import { listValidators } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listValidators();
+  console.log(result);
 }
 
 void main();

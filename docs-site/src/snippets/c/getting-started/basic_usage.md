@@ -5,10 +5,10 @@
 #include <string.h>
 
 int main(void) {
-    XBERGExtractionConfig *config = xberg_extraction_config_default();
+    XBERGAlefHandle config = xberg_extraction_config_from_json("{}");
 
-    XBERGExtractInput *input = xberg_extract_input_from_uri("document.pdf");
-    if (!input) {
+    XBERGAlefHandle input = xberg_extract_input_from_uri("document.pdf");
+    if (input == 0) {
         fprintf(stderr, "Failed to create input (code %d): %s\n",
                 xberg_last_error_code(),
                 xberg_last_error_context());
@@ -16,8 +16,8 @@ int main(void) {
         return 1;
     }
 
-    XBERGExtractionResult *result = xberg_extract(input, config);
-    if (!result) {
+    XBERGAlefHandle result = xberg_extract(input, config);
+    if (result == 0) {
         fprintf(stderr, "extraction failed (code %d): %s\n",
                 xberg_last_error_code(),
                 xberg_last_error_context());

@@ -12,5 +12,6 @@ Standalone HWPX extraction using extract
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(filename: 'simple.hwpx', kind: 'uri', mime_type: 'application/haansofthwpx', uri: 'https://example.com/hwpx/simple.hwpx'))
+puts result.inspect
 
 ```

@@ -13,6 +13,7 @@ extract_batch with mixed valid and missing URI inputs
 import { extractBatch } from "@xberg-io/xberg-wasm";
 async function main() {
   const result = await extractBatch([{ kind: "uri", uri: "text/plain.txt" }, { kind: "uri", uri: "/nonexistent/missing.pdf" }], undefined);
+  console.log(result);
 }
 
 void main();

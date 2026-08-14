@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com" };
   const config: ExtractionConfig = { url: { mode: UrlExtractionMode.Document } };
   const result = await extract(input, config);
+  console.log(result);
 }
 
 void main();

@@ -1,22 +1,20 @@
 ```rust title="Rust"
-use xberg::{extract, ExtractionConfig, ExtractInput, TokenReductionConfig};
+use xberg::{extract, ExtractionConfig, ExtractInput, TokenReductionOptions};
 
-let config = ExtractionConfig {
-    token_reduction: Some(TokenReductionConfig {
-        mode: "moderate".to_string(),
-        preserve_markdown: true,
+#[tokio::main]
+async fn main() -> xberg::Result<()> {
+    let config = ExtractionConfig {
+        token_reduction: Some(TokenReductionOptions {
+            mode: "moderate".to_string(),
+            preserve_important_words: true,
+        }),
         ..Default::default()
-    }),
-    ..Default::default()
-};
+    };
 
-let output = extract(ExtractInput::from_uri("verbose_document.pdf"), &config).await?;
-let result = &output.results[0];
+    let output = extract(ExtractInput::from_uri("verbose_document.pdf"), &config).await?;
+    let result = &output.results[0];
 
-if let Some(original) = result.original_token_count {
-    println!("Original tokens: {}", original);
-}
-if let Some(reduced) = result.reduced_token_count {
-    println!("Reduced tokens: {}", reduced);
+    println!("Reduced content length: {} chars", result.content.len());
+    Ok(())
 }
 ```

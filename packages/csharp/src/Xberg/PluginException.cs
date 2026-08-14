@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A registered plugin returned an error during extraction.
 /// </summary>
-public class PluginException : XbergErrorException {
-  public PluginException(string message) : base(message) {}
+public class PluginException : XbergErrorException
+{
+    public PluginException(string message) : base(message) { }
 
-  public PluginException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public PluginException(string message, Exception innerException) : base(message, innerException) { }
 }

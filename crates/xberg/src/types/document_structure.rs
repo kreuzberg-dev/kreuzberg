@@ -664,7 +664,7 @@ impl NodeContent {
     ///
     /// Container/marker nodes return `None`: `List`, `Quote`, `Group`, `PageBreak`,
     /// `Slide`, `DefinitionList`, `Admonition`, `MetadataBlock`.
-    pub(crate) fn text(&self) -> Option<&str> {
+    pub fn text(&self) -> Option<&str> {
         match self {
             NodeContent::Title { text }
             | NodeContent::Heading { text, .. }
@@ -759,7 +759,7 @@ impl NodeContent {
     }
 
     /// Get the serde tag discriminant string for this variant.
-    pub(crate) fn node_type_str(&self) -> &'static str {
+    pub fn node_type_str(&self) -> &'static str {
         match self {
             NodeContent::Title { .. } => "title",
             NodeContent::Heading { .. } => "heading",

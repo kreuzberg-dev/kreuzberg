@@ -48,25 +48,25 @@ enum class HtmlTheme {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        DEFAULT -> "default"
-        GIT_HUB -> "github"
-        DARK -> "dark"
-        LIGHT -> "light"
-        UNSTYLED -> "unstyled"
-    }
+        when (this) {
+            DEFAULT -> "default"
+            GIT_HUB -> "github"
+            DARK -> "dark"
+            LIGHT -> "light"
+            UNSTYLED -> "unstyled"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): HtmlTheme =
-        when (value) {
-            "default" -> DEFAULT
-            "github" -> GIT_HUB
-            "dark" -> DARK
-            "light" -> LIGHT
-            "unstyled" -> UNSTYLED
-            else -> throw IllegalArgumentException("Unknown HtmlTheme value: $value")
-        }
+            when (value) {
+                "default" -> DEFAULT
+                "github" -> GIT_HUB
+                "dark" -> DARK
+                "light" -> LIGHT
+                "unstyled" -> UNSTYLED
+                else -> throw IllegalArgumentException("Unknown HtmlTheme value: $value")
+            }
     }
 }

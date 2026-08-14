@@ -6,6 +6,7 @@ import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ChunkingConfig;
+import io.xberg.Chunk;
 import io.xberg.EmbeddingConfig;
 import io.xberg.EmbeddingModelType;
 import java.util.HashMap;
@@ -21,33 +22,36 @@ public class VectorDatabaseIntegration {
     }
     public static List<VectorRecord> extractAndVectorize(String documentPath, String documentId) throws Exception {
         ExtractionConfig config = ExtractionConfig.builder()
-            .chunking(ChunkingConfig.builder()
-                .maxChars(512)
-                .maxOverlap(50)
-                .embedding(EmbeddingConfig.builder()
-                    .model(EmbeddingModelType.preset("balanced"))
-                    .normalize(true)
-                    .batchSize(32)
+            .withChunking(ChunkingConfig.builder()
+                .withMaxCharacters(512L)
+                .withOverlap(50L)
+                .withEmbedding(EmbeddingConfig.builder()
+                    .withModel(new EmbeddingModelType.Preset("balanced"))
+                    .withNormalize(true)
+                    .withBatchSize(32L)
                     .build())
                 .build())
             .build();
         ExtractionResult output = Xberg.extract(ExtractInput.builder().withKind(ExtractInputKind.Uri).withUri(documentPath).build(), config);
         ExtractedDocument result = output.results().get(0);
-        List<Object> chunks = result.chunks() != null ? result.chunks() : List.of();
+        List<Chunk> chunks = result.chunks() != null ? result.chunks() : List.of();
         List<VectorRecord> vectorRecords = new java.util.ArrayList<>();
         for (int index = 0; index < chunks.size(); index++) {
-            Object chunk = chunks.get(index);
+            Chunk chunk = chunks.get(index);
             VectorRecord record = new VectorRecord();
             record.id = documentId + "_chunk_" + index;
             record.metadata = new HashMap<>();
             record.metadata.put("document_id", documentId);
             record.metadata.put("chunk_index", String.valueOf(index));
-            if (chunk instanceof java.util.Map) {
-                Map<String, Object> chunkMap = (Map<String, Object>) chunk;
-                record.content = (String) chunkMap.get("content");
-                record.embedding = (float[]) chunkMap.get("embedding");
-                record.metadata.put("content_length", String.valueOf(record.content.length()));
+            record.content = chunk.content();
+            if (chunk.embedding() != null) {
+                List<Float> embedding = chunk.embedding();
+                record.embedding = new float[embedding.size()];
+                for (int i = 0; i < embedding.size(); i++) {
+                    record.embedding[i] = embedding.get(i);
+                }
             }
+            record.metadata.put("content_length", String.valueOf(record.content.length()));
             vectorRecords.add(record);
         }
         storeInVectorDatabase(vectorRecords);

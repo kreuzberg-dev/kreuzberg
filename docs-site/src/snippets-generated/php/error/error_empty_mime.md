@@ -22,9 +22,7 @@ $input = \Xberg\ExtractInput::from_json(json_encode(["bytes" => "test_documents/
 try {
     Xberg::extract($input, []);
 } catch (Throwable $error) {
-    echo "Call failed as expected: {$error->getMessage()}\n";
-    return;
+    echo $error::class . ': ' . $error->getMessage() . "\n";
 }
-throw new RuntimeException('expected call to fail');
 
 ```

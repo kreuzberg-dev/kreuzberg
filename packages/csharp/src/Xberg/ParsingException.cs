@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Document parsing failed (e.g. corrupt file, unsupported format feature).
 /// </summary>
-public class ParsingException : XbergErrorException {
-  public ParsingException(string message) : base(message) {}
+public class ParsingException : XbergErrorException
+{
+    public ParsingException(string message) : base(message) { }
 
-  public ParsingException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ParsingException(string message, Exception innerException) : base(message, innerException) { }
 }

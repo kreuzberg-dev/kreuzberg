@@ -13,7 +13,7 @@ Clear all embedding backends and verify list is empty
 from xberg import clear_embedding_backends
 
 def main() -> None:
-    _ = clear_embedding_backends()
+    clear_embedding_backends()
 
 main()
 

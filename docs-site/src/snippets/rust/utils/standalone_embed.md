@@ -7,8 +7,8 @@ let config = EmbeddingConfig {
     ..Default::default()
 };
 
-let texts = vec!["Hello, world!", "Xberg is fast"];
-let embeddings = embed_texts(&texts, &config)?;
+let texts = vec!["Hello, world!".to_string(), "Xberg is fast".to_string()];
+let embeddings = embed_texts(texts, &config)?;
 
 assert_eq!(embeddings.len(), 2);
 assert_eq!(embeddings[0].len(), 768);

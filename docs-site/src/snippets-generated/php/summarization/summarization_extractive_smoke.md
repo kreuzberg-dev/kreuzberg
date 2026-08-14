@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "uri" => "https://example.com/text/book_war_and_peace_1p.txt"]));
 $result = Xberg::extract($input, ["summarization" => ["max_tokens" => 80, "strategy" => "extractive"]]);
+var_dump($result);
 
 ```

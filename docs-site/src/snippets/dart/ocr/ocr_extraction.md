@@ -2,35 +2,23 @@
 import 'package:xberg/xberg.dart';
 
 Future<void> main() async {
-  const config = ExtractionConfig(
-    useCache: true,
-    enableQualityProcessing: true,
-    forceOcr: true,
-    disableOcr: false,
-    ocr: OcrConfig(
-      enabled: true,
-      backend: 'tesseract',
-      language: ['eng'],
-      autoRotate: false,
-      vlmFallback: VlmFallbackPolicy.disabled(),
-    ),
-    resultFormat: ResultFormat.unified,
-    outputFormat: OutputFormat.plain(),
-    includeDocumentStructure: false,
-    maxArchiveDepth: 3,
-    useLayoutForMarkdown: false,
-    url: UrlExtractionConfig(
-      mode: UrlExtractionMode.auto,
-      allowLocalFileInputs: true,
-      allowFileUris: true,
-    ),
-  );
+  // `ExtractionConfig` is a generated data class with no defaults, so build it
+  // from JSON: every field you omit keeps its Rust-side default value.
+  final config = await createExtractionConfigFromJson(json: '''
+{
+  "force_ocr": true,
+  "ocr": {
+    "backend": "tesseract",
+    "language": ["eng"]
+  }
+}
+''');
 
   const input = ExtractInput(
     kind: ExtractInputKind.uri,
     uri: 'scanned.pdf',
   );
-  final output = await XbergBridge.extract(input, config: config);
+  final output = await XbergBridge.extract(input, config);
   final document = output.results.first;
 
   print(document.content);

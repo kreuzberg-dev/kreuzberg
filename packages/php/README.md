@@ -101,7 +101,6 @@ composer require xberg-io/xberg
 ```
 
 ### System Requirements
-
 - **PHP 8.2+** required
 - Optional: [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) version 1.24+ for ORT-dependent inference features
 - Optional: [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) for OCR functionality

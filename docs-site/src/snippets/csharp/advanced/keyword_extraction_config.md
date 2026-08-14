@@ -7,7 +7,7 @@ var config = new ExtractionConfig
     {
         Algorithm = KeywordAlgorithm.Yake,
         MaxKeywords = 10,
-        MinScore = 0.3,
+        MinScore = 0.3f,
         Language = "en"
     }
 };

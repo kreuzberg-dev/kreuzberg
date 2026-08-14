@@ -20,57 +20,57 @@ import kotlinx.coroutines.runBlocking
  */
 class OcrBackendJniDispatcher(private val impl: IOcrBackend) {
     private val mapper = jacksonObjectMapper()
-    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
 
     /** JSON array of the Rust-side names of the methods this host provides. */
     fun implementedMethods(): String =
-    mapper.writeValueAsString(
-        listOf(
-            "process_image",
-            "process_image_file",
-            "supports_language",
-            "backend_type",
-            "supported_languages",
-            "supports_table_detection",
-            "supports_document_processing",
-            "emits_structured_markdown",
-            "process_document",
-            "name",
-            "version",
-            "initialize",
-            "shutdown",
-        ),
-    )
+        mapper.writeValueAsString(
+            listOf(
+                "process_image",
+                "process_image_file",
+                "supports_language",
+                "backend_type",
+                "supported_languages",
+                "supports_table_detection",
+                "supports_document_processing",
+                "emits_structured_markdown",
+                "process_document",
+                "name",
+                "version",
+                "initialize",
+                "shutdown",
+            ),
+        )
 
     @Suppress("UNUSED_PARAMETER", "CyclomaticComplexMethod")
     fun dispatch(method: String, argsJson: String): String =
-    try {
-        val args = mapper.readTree(argsJson)
-        val result: Any? =
-        when (method) {
-            "process_image" -> runBlocking { impl.processImage(mapper.convertValue(args.get("image_bytes"), object : com.fasterxml.jackson.core.type.TypeReference<ByteArray>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
-            "process_image_file" -> runBlocking { impl.processImageFile(mapper.convertValue(args.get("path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
-            "supports_language" -> impl.supportsLanguage(mapper.convertValue(args.get("lang"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}))
-            "backend_type" -> impl.backendType()
-            "supported_languages" -> impl.supportedLanguages()
-            "supports_table_detection" -> impl.supportsTableDetection()
-            "supports_document_processing" -> impl.supportsDocumentProcessing()
-            "emits_structured_markdown" -> impl.emitsStructuredMarkdown()
-            "process_document" -> runBlocking { impl.processDocument(mapper.convertValue(args.get("_path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("_config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
-            "name" -> impl.name()
-            "version" -> impl.version()
-            "initialize" -> {
-                impl.initialize()
-                null
-            }
-            "shutdown" -> {
-                impl.shutdown()
-                null
-            }
-            else -> throw IllegalArgumentException("unknown trait method: $method")
+        try {
+            val args = mapper.readTree(argsJson)
+            val result: Any? =
+                when (method) {
+                    "process_image" -> runBlocking { impl.processImage(mapper.convertValue(args.get("image_bytes"), object : com.fasterxml.jackson.core.type.TypeReference<ByteArray>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
+                    "process_image_file" -> runBlocking { impl.processImageFile(mapper.convertValue(args.get("path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
+                    "supports_language" -> impl.supportsLanguage(mapper.convertValue(args.get("lang"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}))
+                    "backend_type" -> impl.backendType()
+                    "supported_languages" -> impl.supportedLanguages()
+                    "supports_table_detection" -> impl.supportsTableDetection()
+                    "supports_document_processing" -> impl.supportsDocumentProcessing()
+                    "emits_structured_markdown" -> impl.emitsStructuredMarkdown()
+                    "process_document" -> runBlocking { impl.processDocument(mapper.convertValue(args.get("_path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("_config"), object : com.fasterxml.jackson.core.type.TypeReference<OcrConfig>() {})) }
+                    "name" -> impl.name()
+                    "version" -> impl.version()
+                    "initialize" -> {
+                        impl.initialize()
+                        null
+                    }
+                    "shutdown" -> {
+                        impl.shutdown()
+                        null
+                    }
+                    else -> throw IllegalArgumentException("unknown trait method: $method")
+                }
+            mapper.writeValueAsString(mapOf("ok" to result))
+        } catch (t: Throwable) {
+            mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
         }
-        mapper.writeValueAsString(mapOf("ok" to result))
-    } catch (t: Throwable) {
-        mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
-    }
 }

@@ -18,7 +18,7 @@ Clear all post-processors and verify list is empty
 #include "xberg.h"
 
 int main(void) {
-    xberg_();
+    xberg_clear_post_processors();
     return EXIT_SUCCESS;
 }
 

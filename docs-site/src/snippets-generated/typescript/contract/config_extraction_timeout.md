@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/pdf/fake_memo.pdf" };
   const config: ExtractionConfig = { extractionTimeoutSecs: 300 };
   const result = await extract(input, config);
+  console.log(result);
 }
 
 void main();

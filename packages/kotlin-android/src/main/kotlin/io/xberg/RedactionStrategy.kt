@@ -45,23 +45,23 @@ enum class RedactionStrategy {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        MASK -> "mask"
-        HASH -> "hash"
-        TOKEN_REPLACE -> "token_replace"
-        DROP -> "drop"
-    }
+        when (this) {
+            MASK -> "mask"
+            HASH -> "hash"
+            TOKEN_REPLACE -> "token_replace"
+            DROP -> "drop"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): RedactionStrategy =
-        when (value) {
-            "mask" -> MASK
-            "hash" -> HASH
-            "token_replace" -> TOKEN_REPLACE
-            "drop" -> DROP
-            else -> throw IllegalArgumentException("Unknown RedactionStrategy value: $value")
-        }
+            when (value) {
+                "mask" -> MASK
+                "hash" -> HASH
+                "token_replace" -> TOKEN_REPLACE
+                "drop" -> DROP
+                else -> throw IllegalArgumentException("Unknown RedactionStrategy value: $value")
+            }
     }
 }

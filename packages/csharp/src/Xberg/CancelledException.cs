@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The extraction was cancelled via a `CancellationToken`.
 /// </summary>
-public class CancelledException : XbergErrorException {
-  public CancelledException(string message) : base(message) {}
+public class CancelledException : XbergErrorException
+{
+    public CancelledException(string message) : base(message) { }
 
-  public CancelledException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public CancelledException(string message, Exception innerException) : base(message, innerException) { }
 }

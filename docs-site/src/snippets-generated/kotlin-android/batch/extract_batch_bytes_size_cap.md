@@ -19,9 +19,8 @@ fun main() = kotlinx.coroutines.runBlocking {
     val config = mapper.readValue("{\"security_limits\":{\"max_content_size\":1}}", ExtractionConfig::class.java)
     val result = Xberg.extractBatch(listOf(MAPPER.readValue("{\"bytes\":\"test_documents/text/fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}", ExtractInput::class.java)), config)
     } catch (error: Exception) {
-        System.err.println("Call failed as expected: ${error.message}")
-        return@runBlocking    }
-    throw AssertionError("expected call to fail")
+        System.err.println("${error::class.simpleName}: ${error.message}")
+    }
 }
 
 ```

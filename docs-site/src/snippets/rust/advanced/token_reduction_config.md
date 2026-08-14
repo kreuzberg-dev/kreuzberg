@@ -1,13 +1,10 @@
 ```rust title="Rust"
-use xberg::{ExtractionConfig, TokenReductionConfig};
+use xberg::{ExtractionConfig, TokenReductionOptions};
 
 let config = ExtractionConfig {
-    token_reduction: Some(TokenReductionConfig {
+    token_reduction: Some(TokenReductionOptions {
         mode: "moderate".to_string(),
-        preserve_markdown: true,
-        preserve_code: true,
-        language_hint: Some("eng".to_string()),
-        ..Default::default()
+        preserve_important_words: true,
     }),
     ..Default::default()
 };

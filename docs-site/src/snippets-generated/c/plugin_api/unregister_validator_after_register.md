@@ -18,7 +18,7 @@ unregister_validator
 #include "xberg.h"
 
 int main(void) {
-    xberg_("test-validator");
+    xberg_unregister_validator("test-validator");
     return EXIT_SUCCESS;
 }
 

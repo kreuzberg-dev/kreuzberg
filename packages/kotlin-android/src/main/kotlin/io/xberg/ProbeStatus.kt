@@ -45,23 +45,23 @@ enum class ProbeStatus {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        PASS -> "pass"
-        WARN -> "warn"
-        FAIL -> "fail"
-        SKIP -> "skip"
-    }
+        when (this) {
+            PASS -> "pass"
+            WARN -> "warn"
+            FAIL -> "fail"
+            SKIP -> "skip"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ProbeStatus =
-        when (value) {
-            "pass" -> PASS
-            "warn" -> WARN
-            "fail" -> FAIL
-            "skip" -> SKIP
-            else -> throw IllegalArgumentException("Unknown ProbeStatus value: $value")
-        }
+            when (value) {
+                "pass" -> PASS
+                "warn" -> WARN
+                "fail" -> FAIL
+                "skip" -> SKIP
+                else -> throw IllegalArgumentException("Unknown ProbeStatus value: $value")
+            }
     }
 }

@@ -3,20 +3,20 @@ import io.xberg.Xberg;
 import io.xberg.ExtractInputKind;
 import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
-import io.xberg.XbergException;
+import io.xberg.XbergRsException;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 import io.xberg.OcrConfig;
-import java.io.IOException;
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
         try {
             ExtractionConfig config = ExtractionConfig.builder()
-                .ocr(OcrConfig.builder()
-                    .backend("paddle-ocr")
-                    .language("en")
-                    // .paddleOcrConfig(PaddleOcrConfig.builder().modelTier("server").build()) // for max accuracy
+                .withOcr(OcrConfig.builder()
+                    .withBackend("paddle-ocr")
+                    .withLanguage(List.of("en"))
+                    // .withPaddleOcrConfig(PaddleOcrConfig.builder().withModelTier("server").build()) // for max accuracy
                     .build())
                 .build();
             ExtractionResult output = Xberg.extract(
@@ -25,7 +25,7 @@ public class Main {
             );
             ExtractedDocument result = output.results().get(0);
             System.out.println(result.content());
-        } catch (IOException | XbergException e) {
+        } catch (XbergRsException e) {
             System.err.println("Extraction failed: " + e.getMessage());
         }
     }

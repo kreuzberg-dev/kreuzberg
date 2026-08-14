@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A custom schema override was supplied but is not a JSON object.
 /// </summary>
-public class SchemaNotObjectException : ResolveErrorException {
-  public SchemaNotObjectException(string message) : base(message) {}
+public class SchemaNotObjectException : ResolveErrorException
+{
+    public SchemaNotObjectException(string message) : base(message) { }
 
-  public SchemaNotObjectException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public SchemaNotObjectException(string message, Exception innerException) : base(message, innerException) { }
 }

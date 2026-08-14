@@ -2,6 +2,6 @@
 import io.xberg.ExtractionConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .enableQualityProcessing(true)  // Default
+    .withEnableQualityProcessing(true)  // Default
     .build();
 ```

@@ -14,7 +14,7 @@ from xberg import unregister_ocr_backend, ExtractionConfig
 
 def main() -> None:
     name = "nonexistent-backend-xyz"
-    _ = unregister_ocr_backend(name)
+    unregister_ocr_backend(name)
 
 main()
 

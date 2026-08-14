@@ -6,7 +6,7 @@ var config = new ExtractionConfig
     Ocr = new OcrConfig
     {
         Backend = "tesseract",
-        Language = "eng+fra",
+        Language = new List<string> { "eng", "fra" },
         TesseractConfig = new TesseractConfig { Psm = 3 }
     }
 };

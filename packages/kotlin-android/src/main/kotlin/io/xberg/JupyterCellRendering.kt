@@ -27,18 +27,18 @@
 package io.xberg
 
 /**
-* Controls how Jupyter notebook code cells are rendered during extraction.
-*
-* A code cell carries both its **source** and any **outputs** that were saved in
-* the notebook. Callers ingesting notebooks for AI agents want different slices of
-* this depending on the task. Xberg never executes cells — `Outputs` and `Both`
-* only surface outputs already stored in the `.ipynb`.
-*
-* This toggle governs a code cell's **source body** and its **saved outputs**.
-* Markdown (prose) cells and structural markers (kernel language, cell id, tags,
-* execution count) are unaffected — prose always renders and markers orient the
-* reader regardless of mode.
-*/
+ * Controls how Jupyter notebook code cells are rendered during extraction.
+ *
+ * A code cell carries both its **source** and any **outputs** that were saved in
+ * the notebook. Callers ingesting notebooks for AI agents want different slices of
+ * this depending on the task. Xberg never executes cells — `Outputs` and `Both`
+ * only surface outputs already stored in the `.ipynb`.
+ *
+ * This toggle governs a code cell's **source body** and its **saved outputs**.
+ * Markdown (prose) cells and structural markers (kernel language, cell id, tags,
+ * execution count) are unaffected — prose always renders and markers orient the
+ * reader regardless of mode.
+ */
 enum class JupyterCellRendering {
     /** Render the code source as a fenced code block; omit saved outputs. */
     @com.fasterxml.jackson.annotation.JsonProperty("source") SOURCE,
@@ -52,21 +52,21 @@ enum class JupyterCellRendering {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        SOURCE -> "source"
-        OUTPUTS -> "outputs"
-        BOTH -> "both"
-    }
+        when (this) {
+            SOURCE -> "source"
+            OUTPUTS -> "outputs"
+            BOTH -> "both"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): JupyterCellRendering =
-        when (value) {
-            "source" -> SOURCE
-            "outputs" -> OUTPUTS
-            "both" -> BOTH
-            else -> throw IllegalArgumentException("Unknown JupyterCellRendering value: $value")
-        }
+            when (value) {
+                "source" -> SOURCE
+                "outputs" -> OUTPUTS
+                "both" -> BOTH
+                else -> throw IllegalArgumentException("Unknown JupyterCellRendering value: $value")
+            }
     }
 }

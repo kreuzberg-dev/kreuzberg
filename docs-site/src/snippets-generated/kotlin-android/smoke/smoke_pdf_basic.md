@@ -15,7 +15,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 fun main() = kotlinx.coroutines.runBlocking {
     val mapper = jacksonObjectMapper()
-    val input = mapper.readValue("{\"kind\":\"uri\",\"mime_type\":\"application/pdf\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}", ExtractionConfig::class.java)
+    val input = mapper.readValue("{\"kind\":\"uri\",\"mime_type\":\"application/pdf\",\"uri\":\"https://example.com/pdf/fake_memo.pdf\"}", ExtractInput::class.java)
     val config = mapper.readValue("{}", ExtractionConfig::class.java)
     val result = Xberg.extract(input, config)
 }

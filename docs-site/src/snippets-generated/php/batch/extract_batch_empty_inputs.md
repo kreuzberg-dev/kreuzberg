@@ -19,5 +19,6 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Xberg\Xberg;
 use Xberg\ExtractionConfig;
 $result = Xberg::extractBatch([], \Xberg\ExtractionConfig::from_json('{}'));
+var_dump($result);
 
 ```

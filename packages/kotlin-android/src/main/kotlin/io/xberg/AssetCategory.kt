@@ -51,35 +51,35 @@ enum class AssetCategory {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        DOCUMENT -> "document"
-        IMAGE -> "image"
-        AUDIO -> "audio"
-        VIDEO -> "video"
-        FONT -> "font"
-        STYLESHEET -> "stylesheet"
-        SCRIPT -> "script"
-        ARCHIVE -> "archive"
-        DATA -> "data"
-        OTHER -> "other"
-    }
+        when (this) {
+            DOCUMENT -> "document"
+            IMAGE -> "image"
+            AUDIO -> "audio"
+            VIDEO -> "video"
+            FONT -> "font"
+            STYLESHEET -> "stylesheet"
+            SCRIPT -> "script"
+            ARCHIVE -> "archive"
+            DATA -> "data"
+            OTHER -> "other"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): AssetCategory =
-        when (value) {
-            "document" -> DOCUMENT
-            "image" -> IMAGE
-            "audio" -> AUDIO
-            "video" -> VIDEO
-            "font" -> FONT
-            "stylesheet" -> STYLESHEET
-            "script" -> SCRIPT
-            "archive" -> ARCHIVE
-            "data" -> DATA
-            "other" -> OTHER
-            else -> throw IllegalArgumentException("Unknown AssetCategory value: $value")
-        }
+            when (value) {
+                "document" -> DOCUMENT
+                "image" -> IMAGE
+                "audio" -> AUDIO
+                "video" -> VIDEO
+                "font" -> FONT
+                "stylesheet" -> STYLESHEET
+                "script" -> SCRIPT
+                "archive" -> ARCHIVE
+                "data" -> DATA
+                "other" -> OTHER
+                else -> throw IllegalArgumentException("Unknown AssetCategory value: $value")
+            }
     }
 }

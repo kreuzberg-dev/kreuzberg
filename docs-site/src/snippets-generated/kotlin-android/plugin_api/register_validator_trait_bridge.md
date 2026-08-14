@@ -12,7 +12,7 @@ register_validator: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterValidatorTraitBridge : IValidator {
     override fun name(): String = "register_validator_trait_bridge"
     override suspend fun validate(result: ExtractedDocument, config: ExtractionConfig): Unit {}

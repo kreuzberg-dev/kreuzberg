@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Invalid configuration or input parameters were supplied.
 /// </summary>
-public class ValidationException : XbergErrorException {
-  public ValidationException(string message) : base(message) {}
+public class ValidationException : XbergErrorException
+{
+    public ValidationException(string message) : base(message) { }
 
-  public ValidationException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ValidationException(string message, Exception innerException) : base(message, innerException) { }
 }

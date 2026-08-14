@@ -12,5 +12,6 @@ Smoke test: PNG image (without OCR, metadata only)
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", uri: "https://example.com/images/sample.png"}
 result = Xberg.extract_async(input_value, "{\"disable_ocr\":true}")
+IO.inspect(result)
 
 ```

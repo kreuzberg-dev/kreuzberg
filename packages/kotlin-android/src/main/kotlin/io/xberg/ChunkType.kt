@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* Semantic structural classification of a text chunk.
-*
-* Assigned by the heuristic classifier in `chunking.classifier`.
-* Defaults to `Unknown` when no rule matches.
-* Designed to be extended in future versions without breaking changes.
-*/
+ * Semantic structural classification of a text chunk.
+ *
+ * Assigned by the heuristic classifier in `chunking.classifier`.
+ * Defaults to `Unknown` when no rule matches.
+ * Designed to be extended in future versions without breaking changes.
+ */
 enum class ChunkType {
     /** Section heading or document title. */
     @com.fasterxml.jackson.annotation.JsonProperty("heading") HEADING,
@@ -69,47 +69,47 @@ enum class ChunkType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        HEADING -> "heading"
-        PARTY_LIST -> "party_list"
-        DEFINITIONS -> "definitions"
-        OPERATIVE_CLAUSE -> "operative_clause"
-        SIGNATURE_BLOCK -> "signature_block"
-        SCHEDULE -> "schedule"
-        TABLE_LIKE -> "table_like"
-        FORMULA -> "formula"
-        CODE_BLOCK -> "code_block"
-        FUNCTION -> "function"
-        CLASS -> "class"
-        MODULE -> "module"
-        IMAGE -> "image"
-        ORG_CHART -> "org_chart"
-        DIAGRAM -> "diagram"
-        UNKNOWN -> "unknown"
-    }
+        when (this) {
+            HEADING -> "heading"
+            PARTY_LIST -> "party_list"
+            DEFINITIONS -> "definitions"
+            OPERATIVE_CLAUSE -> "operative_clause"
+            SIGNATURE_BLOCK -> "signature_block"
+            SCHEDULE -> "schedule"
+            TABLE_LIKE -> "table_like"
+            FORMULA -> "formula"
+            CODE_BLOCK -> "code_block"
+            FUNCTION -> "function"
+            CLASS -> "class"
+            MODULE -> "module"
+            IMAGE -> "image"
+            ORG_CHART -> "org_chart"
+            DIAGRAM -> "diagram"
+            UNKNOWN -> "unknown"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ChunkType =
-        when (value) {
-            "heading" -> HEADING
-            "party_list" -> PARTY_LIST
-            "definitions" -> DEFINITIONS
-            "operative_clause" -> OPERATIVE_CLAUSE
-            "signature_block" -> SIGNATURE_BLOCK
-            "schedule" -> SCHEDULE
-            "table_like" -> TABLE_LIKE
-            "formula" -> FORMULA
-            "code_block" -> CODE_BLOCK
-            "function" -> FUNCTION
-            "class" -> CLASS
-            "module" -> MODULE
-            "image" -> IMAGE
-            "org_chart" -> ORG_CHART
-            "diagram" -> DIAGRAM
-            "unknown" -> UNKNOWN
-            else -> throw IllegalArgumentException("Unknown ChunkType value: $value")
-        }
+            when (value) {
+                "heading" -> HEADING
+                "party_list" -> PARTY_LIST
+                "definitions" -> DEFINITIONS
+                "operative_clause" -> OPERATIVE_CLAUSE
+                "signature_block" -> SIGNATURE_BLOCK
+                "schedule" -> SCHEDULE
+                "table_like" -> TABLE_LIKE
+                "formula" -> FORMULA
+                "code_block" -> CODE_BLOCK
+                "function" -> FUNCTION
+                "class" -> CLASS
+                "module" -> MODULE
+                "image" -> IMAGE
+                "org_chart" -> ORG_CHART
+                "diagram" -> DIAGRAM
+                "unknown" -> UNKNOWN
+                else -> throw IllegalArgumentException("Unknown ChunkType value: $value")
+            }
     }
 }

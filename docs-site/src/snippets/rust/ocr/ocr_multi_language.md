@@ -6,7 +6,7 @@ async fn main() -> xberg::Result<()> {
     let config = ExtractionConfig {
         ocr: Some(OcrConfig {
             backend: "tesseract".to_string(),
-            language: "eng+deu+fra".to_string(),
+            language: vec!["eng".to_string(), "deu".to_string(), "fra".to_string()],
             ..Default::default()
         }),
         ..Default::default()

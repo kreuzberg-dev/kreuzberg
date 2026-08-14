@@ -88,11 +88,28 @@ report_output = ".alef/snippet-validation-report.json"
 [workspace.docs.snippets.sessions.rust]
 cwd = "."
 manifest = "crates/xberg/Cargo.toml"
-rust_features = ["api"]
+# Beyond `api`, these three are the features hand-authored snippets actually
+# demonstrate. All are cheap: `keywords-yake` resolves to `stopwords`, which is
+# an empty feature list (Cargo.toml:516,507), and `embedding-presets` is `[]`
+# outright (:463) -- together they add ZERO crates. `pdf` (:61) pulls only
+# pure-Rust parsers.
+# Do NOT reach for `embeddings` (:466) to fix an embedding snippet: it enables
+# `onnx-runtime` (:452) -> `dep:ort` + `ort-bundled`, which DOWNLOADS ONNX
+# Runtime binaries at build time. `embedding-presets` clears the same
+# unresolved-import error for free. ~keep
+rust_features = ["api", "keywords-yake", "embedding-presets", "pdf"]
+# `async-trait` is not optional garnish here: every plugin trait in the public
+# surface (DocumentExtractor, OcrBackend, PostProcessor, Validator) is declared
+# with `#[async_trait]`, so a snippet that implements one CANNOT be written
+# without it. xberg itself depends on it (crates/xberg/Cargo.toml:1116); it was
+# simply never mirrored into the snippet session, which is why eight
+# hand-authored plugin snippets failed on `unresolved import async_trait`
+# rather than on anything wrong with their own code. Kept at the workspace
+# version (Cargo.toml:51). ~keep
 rust_dependencies = { tokio = { version = "1.53.1", features = [
   "macros",
   "rt-multi-thread",
-] }, serde_json = { version = "1.0.151" } }
+] }, serde_json = { version = "1.0.151" }, async-trait = { version = "0.1.92" } }
 
 [workspace.docs.snippets.sessions.python]
 cwd = "packages/python"
@@ -111,8 +128,17 @@ manifest = "crates/xberg-node/package.json"
 # `@xberg-io/xberg` -- 64 of their 69 failures were a single TS2307
 # "cannot find module". Generated snippets are unaffected either way: they
 # carry `target: node`/`target: wasm`, which takes priority over this fallback.
-# Aliased to the node package because every hand-authored TS snippet imports
-# `@xberg-io/xberg`; none import `@xberg-io/xberg-wasm`. ~keep
+# Aliased to the node package because every hand-authored TS snippet under
+# docs-site/src/snippets/typescript/ imports `@xberg-io/xberg`.
+# KNOWN GAP, measured 2026-08-14: that alias is wrong for the 15 hand-authored
+# snippets under docs-site/src/snippets/wasm/ (9 .md + 6 .ts), which DO import
+# `@xberg-io/xberg-wasm` and therefore fail this session with 18 x TS2307
+# "cannot find module". An earlier revision of this comment asserted that none
+# of them existed; it only surveyed the typescript/ directory.
+# They cannot be routed the generated tree's way either: `target:` lives in
+# markdown frontmatter, 0 of the 419 hand-authored snippets carry frontmatter at
+# all, and 6 of these 15 are raw `.ts` files that cannot carry any. Selecting a
+# session per directory is the missing capability; raised upstream. ~keep
 [workspace.docs.snippets.sessions.typescript]
 cwd = "crates/xberg-node"
 manifest = "crates/xberg-node/package.json"
@@ -141,7 +167,7 @@ manifest = "packages/elixir/mix.exs"
 cwd = "packages/java"
 manifest = "packages/java/pom.xml"
 before = [
-  "if [ -x /usr/libexec/java_home ]; then JAVA_HOME=$(/usr/libexec/java_home -v 25); else JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | sed -n 's/ *java.home = //p'); fi; export JAVA_HOME; if [ ! -d target/classes ]; then mvn -q -Dcheckstyle.skip -DskipTests compile; fi; mvn -q -DskipTests dependency:copy-dependencies",
+  "if [ -x /usr/libexec/java_home ]; then JAVA_HOME=$(/usr/libexec/java_home -v 25); else JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | sed -n 's/ *java.home = //p'); fi; export JAVA_HOME; if [ ! -d target/classes ]; then mvn -q -Dcheckstyle.skip -DskipTests compile; fi && mvn -q -DskipTests dependency:copy-dependencies",
 ]
 
 [workspace.docs.snippets.sessions.csharp]
@@ -166,9 +192,16 @@ manifest = "packages/kotlin-android/build.gradle.kts"
 # `*.jar`), so it is absent from every staged-tree copy a pre-commit hook builds.
 # Without this check `./gradlew` dies with ClassNotFoundException on
 # GradleWrapperMain and takes the whole snippet run down with it, on every
-# commit, no matter what the commit touches. ~keep
+# commit, no matter what the commit touches.
+# Third guard, the same reasoning taken one step further: a gradle build that
+# runs and FAILS must not abort the run either. Swift already works this way
+# (its trailing `; true` is load-bearing, for exactly this reason). A real
+# Kotlin compile error should leave Kotlin's own snippets failing typecheck --
+# the io.xberg classes simply will not exist -- rather than leave the other
+# sixteen languages unmeasured. Kotlin's reported count is then artifact
+# absence, NOT snippet quality, and must not be read as the latter. ~keep
 before = [
-  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug; fi',
+  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug || echo "alef: gradle assembleDebug FAILED; Kotlin snippets will fail typecheck (the io.xberg classes will be absent) instead of zeroing every other language"; fi',
 ]
 
 [workspace.docs.snippets.sessions.kotlin_android]
@@ -185,9 +218,16 @@ manifest = "packages/kotlin-android/build.gradle.kts"
 # `*.jar`), so it is absent from every staged-tree copy a pre-commit hook builds.
 # Without this check `./gradlew` dies with ClassNotFoundException on
 # GradleWrapperMain and takes the whole snippet run down with it, on every
-# commit, no matter what the commit touches. ~keep
+# commit, no matter what the commit touches.
+# Third guard, the same reasoning taken one step further: a gradle build that
+# runs and FAILS must not abort the run either. Swift already works this way
+# (its trailing `; true` is load-bearing, for exactly this reason). A real
+# Kotlin compile error should leave Kotlin's own snippets failing typecheck --
+# the io.xberg classes simply will not exist -- rather than leave the other
+# sixteen languages unmeasured. Kotlin's reported count is then artifact
+# absence, NOT snippet quality, and must not be read as the latter. ~keep
 before = [
-  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug; fi',
+  'sdk=$(command -v sdkmanager || true); if [ -z "${ANDROID_HOME:-}" ] && [ -n "$sdk" ]; then ANDROID_HOME=$(cd "$(dirname "$sdk")/../../.." && pwd); export ANDROID_HOME; fi; if [ -z "${ANDROID_HOME:-}" ]; then echo "alef: no Android SDK (ANDROID_HOME unset, sdkmanager not on PATH); skipping gradle assembleDebug"; elif [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then echo "alef: gradle/wrapper/gradle-wrapper.jar is absent; skipping gradle assembleDebug"; else ./gradlew assembleDebug || echo "alef: gradle assembleDebug FAILED; Kotlin snippets will fail typecheck (the io.xberg classes will be absent) instead of zeroing every other language"; fi',
 ]
 
 [workspace.docs.snippets.sessions.swift]

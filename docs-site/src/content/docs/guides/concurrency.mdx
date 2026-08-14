@@ -4,6 +4,8 @@ description: "How Xberg sizes its thread pools, why the default caps at 8, and w
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_csharp_advanced_async_extraction } from "../../../snippets/csharp/advanced/async_extraction.md";
+import { Content as Snip_wasm_getting_started_async_extraction } from "../../../snippets/wasm/getting-started/async-extraction.md";
 
 Xberg derives one thread budget per process and shares it across every internal thread pool: the global Rayon pool, ONNX Runtime intra-op threads, and the batch worker count. This page explains how that budget is chosen, why it does not automatically scale past 8 threads, and when it will not help even after you raise it.
 
@@ -89,6 +91,25 @@ quota was found; capping the thread budget at 8 (min(cpu_cores, 8)). Set
 ```
 
 The warning fires at most once per process, not once per extraction.
+
+## Concurrent calls from your own code
+
+Your application can start several extractions at once with the concurrency primitives of its language. These calls share the same process-wide thread budget, so the budget still bounds the total CPU use:
+
+<Tabs syncKey="lang">
+<TabItem label="C#">
+
+<Snip_csharp_advanced_async_extraction />
+
+</TabItem>
+<TabItem label="Wasm">
+
+<Snip_wasm_getting_started_async_extraction />
+
+</TabItem>
+</Tabs>
+
+For a fixed list of documents, prefer `extract_batch`. It divides the budget between document workers for you. See [Batch Processing](/guides/extraction/#batch-processing).
 
 ## See Also
 

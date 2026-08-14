@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The preset's declared `id` does not match its file-system location.
 /// </summary>
-public class IdMismatchException : LoadErrorException {
-  public IdMismatchException(string message) : base(message) {}
+public class IdMismatchException : LoadErrorException
+{
+    public IdMismatchException(string message) : base(message) { }
 
-  public IdMismatchException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public IdMismatchException(string message, Exception innerException) : base(message, innerException) { }
 }

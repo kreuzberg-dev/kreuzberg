@@ -14,7 +14,8 @@ var processInfo = new ProcessStartInfo
     RedirectStandardError = true
 };
 
-var process = Process.Start(processInfo);
+var process = Process.Start(processInfo)
+    ?? throw new InvalidOperationException("Failed to start the xberg MCP server process");
 
 var clientInput = process.StandardInput;
 var clientOutput = process.StandardOutput;

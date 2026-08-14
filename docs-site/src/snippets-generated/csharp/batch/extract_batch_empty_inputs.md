@@ -10,8 +10,10 @@ side_effect: safe
 extract_batch: empty batch
 
 ```csharp title="C#"
+using System;
 using Xberg;
 
 var result = await XbergConverter.ExtractBatchAsync(new List<ExtractInput>() {  }, new ExtractionConfig());
+Console.WriteLine(result);
 
 ```

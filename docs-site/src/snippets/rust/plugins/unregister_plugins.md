@@ -1,6 +1,5 @@
 ```rust title="Rust"
-use xberg::plugins::registry::get_document_extractor_registry;
+use xberg::unregister_document_extractor;
 
-let registry = get_document_extractor_registry();
-registry.remove("custom-json-extractor")?;
+unregister_document_extractor("custom-json-extractor")?;
 ```

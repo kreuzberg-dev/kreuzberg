@@ -14,6 +14,7 @@ import { ExtractionConfig, UrlExtractionMode, extractBatch } from "@xberg-io/xbe
 async function main() {
   const config: ExtractionConfig = { url: { mode: UrlExtractionMode.Document } };
   const result = await extractBatch([{ kind: "uri", uri: "https://example.com" }, { bytes: [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116], filename: "inline.txt", kind: "bytes", mimeType: "text/plain" }], config);
+  console.log(result);
 }
 
 void main();

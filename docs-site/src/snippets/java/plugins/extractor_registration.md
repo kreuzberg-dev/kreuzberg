@@ -5,8 +5,7 @@ import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
 import io.xberg.ExtractInput;
 import io.xberg.ExtractionConfig;
-import io.xberg.XbergException;
-import java.io.IOException;
+import io.xberg.XbergRsException;
 
 public class CustomExtractorExample {
     public static void main(String[] args) {
@@ -17,7 +16,7 @@ public class CustomExtractorExample {
             );
             ExtractedDocument result = output.results().get(0);
             System.out.println("Extracted content length: " + result.content().length());
-        } catch (IOException | XbergException e) {
+        } catch (XbergRsException e) {
             e.printStackTrace();
         }
     }

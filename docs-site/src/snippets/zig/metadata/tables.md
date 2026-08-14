@@ -3,7 +3,7 @@ const std = @import("std");
 const xberg = @import("xberg");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -23,8 +23,6 @@ pub fn main() !void {
     const root = results_val.array.items[0];
     if (root != .object) return;
 
-    const stdout = std.io.getStdOut().writer();
-
     const tables_val = root.object.get("tables") orelse return;
     if (tables_val != .array) return;
 
@@ -33,30 +31,30 @@ pub fn main() !void {
 
         if (table.object.get("cells")) |cells_val| {
             if (cells_val == .array) {
-                try stdout.print("Table with {d} rows\n", .{cells_val.array.items.len});
+                std.debug.print("Table with {d} rows\n", .{cells_val.array.items.len});
 
                 for (cells_val.array.items) |row_val| {
                     if (row_val != .array) continue;
-                    try stdout.print("  Row:", .{});
+                    std.debug.print("  Row:", .{});
                     for (row_val.array.items) |cell_val| {
                         if (cell_val == .string) {
-                            try stdout.print(" [{s}]", .{cell_val.string});
+                            std.debug.print(" [{s}]", .{cell_val.string});
                         }
                     }
-                    try stdout.print("\n", .{});
+                    std.debug.print("\n", .{});
                 }
             }
         }
 
         if (table.object.get("markdown")) |markdown_val| {
             if (markdown_val == .string) {
-                try stdout.print("{s}\n", .{markdown_val.string});
+                std.debug.print("{s}\n", .{markdown_val.string});
             }
         }
 
         if (table.object.get("page_number")) |page_val| {
             if (page_val == .integer) {
-                try stdout.print("Page: {d}\n", .{page_val.integer});
+                std.debug.print("Page: {d}\n", .{page_val.integer});
             }
         }
     }

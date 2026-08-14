@@ -39,27 +39,27 @@ enum class OcrBackendType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TESSERACT -> "Tesseract"
-        PADDLE_O_C_R -> "PaddleOCR"
-        CANDLE -> "Candle"
-        CUSTOM -> "Custom"
-    }
+        when (this) {
+            TESSERACT -> "Tesseract"
+            PADDLE_O_C_R -> "PaddleOCR"
+            CANDLE -> "Candle"
+            CUSTOM -> "Custom"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): OcrBackendType =
-        when (value) {
-            "Tesseract",
-            "tesseract" -> TESSERACT
-            "PaddleOCR",
-            "paddleocr" -> PADDLE_O_C_R
-            "Candle",
-            "candle" -> CANDLE
-            "Custom",
-            "custom" -> CUSTOM
-            else -> throw IllegalArgumentException("Unknown OcrBackendType value: $value")
-        }
+            when (value) {
+                "Tesseract",
+                "tesseract" -> TESSERACT
+                "PaddleOCR",
+                "paddleocr" -> PADDLE_O_C_R
+                "Candle",
+                "candle" -> CANDLE
+                "Custom",
+                "custom" -> CUSTOM
+                else -> throw IllegalArgumentException("Unknown OcrBackendType value: $value")
+            }
     }
 }

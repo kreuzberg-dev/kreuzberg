@@ -381,11 +381,6 @@ pub struct JsContentFilterConfig {
     pub include_watermarks: Option<bool>,
 }
 
-#[napi(js_name = "contentFilterConfigDefault")]
-pub fn content_filter_config_default() -> JsContentFilterConfig {
-    xberg::ContentFilterConfig::default().into()
-}
-
 /// Configuration for CSV/TSV extraction.
 ///
 /// When unset (`ExtractionConfig.csv == None`), the extractor keeps its
@@ -799,11 +794,6 @@ pub struct JsExtractionConfig {
     pub qr_codes: Option<bool>,
 }
 
-#[napi(js_name = "extractionConfigDefault")]
-pub fn extraction_config_default() -> JsExtractionConfig {
-    xberg::ExtractionConfig::default().into()
-}
-
 /// Per-file extraction configuration overrides for batch processing.
 ///
 /// All fields are `Option<T>` — `None` means "use the batch-level default."
@@ -964,11 +954,6 @@ pub struct JsSvgOptions {
     pub render_dpi: Option<f64>,
 }
 
-#[napi(js_name = "svgOptionsDefault")]
-pub fn svg_options_default() -> JsSvgOptions {
-    xberg::core::config::extraction::SvgOptions::default().into()
-}
-
 /// Unified extraction input for all public extraction entry points.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "ExtractInput")]
@@ -990,10 +975,6 @@ pub struct JsExtractInput {
     pub config: Option<JsFileExtractionConfig>,
 }
 
-#[napi(js_name = "extractInputDefault")]
-pub fn extract_input_default() -> JsExtractInput {
-    xberg::ExtractInput::default().into()
-}
 /// Build a bytes input with a MIME type and optional filename hint.
 #[napi(js_name = "extractInputFromBytes")]
 pub fn extract_input_from_bytes(
@@ -1114,11 +1095,6 @@ pub struct JsUrlExtractionConfig {
     pub allow_file_uris: Option<bool>,
 }
 
-#[napi(js_name = "urlExtractionConfigDefault")]
-pub fn url_extraction_config_default() -> JsUrlExtractionConfig {
-    xberg::UrlExtractionConfig::default().into()
-}
-
 /// Image extraction configuration.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "ImageExtractionConfig")]
@@ -1231,11 +1207,6 @@ pub struct JsImageExtractionConfig {
     pub include_data_base64: Option<bool>,
 }
 
-#[napi(js_name = "imageExtractionConfigDefault")]
-pub fn image_extraction_config_default() -> JsImageExtractionConfig {
-    xberg::ImageExtractionConfig::default().into()
-}
-
 /// Token reduction configuration.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "TokenReductionOptions")]
@@ -1246,11 +1217,6 @@ pub struct JsTokenReductionOptions {
     #[napi(js_name = "preserveImportantWords")]
     #[serde(rename = "preserveImportantWords")]
     pub preserve_important_words: Option<bool>,
-}
-
-#[napi(js_name = "tokenReductionOptionsDefault")]
-pub fn token_reduction_options_default() -> JsTokenReductionOptions {
-    xberg::TokenReductionOptions::default().into()
 }
 
 /// Language detection configuration.
@@ -1267,11 +1233,6 @@ pub struct JsLanguageDetectionConfig {
     #[napi(js_name = "detectMultiple")]
     #[serde(rename = "detectMultiple")]
     pub detect_multiple: Option<bool>,
-}
-
-#[napi(js_name = "languageDetectionConfigDefault")]
-pub fn language_detection_config_default() -> JsLanguageDetectionConfig {
-    xberg::LanguageDetectionConfig::default().into()
 }
 
 /// Configuration for styled HTML output.
@@ -1310,11 +1271,6 @@ pub struct JsHtmlOutputConfig {
     #[napi(js_name = "embedCss")]
     #[serde(rename = "embedCss")]
     pub embed_css: Option<bool>,
-}
-
-#[napi(js_name = "htmlOutputConfigDefault")]
-pub fn html_output_config_default() -> JsHtmlOutputConfig {
-    xberg::HtmlOutputConfig::default().into()
 }
 
 /// Configuration for the late-interaction (ColBERT) pipeline.
@@ -1370,11 +1326,6 @@ pub struct JsLateInteractionConfig {
     #[napi(js_name = "maxEmbedDurationSecs")]
     #[serde(rename = "maxEmbedDurationSecs")]
     pub max_embed_duration_secs: Option<i64>,
-}
-
-#[napi(js_name = "lateInteractionConfigDefault")]
-pub fn late_interaction_config_default() -> JsLateInteractionConfig {
-    xberg::LateInteractionConfig::default().into()
 }
 
 /// Layout detection configuration.
@@ -1439,11 +1390,6 @@ pub struct JsLayoutDetectionConfig {
     #[napi(js_name = "enableChartUnderstanding")]
     #[serde(rename = "enableChartUnderstanding")]
     pub enable_chart_understanding: Option<bool>,
-}
-
-#[napi(js_name = "layoutDetectionConfigDefault")]
-pub fn layout_detection_config_default() -> JsLayoutDetectionConfig {
-    xberg::LayoutDetectionConfig::default().into()
 }
 
 /// Configuration for an LLM provider/model via liter-llm.
@@ -1980,11 +1926,6 @@ pub struct JsOcrQualityThresholds {
     pub min_provenance_fallback_ratio: Option<f64>,
 }
 
-#[napi(js_name = "ocrQualityThresholdsDefault")]
-pub fn ocr_quality_thresholds_default() -> JsOcrQualityThresholds {
-    xberg::OcrQualityThresholds::default().into()
-}
-
 /// A single backend stage in the OCR pipeline.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "OcrPipelineStage")]
@@ -2209,11 +2150,6 @@ pub struct JsOcrConfig {
     pub tessdata_path: Option<String>,
 }
 
-#[napi(js_name = "ocrConfigDefault")]
-pub fn ocr_config_default() -> JsOcrConfig {
-    xberg::OcrConfig::default().into()
-}
-
 /// Page extraction and tracking configuration.
 ///
 /// Controls how pages are extracted, tracked, and represented in the extraction results.
@@ -2237,11 +2173,6 @@ pub struct JsPageConfig {
     #[napi(js_name = "markerFormat")]
     #[serde(rename = "markerFormat")]
     pub marker_format: Option<String>,
-}
-
-#[napi(js_name = "pageConfigDefault")]
-pub fn page_config_default() -> JsPageConfig {
-    xberg::PageConfig::default().into()
 }
 
 /// PDF-specific configuration.
@@ -2332,11 +2263,6 @@ pub struct JsPdfConfig {
     pub reading_order: Option<bool>,
 }
 
-#[napi(js_name = "pdfConfigDefault")]
-pub fn pdf_config_default() -> JsPdfConfig {
-    xberg::PdfConfig::default().into()
-}
-
 /// Hierarchy extraction configuration for PDF text structure analysis.
 ///
 /// Enables extraction of document hierarchy levels (H1-H6) based on font size
@@ -2358,11 +2284,6 @@ pub struct JsHierarchyConfig {
     #[napi(js_name = "includeBbox")]
     #[serde(rename = "includeBbox")]
     pub include_bbox: Option<bool>,
-}
-
-#[napi(js_name = "hierarchyConfigDefault")]
-pub fn hierarchy_config_default() -> JsHierarchyConfig {
-    xberg::HierarchyConfig::default().into()
 }
 
 /// Post-processor configuration.
@@ -2387,11 +2308,6 @@ pub struct JsPostProcessorConfig {
     #[napi(js_name = "disabledSet")]
     #[serde(rename = "disabledSet")]
     pub disabled_set: Option<Vec<String>>,
-}
-
-#[napi(js_name = "postProcessorConfigDefault")]
-pub fn post_processor_config_default() -> JsPostProcessorConfig {
-    xberg::PostProcessorConfig::default().into()
 }
 
 /// Chunking configuration.
@@ -2519,11 +2435,6 @@ pub struct JsChunkingConfig {
     pub breadcrumb_target: Option<JsBreadcrumbTarget>,
 }
 
-#[napi(js_name = "chunkingConfigDefault")]
-pub fn chunking_config_default() -> JsChunkingConfig {
-    xberg::ChunkingConfig::default().into()
-}
-
 /// Embedding configuration for text chunks.
 ///
 /// Configures embedding generation using ONNX models via the vendored embedding engine.
@@ -2593,11 +2504,6 @@ pub struct JsEmbeddingConfig {
     pub max_sequence_length: Option<i64>,
 }
 
-#[napi(js_name = "embeddingConfigDefault")]
-pub fn embedding_config_default() -> JsEmbeddingConfig {
-    xberg::EmbeddingConfig::default().into()
-}
-
 /// Configuration for the redaction post-processor.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "RedactionConfig")]
@@ -2636,11 +2542,6 @@ pub struct JsRedactionConfig {
     #[napi(js_name = "customPatterns")]
     #[serde(rename = "customPatterns")]
     pub custom_patterns: Option<Vec<JsRedactionPattern>>,
-}
-
-#[napi(js_name = "redactionConfigDefault")]
-pub fn redaction_config_default() -> JsRedactionConfig {
-    xberg::RedactionConfig::default().into()
 }
 
 /// One user-supplied literal term to redact.
@@ -2753,11 +2654,6 @@ pub struct JsRerankerConfig {
     pub max_rerank_duration_secs: Option<i64>,
 }
 
-#[napi(js_name = "rerankerConfigDefault")]
-pub fn reranker_config_default() -> JsRerankerConfig {
-    xberg::RerankerConfig::default().into()
-}
-
 /// Configuration for the sparse-embedding pipeline.
 ///
 /// Controls which model to use, batching, and download/cache behavior for the
@@ -2803,11 +2699,6 @@ pub struct JsSparseEmbeddingConfig {
     #[napi(js_name = "maxEmbedDurationSecs")]
     #[serde(rename = "maxEmbedDurationSecs")]
     pub max_embed_duration_secs: Option<i64>,
-}
-
-#[napi(js_name = "sparseEmbeddingConfigDefault")]
-pub fn sparse_embedding_config_default() -> JsSparseEmbeddingConfig {
-    xberg::SparseEmbeddingConfig::default().into()
 }
 
 /// Configuration for the summarisation post-processor.
@@ -2922,11 +2813,6 @@ pub struct JsTranscriptionConfig {
     pub verify_hash: Option<bool>,
 }
 
-#[napi(js_name = "transcriptionConfigDefault")]
-pub fn transcription_config_default() -> JsTranscriptionConfig {
-    xberg::TranscriptionConfig::default().into()
-}
-
 /// Configuration for the translation post-processor.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "TranslationConfig")]
@@ -3001,11 +2887,6 @@ pub struct JsTreeSitterConfig {
     pub process: Option<JsTreeSitterProcessConfig>,
 }
 
-#[napi(js_name = "treeSitterConfigDefault")]
-pub fn tree_sitter_config_default() -> JsTreeSitterConfig {
-    xberg::TreeSitterConfig::default().into()
-}
-
 /// Processing options for tree-sitter code analysis.
 ///
 /// Controls which analysis features are enabled when extracting code files.
@@ -3039,11 +2920,6 @@ pub struct JsTreeSitterProcessConfig {
     #[napi(js_name = "contentMode")]
     #[serde(rename = "contentMode")]
     pub content_mode: Option<JsCodeContentMode>,
-}
-
-#[napi(js_name = "treeSitterProcessConfigDefault")]
-pub fn tree_sitter_process_config_default() -> JsTreeSitterProcessConfig {
-    xberg::TreeSitterProcessConfig::default().into()
 }
 
 /// A supported document format entry.
@@ -3095,11 +2971,6 @@ pub struct JsServerConfig {
     #[napi(js_name = "maxMultipartFieldBytes")]
     #[serde(rename = "maxMultipartFieldBytes")]
     pub max_multipart_field_bytes: Option<i64>,
-}
-
-#[napi(js_name = "serverConfigDefault")]
-pub fn server_config_default() -> JsServerConfig {
-    xberg::ServerConfig::default().into()
 }
 
 /// Result of parsing a structured data file (JSON, JSONL, YAML, or TOML).
@@ -3379,11 +3250,6 @@ pub struct JsSecurityLimits {
     pub max_table_cells: Option<i64>,
 }
 
-#[napi(js_name = "securityLimitsDefault")]
-pub fn security_limits_default() -> JsSecurityLimits {
-    xberg::SecurityLimits::default().into()
-}
-
 /// Configuration for the token-reduction pipeline.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "TokenReductionConfig")]
@@ -3441,11 +3307,6 @@ pub struct JsTokenReductionConfig {
     #[napi(js_name = "preserveImportantWords")]
     #[serde(rename = "preserveImportantWords")]
     pub preserve_important_words: Option<bool>,
-}
-
-#[napi(js_name = "tokenReductionConfigDefault")]
-pub fn token_reduction_config_default() -> JsTokenReductionConfig {
-    xberg::TokenReductionConfig::default().into()
 }
 
 /// One detected PII span in the input text.
@@ -3510,10 +3371,6 @@ pub struct JsFootnoteConfig {
     pub parse_citations: Option<bool>,
 }
 
-#[napi(js_name = "footnoteConfigDefault")]
-pub fn footnote_config_default() -> JsFootnoteConfig {
-    xberg::FootnoteConfig::default().into()
-}
 /// Set whether to parse the citation block.
 #[allow(clippy::missing_errors_doc)]
 #[napi(js_name = "footnoteConfigWithParseCitations")]
@@ -3782,11 +3639,6 @@ pub struct JsDocumentStructure {
     #[napi(js_name = "nodeTypes")]
     #[serde(rename = "nodeTypes")]
     pub node_types: Option<Vec<String>>,
-}
-
-#[napi(js_name = "documentStructureDefault")]
-pub fn document_structure_default() -> JsDocumentStructure {
-    xberg::DocumentStructure::default().into()
 }
 
 /// A resolved relationship between two nodes in the document tree.
@@ -4977,11 +4829,6 @@ pub struct JsImagePreprocessingConfig {
     pub invert_colors: Option<bool>,
 }
 
-#[napi(js_name = "imagePreprocessingConfigDefault")]
-pub fn image_preprocessing_config_default() -> JsImagePreprocessingConfig {
-    xberg::ImagePreprocessingConfig::default().into()
-}
-
 /// Tesseract OCR configuration.
 ///
 /// Provides fine-grained control over Tesseract OCR engine parameters.
@@ -5087,11 +4934,6 @@ pub struct JsTesseractConfig {
     #[napi(js_name = "thresholdingMethod")]
     #[serde(rename = "thresholdingMethod")]
     pub thresholding_method: Option<bool>,
-}
-
-#[napi(js_name = "tesseractConfigDefault")]
-pub fn tesseract_config_default() -> JsTesseractConfig {
-    xberg::TesseractConfig::default().into()
 }
 
 /// Image preprocessing metadata.
@@ -6572,11 +6414,6 @@ pub struct JsDiffOptions {
     pub max_content_chars: Option<i64>,
 }
 
-#[napi(js_name = "diffOptionsDefault")]
-pub fn diff_options_default() -> JsDiffOptions {
-    xberg::DiffOptions::default().into()
-}
-
 /// The complete diff between two `ExtractedDocument` values.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "ExtractionDiff")]
@@ -6825,11 +6662,6 @@ pub struct JsYakeParams {
     pub window_size: Option<i64>,
 }
 
-#[napi(js_name = "yakeParamsDefault")]
-pub fn yake_params_default() -> JsYakeParams {
-    xberg::YakeParams::default().into()
-}
-
 /// RAKE-specific parameters.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "RakeParams")]
@@ -6842,11 +6674,6 @@ pub struct JsRakeParams {
     #[napi(js_name = "maxWordsPerPhrase")]
     #[serde(rename = "maxWordsPerPhrase")]
     pub max_words_per_phrase: Option<i64>,
-}
-
-#[napi(js_name = "rakeParamsDefault")]
-pub fn rake_params_default() -> JsRakeParams {
-    xberg::RakeParams::default().into()
 }
 
 /// Keyword extraction configuration.
@@ -6880,11 +6707,6 @@ pub struct JsKeywordConfig {
     #[serde(rename = "rakeParams")]
     #[serde(skip)]
     pub rake_params: Option<JsRakeParams>,
-}
-
-#[napi(js_name = "keywordConfigDefault")]
-pub fn keyword_config_default() -> JsKeywordConfig {
-    xberg::KeywordConfig::default().into()
 }
 
 /// Extracted keyword with metadata.
@@ -7057,11 +6879,6 @@ pub struct JsHeuristicsConfig {
     pub max_pptx_embedded_count: Option<u32>,
 }
 
-#[napi(js_name = "heuristicsConfigDefault")]
-pub fn heuristics_config_default() -> JsHeuristicsConfig {
-    xberg::HeuristicsConfig::default().into()
-}
-
 /// Information about a single chunk.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[napi(object, js_name = "ChunkInfo")]
@@ -7187,11 +7004,6 @@ pub struct JsMultidocThresholds {
     #[napi(js_name = "bigramOverlapMin")]
     #[serde(rename = "bigramOverlapMin")]
     pub bigram_overlap_min: Option<f64>,
-}
-
-#[napi(js_name = "multidocThresholdsDefault")]
-pub fn multidoc_thresholds_default() -> JsMultidocThresholds {
-    xberg::MultidocThresholds::default().into()
 }
 
 /// Compiled meta-schema validator over `preset.schema.json`.
@@ -7831,11 +7643,6 @@ pub fn paddle_ocr_config_with_model_version(
     let _out_json =
         serde_json::to_string(&_result).map_err(|e| napi::Error::new(napi::Status::GenericFailure, e.to_string()))?;
     serde_json::from_str(&_out_json).map_err(|e| napi::Error::new(napi::Status::GenericFailure, e.to_string()))
-}
-/// Creates a default configuration with English language support.
-#[napi(js_name = "paddleOcrConfigDefault")]
-pub fn paddle_ocr_config_default() -> JsPaddleOcrConfig {
-    xberg::PaddleOcrConfig::default().into()
 }
 
 /// Combined paths to all models needed for OCR (backward compatibility).
@@ -10517,6 +10324,7 @@ pub fn diff_line_context(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "context".to_string(),
         text: Some(text),
+        ..Default::default()
     }
 }
 #[napi(namespace = "DiffLine", js_name = "Added")]
@@ -10524,6 +10332,7 @@ pub fn diff_line_added(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "added".to_string(),
         text: Some(text),
+        ..Default::default()
     }
 }
 #[napi(namespace = "DiffLine", js_name = "Removed")]
@@ -10531,6 +10340,7 @@ pub fn diff_line_removed(text: String) -> JsDiffLine {
     JsDiffLine {
         kind_tag: "removed".to_string(),
         text: Some(text),
+        ..Default::default()
     }
 }
 
@@ -18268,29 +18078,6 @@ impl From<xberg::RedactionPattern> for JsRedactionPattern {
     }
 }
 
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-#[allow(clippy::redundant_closure, clippy::useless_conversion)]
-impl From<JsRerankerConfig> for xberg::RerankerConfig {
-    fn from(val: JsRerankerConfig) -> Self {
-        let mut __result = xberg::RerankerConfig::default();
-        if let Some(__v) = val.model {
-            __result.model = __v.into();
-        }
-        __result.top_k = val.top_k.map(|v| v as usize);
-        if let Some(__v) = val.batch_size {
-            __result.batch_size = __v as usize;
-        }
-        if let Some(__v) = val.show_download_progress {
-            __result.show_download_progress = __v;
-        }
-        __result.cache_dir = val.cache_dir.map(Into::into);
-        __result.acceleration = val.acceleration.map(Into::into);
-        __result.max_rerank_duration_secs = val.max_rerank_duration_secs.map(|v| v as u64);
-        __result
-    }
-}
-
 #[allow(clippy::redundant_closure, clippy::useless_conversion)]
 impl From<xberg::RerankerConfig> for JsRerankerConfig {
     fn from(val: xberg::RerankerConfig) -> Self {
@@ -18550,30 +18337,6 @@ impl From<xberg::SupportedFormat> for JsSupportedFormat {
     }
 }
 
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-impl From<JsServerConfig> for xberg::ServerConfig {
-    fn from(val: JsServerConfig) -> Self {
-        let mut __result = xberg::ServerConfig::default();
-        if let Some(__v) = val.host {
-            __result.host = __v;
-        }
-        if let Some(__v) = val.port {
-            __result.port = __v;
-        }
-        if let Some(__v) = val.cors_origins {
-            __result.cors_origins = __v.into_iter().collect();
-        }
-        if let Some(__v) = val.max_request_body_bytes {
-            __result.max_request_body_bytes = __v as usize;
-        }
-        if let Some(__v) = val.max_multipart_field_bytes {
-            __result.max_multipart_field_bytes = __v as usize;
-        }
-        __result
-    }
-}
-
 impl From<xberg::ServerConfig> for JsServerConfig {
     fn from(val: xberg::ServerConfig) -> Self {
         Self {
@@ -18785,46 +18548,6 @@ impl From<xberg::SecurityLimits> for JsSecurityLimits {
             max_xml_depth: Some(val.max_xml_depth as i64),
             max_table_cells: Some(val.max_table_cells as i64),
         }
-    }
-}
-
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-#[allow(clippy::redundant_closure, clippy::useless_conversion)]
-impl From<JsTokenReductionConfig> for xberg::TokenReductionConfig {
-    fn from(val: JsTokenReductionConfig) -> Self {
-        let mut __result = xberg::TokenReductionConfig::default();
-        if let Some(__v) = val.level {
-            __result.level = __v.into();
-        }
-        __result.language_hint = val.language_hint;
-        if let Some(__v) = val.preserve_markdown {
-            __result.preserve_markdown = __v;
-        }
-        if let Some(__v) = val.preserve_code {
-            __result.preserve_code = __v;
-        }
-        if let Some(__v) = val.semantic_threshold {
-            __result.semantic_threshold = __v as f32;
-        }
-        if let Some(__v) = val.enable_parallel {
-            __result.enable_parallel = __v;
-        }
-        if let Some(__v) = val.use_simd {
-            __result.use_simd = __v;
-        }
-        __result.custom_stopwords = val.custom_stopwords.map(|m| m.into_iter().collect());
-        if let Some(__v) = val.preserve_patterns {
-            __result.preserve_patterns = __v.into_iter().collect();
-        }
-        __result.target_reduction = val.target_reduction.map(|v| v as f32);
-        if let Some(__v) = val.enable_semantic_clustering {
-            __result.enable_semantic_clustering = __v;
-        }
-        if let Some(__v) = val.preserve_important_words {
-            __result.preserve_important_words = __v;
-        }
-        __result
     }
 }
 
@@ -21829,23 +21552,6 @@ impl From<xberg::api::DetectResponse> for JsDetectResponse {
     }
 }
 
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-#[allow(clippy::redundant_closure)]
-impl From<JsDiffOptions> for xberg::DiffOptions {
-    fn from(val: JsDiffOptions) -> Self {
-        let mut __result = xberg::DiffOptions::default();
-        if let Some(__v) = val.include_metadata {
-            __result.include_metadata = __v;
-        }
-        if let Some(__v) = val.include_embedded {
-            __result.include_embedded = __v;
-        }
-        __result.max_content_chars = val.max_content_chars.map(|v| v as usize);
-        __result
-    }
-}
-
 #[allow(clippy::redundant_closure)]
 impl From<xberg::DiffOptions> for JsDiffOptions {
     fn from(val: xberg::DiffOptions) -> Self {
@@ -22168,48 +21874,6 @@ impl From<xberg::ExtractionConfidence> for JsExtractionConfidence {
     }
 }
 
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-impl From<JsHeuristicsConfig> for xberg::HeuristicsConfig {
-    fn from(val: JsHeuristicsConfig) -> Self {
-        let mut __result = xberg::HeuristicsConfig::default();
-        if let Some(__v) = val.enable_pdf_text_heuristics {
-            __result.enable_pdf_text_heuristics = __v;
-        }
-        if let Some(__v) = val.text_layer_threshold {
-            __result.text_layer_threshold = __v as f32;
-        }
-        if let Some(__v) = val.file_size_threshold_bytes {
-            __result.file_size_threshold_bytes = __v as u64;
-        }
-        if let Some(__v) = val.page_count_threshold {
-            __result.page_count_threshold = __v;
-        }
-        if let Some(__v) = val.target_pages_per_chunk {
-            __result.target_pages_per_chunk = __v;
-        }
-        if let Some(__v) = val.max_pages_per_chunk {
-            __result.max_pages_per_chunk = __v;
-        }
-        if let Some(__v) = val.disk_processing_threshold_bytes {
-            __result.disk_processing_threshold_bytes = __v as u64;
-        }
-        if let Some(__v) = val.min_chars_per_page {
-            __result.min_chars_per_page = __v;
-        }
-        if let Some(__v) = val.max_xlsx_sheet_count {
-            __result.max_xlsx_sheet_count = __v;
-        }
-        if let Some(__v) = val.max_xlsx_workbook_cells {
-            __result.max_xlsx_workbook_cells = __v as u64;
-        }
-        if let Some(__v) = val.max_pptx_embedded_count {
-            __result.max_pptx_embedded_count = __v;
-        }
-        __result
-    }
-}
-
 impl From<xberg::HeuristicsConfig> for JsHeuristicsConfig {
     fn from(val: xberg::HeuristicsConfig) -> Self {
         Self {
@@ -22293,21 +21957,6 @@ impl From<xberg::DocumentBoundary> for JsDocumentBoundary {
             confidence: val.confidence as f64,
             reason: val.reason.into(),
         }
-    }
-}
-
-#[allow(clippy::needless_update)]
-#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
-impl From<JsMultidocThresholds> for xberg::MultidocThresholds {
-    fn from(val: JsMultidocThresholds) -> Self {
-        let mut __result = xberg::MultidocThresholds::default();
-        if let Some(__v) = val.density_shift_threshold {
-            __result.density_shift_threshold = __v as f32;
-        }
-        if let Some(__v) = val.bigram_overlap_min {
-            __result.bigram_overlap_min = __v as f32;
-        }
-        __result
     }
 }
 
@@ -24171,18 +23820,6 @@ impl From<xberg::ProcessingStage> for JsProcessingStage {
             xberg::ProcessingStage::Early => Self::Early,
             xberg::ProcessingStage::Middle => Self::Middle,
             xberg::ProcessingStage::Late => Self::Late,
-        }
-    }
-}
-
-impl From<JsReductionLevel> for xberg::ReductionLevel {
-    fn from(val: JsReductionLevel) -> Self {
-        match val {
-            JsReductionLevel::Off => Self::Off,
-            JsReductionLevel::Light => Self::Light,
-            JsReductionLevel::Moderate => Self::Moderate,
-            JsReductionLevel::Aggressive => Self::Aggressive,
-            JsReductionLevel::Maximum => Self::Maximum,
         }
     }
 }
@@ -27058,6 +26695,53 @@ impl From<JsCacheStats> for xberg::CacheStats {
     }
 }
 
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+#[allow(clippy::redundant_closure, clippy::useless_conversion)]
+impl From<JsRerankerConfig> for xberg::RerankerConfig {
+    fn from(val: JsRerankerConfig) -> Self {
+        let mut __result = xberg::RerankerConfig::default();
+        if let Some(__v) = val.model {
+            __result.model = __v.into();
+        }
+        __result.top_k = val.top_k.map(|v| v as usize);
+        if let Some(__v) = val.batch_size {
+            __result.batch_size = __v as usize;
+        }
+        if let Some(__v) = val.show_download_progress {
+            __result.show_download_progress = __v;
+        }
+        __result.cache_dir = val.cache_dir.map(Into::into);
+        __result.acceleration = val.acceleration.map(Into::into);
+        __result.max_rerank_duration_secs = val.max_rerank_duration_secs.map(|v| v as u64);
+        __result
+    }
+}
+
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+impl From<JsServerConfig> for xberg::ServerConfig {
+    fn from(val: JsServerConfig) -> Self {
+        let mut __result = xberg::ServerConfig::default();
+        if let Some(__v) = val.host {
+            __result.host = __v;
+        }
+        if let Some(__v) = val.port {
+            __result.port = __v;
+        }
+        if let Some(__v) = val.cors_origins {
+            __result.cors_origins = __v.into_iter().collect();
+        }
+        if let Some(__v) = val.max_request_body_bytes {
+            __result.max_request_body_bytes = __v as usize;
+        }
+        if let Some(__v) = val.max_multipart_field_bytes {
+            __result.max_multipart_field_bytes = __v as usize;
+        }
+        __result
+    }
+}
+
 #[allow(clippy::redundant_closure, clippy::useless_conversion)]
 impl From<JsStructuredDataResult> for xberg::extraction::structured::StructuredDataResult {
     fn from(val: JsStructuredDataResult) -> Self {
@@ -27113,6 +26797,46 @@ impl From<JsPptxAppProperties> for xberg::extraction::office_metadata::app_prope
         __result.presentation_format = val.presentation_format;
         if let Some(__v) = val.slide_titles {
             __result.slide_titles = __v.into_iter().collect();
+        }
+        __result
+    }
+}
+
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+#[allow(clippy::redundant_closure, clippy::useless_conversion)]
+impl From<JsTokenReductionConfig> for xberg::TokenReductionConfig {
+    fn from(val: JsTokenReductionConfig) -> Self {
+        let mut __result = xberg::TokenReductionConfig::default();
+        if let Some(__v) = val.level {
+            __result.level = __v.into();
+        }
+        __result.language_hint = val.language_hint;
+        if let Some(__v) = val.preserve_markdown {
+            __result.preserve_markdown = __v;
+        }
+        if let Some(__v) = val.preserve_code {
+            __result.preserve_code = __v;
+        }
+        if let Some(__v) = val.semantic_threshold {
+            __result.semantic_threshold = __v as f32;
+        }
+        if let Some(__v) = val.enable_parallel {
+            __result.enable_parallel = __v;
+        }
+        if let Some(__v) = val.use_simd {
+            __result.use_simd = __v;
+        }
+        __result.custom_stopwords = val.custom_stopwords.map(|m| m.into_iter().collect());
+        if let Some(__v) = val.preserve_patterns {
+            __result.preserve_patterns = __v.into_iter().collect();
+        }
+        __result.target_reduction = val.target_reduction.map(|v| v as f32);
+        if let Some(__v) = val.enable_semantic_clustering {
+            __result.enable_semantic_clustering = __v;
+        }
+        if let Some(__v) = val.preserve_important_words {
+            __result.preserve_important_words = __v;
         }
         __result
     }
@@ -27346,6 +27070,23 @@ impl From<JsDetectResponse> for xberg::api::DetectResponse {
 
 #[allow(clippy::needless_update)]
 #[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+#[allow(clippy::redundant_closure)]
+impl From<JsDiffOptions> for xberg::DiffOptions {
+    fn from(val: JsDiffOptions) -> Self {
+        let mut __result = xberg::DiffOptions::default();
+        if let Some(__v) = val.include_metadata {
+            __result.include_metadata = __v;
+        }
+        if let Some(__v) = val.include_embedded {
+            __result.include_embedded = __v;
+        }
+        __result.max_content_chars = val.max_content_chars.map(|v| v as usize);
+        __result
+    }
+}
+
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
 #[allow(clippy::useless_conversion)]
 impl From<JsExtractionDiff> for xberg::ExtractionDiff {
     fn from(val: JsExtractionDiff) -> Self {
@@ -27495,6 +27236,48 @@ impl From<JsUserChunkConfig> for xberg::UserChunkConfig {
     }
 }
 
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+impl From<JsHeuristicsConfig> for xberg::HeuristicsConfig {
+    fn from(val: JsHeuristicsConfig) -> Self {
+        let mut __result = xberg::HeuristicsConfig::default();
+        if let Some(__v) = val.enable_pdf_text_heuristics {
+            __result.enable_pdf_text_heuristics = __v;
+        }
+        if let Some(__v) = val.text_layer_threshold {
+            __result.text_layer_threshold = __v as f32;
+        }
+        if let Some(__v) = val.file_size_threshold_bytes {
+            __result.file_size_threshold_bytes = __v as u64;
+        }
+        if let Some(__v) = val.page_count_threshold {
+            __result.page_count_threshold = __v;
+        }
+        if let Some(__v) = val.target_pages_per_chunk {
+            __result.target_pages_per_chunk = __v;
+        }
+        if let Some(__v) = val.max_pages_per_chunk {
+            __result.max_pages_per_chunk = __v;
+        }
+        if let Some(__v) = val.disk_processing_threshold_bytes {
+            __result.disk_processing_threshold_bytes = __v as u64;
+        }
+        if let Some(__v) = val.min_chars_per_page {
+            __result.min_chars_per_page = __v;
+        }
+        if let Some(__v) = val.max_xlsx_sheet_count {
+            __result.max_xlsx_sheet_count = __v;
+        }
+        if let Some(__v) = val.max_xlsx_workbook_cells {
+            __result.max_xlsx_workbook_cells = __v as u64;
+        }
+        if let Some(__v) = val.max_pptx_embedded_count {
+            __result.max_pptx_embedded_count = __v;
+        }
+        __result
+    }
+}
+
 #[allow(clippy::useless_conversion)]
 impl From<JsChunkInfo> for xberg::ChunkInfo {
     fn from(val: JsChunkInfo) -> Self {
@@ -27534,6 +27317,21 @@ impl From<JsDocumentBoundary> for xberg::DocumentBoundary {
             confidence: val.confidence as f32,
             reason: val.reason.into(),
         }
+    }
+}
+
+#[allow(clippy::needless_update)]
+#[allow(clippy::field_reassign_with_default, clippy::let_and_return)]
+impl From<JsMultidocThresholds> for xberg::MultidocThresholds {
+    fn from(val: JsMultidocThresholds) -> Self {
+        let mut __result = xberg::MultidocThresholds::default();
+        if let Some(__v) = val.density_shift_threshold {
+            __result.density_shift_threshold = __v as f32;
+        }
+        if let Some(__v) = val.bigram_overlap_min {
+            __result.bigram_overlap_min = __v as f32;
+        }
+        __result
     }
 }
 
@@ -27640,6 +27438,18 @@ impl From<JsChunkClassificationEnrichmentConfig> for xberg::enrich::ChunkClassif
     }
 }
 
+impl From<JsReductionLevel> for xberg::ReductionLevel {
+    fn from(val: JsReductionLevel) -> Self {
+        match val {
+            JsReductionLevel::Off => Self::Off,
+            JsReductionLevel::Light => Self::Light,
+            JsReductionLevel::Moderate => Self::Moderate,
+            JsReductionLevel::Aggressive => Self::Aggressive,
+            JsReductionLevel::Maximum => Self::Maximum,
+        }
+    }
+}
+
 impl From<JsBoundaryReason> for xberg::BoundaryReason {
     fn from(val: JsBoundaryReason) -> Self {
         match val {
@@ -27679,23 +27489,41 @@ impl From<JsLayoutClass> for xberg::LayoutClass {
 
 // Error variant name constants
 pub const XBERG_ERROR_ERROR_IO: &str = "Io";
+pub const XBERG_ERROR_ERROR_IO_CODE: u32 = 2080723056;
 pub const XBERG_ERROR_ERROR_PARSING: &str = "Parsing";
+pub const XBERG_ERROR_ERROR_PARSING_CODE: u32 = 191686562;
 pub const XBERG_ERROR_ERROR_OCR: &str = "Ocr";
+pub const XBERG_ERROR_ERROR_OCR_CODE: u32 = 1744734248;
 pub const XBERG_ERROR_ERROR_VALIDATION: &str = "Validation";
+pub const XBERG_ERROR_ERROR_VALIDATION_CODE: u32 = 2093146707;
 pub const XBERG_ERROR_ERROR_CACHE: &str = "Cache";
+pub const XBERG_ERROR_ERROR_CACHE_CODE: u32 = 1740547354;
 pub const XBERG_ERROR_ERROR_IMAGE_PROCESSING: &str = "ImageProcessing";
+pub const XBERG_ERROR_ERROR_IMAGE_PROCESSING_CODE: u32 = 1703658036;
 pub const XBERG_ERROR_ERROR_SERIALIZATION: &str = "Serialization";
+pub const XBERG_ERROR_ERROR_SERIALIZATION_CODE: u32 = 486450251;
 pub const XBERG_ERROR_ERROR_MISSING_DEPENDENCY: &str = "MissingDependency";
+pub const XBERG_ERROR_ERROR_MISSING_DEPENDENCY_CODE: u32 = 1024192803;
 pub const XBERG_ERROR_ERROR_PLUGIN: &str = "Plugin";
+pub const XBERG_ERROR_ERROR_PLUGIN_CODE: u32 = 1609738224;
 pub const XBERG_ERROR_ERROR_LOCK_POISONED: &str = "LockPoisoned";
+pub const XBERG_ERROR_ERROR_LOCK_POISONED_CODE: u32 = 1092832257;
 pub const XBERG_ERROR_ERROR_UNSUPPORTED_FORMAT: &str = "UnsupportedFormat";
+pub const XBERG_ERROR_ERROR_UNSUPPORTED_FORMAT_CODE: u32 = 299497109;
 pub const XBERG_ERROR_ERROR_EMBEDDING: &str = "Embedding";
+pub const XBERG_ERROR_ERROR_EMBEDDING_CODE: u32 = 1958776963;
 pub const XBERG_ERROR_ERROR_RERANKING: &str = "Reranking";
+pub const XBERG_ERROR_ERROR_RERANKING_CODE: u32 = 1326275648;
 pub const XBERG_ERROR_ERROR_TRANSCRIPTION: &str = "Transcription";
+pub const XBERG_ERROR_ERROR_TRANSCRIPTION_CODE: u32 = 552614954;
 pub const XBERG_ERROR_ERROR_TIMEOUT: &str = "Timeout";
+pub const XBERG_ERROR_ERROR_TIMEOUT_CODE: u32 = 1036077712;
 pub const XBERG_ERROR_ERROR_CANCELLED: &str = "Cancelled";
+pub const XBERG_ERROR_ERROR_CANCELLED_CODE: u32 = 524666238;
 pub const XBERG_ERROR_ERROR_SECURITY: &str = "Security";
+pub const XBERG_ERROR_ERROR_SECURITY_CODE: u32 = 670246576;
 pub const XBERG_ERROR_ERROR_OTHER: &str = "Other";
+pub const XBERG_ERROR_ERROR_OTHER_CODE: u32 = 1318675240;
 
 /// Convert a `xberg::error::XbergError` error to a NAPI error.
 #[allow(dead_code)]
@@ -27703,57 +27531,59 @@ fn xberg_error_to_napi_err(e: xberg::error::XbergError) -> napi::Error {
     let msg = e.to_string();
     #[allow(unreachable_patterns)]
     match &e {
-        xberg::error::XbergError::Io(..) => napi::Error::new(napi::Status::GenericFailure, format!("[Io] {}", msg)),
+        xberg::error::XbergError::Io(..) => {
+            napi::Error::new(napi::Status::GenericFailure, format!("[2080723056] {}", msg))
+        }
         xberg::error::XbergError::Parsing { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Parsing] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[191686562] {}", msg))
         }
         xberg::error::XbergError::Ocr { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Ocr] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1744734248] {}", msg))
         }
         xberg::error::XbergError::Validation { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Validation] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[2093146707] {}", msg))
         }
         xberg::error::XbergError::Cache { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Cache] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1740547354] {}", msg))
         }
         xberg::error::XbergError::ImageProcessing { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[ImageProcessing] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1703658036] {}", msg))
         }
         xberg::error::XbergError::Serialization { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Serialization] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[486450251] {}", msg))
         }
         xberg::error::XbergError::MissingDependency(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[MissingDependency] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1024192803] {}", msg))
         }
         xberg::error::XbergError::Plugin { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Plugin] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1609738224] {}", msg))
         }
         xberg::error::XbergError::LockPoisoned(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[LockPoisoned] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1092832257] {}", msg))
         }
         xberg::error::XbergError::UnsupportedFormat(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[UnsupportedFormat] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[299497109] {}", msg))
         }
         xberg::error::XbergError::Embedding { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Embedding] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1958776963] {}", msg))
         }
         xberg::error::XbergError::Reranking { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Reranking] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1326275648] {}", msg))
         }
         xberg::error::XbergError::Transcription { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Transcription] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[552614954] {}", msg))
         }
         xberg::error::XbergError::Timeout { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Timeout] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1036077712] {}", msg))
         }
         xberg::error::XbergError::Cancelled => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Cancelled] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[524666238] {}", msg))
         }
         xberg::error::XbergError::Security { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Security] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[670246576] {}", msg))
         }
         xberg::error::XbergError::Other(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Other] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1318675240] {}", msg))
         }
         _ => napi::Error::new(napi::Status::GenericFailure, msg),
     }
@@ -27761,7 +27591,9 @@ fn xberg_error_to_napi_err(e: xberg::error::XbergError) -> napi::Error {
 
 // Error variant name constants
 pub const HEURISTICS_ERROR_ERROR_CONFIG_ERROR: &str = "ConfigError";
+pub const HEURISTICS_ERROR_ERROR_CONFIG_ERROR_CODE: u32 = 91451556;
 pub const HEURISTICS_ERROR_ERROR_PDF_ANALYSIS_ERROR: &str = "PdfAnalysisError";
+pub const HEURISTICS_ERROR_ERROR_PDF_ANALYSIS_ERROR_CODE: u32 = 1713417319;
 
 /// Convert a `xberg::heuristics::error::HeuristicsError` error to a NAPI error.
 #[allow(dead_code)]
@@ -27770,10 +27602,10 @@ fn heuristics_error_to_napi_err(e: xberg::heuristics::error::HeuristicsError) ->
     #[allow(unreachable_patterns)]
     match &e {
         xberg::heuristics::error::HeuristicsError::ConfigError(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[ConfigError] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[91451556] {}", msg))
         }
         xberg::heuristics::error::HeuristicsError::PdfAnalysisError(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[PdfAnalysisError] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1713417319] {}", msg))
         }
         _ => napi::Error::new(napi::Status::GenericFailure, msg),
     }
@@ -27781,11 +27613,17 @@ fn heuristics_error_to_napi_err(e: xberg::heuristics::error::HeuristicsError) ->
 
 // Error variant name constants
 pub const LOAD_ERROR_ERROR_PARSE: &str = "Parse";
+pub const LOAD_ERROR_ERROR_PARSE_CODE: u32 = 949858217;
 pub const LOAD_ERROR_ERROR_SCHEMA_VALIDATION: &str = "SchemaValidation";
+pub const LOAD_ERROR_ERROR_SCHEMA_VALIDATION_CODE: u32 = 380113526;
 pub const LOAD_ERROR_ERROR_DESERIALIZE: &str = "Deserialize";
+pub const LOAD_ERROR_ERROR_DESERIALIZE_CODE: u32 = 2093946153;
 pub const LOAD_ERROR_ERROR_ID_MISMATCH: &str = "IdMismatch";
+pub const LOAD_ERROR_ERROR_ID_MISMATCH_CODE: u32 = 2137750517;
 pub const LOAD_ERROR_ERROR_BAD_META_SCHEMA: &str = "BadMetaSchema";
+pub const LOAD_ERROR_ERROR_BAD_META_SCHEMA_CODE: u32 = 1285484759;
 pub const LOAD_ERROR_ERROR_IO: &str = "Io";
+pub const LOAD_ERROR_ERROR_IO_CODE: u32 = 973217713;
 
 /// Convert a `xberg::presets::loader::LoadError` error to a NAPI error.
 #[allow(dead_code)]
@@ -27794,22 +27632,22 @@ fn load_error_to_napi_err(e: xberg::presets::loader::LoadError) -> napi::Error {
     #[allow(unreachable_patterns)]
     match &e {
         xberg::presets::loader::LoadError::Parse { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Parse] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[949858217] {}", msg))
         }
         xberg::presets::loader::LoadError::SchemaValidation { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[SchemaValidation] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[380113526] {}", msg))
         }
         xberg::presets::loader::LoadError::Deserialize { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Deserialize] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[2093946153] {}", msg))
         }
         xberg::presets::loader::LoadError::IdMismatch { .. } => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[IdMismatch] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[2137750517] {}", msg))
         }
         xberg::presets::loader::LoadError::BadMetaSchema(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[BadMetaSchema] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1285484759] {}", msg))
         }
         xberg::presets::loader::LoadError::Io(..) => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[Io] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[973217713] {}", msg))
         }
         _ => napi::Error::new(napi::Status::GenericFailure, msg),
     }
@@ -27817,6 +27655,7 @@ fn load_error_to_napi_err(e: xberg::presets::loader::LoadError) -> napi::Error {
 
 // Error variant name constants
 pub const RESOLVE_ERROR_ERROR_SCHEMA_NOT_OBJECT: &str = "SchemaNotObject";
+pub const RESOLVE_ERROR_ERROR_SCHEMA_NOT_OBJECT_CODE: u32 = 1772672798;
 
 /// Convert a `xberg::presets::resolve::ResolveError` error to a NAPI error.
 #[allow(dead_code)]
@@ -27825,7 +27664,7 @@ fn resolve_error_to_napi_err(e: xberg::presets::resolve::ResolveError) -> napi::
     #[allow(unreachable_patterns)]
     match &e {
         xberg::presets::resolve::ResolveError::SchemaNotObject => {
-            napi::Error::new(napi::Status::GenericFailure, format!("[SchemaNotObject] {}", msg))
+            napi::Error::new(napi::Status::GenericFailure, format!("[1772672798] {}", msg))
         }
         _ => napi::Error::new(napi::Status::GenericFailure, msg),
     }

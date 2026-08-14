@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// JSON or MessagePack serialization/deserialization failed.
 /// </summary>
-public class SerializationException : XbergErrorException {
-  public SerializationException(string message) : base(message) {}
+public class SerializationException : XbergErrorException
+{
+    public SerializationException(string message) : base(message) { }
 
-  public SerializationException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public SerializationException(string message, Exception innerException) : base(message, innerException) { }
 }

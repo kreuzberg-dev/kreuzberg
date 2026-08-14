@@ -22,7 +22,7 @@ def main() -> None:
             pass
         def count_tokens(self, _p0):
             return 1
-    _ = register_tokenizer_backend(_TestStub_register_tokenizer_backend_trait_bridge())
+    register_tokenizer_backend(_TestStub_register_tokenizer_backend_trait_bridge())
     unregister_tokenizer_backend("test-tokenizer-backend")
 
 main()

@@ -15,6 +15,7 @@ async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, uri: "https://example.com/code/hello.py" };
   const config: ExtractionConfig = { treeSitter: { groups: ["web"], languages: ["python", "rust"], process: { comments: false, diagnostics: false, docstrings: false, exports: true, imports: true, structure: true, symbols: false } } };
   const result = await extract(input, config);
+  console.log(result);
 }
 
 void main();

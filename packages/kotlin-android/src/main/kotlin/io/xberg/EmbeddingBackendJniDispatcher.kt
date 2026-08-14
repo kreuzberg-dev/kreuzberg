@@ -20,43 +20,43 @@ import kotlinx.coroutines.runBlocking
  */
 class EmbeddingBackendJniDispatcher(private val impl: IEmbeddingBackend) {
     private val mapper = jacksonObjectMapper()
-    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
 
     /** JSON array of the Rust-side names of the methods this host provides. */
     fun implementedMethods(): String =
-    mapper.writeValueAsString(
-        listOf(
-            "dimensions",
-            "embed",
-            "name",
-            "version",
-            "initialize",
-            "shutdown",
-        ),
-    )
+        mapper.writeValueAsString(
+            listOf(
+                "dimensions",
+                "embed",
+                "name",
+                "version",
+                "initialize",
+                "shutdown",
+            ),
+        )
 
     @Suppress("UNUSED_PARAMETER", "CyclomaticComplexMethod")
     fun dispatch(method: String, argsJson: String): String =
-    try {
-        val args = mapper.readTree(argsJson)
-        val result: Any? =
-        when (method) {
-            "dimensions" -> impl.dimensions()
-            "embed" -> runBlocking { impl.embed(mapper.convertValue(args.get("texts"), object : com.fasterxml.jackson.core.type.TypeReference<List<String>>() {})) }
-            "name" -> impl.name()
-            "version" -> impl.version()
-            "initialize" -> {
-                impl.initialize()
-                null
-            }
-            "shutdown" -> {
-                impl.shutdown()
-                null
-            }
-            else -> throw IllegalArgumentException("unknown trait method: $method")
+        try {
+            val args = mapper.readTree(argsJson)
+            val result: Any? =
+                when (method) {
+                    "dimensions" -> impl.dimensions()
+                    "embed" -> runBlocking { impl.embed(mapper.convertValue(args.get("texts"), object : com.fasterxml.jackson.core.type.TypeReference<List<String>>() {})) }
+                    "name" -> impl.name()
+                    "version" -> impl.version()
+                    "initialize" -> {
+                        impl.initialize()
+                        null
+                    }
+                    "shutdown" -> {
+                        impl.shutdown()
+                        null
+                    }
+                    else -> throw IllegalArgumentException("unknown trait method: $method")
+                }
+            mapper.writeValueAsString(mapOf("ok" to result))
+        } catch (t: Throwable) {
+            mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
         }
-        mapper.writeValueAsString(mapOf("ok" to result))
-    } catch (t: Throwable) {
-        mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
-    }
 }

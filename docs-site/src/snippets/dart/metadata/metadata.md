@@ -2,9 +2,13 @@
 import 'package:xberg/xberg.dart';
 
 Future<void> main() async {
-  final result = await XbergBridge.extract(ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'), config: ExtractionConfig());
+  final config = await createExtractionConfigFromJson(json: '{}');
+  final result = await XbergBridge.extract(
+    const ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'),
+    config,
+  );
 
-  final metadata = result.metadata;
+  final metadata = result.results.first.metadata;
 
   if (metadata.title != null) {
     print('Title: ${metadata.title}');

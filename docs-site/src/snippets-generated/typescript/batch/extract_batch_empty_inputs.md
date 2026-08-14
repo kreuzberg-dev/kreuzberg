@@ -13,6 +13,7 @@ extract_batch: empty batch
 import { extractBatch } from "@xberg-io/xberg";
 async function main() {
   const result = await extractBatch([], undefined);
+  console.log(result);
 }
 
 void main();

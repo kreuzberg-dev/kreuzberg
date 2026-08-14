@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Processing stages for post-processors.
-*
-* Post-processors are executed in stage order (Early → Middle → Late).
-* Use stages to control the order of post-processing operations.
-*/
+ * Processing stages for post-processors.
+ *
+ * Post-processors are executed in stage order (Early → Middle → Late).
+ * Use stages to control the order of post-processing operations.
+ */
 enum class ProcessingStage {
     /**
      * Early stage - foundational processing.
@@ -69,24 +69,24 @@ enum class ProcessingStage {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        EARLY -> "Early"
-        MIDDLE -> "Middle"
-        LATE -> "Late"
-    }
+        when (this) {
+            EARLY -> "Early"
+            MIDDLE -> "Middle"
+            LATE -> "Late"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ProcessingStage =
-        when (value) {
-            "Early",
-            "early" -> EARLY
-            "Middle",
-            "middle" -> MIDDLE
-            "Late",
-            "late" -> LATE
-            else -> throw IllegalArgumentException("Unknown ProcessingStage value: $value")
-        }
+            when (value) {
+                "Early",
+                "early" -> EARLY
+                "Middle",
+                "middle" -> MIDDLE
+                "Late",
+                "late" -> LATE
+                else -> throw IllegalArgumentException("Unknown ProcessingStage value: $value")
+            }
     }
 }

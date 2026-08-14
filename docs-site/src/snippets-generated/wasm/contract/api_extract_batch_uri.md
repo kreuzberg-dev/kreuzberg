@@ -13,6 +13,7 @@ Tests batch URI extraction API (extract_batch)
 import { extractBatch } from "@xberg-io/xberg-wasm";
 async function main() {
   const result = await extractBatch([{ kind: "uri", uri: "https://example.com/pdf/fake_memo.pdf" }], undefined);
+  console.log(result);
 }
 
 void main();

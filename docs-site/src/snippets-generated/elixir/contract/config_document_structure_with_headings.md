@@ -12,5 +12,6 @@ Tests document structure with DOCX heading-driven nesting
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", uri: "https://example.com/docx/fake.docx"}
 result = Xberg.extract_async(input_value, "{\"include_document_structure\":true}")
+IO.inspect(result)
 
 ```

@@ -11,5 +11,6 @@ List renderers
 
 ```elixir title="Elixir"
 result = Xberg.list_renderers()
+IO.inspect(result)
 
 ```

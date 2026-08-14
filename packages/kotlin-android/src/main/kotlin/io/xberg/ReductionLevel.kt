@@ -41,30 +41,30 @@ enum class ReductionLevel {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        OFF -> "Off"
-        LIGHT -> "Light"
-        MODERATE -> "Moderate"
-        AGGRESSIVE -> "Aggressive"
-        MAXIMUM -> "Maximum"
-    }
+        when (this) {
+            OFF -> "Off"
+            LIGHT -> "Light"
+            MODERATE -> "Moderate"
+            AGGRESSIVE -> "Aggressive"
+            MAXIMUM -> "Maximum"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ReductionLevel =
-        when (value) {
-            "Off",
-            "off" -> OFF
-            "Light",
-            "light" -> LIGHT
-            "Moderate",
-            "moderate" -> MODERATE
-            "Aggressive",
-            "aggressive" -> AGGRESSIVE
-            "Maximum",
-            "maximum" -> MAXIMUM
-            else -> throw IllegalArgumentException("Unknown ReductionLevel value: $value")
-        }
+            when (value) {
+                "Off",
+                "off" -> OFF
+                "Light",
+                "light" -> LIGHT
+                "Moderate",
+                "moderate" -> MODERATE
+                "Aggressive",
+                "aggressive" -> AGGRESSIVE
+                "Maximum",
+                "maximum" -> MAXIMUM
+                else -> throw IllegalArgumentException("Unknown ReductionLevel value: $value")
+            }
     }
 }

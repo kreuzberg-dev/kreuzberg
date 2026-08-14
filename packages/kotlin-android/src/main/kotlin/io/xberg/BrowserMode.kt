@@ -53,23 +53,23 @@ enum class BrowserMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        AUTO -> "auto"
-        ALWAYS -> "always"
-        NEVER -> "never"
-        STEALTH -> "stealth"
-    }
+        when (this) {
+            AUTO -> "auto"
+            ALWAYS -> "always"
+            NEVER -> "never"
+            STEALTH -> "stealth"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BrowserMode =
-        when (value) {
-            "auto" -> AUTO
-            "always" -> ALWAYS
-            "never" -> NEVER
-            "stealth" -> STEALTH
-            else -> throw IllegalArgumentException("Unknown BrowserMode value: $value")
-        }
+            when (value) {
+                "auto" -> AUTO
+                "always" -> ALWAYS
+                "never" -> NEVER
+                "stealth" -> STEALTH
+                else -> throw IllegalArgumentException("Unknown BrowserMode value: $value")
+            }
     }
 }

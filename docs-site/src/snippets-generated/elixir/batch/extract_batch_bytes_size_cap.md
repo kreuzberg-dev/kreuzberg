@@ -13,9 +13,7 @@ extract_batch: archive size cap triggers error
 try do
   result = Xberg.extract_batch_async([%{"bytes" => "test_documents/text/fake_text.txt", "kind" => "bytes", "mime_type" => "text/plain"}], "{\"security_limits\":{\"max_content_size\":1}}")
 rescue
-  error -> IO.puts(:stderr, "Call failed as expected: #{Exception.message(error)}")
-else
-  _ -> raise "expected call to fail"
+  error -> IO.puts(:stderr, "#{inspect(error.__struct__)}: #{Exception.message(error)}")
 end
 
 ```

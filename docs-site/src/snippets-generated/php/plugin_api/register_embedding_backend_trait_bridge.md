@@ -12,6 +12,10 @@ register_embedding_backend: trait bridge
 ```php title="PHP"
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 use Xberg\Xberg;
 use Xberg\EmbeddingBackend;
 $stub = new class implements \Xberg\EmbeddingBackend {

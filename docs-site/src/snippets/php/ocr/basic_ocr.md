@@ -1,3 +1,4 @@
+```php title="PHP"
 <?php
 
 declare(strict_types=1);
@@ -123,3 +124,4 @@ if ($avgCharsPerPage < 100) {
 } else {
     echo "Pass: Moderate - Text extracted successfully\n";
 }
+```

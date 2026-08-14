@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Semantic element type classification.
-*
-* Categorizes text content into semantic units for downstream processing.
-* Supports the element types commonly found in Unstructured documents.
-*/
+ * Semantic element type classification.
+ *
+ * Categorizes text content into semantic units for downstream processing.
+ * Supports the element types commonly found in Unstructured documents.
+ */
 enum class ElementType {
     /** Document title */
     @com.fasterxml.jackson.annotation.JsonProperty("title") TITLE,
@@ -49,6 +49,8 @@ enum class ElementType {
     @com.fasterxml.jackson.annotation.JsonProperty("page_break") PAGE_BREAK,
     /** Code block */
     @com.fasterxml.jackson.annotation.JsonProperty("code_block") CODE_BLOCK,
+    /** Mathematical formula (LaTeX source in `text`) */
+    @com.fasterxml.jackson.annotation.JsonProperty("formula") FORMULA,
     /** Block quote */
     @com.fasterxml.jackson.annotation.JsonProperty("block_quote") BLOCK_QUOTE,
     /** Footer text */
@@ -58,37 +60,39 @@ enum class ElementType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TITLE -> "title"
-        NARRATIVE_TEXT -> "narrative_text"
-        HEADING -> "heading"
-        LIST_ITEM -> "list_item"
-        TABLE -> "table"
-        IMAGE -> "image"
-        PAGE_BREAK -> "page_break"
-        CODE_BLOCK -> "code_block"
-        BLOCK_QUOTE -> "block_quote"
-        FOOTER -> "footer"
-        HEADER -> "header"
-    }
+        when (this) {
+            TITLE -> "title"
+            NARRATIVE_TEXT -> "narrative_text"
+            HEADING -> "heading"
+            LIST_ITEM -> "list_item"
+            TABLE -> "table"
+            IMAGE -> "image"
+            PAGE_BREAK -> "page_break"
+            CODE_BLOCK -> "code_block"
+            FORMULA -> "formula"
+            BLOCK_QUOTE -> "block_quote"
+            FOOTER -> "footer"
+            HEADER -> "header"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ElementType =
-        when (value) {
-            "title" -> TITLE
-            "narrative_text" -> NARRATIVE_TEXT
-            "heading" -> HEADING
-            "list_item" -> LIST_ITEM
-            "table" -> TABLE
-            "image" -> IMAGE
-            "page_break" -> PAGE_BREAK
-            "code_block" -> CODE_BLOCK
-            "block_quote" -> BLOCK_QUOTE
-            "footer" -> FOOTER
-            "header" -> HEADER
-            else -> throw IllegalArgumentException("Unknown ElementType value: $value")
-        }
+            when (value) {
+                "title" -> TITLE
+                "narrative_text" -> NARRATIVE_TEXT
+                "heading" -> HEADING
+                "list_item" -> LIST_ITEM
+                "table" -> TABLE
+                "image" -> IMAGE
+                "page_break" -> PAGE_BREAK
+                "code_block" -> CODE_BLOCK
+                "formula" -> FORMULA
+                "block_quote" -> BLOCK_QUOTE
+                "footer" -> FOOTER
+                "header" -> HEADER
+                else -> throw IllegalArgumentException("Unknown ElementType value: $value")
+            }
     }
 }

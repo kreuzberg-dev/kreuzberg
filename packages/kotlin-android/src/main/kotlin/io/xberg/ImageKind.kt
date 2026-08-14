@@ -55,39 +55,39 @@ enum class ImageKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        PHOTOGRAPH -> "photograph"
-        DIAGRAM -> "diagram"
-        CHART -> "chart"
-        DRAWING -> "drawing"
-        TEXT_BLOCK -> "text_block"
-        DECORATION -> "decoration"
-        LOGO -> "logo"
-        ICON -> "icon"
-        TILE_FRAGMENT -> "tile_fragment"
-        MASK -> "mask"
-        PAGE_RASTER -> "page_raster"
-        UNKNOWN -> "unknown"
-    }
+        when (this) {
+            PHOTOGRAPH -> "photograph"
+            DIAGRAM -> "diagram"
+            CHART -> "chart"
+            DRAWING -> "drawing"
+            TEXT_BLOCK -> "text_block"
+            DECORATION -> "decoration"
+            LOGO -> "logo"
+            ICON -> "icon"
+            TILE_FRAGMENT -> "tile_fragment"
+            MASK -> "mask"
+            PAGE_RASTER -> "page_raster"
+            UNKNOWN -> "unknown"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ImageKind =
-        when (value) {
-            "photograph" -> PHOTOGRAPH
-            "diagram" -> DIAGRAM
-            "chart" -> CHART
-            "drawing" -> DRAWING
-            "text_block" -> TEXT_BLOCK
-            "decoration" -> DECORATION
-            "logo" -> LOGO
-            "icon" -> ICON
-            "tile_fragment" -> TILE_FRAGMENT
-            "mask" -> MASK
-            "page_raster" -> PAGE_RASTER
-            "unknown" -> UNKNOWN
-            else -> throw IllegalArgumentException("Unknown ImageKind value: $value")
-        }
+            when (value) {
+                "photograph" -> PHOTOGRAPH
+                "diagram" -> DIAGRAM
+                "chart" -> CHART
+                "drawing" -> DRAWING
+                "text_block" -> TEXT_BLOCK
+                "decoration" -> DECORATION
+                "logo" -> LOGO
+                "icon" -> ICON
+                "tile_fragment" -> TILE_FRAGMENT
+                "mask" -> MASK
+                "page_raster" -> PAGE_RASTER
+                "unknown" -> UNKNOWN
+                else -> throw IllegalArgumentException("Unknown ImageKind value: $value")
+            }
     }
 }

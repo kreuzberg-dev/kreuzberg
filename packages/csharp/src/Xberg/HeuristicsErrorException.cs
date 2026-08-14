@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Errors that can occur during heuristics analysis.
 /// </summary>
-public class HeuristicsErrorException : XbergException {
-  public HeuristicsErrorException(string message) : base(message) {}
+public class HeuristicsErrorException : XbergException
+{
+    public HeuristicsErrorException(string message) : base(message) { }
 
-  public HeuristicsErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public HeuristicsErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

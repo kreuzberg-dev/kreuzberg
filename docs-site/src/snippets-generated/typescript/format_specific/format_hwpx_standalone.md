@@ -14,6 +14,7 @@ import { ExtractInput, ExtractInputKind, extract } from "@xberg-io/xberg";
 async function main() {
   const input: ExtractInput = { filename: "simple.hwpx", kind: ExtractInputKind.Uri, mimeType: "application/haansofthwpx", uri: "https://example.com/hwpx/simple.hwpx" };
   const result = await extract(input, undefined);
+  console.log(result);
 }
 
 void main();

@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Audio/video transcription failed.
 /// </summary>
-public class TranscriptionException : XbergErrorException {
-  public TranscriptionException(string message) : base(message) {}
+public class TranscriptionException : XbergErrorException
+{
+    public TranscriptionException(string message) : base(message) { }
 
-  public TranscriptionException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public TranscriptionException(string message, Exception innerException) : base(message, innerException) { }
 }

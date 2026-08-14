@@ -19,11 +19,9 @@ public final class Example {
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extractBatch(java.util.Arrays.asList(JsonUtil.fromJson("{\"bytes\":\"test_documents/text/fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}", ExtractInput.class)), config);
         System.out.println(result);
-        } catch (Exception error) {
-            System.err.println("Call failed as expected: " + error.getMessage());
-            return;
+        } catch (XbergException error) {
+            System.err.println(error.getClass().getSimpleName() + ": " + error.getMessage());
         }
-        throw new AssertionError("expected call to fail");
     }
 }
 

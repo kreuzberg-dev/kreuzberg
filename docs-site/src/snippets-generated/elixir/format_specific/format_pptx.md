@@ -12,5 +12,6 @@ PPTX presentation extraction using extract
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation", uri: "https://example.com/pptx/simple.pptx"}
 result = Xberg.extract_async(input_value)
+IO.inspect(result)
 
 ```

@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "mimeType" => "application/json", "uri" => "https://example.com/json/simple.json"]));
 $result = Xberg::extract($input, []);
+var_dump($result);
 
 ```

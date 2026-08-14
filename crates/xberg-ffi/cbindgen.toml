@@ -582,7 +582,7 @@ typedef struct XBERGDocumentCounts XBERGDocumentCounts;
  * }
  * \\endcode
  */
-typedef struct XBERGDocumentExtractor XBERGDocumentExtractor;
+typedef uint64_t XBERGDocumentExtractor;
 /**
  * Metadata about a document for analysis.
  */
@@ -736,7 +736,7 @@ typedef struct XBERGEmbeddedFile XBERGEmbeddedFile;
  * or `tokio::runtime::Builder::new_current_thread()`) must use
  * `embed_texts_async` instead, which awaits directly without `block_in_place`.
  */
-typedef struct XBERGEmbeddingBackend XBERGEmbeddingBackend;
+typedef uint64_t XBERGEmbeddingBackend;
 /**
  * Embedding configuration for text chunks.
  *
@@ -1333,7 +1333,7 @@ typedef struct XBERGMergeMode XBERGMergeMode;
 /**
  * Compiled meta-schema validator over `preset.schema.json`.
  */
-typedef struct XBERGMetaSchema XBERGMetaSchema;
+typedef uint64_t XBERGMetaSchema;
 /**
  * Extraction result metadata.
  *
@@ -1444,7 +1444,7 @@ typedef struct XBERGNodeContent XBERGNodeContent;
  * }
  * \\endcode
  */
-typedef struct XBERGOcrBackend XBERGOcrBackend;
+typedef uint64_t XBERGOcrBackend;
 /**
  * OCR backend types.
  */
@@ -1773,7 +1773,7 @@ typedef struct XBERGPiiCategory XBERGPiiCategory;
  * }
  * \\endcode
  */
-typedef struct XBERGPlugin XBERGPlugin;
+typedef uint64_t XBERGPlugin;
 /**
  * Trait for post-processor plugins.
  *
@@ -1836,7 +1836,7 @@ typedef struct XBERGPlugin XBERGPlugin;
  * }
  * \\endcode
  */
-typedef struct XBERGPostProcessor XBERGPostProcessor;
+typedef uint64_t XBERGPostProcessor;
 /**
  * Post-processor configuration.
  */
@@ -2001,7 +2001,7 @@ typedef struct XBERGRegionKind XBERGRegionKind;
 /**
  * Sorted map of preset id â `Preset`.
  */
-typedef struct XBERGRegistry XBERGRegistry;
+typedef uint64_t XBERGRegistry;
 /**
  * Semantic kind of a relationship between document elements.
  */
@@ -2039,7 +2039,7 @@ typedef struct XBERGRelationshipKind XBERGRelationshipKind;
  * }
  * \\endcode
  */
-typedef struct XBERGRenderer XBERGRenderer;
+typedef uint64_t XBERGRenderer;
 /**
  * A single document returned by the reranker, with its position in the input and score.
  *
@@ -2093,7 +2093,7 @@ typedef struct XBERGRerankedDocument XBERGRerankedDocument;
  *
  * Since v5.0.0.
  */
-typedef struct XBERGRerankerBackend XBERGRerankerBackend;
+typedef uint64_t XBERGRerankerBackend;
 /**
  * Configuration for the reranking pipeline.
  *
@@ -2369,7 +2369,7 @@ typedef struct XBERGTextMetadata XBERGTextMetadata;
 /**
  * Per-category running counter for `RedactionStrategy.TokenReplace`.
  */
-typedef struct XBERGTokenCounter XBERGTokenCounter;
+typedef uint64_t XBERGTokenCounter;
 /**
  * Configuration for the token-reduction pipeline.
  */
@@ -2418,7 +2418,7 @@ typedef struct XBERGTokenReductionOptions XBERGTokenReductionOptions;
  * - Counting should be deterministic for a given input â the splitter may
  *   evaluate overlapping spans of the same text repeatedly.
  */
-typedef struct XBERGTokenizerBackend XBERGTokenizerBackend;
+typedef uint64_t XBERGTokenizerBackend;
 /**
  * Configuration for audio/video transcription (speech-to-text).
  *
@@ -2566,7 +2566,7 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
  * }
  * \\endcode
  */
-typedef struct XBERGValidator XBERGValidator;
+typedef uint64_t XBERGValidator;
 /**
  * Policy controlling when VLM (Vision Language Model) OCR is used as a fallback.
  *
@@ -2684,344 +2684,7 @@ typedef struct XBERGYearRange XBERGYearRange;
 [export]
 prefix = "XBERG"
 include = []
-exclude = [
-  "AnchorProperties",
-  "ApiDoc",
-  "ApiError",
-  "ApiSizeLimits",
-  "ApiState",
-  "ArchiveArchiveEntry",
-  "ArchiveArchiveMetadata",
-  "AsciiDocExtractor",
-  "Attributes",
-  "AudioTags",
-  "Batch",
-  "BatchItemResult",
-  "BatchProcessor",
-  "BatchProcessorConfig",
-  "BibtexExtractor",
-  "BorderStyle",
-  "BuiltPrompt",
-  "ByteBufferPool",
-  "CacheBackend",
-  "CacheClearResponse",
-  "CacheStatsResponse",
-  "CacheWarmParams",
-  "CancellationToken",
-  "CandleBackend",
-  "CandleModelId",
-  "CandleOcrConfig",
-  "CaptioningEnrichmentConfig",
-  "CaptioningProcessor",
-  "CellBBox",
-  "CellBorders",
-  "CellMargins",
-  "CellProperties",
-  "CellShading",
-  "CharShape",
-  "ChunkClassificationProcessor",
-  "ChunkPlan",
-  "ChunkerConfig",
-  "ChunkingDecision",
-  "ChunkingProcessor",
-  "ChunkingResult",
-  "CitationExtractor",
-  "CitationOutput",
-  "CitationSource",
-  "CitedField",
-  "ClassificationEnrichmentConfig",
-  "ClassifyContext",
-  "CleanOutcome",
-  "CodeExtractor",
-  "ColorScheme",
-  "ColumnLayout",
-  "Comment",
-  "CommonPdfMetadata",
-  "ConcurrencyConfig",
-  "ConfidenceSignals",
-  "ConfidenceWeights",
-  "CorePresetResolver",
-  "CsvExtractor",
-  "CustomModelVariant",
-  "CustomProperties",
-  "DbfExtractor",
-  "DeepseekOcrBackend",
-  "DefaultModelProvider",
-  "DefaultStructuredPolicy",
-  "DetectMimeTypeParams",
-  "DetectTimings",
-  "DetectedBoundary",
-  "DiagramEdge",
-  "DiagramGraph",
-  "DiagramNode",
-  "DiagramShape",
-  "DjotExtractor",
-  "DocExtractor",
-  "DocOrientationDetector",
-  "DocProperties",
-  "DocTagsExtractor",
-  "DocbookExtractor",
-  "DoclingCompatDocument",
-  "DoclingCompatResponse",
-  "Document",
-  "DocumentExtractorRegistry",
-  "DocumentStructureBuilder",
-  "DocxExtractor",
-  "Drawing",
-  "DrawingType",
-  "ElementId",
-  "ElementKind",
-  "EmailExtractor",
-  "EmbedError",
-  "EmbeddingBackendRegistry",
-  "EmbeddingEngine",
-  "EmbeddingPreset",
-  "Engine",
-  "EngineBuilder",
-  "EnrichOptions",
-  "EnrichResult",
-  "EnrichStatus",
-  "EnrichedResult",
-  "EnrichmentConfig",
-  "EpubExtractor",
-  "ErrorResponse",
-  "ExcelExtractor",
-  "Extent",
-  "ExtractBatchParams",
-  "ExtractParams",
-  "ExtractedInlineImage",
-  "ExtractionMetrics",
-  "ExtractionRequest",
-  "ExtractionResult2",
-  "ExtractionService",
-  "ExtractionServiceBuilder",
-  "ExtractionSource",
-  "FictionBookExtractor",
-  "FileBytes",
-  "FileHeader",
-  "FinalizedOutput",
-  "FontScheme",
-  "FormulaModelPaths",
-  "GenericCache",
-  "GlineBackend",
-  "GlinerManifestEntry",
-  "GlmOcrBackend",
-  "GzipExtractor",
-  "HeaderFooter",
-  "HeaderFooterType",
-  "HealthResponse",
-  "HierarchyBoundingBox",
-  "HocrWord",
-  "HtmlExtractionResult",
-  "HtmlExtractor",
-  "HwpDocument",
-  "HwpError",
-  "HwpExtractor",
-  "HwpImage",
-  "HwpTable",
-  "HwpxExtractor",
-  "ImageDpiConfig",
-  "ImageExtractor",
-  "ImageOcrResult",
-  "InfoResponse",
-  "InternalDocument",
-  "InternalDocumentBuilder",
-  "InternalDocumentExtractor",
-  "InternalElement",
-  "InternalElementId",
-  "InternedString",
-  "JatsExtractor",
-  "JsonExtractionConfig",
-  "JupyterExtractor",
-  "KeynoteExtractor",
-  "KeywordExtractor",
-  "LanguageDetector",
-  "LateInteractionEngine",
-  "LateInteractionError",
-  "LatexExtractor",
-  "LayoutEngine",
-  "LayoutEngineConfig",
-  "LayoutError",
-  "LayoutMode",
-  "LayoutModel",
-  "LayoutModelManager",
-  "ListItemMetadata",
-  "LiterLlmClient",
-  "LlmBackend",
-  "LlmClient",
-  "ManifestEntryResponse",
-  "ManifestResponse",
-  "MarkdownExtractor",
-  "MdxExtractor",
-  "MergedChunk",
-  "MergedOutput",
-  "MetricsLayer",
-  "ModelBackend",
-  "ModelCacheStats",
-  "ModelId",
-  "ModelManager",
-  "ModelManifestEntry",
-  "ModelParagraph",
-  "ModelProvider",
-  "NerBackend",
-  "NerEnrichmentConfig",
-  "NerProcessor",
-  "NoopCache",
-  "NoopProgressSink",
-  "NormalizeResult",
-  "Note",
-  "NoteType",
-  "NumbersExtractor",
-  "OcrBackendRegistry",
-  "OcrCache",
-  "OcrCacheStats",
-  "OcrError",
-  "OcrProcessor",
-  "OcrTesseractConfig",
-  "OdpExtractor",
-  "OdtExtractor",
-  "OdtProperties",
-  "OpenWebDocumentMetadata",
-  "OpenWebDocumentResponse",
-  "OpmlExtractor",
-  "OrgModeExtractor",
-  "Orientation",
-  "Outcome",
-  "PaddleOcrBackend",
-  "PaddleOcrVlBackend",
-  "PageClassificationProcessor",
-  "PageImage",
-  "PageMargins",
-  "PageMarginsPoints",
-  "PagesExtractor",
-  "ParaText",
-  "Paragraph",
-  "ParagraphProperties",
-  "ParsedDocument",
-  "ParserTable",
-  "ParserTableCell",
-  "PcmAudio",
-  "PdfError",
-  "PdfExtractionMetadata",
-  "PdfExtractor",
-  "PlainTextExtractor",
-  "PluginHealthStatus",
-  "PoolMetrics",
-  "PoolSizeHint",
-  "Pooling",
-  "Position",
-  "PostProcessorRegistry",
-  "PpDocLayoutV3Model",
-  "PptExtractionResult",
-  "PptExtractor",
-  "PptMetadata",
-  "PptSlideText",
-  "PptxExtractionOptions",
-  "PptxExtractor",
-  "PresetResolver",
-  "ProgressEvent",
-  "ProgressSink",
-  "PstExtractor",
-  "QrCodeProcessor",
-  "QualityProcessor",
-  "RecModelPaths",
-  "Record",
-  "Recyclable",
-  "RedactionProcessor",
-  "RehydrationMap",
-  "Relationship",
-  "RelationshipTarget",
-  "RendererRegistry",
-  "RerankError",
-  "RerankerBackendRegistry",
-  "RerankerEngine",
-  "RerankerPreset",
-  "ResolvedRecModel",
-  "ResolvedStyle",
-  "RowProperties",
-  "RstExtractor",
-  "RtDetrModel",
-  "RtfExtractor",
-  "Run",
-  "RunProperties",
-  "SceptreOcrBackend",
-  "SceptreWasmEngine",
-  "Section",
-  "SectionProperties",
-  "SecurityError",
-  "Segment",
-  "SevenZExtractor",
-  "SharedModelPaths",
-  "SlanetCell",
-  "SlanetModel",
-  "SlanetResult",
-  "SparseEmbedError",
-  "SparseEmbeddingEngine",
-  "SplitConfig",
-  "SplitSegment",
-  "SplitStrategy",
-  "StaticEmbeddingEngine",
-  "StreamReader",
-  "StringBufferPool",
-  "StructuredCallMode",
-  "StructuredExtractor",
-  "StructuredInput",
-  "StructuredPolicy",
-  "StructuredThresholds",
-  "StyleCatalog",
-  "StyleDefinition",
-  "StyleType",
-  "StyledHtmlRenderer",
-  "SubjectMatch",
-  "SummarizationProcessor",
-  "SummaryInfo",
-  "Table2",
-  "TableBorders",
-  "TableClassifier",
-  "TableLook",
-  "TableProperties",
-  "TableRow",
-  "TableTableGrid",
-  "TableType",
-  "TableWidth",
-  "TarExtractor",
-  "TatrClass",
-  "TatrDetection",
-  "TatrModel",
-  "TatrResult",
-  "TessdataManager",
-  "TesseractBackend",
-  "TesseractWasmBackend",
-  "TextWindow",
-  "Theme",
-  "ThemeColor",
-  "TokenReducer",
-  "TokenizerBackendRegistry",
-  "TracingLayer",
-  "TranscriptionError",
-  "TranscriptionExtractor",
-  "TranslationProcessor",
-  "TrocrBackend",
-  "TsvRow",
-  "TypstExtractor",
-  "ValidatorRegistry",
-  "VersionResponse",
-  "VerticalMerge",
-  "VlmOcrBackend",
-  "WarmRequest",
-  "WarmResponse",
-  "WebVttExtractor",
-  "WhisperEngine",
-  "WhisperModelError",
-  "WhisperModelPaths",
-  "WordPerfectExtractor",
-  "WrapType",
-  "XmlExtractor",
-  "YoloModel",
-  "YoloVariant",
-  "ZipBombValidator",
-  "ZipExtractor",
-]
+exclude = ["AnchorProperties", "ApiDoc", "ApiError", "ApiSizeLimits", "ApiState", "ArchiveArchiveEntry", "ArchiveArchiveMetadata", "AsciiDocExtractor", "Attributes", "AudioTags", "Batch", "BatchItemResult", "BatchProcessor", "BatchProcessorConfig", "BibtexExtractor", "BorderStyle", "BuiltPrompt", "ByteBufferPool", "CacheBackend", "CacheClearResponse", "CacheStatsResponse", "CacheWarmParams", "CancellationToken", "CandleBackend", "CandleModelId", "CandleOcrConfig", "CaptioningEnrichmentConfig", "CaptioningProcessor", "CellBBox", "CellBorders", "CellMargins", "CellProperties", "CellShading", "CharShape", "ChunkClassificationProcessor", "ChunkPlan", "ChunkerConfig", "ChunkingDecision", "ChunkingProcessor", "ChunkingResult", "CitationExtractor", "CitationOutput", "CitationSource", "CitedField", "ClassificationEnrichmentConfig", "ClassifyContext", "CleanOutcome", "CodeExtractor", "ColorScheme", "ColumnLayout", "Comment", "CommonPdfMetadata", "ConcurrencyConfig", "ConfidenceSignals", "ConfidenceWeights", "CorePresetResolver", "CsvExtractor", "CustomModelVariant", "CustomProperties", "DbfExtractor", "DeepseekOcrBackend", "DefaultModelProvider", "DefaultStructuredPolicy", "DetectMimeTypeParams", "DetectTimings", "DetectedBoundary", "DiagramEdge", "DiagramGraph", "DiagramNode", "DiagramShape", "DjotExtractor", "DocExtractor", "DocOrientationDetector", "DocProperties", "DocTagsExtractor", "DocbookExtractor", "DoclingCompatDocument", "DoclingCompatResponse", "DocumentExtractorRegistry", "DocumentStructureBuilder", "DocxExtractor", "Drawing", "DrawingType", "ElementId", "ElementKind", "EmailExtractor", "EmbedError", "EmbeddingBackendRegistry", "EmbeddingEngine", "EmbeddingPreset", "Engine", "EngineBuilder", "EnrichOptions", "EnrichResult", "EnrichStatus", "EnrichedResult", "EnrichmentConfig", "EpubExtractor", "ErrorResponse", "ExcelExtractor", "Extent", "ExtractBatchParams", "ExtractParams", "ExtractedInlineImage", "ExtractionMetrics", "ExtractionRequest", "ExtractionResult2", "ExtractionService", "ExtractionServiceBuilder", "ExtractionSource", "FictionBookExtractor", "FileBytes", "FileHeader", "FinalizedOutput", "FontScheme", "FormulaModelPaths", "GenericCache", "GlineBackend", "GlinerManifestEntry", "GlmOcrBackend", "GzipExtractor", "HeaderFooter", "HeaderFooterType", "HealthResponse", "HierarchyBoundingBox", "HocrWord", "HtmlExtractionResult", "HtmlExtractor", "HwpDocument", "HwpError", "HwpExtractor", "HwpImage", "HwpTable", "HwpxExtractor", "ImageDpiConfig", "ImageExtractor", "ImageOcrResult", "InfoResponse", "InternalDocument", "InternalDocumentBuilder", "InternalDocumentExtractor", "InternalElement", "InternalElementId", "InternedString", "JatsExtractor", "JsonExtractionConfig", "JupyterExtractor", "KeynoteExtractor", "KeywordExtractor", "LanguageDetector", "LateInteractionEngine", "LateInteractionError", "LatexExtractor", "LayoutEngine", "LayoutEngineConfig", "LayoutError", "LayoutMode", "LayoutModel", "LayoutModelManager", "ListItemMetadata", "LiterLlmClient", "LlmBackend", "LlmClient", "ManifestEntryResponse", "ManifestResponse", "MarkdownExtractor", "MdxExtractor", "MergedChunk", "MergedOutput", "MetricsLayer", "ModelBackend", "ModelCacheStats", "ModelId", "ModelManager", "ModelManifestEntry", "ModelParagraph", "ModelProvider", "NerBackend", "NerEnrichmentConfig", "NerProcessor", "NoopCache", "NoopProgressSink", "NormalizeResult", "Note", "NoteType", "NumbersExtractor", "OcrBackendRegistry", "OcrCache", "OcrCacheStats", "OcrError", "OcrProcessor", "OcrTesseractConfig", "OdpExtractor", "OdtExtractor", "OdtProperties", "OpenWebDocumentMetadata", "OpenWebDocumentResponse", "OpmlExtractor", "OrgModeExtractor", "Orientation", "Outcome", "PaddleOcrBackend", "PaddleOcrVlBackend", "PageClassificationProcessor", "PageImage", "PageMargins", "PageMarginsPoints", "PagesExtractor", "ParaText", "Paragraph", "ParagraphProperties", "ParsedDocument", "ParserTable", "ParserTableCell", "PcmAudio", "PdfError", "PdfExtractionMetadata", "PdfExtractor", "PlainTextExtractor", "PluginHealthStatus", "PoolMetrics", "PoolSizeHint", "Pooling", "Position", "PostProcessorRegistry", "PpDocLayoutV3Model", "PptExtractionResult", "PptExtractor", "PptMetadata", "PptSlideText", "PptxExtractionOptions", "PptxExtractor", "PresetResolver", "ProgressEvent", "ProgressSink", "PstExtractor", "QrCodeProcessor", "QualityProcessor", "RecModelPaths", "Record", "Recyclable", "RedactionProcessor", "RehydrationMap", "Relationship", "RelationshipTarget", "RendererRegistry", "RerankError", "RerankerBackendRegistry", "RerankerEngine", "RerankerPreset", "ResolvedRecModel", "ResolvedStyle", "RowProperties", "RstExtractor", "RtDetrModel", "RtfExtractor", "Run", "RunProperties", "SceptreOcrBackend", "SceptreWasmEngine", "Section", "SectionProperties", "SecurityError", "Segment", "SevenZExtractor", "SharedModelPaths", "SlanetCell", "SlanetModel", "SlanetResult", "SparseEmbedError", "SparseEmbeddingEngine", "SplitConfig", "SplitSegment", "SplitStrategy", "StaticEmbeddingEngine", "StreamReader", "StringBufferPool", "StructuredCallMode", "StructuredExtractor", "StructuredInput", "StructuredPolicy", "StructuredThresholds", "StyleCatalog", "StyleDefinition", "StyleType", "StyledHtmlRenderer", "SubjectMatch", "SummarizationProcessor", "SummaryInfo", "Table2", "TableBorders", "TableClassifier", "TableLook", "TableProperties", "TableRow", "TableTableGrid", "TableType", "TableWidth", "TarExtractor", "TatrClass", "TatrDetection", "TatrModel", "TatrResult", "TessdataManager", "TesseractBackend", "TesseractWasmBackend", "TextWindow", "Theme", "ThemeColor", "TokenReducer", "TokenizerBackendRegistry", "TracingLayer", "TranscriptionError", "TranscriptionExtractor", "TranslationProcessor", "TrocrBackend", "TsvRow", "TypstExtractor", "ValidatorRegistry", "VersionResponse", "VerticalMerge", "VlmOcrBackend", "WarmRequest", "WarmResponse", "WebVttExtractor", "WhisperEngine", "WhisperModelError", "WhisperModelPaths", "WordPerfectExtractor", "WrapType", "XmlExtractor", "YoloModel", "YoloVariant", "ZipBombValidator", "ZipExtractor"]
 
 [fn]
 args = "vertical"

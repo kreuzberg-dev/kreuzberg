@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* Classification of a detected layout region that warrants VLM extraction.
-*
-* Each variant maps to a specific prompt optimised for that content type.
-* The mapping is intentionally narrow — only region kinds for which VLM
-* extraction provides a clear quality benefit over classical suppression.
-*/
+ * Classification of a detected layout region that warrants VLM extraction.
+ *
+ * Each variant maps to a specific prompt optimised for that content type.
+ * The mapping is intentionally narrow — only region kinds for which VLM
+ * extraction provides a clear quality benefit over classical suppression.
+ */
 enum class RegionKind {
     /**
      * A figure, diagram, chart, or image region.
@@ -67,27 +67,27 @@ enum class RegionKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        FIGURE -> "Figure"
-        DENSE_TABLE -> "DenseTable"
-        COMPLEX_LAYOUT -> "ComplexLayout"
-        CAPTION -> "Caption"
-    }
+        when (this) {
+            FIGURE -> "Figure"
+            DENSE_TABLE -> "DenseTable"
+            COMPLEX_LAYOUT -> "ComplexLayout"
+            CAPTION -> "Caption"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): RegionKind =
-        when (value) {
-            "Figure",
-            "figure" -> FIGURE
-            "DenseTable",
-            "densetable" -> DENSE_TABLE
-            "ComplexLayout",
-            "complexlayout" -> COMPLEX_LAYOUT
-            "Caption",
-            "caption" -> CAPTION
-            else -> throw IllegalArgumentException("Unknown RegionKind value: $value")
-        }
+            when (value) {
+                "Figure",
+                "figure" -> FIGURE
+                "DenseTable",
+                "densetable" -> DENSE_TABLE
+                "ComplexLayout",
+                "complexlayout" -> COMPLEX_LAYOUT
+                "Caption",
+                "caption" -> CAPTION
+                else -> throw IllegalArgumentException("Unknown RegionKind value: $value")
+            }
     }
 }

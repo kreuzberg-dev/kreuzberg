@@ -6,14 +6,17 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 import io.xberg.OcrConfig;
+import io.xberg.TesseractConfig;
 import io.xberg.ImagePreprocessingConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .ocr(OcrConfig.builder()
-        .backend("tesseract")
-        .build())
-    .imagePreprocessing(ImagePreprocessingConfig.builder()
-        .targetDpi(300)
+    .withOcr(OcrConfig.builder()
+        .withBackend("tesseract")
+        .withTesseractConfig(TesseractConfig.builder()
+            .withPreprocessing(ImagePreprocessingConfig.builder()
+                .withTargetDpi(300)
+                .build())
+            .build())
         .build())
     .build();
 ExtractionResult output = Xberg.extract(

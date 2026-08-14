@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* How partial results from multiple model calls (e.g. per page batch) are combined.
-*
-* Canonical home for the merge strategy referenced by presets and by the
-* structured pipeline's post-processing. There is intentionally only one merge
-* type across the crate — do not introduce a second.
-*/
+ * How partial results from multiple model calls (e.g. per page batch) are combined.
+ *
+ * Canonical home for the merge strategy referenced by presets and by the
+ * structured pipeline's post-processing. There is intentionally only one merge
+ * type across the crate — do not introduce a second.
+ */
 enum class MergeMode {
     /** Deep-merge JSON objects field by field (later calls fill missing fields). */
     @com.fasterxml.jackson.annotation.JsonProperty("object_merge") OBJECT_MERGE,
@@ -43,21 +43,21 @@ enum class MergeMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        OBJECT_MERGE -> "object_merge"
-        ARRAY_CONCAT -> "array_concat"
-        OBJECT_FIRST -> "object_first"
-    }
+        when (this) {
+            OBJECT_MERGE -> "object_merge"
+            ARRAY_CONCAT -> "array_concat"
+            OBJECT_FIRST -> "object_first"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): MergeMode =
-        when (value) {
-            "object_merge" -> OBJECT_MERGE
-            "array_concat" -> ARRAY_CONCAT
-            "object_first" -> OBJECT_FIRST
-            else -> throw IllegalArgumentException("Unknown MergeMode value: $value")
-        }
+            when (value) {
+                "object_merge" -> OBJECT_MERGE
+                "array_concat" -> ARRAY_CONCAT
+                "object_first" -> OBJECT_FIRST
+                else -> throw IllegalArgumentException("Unknown MergeMode value: $value")
+            }
     }
 }

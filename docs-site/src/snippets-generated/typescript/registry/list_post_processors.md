@@ -13,6 +13,7 @@ List post-processors
 import { listPostProcessors } from "@xberg-io/xberg";
 function main() {
   const result = listPostProcessors();
+  console.log(result);
 }
 
 void main();

@@ -6,9 +6,9 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ChunkingConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .chunking(ChunkingConfig.builder()
-        .maxChars(1000)
-        .maxOverlap(200)
+    .withChunking(ChunkingConfig.builder()
+        .withMaxCharacters(1000L)
+        .withOverlap(200L)
         .build())
     .build();
 ```
@@ -21,13 +21,17 @@ import io.xberg.ExtractionConfig;
 import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
 import io.xberg.ChunkingConfig;
+import io.xberg.ChunkerType;
+import io.xberg.ChunkSizing;
+import io.xberg.HeadingContext;
+import java.util.Optional;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .chunking(ChunkingConfig.builder()
-        .chunkerType("markdown")
-        .maxChars(500)
-        .maxOverlap(50)
-        .sizingTokenizer("Xenova/gpt-4o")
+    .withChunking(ChunkingConfig.builder()
+        .withChunkerType(ChunkerType.Markdown)
+        .withMaxCharacters(500L)
+        .withOverlap(50L)
+        .withSizing(new ChunkSizing.Tokenizer("Xenova/gpt-4o", Optional.empty()))
         .build())
     .build();
 ExtractionResult output = Xberg.extract(
@@ -36,10 +40,10 @@ ExtractionResult output = Xberg.extract(
 );
 ExtractedDocument result = output.results().get(0);
 result.chunks().forEach(chunk -> {
-    var headingContext = chunk.metadata().headingContext();
-    if (headingContext.isPresent()) {
+    HeadingContext headingContext = chunk.metadata().headingContext();
+    if (headingContext != null) {
         System.out.println("Headings:");
-        headingContext.get().headings().forEach(heading ->
+        headingContext.headings().forEach(heading ->
             System.out.println("  Level " + heading.level() + ": " + heading.text())
         );
     }
@@ -56,8 +60,8 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ChunkingConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .chunking(ChunkingConfig.builder()
-        .prependHeadingContext(true)
+    .withChunking(ChunkingConfig.builder()
+        .withPrependHeadingContext(true)
         .build())
     .build();
 ExtractionResult output = Xberg.extract(

@@ -12,7 +12,7 @@ register_tokenizer_backend: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterTokenizerBackendTraitBridge : ITokenizerBackend {
     override fun name(): String = "register_tokenizer_backend_trait_bridge"
     override fun countTokens(text: String): Long = 3

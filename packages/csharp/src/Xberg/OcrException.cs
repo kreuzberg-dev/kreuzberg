@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// An OCR engine returned an error or produced unusable output.
 /// </summary>
-public class OcrException : XbergErrorException {
-  public OcrException(string message) : base(message) {}
+public class OcrException : XbergErrorException
+{
+    public OcrException(string message) : base(message) { }
 
-  public OcrException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public OcrException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -1,10 +1,10 @@
 const std = @import("std");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+    _ = allocator;
 
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("Example: module loaded successfully\n", .{});
+    std.debug.print("Example: module loaded successfully\n", .{});
 }

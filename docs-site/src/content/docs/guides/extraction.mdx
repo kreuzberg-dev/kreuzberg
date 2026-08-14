@@ -3,6 +3,13 @@ title: "Extraction Basics"
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
+import { Content as Snip_python_getting_started_read_content } from "../../../snippets/python/getting-started/read_content.md";
+import { Content as Snip_go_getting_started_basic_usage } from "../../../snippets/go/getting-started/basic_usage.md";
+import { Content as Snip_ruby_getting_started_basic_usage } from "../../../snippets/ruby/getting-started/basic_usage.md";
+import { Content as Snip_wasm_getting_started_browser_file_input } from "../../../snippets/wasm/getting-started/browser-file-input.md";
+import { Content as Snip_csharp_advanced_batch_processing } from "../../../snippets/csharp/advanced/batch_processing.md";
+import { Content as Snip_php_extraction_batch_processing } from "../../../snippets/php/extraction/batch_processing.md";
+import { Content as Snip_wasm_getting_started_batch_processing } from "../../../snippets/wasm/getting-started/batch-processing.md";
 import { Content as Snip_python_utils_error_handling } from "../../../snippets/python/utils/error_handling.md";
 import { Content as Snip_typescript_api_error_handling } from "../../../snippets/typescript/api/error_handling.md";
 import { Content as Snip_rust_api_error_handling } from "../../../snippets/rust/api/error_handling.md";
@@ -76,6 +83,28 @@ println!("{}", output.results[0].content);
 </TabItem>
 </Tabs>
 
+### Read the Result
+
+Every entry in `results` carries the text plus the structures found in the document. Read the content, the tables, and the format metadata from the same document:
+
+<Tabs syncKey="lang">
+<TabItem label="Python">
+
+<Snip_python_getting_started_read_content />
+
+</TabItem>
+<TabItem label="Go">
+
+<Snip_go_getting_started_basic_usage />
+
+</TabItem>
+<TabItem label="Ruby">
+
+<Snip_ruby_getting_started_basic_usage />
+
+</TabItem>
+</Tabs>
+
 ## Extract from Bytes
 
 When content is already loaded in memory, pass bytes through `ExtractInput`
@@ -134,6 +163,12 @@ let output = extract(
 </TabItem>
 </Tabs>
 
+### Browser File Input
+
+The Wasm package has no filesystem access, so a browser upload always goes through bytes. Read the `File` from the input element and pass its bytes and MIME type:
+
+<Snip_wasm_getting_started_browser_file_input />
+
 ## Batch Processing
 
 `extract_batch` accepts a list of `ExtractInput` values. Mix URI and byte inputs
@@ -188,6 +223,21 @@ let inputs = vec![
 
 let output = extract_batch(inputs, &config).await?;
 ```
+
+</TabItem>
+<TabItem label="C#">
+
+<Snip_csharp_advanced_batch_processing />
+
+</TabItem>
+<TabItem label="PHP">
+
+<Snip_php_extraction_batch_processing />
+
+</TabItem>
+<TabItem label="Wasm">
+
+<Snip_wasm_getting_started_batch_processing />
 
 </TabItem>
 </Tabs>

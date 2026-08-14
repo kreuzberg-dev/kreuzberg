@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A security policy was violated (e.g. zip bomb, oversized archive).
 /// </summary>
-public class SecurityException : XbergErrorException {
-  public SecurityException(string message) : base(message) {}
+public class SecurityException : XbergErrorException
+{
+    public SecurityException(string message) : base(message) { }
 
-  public SecurityException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public SecurityException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -37,21 +37,21 @@ enum class UrlExtractionMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        AUTO -> "auto"
-        DOCUMENT -> "document"
-        CRAWL -> "crawl"
-    }
+        when (this) {
+            AUTO -> "auto"
+            DOCUMENT -> "document"
+            CRAWL -> "crawl"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): UrlExtractionMode =
-        when (value) {
-            "auto" -> AUTO
-            "document" -> DOCUMENT
-            "crawl" -> CRAWL
-            else -> throw IllegalArgumentException("Unknown UrlExtractionMode value: $value")
-        }
+            when (value) {
+                "auto" -> AUTO
+                "document" -> DOCUMENT
+                "crawl" -> CRAWL
+                else -> throw IllegalArgumentException("Unknown UrlExtractionMode value: $value")
+            }
     }
 }

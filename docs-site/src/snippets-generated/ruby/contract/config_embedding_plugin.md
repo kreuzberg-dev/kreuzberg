@@ -12,5 +12,6 @@ Tests EmbeddingModelType::Plugin variant deserialization in ChunkingConfig — c
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: 'https://example.com/pdf/fake_memo.pdf'), { 'chunking' => { 'embedding' => { 'max_embed_duration_secs' => 30, 'model' => { 'name' => 'test-plugin-backend', 'type' => 'plugin' }, 'normalize' => true }, 'max_chars' => 500, 'max_overlap' => 50 } })
+puts result.inspect
 
 ```

@@ -35,19 +35,19 @@ enum class ExtractInputKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        BYTES -> "bytes"
-        URI -> "uri"
-    }
+        when (this) {
+            BYTES -> "bytes"
+            URI -> "uri"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ExtractInputKind =
-        when (value) {
-            "bytes" -> BYTES
-            "uri" -> URI
-            else -> throw IllegalArgumentException("Unknown ExtractInputKind value: $value")
-        }
+            when (value) {
+                "bytes" -> BYTES
+                "uri" -> URI
+                else -> throw IllegalArgumentException("Unknown ExtractInputKind value: $value")
+            }
     }
 }

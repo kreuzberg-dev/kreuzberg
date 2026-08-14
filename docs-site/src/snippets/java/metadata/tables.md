@@ -3,11 +3,10 @@ import io.xberg.Xberg;
 import io.xberg.ExtractInputKind;
 import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
-import io.xberg.XbergException;
+import io.xberg.XbergRsException;
 import io.xberg.ExtractInput;
 import io.xberg.ExtractionConfig;
 import io.xberg.Table;
-import java.io.IOException;
 import java.util.List;
 
 public class Main {
@@ -25,7 +24,7 @@ public class Main {
                     System.out.println(row);
                 }
             }
-        } catch (IOException | XbergException e) {
+        } catch (XbergRsException e) {
             System.err.println("Extraction failed: " + e.getMessage());
         }
     }

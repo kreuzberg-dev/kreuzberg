@@ -9,6 +9,6 @@ pub fn main() !void {
     );
     defer std.heap.c_allocator.free(output_json);
 
-    try std.io.getStdOut().writer().print("{s}\n", .{output_json});
+    std.debug.print("{s}\n", .{output_json});
 }
 ```

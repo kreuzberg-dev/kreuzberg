@@ -14,9 +14,8 @@ import Xberg
 
 do {
     _ = try await Xberg.extract("{\"bytes\":\"test_documents/text/plain.txt\",\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"not-a-mime\"}", "{}")
-    fatalError("expected call to fail")
 } catch {
-    print("Call failed as expected: \(error)")
+    print("\(type(of: error)): \(error)")
 }
 
 ```

@@ -12,5 +12,6 @@ LLM-driven abstractive summary. Skipped automatically when XBERG_LLM_API_KEY (or
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", uri: "https://example.com/text/book_war_and_peace_1p.txt"}
 result = Xberg.extract_async(input_value, "{\"summarization\":{\"llm\":{\"max_tokens\":200,\"model\":\"openai/gpt-4o-mini\",\"temperature\":0.0},\"max_tokens\":150,\"strategy\":\"abstractive\"}}")
+IO.inspect(result)
 
 ```

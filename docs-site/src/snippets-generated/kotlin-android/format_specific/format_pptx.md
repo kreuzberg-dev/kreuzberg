@@ -15,7 +15,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 
 fun main() = kotlinx.coroutines.runBlocking {
     val mapper = jacksonObjectMapper()
-    val input = mapper.readValue("{\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.presentationml.presentation\",\"uri\":\"https://example.com/pptx/simple.pptx\"}", ExtractionConfig::class.java)
+    val input = mapper.readValue("{\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.presentationml.presentation\",\"uri\":\"https://example.com/pptx/simple.pptx\"}", ExtractInput::class.java)
     val result = Xberg.extract(input, ExtractionConfig())
 }
 

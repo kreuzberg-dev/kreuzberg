@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Content layer classification for document nodes.
-*
-* Replaces separate body/furniture arrays with per-node granularity.
-*/
+ * Content layer classification for document nodes.
+ *
+ * Replaces separate body/furniture arrays with per-node granularity.
+ */
 enum class ContentLayer {
     /** Main document body content. */
     @com.fasterxml.jackson.annotation.JsonProperty("body") BODY,
@@ -43,23 +43,23 @@ enum class ContentLayer {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        BODY -> "body"
-        HEADER -> "header"
-        FOOTER -> "footer"
-        FOOTNOTE -> "footnote"
-    }
+        when (this) {
+            BODY -> "body"
+            HEADER -> "header"
+            FOOTER -> "footer"
+            FOOTNOTE -> "footnote"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ContentLayer =
-        when (value) {
-            "body" -> BODY
-            "header" -> HEADER
-            "footer" -> FOOTER
-            "footnote" -> FOOTNOTE
-            else -> throw IllegalArgumentException("Unknown ContentLayer value: $value")
-        }
+            when (value) {
+                "body" -> BODY
+                "header" -> HEADER
+                "footer" -> FOOTER
+                "footnote" -> FOOTNOTE
+                else -> throw IllegalArgumentException("Unknown ContentLayer value: $value")
+            }
     }
 }

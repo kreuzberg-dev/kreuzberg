@@ -15,7 +15,8 @@ from xberg import extract, ExtractInput, ExtractInputKind, ExtractionConfig
 
 async def main() -> None:
     input = ExtractInput(filename="simple.hwpx", kind=ExtractInputKind("uri"), mime_type="application/haansofthwpx", uri="https://example.com/hwpx/simple.hwpx")
-    _ = await extract(input, None)
+    await extract(input, None)
+    print(result)
 
 asyncio.run(main())
 

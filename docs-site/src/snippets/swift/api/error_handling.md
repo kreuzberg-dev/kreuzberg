@@ -13,7 +13,7 @@ do {
     let input = try extractInputFromJson(#"{"kind":"uri","uri":"document.pdf"}"#)
     let resultOutput = try await extract(input: input, config: config)
     let result = resultOutput.results().get(index: 0)!
-    print(result.content.toString())
+    print(result.content().toString())
 } catch let error as RustString {
     let message = error.toString()
     if message.contains("UnsupportedFormat") {

@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Errors produced while loading or validating a preset file.
 /// </summary>
-public class LoadErrorException : XbergException {
-  public LoadErrorException(string message) : base(message) {}
+public class LoadErrorException : XbergException
+{
+    public LoadErrorException(string message) : base(message) { }
 
-  public LoadErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public LoadErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

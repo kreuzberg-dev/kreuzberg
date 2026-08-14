@@ -27,19 +27,19 @@
 package io.xberg
 
 /**
-* URL encoding strategy for link and image destinations.
-*
-* Controls how special characters in URL destinations are handled when they
-* require escaping to produce valid Markdown.
-*
-* The `Angle` variant (default) wraps the destination in angle brackets:
-* `[text](<url with spaces>)`. This is the CommonMark-specified escape hatch
-* but breaks when the URL itself contains `>`.
-*
-* The `Percent` variant percent-encodes every character that is not an RFC 3986
-* unreserved character or `/`, producing a destination safe for all Markdown
-* parsers: `[text](url%20with%20spaces)`.
-*/
+ * URL encoding strategy for link and image destinations.
+ *
+ * Controls how special characters in URL destinations are handled when they
+ * require escaping to produce valid Markdown.
+ *
+ * The `Angle` variant (default) wraps the destination in angle brackets:
+ * `[text](<url with spaces>)`. This is the CommonMark-specified escape hatch
+ * but breaks when the URL itself contains `>`.
+ *
+ * The `Percent` variant percent-encodes every character that is not an RFC 3986
+ * unreserved character or `/`, producing a destination safe for all Markdown
+ * parsers: `[text](url%20with%20spaces)`.
+ */
 enum class UrlEscapeStyle {
     /** Wrap destinations that contain spaces or newlines in angle brackets. Default. */
     @com.fasterxml.jackson.annotation.JsonProperty("Angle") ANGLE,
@@ -48,21 +48,21 @@ enum class UrlEscapeStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ANGLE -> "Angle"
-        PERCENT -> "Percent"
-    }
+        when (this) {
+            ANGLE -> "Angle"
+            PERCENT -> "Percent"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): UrlEscapeStyle =
-        when (value) {
-            "Angle",
-            "angle" -> ANGLE
-            "Percent",
-            "percent" -> PERCENT
-            else -> throw IllegalArgumentException("Unknown UrlEscapeStyle value: $value")
-        }
+            when (value) {
+                "Angle",
+                "angle" -> ANGLE
+                "Percent",
+                "percent" -> PERCENT
+                else -> throw IllegalArgumentException("Unknown UrlEscapeStyle value: $value")
+            }
     }
 }

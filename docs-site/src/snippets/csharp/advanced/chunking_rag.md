@@ -28,7 +28,7 @@ class RagPipelineExample
                 "research_paper.pdf"), config
             )).Results[0];
 
-            var vectorStore = await BuildVectorStoreAsync(result.Chunks)
+            var vectorStore = await BuildVectorStoreAsync(result.Chunks ?? new List<Chunk>())
                 .ConfigureAwait(false);
 
             var query = "machine learning optimization";

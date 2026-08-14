@@ -13,6 +13,7 @@ List post-processors
 import { listPostProcessors } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listPostProcessors();
+  console.log(result);
 }
 
 void main();

@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Content rendering mode for code extraction.
-*
-* Controls how extracted code content is represented in the `content` field
-* of `ExtractedDocument`.
-*/
+ * Content rendering mode for code extraction.
+ *
+ * Controls how extracted code content is represented in the `content` field
+ * of `ExtractedDocument`.
+ */
 enum class CodeContentMode {
     /** Use TSLP semantic chunks as content (default). */
     @com.fasterxml.jackson.annotation.JsonProperty("chunks") CHUNKS,
@@ -42,21 +42,21 @@ enum class CodeContentMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        CHUNKS -> "chunks"
-        RAW -> "raw"
-        STRUCTURE -> "structure"
-    }
+        when (this) {
+            CHUNKS -> "chunks"
+            RAW -> "raw"
+            STRUCTURE -> "structure"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): CodeContentMode =
-        when (value) {
-            "chunks" -> CHUNKS
-            "raw" -> RAW
-            "structure" -> STRUCTURE
-            else -> throw IllegalArgumentException("Unknown CodeContentMode value: $value")
-        }
+            when (value) {
+                "chunks" -> CHUNKS
+                "raw" -> RAW
+                "structure" -> STRUCTURE
+                else -> throw IllegalArgumentException("Unknown CodeContentMode value: $value")
+            }
     }
 }

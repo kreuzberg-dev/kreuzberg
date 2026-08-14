@@ -27,20 +27,20 @@
 package io.xberg
 
 /**
-* Selects how a local ONNX reranker's raw output tensor is turned into a score.
-*
-* - `RerankerHead.CrossEncoder` — classic single-logit cross-encoder head:
-*   the model emits `[batch, 1]` (or `[batch]`) logits; the caller applies
-*   sigmoid to get a `[0, 1]` score. This is the original, unchanged path.
-*
-* - `RerankerHead.Qwen3Generative` — Qwen3 generative-reranker head: the
-*   model emits `[batch, seq, vocab]` logits; the score is `P("yes")` read
-*   from the last token's logits over the "yes"/"no" vocabulary entries,
-*   via a softmax over those two logits. Already a `[0, 1]` probability —
-*   no sigmoid is applied.
-*
-* Since v5.0.
-*/
+ * Selects how a local ONNX reranker's raw output tensor is turned into a score.
+ *
+ * - `RerankerHead.CrossEncoder` — classic single-logit cross-encoder head:
+ *   the model emits `[batch, 1]` (or `[batch]`) logits; the caller applies
+ *   sigmoid to get a `[0, 1]` score. This is the original, unchanged path.
+ *
+ * - `RerankerHead.Qwen3Generative` — Qwen3 generative-reranker head: the
+ *   model emits `[batch, seq, vocab]` logits; the score is `P("yes")` read
+ *   from the last token's logits over the "yes"/"no" vocabulary entries,
+ *   via a softmax over those two logits. Already a `[0, 1]` probability —
+ *   no sigmoid is applied.
+ *
+ * Since v5.0.
+ */
 enum class RerankerHead {
     /** Single-logit cross-encoder head (sigmoid applied by the caller). */
     @com.fasterxml.jackson.annotation.JsonProperty("cross_encoder") CROSS_ENCODER,
@@ -49,19 +49,19 @@ enum class RerankerHead {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        CROSS_ENCODER -> "cross_encoder"
-        QWEN3_GENERATIVE -> "qwen3_generative"
-    }
+        when (this) {
+            CROSS_ENCODER -> "cross_encoder"
+            QWEN3_GENERATIVE -> "qwen3_generative"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): RerankerHead =
-        when (value) {
-            "cross_encoder" -> CROSS_ENCODER
-            "qwen3_generative" -> QWEN3_GENERATIVE
-            else -> throw IllegalArgumentException("Unknown RerankerHead value: $value")
-        }
+            when (value) {
+                "cross_encoder" -> CROSS_ENCODER
+                "qwen3_generative" -> QWEN3_GENERATIVE
+                else -> throw IllegalArgumentException("Unknown RerankerHead value: $value")
+            }
     }
 }

@@ -18,7 +18,7 @@ Clear all tokenizer backends and verify list is empty
 #include "xberg.h"
 
 int main(void) {
-    xberg_();
+    xberg_clear_tokenizer_backends();
     return EXIT_SUCCESS;
 }
 

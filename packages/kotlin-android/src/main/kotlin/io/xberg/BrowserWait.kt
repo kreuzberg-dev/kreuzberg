@@ -37,21 +37,21 @@ enum class BrowserWait {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        NETWORK_IDLE -> "network_idle"
-        SELECTOR -> "selector"
-        FIXED -> "fixed"
-    }
+        when (this) {
+            NETWORK_IDLE -> "network_idle"
+            SELECTOR -> "selector"
+            FIXED -> "fixed"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BrowserWait =
-        when (value) {
-            "network_idle" -> NETWORK_IDLE
-            "selector" -> SELECTOR
-            "fixed" -> FIXED
-            else -> throw IllegalArgumentException("Unknown BrowserWait value: $value")
-        }
+            when (value) {
+                "network_idle" -> NETWORK_IDLE
+                "selector" -> SELECTOR
+                "fixed" -> FIXED
+                else -> throw IllegalArgumentException("Unknown BrowserWait value: $value")
+            }
     }
 }

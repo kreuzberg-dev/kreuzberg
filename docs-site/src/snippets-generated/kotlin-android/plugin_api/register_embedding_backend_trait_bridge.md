@@ -12,7 +12,7 @@ register_embedding_backend: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterEmbeddingBackendTraitBridge : IEmbeddingBackend {
     override fun name(): String = "register_embedding_backend_trait_bridge"
     override fun dimensions(): Long = 768

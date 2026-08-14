@@ -3,7 +3,7 @@ const std = @import("std");
 const xberg = @import("xberg");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -23,7 +23,6 @@ pub fn main() !void {
     const owned = try allocator.dupe(u8, output_json);
     defer allocator.free(owned);
 
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("{s}\n", .{owned});
+    std.debug.print("{s}\n", .{owned});
 }
 ```

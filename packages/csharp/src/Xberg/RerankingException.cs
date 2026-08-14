@@ -10,9 +10,9 @@ namespace Xberg;
 ///
 /// Since v5.0.0.
 /// </summary>
-public class RerankingException : XbergErrorException {
-  public RerankingException(string message) : base(message) {}
+public class RerankingException : XbergErrorException
+{
+    public RerankingException(string message) : base(message) { }
 
-  public RerankingException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public RerankingException(string message, Exception innerException) : base(message, innerException) { }
 }

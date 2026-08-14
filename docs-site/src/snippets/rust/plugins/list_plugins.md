@@ -1,19 +1,15 @@
 ```rust title="Rust"
-use xberg::plugins::registry::*;
+use xberg::{list_document_extractors, list_post_processors, list_ocr_backends, list_validators};
 
-let registry = get_document_extractor_registry();
-let extractors = registry.list()?;
+let extractors = list_document_extractors()?;
 println!("Registered extractors: {:?}", extractors);
 
-let registry = get_post_processor_registry();
-let processors = registry.list()?;
+let processors = list_post_processors()?;
 println!("Registered processors: {:?}", processors);
 
-let registry = get_ocr_backend_registry();
-let backends = registry.list()?;
+let backends = list_ocr_backends()?;
 println!("Registered OCR backends: {:?}", backends);
 
-let registry = get_validator_registry();
-let validators = registry.list()?;
+let validators = list_validators()?;
 println!("Registered validators: {:?}", validators);
 ```

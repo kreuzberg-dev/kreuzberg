@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// Errors produced while resolving a preset against caller overrides.
 /// </summary>
-public class ResolveErrorException : XbergException {
-  public ResolveErrorException(string message) : base(message) {}
+public class ResolveErrorException : XbergException
+{
+    public ResolveErrorException(string message) : base(message) { }
 
-  public ResolveErrorException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ResolveErrorException(string message, Exception innerException) : base(message, innerException) { }
 }

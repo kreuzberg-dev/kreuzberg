@@ -25,9 +25,9 @@ class MetaSchema internal constructor(handle: Long) : AutoCloseable {
     }
     companion object {
         private val MAPPER = com.fasterxml.jackson.databind.ObjectMapper()
-        .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
-        .findAndRegisterModules()
-        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+            .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
+            .findAndRegisterModules()
+            .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
     }
 
     // Validate `raw` against the meta-schema and deserialize into a [`Preset`],
@@ -56,9 +56,9 @@ class Registry internal constructor(handle: Long) : AutoCloseable {
     }
     companion object {
         private val MAPPER = com.fasterxml.jackson.databind.ObjectMapper()
-        .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
-        .findAndRegisterModules()
-        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+            .registerModule(com.fasterxml.jackson.datatype.jdk8.Jdk8Module())
+            .findAndRegisterModules()
+            .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
     }
 
     // Look up a preset by its identifier.

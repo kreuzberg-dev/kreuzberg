@@ -4,22 +4,22 @@ version: 1.1.0
 repository: https://github.com/xberg-io/xberg
 homepage: https://xberg.io
 environment:
-  sdk: ">=3.11.0 <4.0.0"
+  sdk: '>=3.11.0 <4.0.0'
 executables:
   download_libs:
 dependencies:
-  http: "^1.2.0"
+  http: '^1.2.0'
   # SHA-256 verification of downloaded native-library release assets.
-  crypto: "^3.0.0"
+  crypto: '^3.0.0'
   # FRB runtime is pure-Dart; works in both Flutter and server-Dart contexts.
   flutter_rust_bridge: ^2.12.0
   # FRB codegen-2.x emits `@freezed` sealed classes annotated with these.
-  freezed_annotation: "^3.1.0"
-  json_annotation: "^4.11.0"
+  freezed_annotation: '^3.1.0'
+  json_annotation: '^4.11.0'
 dev_dependencies:
-  test: "^1.25.0"
-  lints: "^6.1.0"
+  test: '^1.25.0'
+  lints: '^6.1.0'
   # Required by flutter_rust_bridge_codegen 2.x for sealed classes.
-  freezed: "^3.2.5"
-  build_runner: "^2.15.0"
-  json_serializable: "^6.13.2"
+  freezed: '^3.2.5'
+  build_runner: '^2.15.0'
+  json_serializable: '^6.13.2'

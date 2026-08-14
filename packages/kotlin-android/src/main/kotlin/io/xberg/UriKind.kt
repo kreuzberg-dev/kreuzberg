@@ -43,27 +43,27 @@ enum class UriKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        HYPERLINK -> "hyperlink"
-        IMAGE -> "image"
-        ANCHOR -> "anchor"
-        CITATION -> "citation"
-        REFERENCE -> "reference"
-        EMAIL -> "email"
-    }
+        when (this) {
+            HYPERLINK -> "hyperlink"
+            IMAGE -> "image"
+            ANCHOR -> "anchor"
+            CITATION -> "citation"
+            REFERENCE -> "reference"
+            EMAIL -> "email"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): UriKind =
-        when (value) {
-            "hyperlink" -> HYPERLINK
-            "image" -> IMAGE
-            "anchor" -> ANCHOR
-            "citation" -> CITATION
-            "reference" -> REFERENCE
-            "email" -> EMAIL
-            else -> throw IllegalArgumentException("Unknown UriKind value: $value")
-        }
+            when (value) {
+                "hyperlink" -> HYPERLINK
+                "image" -> IMAGE
+                "anchor" -> ANCHOR
+                "citation" -> CITATION
+                "reference" -> REFERENCE
+                "email" -> EMAIL
+                else -> throw IllegalArgumentException("Unknown UriKind value: $value")
+            }
     }
 }

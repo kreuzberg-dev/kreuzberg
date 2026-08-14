@@ -103,7 +103,6 @@ cargo build --release -p xberg-ffi
 The built artifacts are emitted under `target/release/` (`libxberg_ffi.{so,dylib,a}`) along with the C header at `crates/xberg-ffi/include/xberg.h`.
 
 ### System Requirements
-
 - A C/C++ toolchain (clang, gcc, or MSVC) and a Rust toolchain (`rustup`) for building from source
 - A `pkg-config` or CMake-aware build system that can locate `libxberg_ffi` and `xberg.h`
 - Optional: [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) version 1.24+ for ORT-dependent inference features

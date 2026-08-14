@@ -18,7 +18,7 @@ Clear all reranker backends and verify list is empty
 #include "xberg.h"
 
 int main(void) {
-    xberg_();
+    xberg_clear_reranker_backends();
     return EXIT_SUCCESS;
 }
 

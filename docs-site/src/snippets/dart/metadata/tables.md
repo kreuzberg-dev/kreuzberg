@@ -2,7 +2,11 @@
 import 'package:xberg/xberg.dart';
 
 Future<void> main() async {
-  final result = await XbergBridge.extract(ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'), config: ExtractionConfig());
+  final config = await createExtractionConfigFromJson(json: '{}');
+  final result = await XbergBridge.extract(
+    const ExtractInput(kind: ExtractInputKind.uri, uri: 'document.pdf'),
+    config,
+  );
 
   for (final table in result.results[0].tables) {
     print('Table on page ${table.pageNumber} with ${table.cells.length} rows');

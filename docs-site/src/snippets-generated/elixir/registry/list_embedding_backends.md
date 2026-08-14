@@ -11,5 +11,6 @@ List embedding backends
 
 ```elixir title="Elixir"
 result = Xberg.list_embedding_backends()
+IO.inspect(result)
 
 ```

@@ -12,7 +12,7 @@ register_post_processor: trait bridge
 ```kotlin title="Kotlin (Android)"
 import io.xberg.*
 
-fun main() = kotlinx.coroutines.runBlocking {
+fun main() {
     class TestStubRegisterPostProcessorTraitBridge : IPostProcessor {
     override fun name(): String = "register_post_processor_trait_bridge"
     override suspend fun process(result: ExtractedDocument, config: ExtractionConfig): Unit {}

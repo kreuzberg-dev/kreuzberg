@@ -12,5 +12,6 @@ OCR: PNG image extraction with OCR enabled. In WASM this exercises the Uint8Arra
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/images/test_hello_world.png').bytes, config: {  }, filename: 'test_hello_world.png', kind: 'bytes', mime_type: 'image/png'), {  })
+puts result.inspect
 
 ```

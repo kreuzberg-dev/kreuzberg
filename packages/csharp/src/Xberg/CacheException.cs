@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A cache read or write operation failed.
 /// </summary>
-public class CacheException : XbergErrorException {
-  public CacheException(string message) : base(message) {}
+public class CacheException : XbergErrorException
+{
+    public CacheException(string message) : base(message) { }
 
-  public CacheException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public CacheException(string message, Exception innerException) : base(message, innerException) { }
 }

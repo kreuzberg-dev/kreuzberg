@@ -12,5 +12,6 @@ Smoke test: Plain text file
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'text/plain', uri: 'https://example.com/text/report.txt'), {  })
+puts result.inspect
 
 ```

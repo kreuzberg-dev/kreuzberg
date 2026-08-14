@@ -13,6 +13,7 @@ List all registered embedding backends
 import { listEmbeddingBackends } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listEmbeddingBackends();
+  console.log(result);
 }
 
 void main();

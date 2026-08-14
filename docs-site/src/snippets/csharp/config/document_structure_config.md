@@ -12,7 +12,7 @@ if (result.Document is not null)
 {
     foreach (var node in result.Document.Nodes)
     {
-        Console.WriteLine($"[{node.Content.NodeType}]");
+        Console.WriteLine($"[{node.Content.GetType().Name}]");
     }
 }
 ```

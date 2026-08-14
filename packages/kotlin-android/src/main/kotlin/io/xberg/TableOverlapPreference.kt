@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* How to resolve overlapping native vs layout (TATR/SLANeXT) tables.
-*
-* When both native oxide detection and the layout table model produce a table for
-* the same page region, one must be dropped. This controls which one wins. Wire
-* format is snake_case in all serializers (JSON, TOML, YAML).
-*/
+ * How to resolve overlapping native vs layout (TATR/SLANeXT) tables.
+ *
+ * When both native oxide detection and the layout table model produce a table for
+ * the same page region, one must be dropped. This controls which one wins. Wire
+ * format is snake_case in all serializers (JSON, TOML, YAML).
+ */
 enum class TableOverlapPreference {
     /**
      * Keep whichever table carries more content (cell count + markdown length).
@@ -52,21 +52,21 @@ enum class TableOverlapPreference {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        CONTENT -> "content"
-        NATIVE -> "native"
-        LAYOUT -> "layout"
-    }
+        when (this) {
+            CONTENT -> "content"
+            NATIVE -> "native"
+            LAYOUT -> "layout"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): TableOverlapPreference =
-        when (value) {
-            "content" -> CONTENT
-            "native" -> NATIVE
-            "layout" -> LAYOUT
-            else -> throw IllegalArgumentException("Unknown TableOverlapPreference value: $value")
-        }
+            when (value) {
+                "content" -> CONTENT
+                "native" -> NATIVE
+                "layout" -> LAYOUT
+                else -> throw IllegalArgumentException("Unknown TableOverlapPreference value: $value")
+            }
     }
 }

@@ -441,6 +441,10 @@ jobs:
 
       - name: Install alef CLI
         uses: xberg-io/actions/install-alef@v1
+        # alef is a third-party tool. The job-wide `-D warnings` turns its own
+        # lint warnings into build errors, which has no bearing on this repo. ~keep
+        env:
+          RUSTFLAGS: ""
 
       - name: Pre-build mock-server for Go e2e
         if: matrix.lang == 'go'

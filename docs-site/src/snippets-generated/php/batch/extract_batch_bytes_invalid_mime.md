@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 use Xberg\ExtractionConfig;
 $result = Xberg::extractBatch([ExtractInput::from_json('{"bytes":[72,101,108,108,111],"kind":"bytes","mime_type":"application/x-nonexistent"}')], \Xberg\ExtractionConfig::from_json('{}'));
+var_dump($result);
 
 ```

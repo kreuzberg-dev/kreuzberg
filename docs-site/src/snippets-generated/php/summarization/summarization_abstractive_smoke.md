@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "uri" => "https://example.com/text/book_war_and_peace_1p.txt"]));
 $result = Xberg::extract($input, ["summarization" => ["llm" => ["max_tokens" => 200, "model" => "openai/gpt-4o-mini", "temperature" => 0.0], "max_tokens" => 150, "strategy" => "abstractive"]]);
+var_dump($result);
 
 ```

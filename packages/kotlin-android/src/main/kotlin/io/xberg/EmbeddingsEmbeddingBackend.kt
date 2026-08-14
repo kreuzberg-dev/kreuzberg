@@ -27,16 +27,16 @@
 package io.xberg
 
 /**
-* Inference backend that an `EmbeddingPreset` runs on.
-*
-* `Onnx` presets require the `embeddings` feature (ONNX Runtime, not available on
-* WASM/Android x86_64 emulator). `Static` presets require `static-embeddings`
-* (pure-Rust model2vec inference, no ORT — the only dense-embedding backend
-* available on `no-ort-target`).
-*
-* Defaults to `Onnx` via `#[serde(default)]` so every existing preset payload
-* (which predates this field) keeps deserializing without change.
-*/
+ * Inference backend that an `EmbeddingPreset` runs on.
+ *
+ * `Onnx` presets require the `embeddings` feature (ONNX Runtime, not available on
+ * WASM/Android x86_64 emulator). `Static` presets require `static-embeddings`
+ * (pure-Rust model2vec inference, no ORT — the only dense-embedding backend
+ * available on `no-ort-target`).
+ *
+ * Defaults to `Onnx` via `#[serde(default)]` so every existing preset payload
+ * (which predates this field) keeps deserializing without change.
+ */
 enum class EmbeddingsEmbeddingBackend {
     /** ONNX Runtime transformer inference (the historical, default backend). */
     @com.fasterxml.jackson.annotation.JsonProperty("onnx") ONNX,
@@ -45,19 +45,19 @@ enum class EmbeddingsEmbeddingBackend {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ONNX -> "onnx"
-        STATIC -> "static"
-    }
+        when (this) {
+            ONNX -> "onnx"
+            STATIC -> "static"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): EmbeddingsEmbeddingBackend =
-        when (value) {
-            "onnx" -> ONNX
-            "static" -> STATIC
-            else -> throw IllegalArgumentException("Unknown EmbeddingsEmbeddingBackend value: $value")
-        }
+            when (value) {
+                "onnx" -> ONNX
+                "static" -> STATIC
+                else -> throw IllegalArgumentException("Unknown EmbeddingsEmbeddingBackend value: $value")
+            }
     }
 }

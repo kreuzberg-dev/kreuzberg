@@ -586,7 +586,7 @@ typedef struct XBERGDocumentCounts XBERGDocumentCounts;
  * }
  * \endcode
  */
-typedef struct XBERGDocumentExtractor XBERGDocumentExtractor;
+typedef uint64_t XBERGDocumentExtractor;
 /**
  * Metadata about a document for analysis.
  */
@@ -740,7 +740,7 @@ typedef struct XBERGEmbeddedFile XBERGEmbeddedFile;
  * or `tokio::runtime::Builder::new_current_thread()`) must use
  * `embed_texts_async` instead, which awaits directly without `block_in_place`.
  */
-typedef struct XBERGEmbeddingBackend XBERGEmbeddingBackend;
+typedef uint64_t XBERGEmbeddingBackend;
 /**
  * Embedding configuration for text chunks.
  *
@@ -1337,7 +1337,7 @@ typedef struct XBERGMergeMode XBERGMergeMode;
 /**
  * Compiled meta-schema validator over `preset.schema.json`.
  */
-typedef struct XBERGMetaSchema XBERGMetaSchema;
+typedef uint64_t XBERGMetaSchema;
 /**
  * Extraction result metadata.
  *
@@ -1448,7 +1448,7 @@ typedef struct XBERGNodeContent XBERGNodeContent;
  * }
  * \endcode
  */
-typedef struct XBERGOcrBackend XBERGOcrBackend;
+typedef uint64_t XBERGOcrBackend;
 /**
  * OCR backend types.
  */
@@ -1777,7 +1777,7 @@ typedef struct XBERGPiiCategory XBERGPiiCategory;
  * }
  * \endcode
  */
-typedef struct XBERGPlugin XBERGPlugin;
+typedef uint64_t XBERGPlugin;
 /**
  * Trait for post-processor plugins.
  *
@@ -1840,7 +1840,7 @@ typedef struct XBERGPlugin XBERGPlugin;
  * }
  * \endcode
  */
-typedef struct XBERGPostProcessor XBERGPostProcessor;
+typedef uint64_t XBERGPostProcessor;
 /**
  * Post-processor configuration.
  */
@@ -2005,7 +2005,7 @@ typedef struct XBERGRegionKind XBERGRegionKind;
 /**
  * Sorted map of preset id â `Preset`.
  */
-typedef struct XBERGRegistry XBERGRegistry;
+typedef uint64_t XBERGRegistry;
 /**
  * Semantic kind of a relationship between document elements.
  */
@@ -2043,7 +2043,7 @@ typedef struct XBERGRelationshipKind XBERGRelationshipKind;
  * }
  * \endcode
  */
-typedef struct XBERGRenderer XBERGRenderer;
+typedef uint64_t XBERGRenderer;
 /**
  * A single document returned by the reranker, with its position in the input and score.
  *
@@ -2097,7 +2097,7 @@ typedef struct XBERGRerankedDocument XBERGRerankedDocument;
  *
  * Since v5.0.0.
  */
-typedef struct XBERGRerankerBackend XBERGRerankerBackend;
+typedef uint64_t XBERGRerankerBackend;
 /**
  * Configuration for the reranking pipeline.
  *
@@ -2373,7 +2373,7 @@ typedef struct XBERGTextMetadata XBERGTextMetadata;
 /**
  * Per-category running counter for `RedactionStrategy.TokenReplace`.
  */
-typedef struct XBERGTokenCounter XBERGTokenCounter;
+typedef uint64_t XBERGTokenCounter;
 /**
  * Configuration for the token-reduction pipeline.
  */
@@ -2422,7 +2422,7 @@ typedef struct XBERGTokenReductionOptions XBERGTokenReductionOptions;
  * - Counting should be deterministic for a given input â the splitter may
  *   evaluate overlapping spans of the same text repeatedly.
  */
-typedef struct XBERGTokenizerBackend XBERGTokenizerBackend;
+typedef uint64_t XBERGTokenizerBackend;
 /**
  * Configuration for audio/video transcription (speech-to-text).
  *
@@ -2570,7 +2570,7 @@ typedef struct XBERGUserChunkConfig XBERGUserChunkConfig;
  * }
  * \endcode
  */
-typedef struct XBERGValidator XBERGValidator;
+typedef uint64_t XBERGValidator;
 /**
  * Policy controlling when VLM (Vision Language Model) OCR is used as a fallback.
  *
@@ -2649,6 +2649,8 @@ typedef struct XBERGYakeParams XBERGYakeParams;
  */
 typedef struct XBERGYearRange XBERGYearRange;
 
+
+typedef uint64_t XBERGAlefHandle;
 
 /**
  * VTable for C plugin bridges implementing the `OcrBackend` trait.
@@ -3571,57 +3573,57 @@ const char *xberg_version(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_cache_stats_free`.
  */
-XBERGCacheStats *xberg_cache_stats_from_json(const char *json);
+XBERGAlefHandle xberg_cache_stats_from_json(const char *json);
 
 /**
  * Serialize a `CacheStats` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_cache_stats_to_json(const XBERGCacheStats *ptr);
+char *xberg_cache_stats_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CacheStats` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_cache_stats_free(XBERGCacheStats *ptr);
+void xberg_cache_stats_free(XBERGAlefHandle handle);
 
 /**
  * Get the `total_files` field from a `CacheStats`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_cache_stats_total_files(const XBERGCacheStats *ptr);
+uintptr_t xberg_cache_stats_total_files(XBERGAlefHandle handle);
 
 /**
  * Get the `total_size_mb` field from a `CacheStats`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_cache_stats_total_size_mb(const XBERGCacheStats *ptr);
+double xberg_cache_stats_total_size_mb(XBERGAlefHandle handle);
 
 /**
  * Get the `available_space_mb` field from a `CacheStats`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_cache_stats_available_space_mb(const XBERGCacheStats *ptr);
+double xberg_cache_stats_available_space_mb(XBERGAlefHandle handle);
 
 /**
  * Get the `oldest_file_age_days` field from a `CacheStats`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_cache_stats_oldest_file_age_days(const XBERGCacheStats *ptr);
+double xberg_cache_stats_oldest_file_age_days(XBERGAlefHandle handle);
 
 /**
  * Get the `newest_file_age_days` field from a `CacheStats`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_cache_stats_newest_file_age_days(const XBERGCacheStats *ptr);
+double xberg_cache_stats_newest_file_age_days(XBERGAlefHandle handle);
 
 /**
  * Create a `AccelerationConfig` from a JSON string. Returns null on failure.
@@ -3629,36 +3631,38 @@ double xberg_cache_stats_newest_file_age_days(const XBERGCacheStats *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_acceleration_config_free`.
  */
-XBERGAccelerationConfig *xberg_acceleration_config_from_json(const char *json);
+XBERGAlefHandle xberg_acceleration_config_from_json(const char *json);
 
 /**
  * Serialize a `AccelerationConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_acceleration_config_to_json(const XBERGAccelerationConfig *ptr);
+char *xberg_acceleration_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `AccelerationConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_acceleration_config_free(XBERGAccelerationConfig *ptr);
+void xberg_acceleration_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `provider` field from a `AccelerationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_execution_provider_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExecutionProviderType *xberg_acceleration_config_provider(const XBERGAccelerationConfig *ptr);
+XBERGAlefHandle xberg_acceleration_config_provider(XBERGAlefHandle handle);
 
 /**
  * Get the `device_id` field from a `AccelerationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_acceleration_config_device_id(const XBERGAccelerationConfig *ptr);
+uint32_t xberg_acceleration_config_device_id(XBERGAlefHandle handle);
 
 /**
  * Create a `CaptioningConfig` from a JSON string. Returns null on failure.
@@ -3666,43 +3670,47 @@ uint32_t xberg_acceleration_config_device_id(const XBERGAccelerationConfig *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_captioning_config_free`.
  */
-XBERGCaptioningConfig *xberg_captioning_config_from_json(const char *json);
+XBERGAlefHandle xberg_captioning_config_from_json(const char *json);
 
 /**
  * Serialize a `CaptioningConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_captioning_config_to_json(const XBERGCaptioningConfig *ptr);
+char *xberg_captioning_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CaptioningConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_captioning_config_free(XBERGCaptioningConfig *ptr);
+void xberg_captioning_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `CaptioningConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_captioning_config_llm(const XBERGCaptioningConfig *ptr);
+XBERGAlefHandle xberg_captioning_config_llm(XBERGAlefHandle handle);
 
 /**
  * Get the `prompt` field from a `CaptioningConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_captioning_config_prompt(const XBERGCaptioningConfig *ptr);
+char *xberg_captioning_config_prompt(XBERGAlefHandle handle);
 
 /**
  * Get the `min_image_area` field from a `CaptioningConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_captioning_config_min_image_area(const XBERGCaptioningConfig *ptr);
+uint32_t xberg_captioning_config_min_image_area(XBERGAlefHandle handle);
 
 /**
  * Create a `ChunkClassificationDefinition` from a JSON string. Returns null on failure.
@@ -3710,36 +3718,40 @@ uint32_t xberg_captioning_config_min_image_area(const XBERGCaptioningConfig *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_classification_definition_free`.
  */
-XBERGChunkClassificationDefinition *xberg_chunk_classification_definition_from_json(const char *json);
+XBERGAlefHandle xberg_chunk_classification_definition_from_json(const char *json);
 
 /**
  * Serialize a `ChunkClassificationDefinition` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_classification_definition_to_json(const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkClassificationDefinition` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_classification_definition_free(XBERGChunkClassificationDefinition *ptr);
+void xberg_chunk_classification_definition_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `ChunkClassificationDefinition`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_definition_label(const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_label(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `ChunkClassificationDefinition`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_definition_description(const XBERGChunkClassificationDefinition *ptr);
+char *xberg_chunk_classification_definition_description(XBERGAlefHandle handle);
 
 /**
  * Create a `ChunkClassificationConfig` from a JSON string. Returns null on failure.
@@ -3747,57 +3759,63 @@ char *xberg_chunk_classification_definition_description(const XBERGChunkClassifi
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_classification_config_free`.
  */
-XBERGChunkClassificationConfig *xberg_chunk_classification_config_from_json(const char *json);
+XBERGAlefHandle xberg_chunk_classification_config_from_json(const char *json);
 
 /**
  * Serialize a `ChunkClassificationConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_classification_config_to_json(const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkClassificationConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_classification_config_free(XBERGChunkClassificationConfig *ptr);
+void xberg_chunk_classification_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `prompt_template` field from a `ChunkClassificationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_config_prompt_template(const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_prompt_template(XBERGAlefHandle handle);
 
 /**
  * Get the `definitions` field from a `ChunkClassificationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_classification_config_definitions(const XBERGChunkClassificationConfig *ptr);
+char *xberg_chunk_classification_config_definitions(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `ChunkClassificationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_chunk_classification_config_llm(const XBERGChunkClassificationConfig *ptr);
+XBERGAlefHandle xberg_chunk_classification_config_llm(XBERGAlefHandle handle);
 
 /**
  * Get the `batch_size` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_classification_config_batch_size(const XBERGChunkClassificationConfig *ptr);
+uintptr_t xberg_chunk_classification_config_batch_size(XBERGAlefHandle handle);
 
 /**
  * Get the `max_concurrency` field from a `ChunkClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_classification_config_max_concurrency(const XBERGChunkClassificationConfig *ptr);
+uintptr_t xberg_chunk_classification_config_max_concurrency(XBERGAlefHandle handle);
 
 /**
  * Create a `PageClassificationConfig` from a JSON string. Returns null on failure.
@@ -3805,50 +3823,56 @@ uintptr_t xberg_chunk_classification_config_max_concurrency(const XBERGChunkClas
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_classification_config_free`.
  */
-XBERGPageClassificationConfig *xberg_page_classification_config_from_json(const char *json);
+XBERGAlefHandle xberg_page_classification_config_from_json(const char *json);
 
 /**
  * Serialize a `PageClassificationConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_classification_config_to_json(const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageClassificationConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_classification_config_free(XBERGPageClassificationConfig *ptr);
+void xberg_page_classification_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `prompt_template` field from a `PageClassificationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_classification_config_prompt_template(const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_prompt_template(XBERGAlefHandle handle);
 
 /**
  * Get the `labels` field from a `PageClassificationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_classification_config_labels(const XBERGPageClassificationConfig *ptr);
+char *xberg_page_classification_config_labels(XBERGAlefHandle handle);
 
 /**
  * Get the `multi_label` field from a `PageClassificationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_classification_config_multi_label(const XBERGPageClassificationConfig *ptr);
+int32_t xberg_page_classification_config_multi_label(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `PageClassificationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_page_classification_config_llm(const XBERGPageClassificationConfig *ptr);
+XBERGAlefHandle xberg_page_classification_config_llm(XBERGAlefHandle handle);
 
 /**
  * Create a `ContentFilterConfig` from a JSON string. Returns null on failure.
@@ -3856,63 +3880,57 @@ XBERGLlmConfig *xberg_page_classification_config_llm(const XBERGPageClassificati
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_content_filter_config_free`.
  */
-XBERGContentFilterConfig *xberg_content_filter_config_from_json(const char *json);
+XBERGAlefHandle xberg_content_filter_config_from_json(const char *json);
 
 /**
  * Serialize a `ContentFilterConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_content_filter_config_to_json(const XBERGContentFilterConfig *ptr);
+char *xberg_content_filter_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ContentFilterConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_content_filter_config_free(XBERGContentFilterConfig *ptr);
+void xberg_content_filter_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `include_headers` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_headers(const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_headers(XBERGAlefHandle handle);
 
 /**
  * Get the `include_footers` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_footers(const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_footers(XBERGAlefHandle handle);
 
 /**
  * Get the `include_footnotes` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_footnotes(const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_include_footnotes(XBERGAlefHandle handle);
 
 /**
  * Get the `strip_repeating_text` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_strip_repeating_text(const XBERGContentFilterConfig *ptr);
+int32_t xberg_content_filter_config_strip_repeating_text(XBERGAlefHandle handle);
 
 /**
  * Get the `include_watermarks` field from a `ContentFilterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_filter_config_include_watermarks(const XBERGContentFilterConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGContentFilterConfig *xberg_content_filter_config_default(void);
+int32_t xberg_content_filter_config_include_watermarks(XBERGAlefHandle handle);
 
 /**
  * Create a `CsvConfig` from a JSON string. Returns null on failure.
@@ -3920,36 +3938,40 @@ XBERGContentFilterConfig *xberg_content_filter_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_csv_config_free`.
  */
-XBERGCsvConfig *xberg_csv_config_from_json(const char *json);
+XBERGAlefHandle xberg_csv_config_from_json(const char *json);
 
 /**
  * Serialize a `CsvConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_csv_config_to_json(const XBERGCsvConfig *ptr);
+char *xberg_csv_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CsvConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_csv_config_free(XBERGCsvConfig *ptr);
+void xberg_csv_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `delimiter` field from a `CsvConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_csv_config_delimiter(const XBERGCsvConfig *ptr);
+char *xberg_csv_config_delimiter(XBERGAlefHandle handle);
 
 /**
  * Get the `comment_prefixes` field from a `CsvConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_csv_config_comment_prefixes(const XBERGCsvConfig *ptr);
+char *xberg_csv_config_comment_prefixes(XBERGAlefHandle handle);
 
 /**
  * Create a `EmailConfig` from a JSON string. Returns null on failure.
@@ -3957,29 +3979,29 @@ char *xberg_csv_config_comment_prefixes(const XBERGCsvConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_email_config_free`.
  */
-XBERGEmailConfig *xberg_email_config_from_json(const char *json);
+XBERGAlefHandle xberg_email_config_from_json(const char *json);
 
 /**
  * Serialize a `EmailConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_email_config_to_json(const XBERGEmailConfig *ptr);
+char *xberg_email_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmailConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_email_config_free(XBERGEmailConfig *ptr);
+void xberg_email_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `msg_fallback_codepage` field from a `EmailConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_email_config_msg_fallback_codepage(const XBERGEmailConfig *ptr);
+uint32_t xberg_email_config_msg_fallback_codepage(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractionConfig` from a JSON string. Returns null on failure.
@@ -3987,364 +4009,426 @@ uint32_t xberg_email_config_msg_fallback_codepage(const XBERGEmailConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_config_free`.
  */
-XBERGExtractionConfig *xberg_extraction_config_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_config_to_json(const XBERGExtractionConfig *ptr);
+char *xberg_extraction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_config_free(XBERGExtractionConfig *ptr);
+void xberg_extraction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `use_cache` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_use_cache(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_use_cache(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_quality_processing` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_enable_quality_processing(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_enable_quality_processing(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrConfig *xberg_extraction_config_ocr(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `force_ocr` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_force_ocr(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_force_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_strategy` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrStrategy *xberg_extraction_config_ocr_strategy(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_ocr_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `force_ocr_pages` field from a `ExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_config_force_ocr_pages(const XBERGExtractionConfig *ptr);
+char *xberg_extraction_config_force_ocr_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `disable_ocr` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_disable_ocr(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_disable_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `chunking` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunking_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkingConfig *xberg_extraction_config_chunking(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_chunking(XBERGAlefHandle handle);
 
 /**
  * Get the `content_filter` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_content_filter_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentFilterConfig *xberg_extraction_config_content_filter(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_content_filter(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageExtractionConfig *xberg_extraction_config_images(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_images(XBERGAlefHandle handle);
 
 /**
  * Get the `pdf_options` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pdf_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfConfig *xberg_extraction_config_pdf_options(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_pdf_options(XBERGAlefHandle handle);
 
 /**
  * Get the `token_reduction` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_token_reduction_options_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTokenReductionOptions *xberg_extraction_config_token_reduction(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_token_reduction(XBERGAlefHandle handle);
 
 /**
  * Get the `language_detection` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_language_detection_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLanguageDetectionConfig *xberg_extraction_config_language_detection(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_language_detection(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageConfig *xberg_extraction_config_pages(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_keyword_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordConfig *xberg_extraction_config_keywords(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `postprocessor` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_post_processor_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPostProcessorConfig *xberg_extraction_config_postprocessor(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_postprocessor(XBERGAlefHandle handle);
 
 /**
  * Get the `html_options` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_conversion_options_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGConversionOptions *xberg_extraction_config_html_options(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_html_options(XBERGAlefHandle handle);
 
 /**
  * Get the `html_output` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_html_output_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlOutputConfig *xberg_extraction_config_html_output(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_html_output(XBERGAlefHandle handle);
 
 /**
  * Get the `extraction_timeout_secs` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_extraction_config_extraction_timeout_secs(const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_extraction_timeout_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `max_concurrent_extractions` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_config_max_concurrent_extractions(const XBERGExtractionConfig *ptr);
+uintptr_t xberg_extraction_config_max_concurrent_extractions(XBERGAlefHandle handle);
 
 /**
  * Get the `result_format` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_result_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGResultFormat *xberg_extraction_config_result_format(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_result_format(XBERGAlefHandle handle);
 
 /**
  * Get the `security_limits` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_security_limits_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSecurityLimits *xberg_extraction_config_security_limits(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_security_limits(XBERGAlefHandle handle);
 
 /**
  * Get the `max_embedded_file_bytes` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_extraction_config_max_embedded_file_bytes(const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_max_embedded_file_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_output_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOutputFormat *xberg_extraction_config_output_format(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `escape_markdown` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_escape_markdown(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_escape_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `table_anchors` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_table_anchors(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_table_anchors(XBERGAlefHandle handle);
 
 /**
  * Get the `jupyter_cell_rendering` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_jupyter_cell_rendering_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGJupyterCellRendering *xberg_extraction_config_jupyter_cell_rendering(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_jupyter_cell_rendering(XBERGAlefHandle handle);
 
 /**
  * Get the `layout` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_layout_detection_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutDetectionConfig *xberg_extraction_config_layout(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_layout(XBERGAlefHandle handle);
 
 /**
  * Get the `transcription` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_transcription_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranscriptionConfig *xberg_extraction_config_transcription(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_transcription(XBERGAlefHandle handle);
 
 /**
  * Get the `use_layout_for_markdown` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_use_layout_for_markdown(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_use_layout_for_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `include_document_structure` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_include_document_structure(const XBERGExtractionConfig *ptr);
+int32_t xberg_extraction_config_include_document_structure(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_extraction_config_acceleration(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_namespace` field from a `ExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_config_cache_namespace(const XBERGExtractionConfig *ptr);
+char *xberg_extraction_config_cache_namespace(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_ttl_secs` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_extraction_config_cache_ttl_secs(const XBERGExtractionConfig *ptr);
+uint64_t xberg_extraction_config_cache_ttl_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `email` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_email_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmailConfig *xberg_extraction_config_email(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_email(XBERGAlefHandle handle);
 
 /**
  * Get the `csv` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_csv_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCsvConfig *xberg_extraction_config_csv(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_csv(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_url_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionConfig *xberg_extraction_config_url(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_url(XBERGAlefHandle handle);
 
 /**
  * Get the `max_archive_depth` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_config_max_archive_depth(const XBERGExtractionConfig *ptr);
+uintptr_t xberg_extraction_config_max_archive_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `tree_sitter` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_tree_sitter_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterConfig *xberg_extraction_config_tree_sitter(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_tree_sitter(XBERGAlefHandle handle);
 
 /**
  * Get the `structured_extraction` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_structured_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredExtractionConfig *xberg_extraction_config_structured_extraction(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_structured_extraction(XBERGAlefHandle handle);
 
 /**
  * Get the `ner` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ner_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNerConfig *xberg_extraction_config_ner(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_ner(XBERGAlefHandle handle);
 
 /**
  * Get the `redaction` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_redaction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionConfig *xberg_extraction_config_redaction(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_redaction(XBERGAlefHandle handle);
 
 /**
  * Get the `summarization` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_summarization_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummarizationConfig *xberg_extraction_config_summarization(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_summarization(XBERGAlefHandle handle);
 
 /**
  * Get the `translation` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_translation_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslationConfig *xberg_extraction_config_translation(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_translation(XBERGAlefHandle handle);
 
 /**
  * Get the `page_classification` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_classification_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageClassificationConfig *xberg_extraction_config_page_classification(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_page_classification(XBERGAlefHandle handle);
 
 /**
  * Get the `chunk_classification` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_classification_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *xberg_extraction_config_chunk_classification(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_chunk_classification(XBERGAlefHandle handle);
 
 /**
  * Get the `captioning` field from a `ExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_captioning_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCaptioningConfig *xberg_extraction_config_captioning(const XBERGExtractionConfig *ptr);
+XBERGAlefHandle xberg_extraction_config_captioning(XBERGAlefHandle handle);
 
 /**
  * Get the `qr_codes` field from a `ExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extraction_config_qr_codes(const XBERGExtractionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGExtractionConfig *xberg_extraction_config_default(void);
+int32_t xberg_extraction_config_qr_codes(XBERGAlefHandle handle);
 
 /**
  * Validate the configuration, returning an error if any settings are invalid.
@@ -4368,7 +4452,7 @@ XBERGExtractionConfig *xberg_extraction_config_default(void);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_extraction_config_validate(const XBERGExtractionConfig *this_);
+int32_t xberg_extraction_config_validate(XBERGAlefHandle this_);
 
 /**
  * Check if image processing is needed by examining OCR and image extraction settings.
@@ -4390,7 +4474,7 @@ int32_t xberg_extraction_config_validate(const XBERGExtractionConfig *this_);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_extraction_config_needs_image_data(const XBERGExtractionConfig *this_);
+int32_t xberg_extraction_config_needs_image_data(XBERGAlefHandle this_);
 
 /**
  * Returns `true` when any image processing is needed during extraction.
@@ -4403,7 +4487,7 @@ int32_t xberg_extraction_config_needs_image_data(const XBERGExtractionConfig *th
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_extraction_config_needs_image_processing(const XBERGExtractionConfig *this_);
+int32_t xberg_extraction_config_needs_image_processing(XBERGAlefHandle this_);
 
 /**
  * Create a `FileExtractionConfig` from a JSON string. Returns null on failure.
@@ -4411,253 +4495,307 @@ int32_t xberg_extraction_config_needs_image_processing(const XBERGExtractionConf
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_file_extraction_config_free`.
  */
-XBERGFileExtractionConfig *xberg_file_extraction_config_from_json(const char *json);
+XBERGAlefHandle xberg_file_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `FileExtractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_file_extraction_config_to_json(const XBERGFileExtractionConfig *ptr);
+char *xberg_file_extraction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FileExtractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_file_extraction_config_free(XBERGFileExtractionConfig *ptr);
+void xberg_file_extraction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_quality_processing` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_enable_quality_processing(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_enable_quality_processing(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrConfig *xberg_file_extraction_config_ocr(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `force_ocr` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_force_ocr(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_force_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_strategy` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrStrategy *xberg_file_extraction_config_ocr_strategy(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_ocr_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `force_ocr_pages` field from a `FileExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_file_extraction_config_force_ocr_pages(const XBERGFileExtractionConfig *ptr);
+char *xberg_file_extraction_config_force_ocr_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `disable_ocr` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_disable_ocr(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_disable_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `chunking` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunking_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkingConfig *xberg_file_extraction_config_chunking(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_chunking(XBERGAlefHandle handle);
 
 /**
  * Get the `content_filter` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_content_filter_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentFilterConfig *xberg_file_extraction_config_content_filter(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_content_filter(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageExtractionConfig *xberg_file_extraction_config_images(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_images(XBERGAlefHandle handle);
 
 /**
  * Get the `pdf_options` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pdf_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfConfig *xberg_file_extraction_config_pdf_options(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_pdf_options(XBERGAlefHandle handle);
 
 /**
  * Get the `token_reduction` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_token_reduction_options_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTokenReductionOptions *xberg_file_extraction_config_token_reduction(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_token_reduction(XBERGAlefHandle handle);
 
 /**
  * Get the `language_detection` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_language_detection_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLanguageDetectionConfig *xberg_file_extraction_config_language_detection(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_language_detection(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageConfig *xberg_file_extraction_config_pages(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_keyword_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordConfig *xberg_file_extraction_config_keywords(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `postprocessor` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_post_processor_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPostProcessorConfig *xberg_file_extraction_config_postprocessor(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_postprocessor(XBERGAlefHandle handle);
 
 /**
  * Get the `html_output` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_html_output_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlOutputConfig *xberg_file_extraction_config_html_output(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_html_output(XBERGAlefHandle handle);
 
 /**
  * Get the `result_format` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_result_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGResultFormat *xberg_file_extraction_config_result_format(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_result_format(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_output_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOutputFormat *xberg_file_extraction_config_output_format(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `include_document_structure` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_include_document_structure(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_include_document_structure(XBERGAlefHandle handle);
 
 /**
  * Get the `layout` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_layout_detection_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutDetectionConfig *xberg_file_extraction_config_layout(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_layout(XBERGAlefHandle handle);
 
 /**
  * Get the `transcription` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_transcription_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranscriptionConfig *xberg_file_extraction_config_transcription(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_transcription(XBERGAlefHandle handle);
 
 /**
  * Get the `timeout_secs` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_file_extraction_config_timeout_secs(const XBERGFileExtractionConfig *ptr);
+uint64_t xberg_file_extraction_config_timeout_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `tree_sitter` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_tree_sitter_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterConfig *xberg_file_extraction_config_tree_sitter(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_tree_sitter(XBERGAlefHandle handle);
 
 /**
  * Get the `structured_extraction` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_structured_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredExtractionConfig *xberg_file_extraction_config_structured_extraction(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_structured_extraction(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_url_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionConfig *xberg_file_extraction_config_url(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_url(XBERGAlefHandle handle);
 
 /**
  * Get the `ner` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ner_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNerConfig *xberg_file_extraction_config_ner(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_ner(XBERGAlefHandle handle);
 
 /**
  * Get the `redaction` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_redaction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionConfig *xberg_file_extraction_config_redaction(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_redaction(XBERGAlefHandle handle);
 
 /**
  * Get the `summarization` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_summarization_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummarizationConfig *xberg_file_extraction_config_summarization(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_summarization(XBERGAlefHandle handle);
 
 /**
  * Get the `translation` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_translation_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslationConfig *xberg_file_extraction_config_translation(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_translation(XBERGAlefHandle handle);
 
 /**
  * Get the `page_classification` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_classification_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageClassificationConfig *xberg_file_extraction_config_page_classification(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_page_classification(XBERGAlefHandle handle);
 
 /**
  * Get the `chunk_classification` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_classification_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *xberg_file_extraction_config_chunk_classification(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_chunk_classification(XBERGAlefHandle handle);
 
 /**
  * Get the `captioning` field from a `FileExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_captioning_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCaptioningConfig *xberg_file_extraction_config_captioning(const XBERGFileExtractionConfig *ptr);
+XBERGAlefHandle xberg_file_extraction_config_captioning(XBERGAlefHandle handle);
 
 /**
  * Get the `qr_codes` field from a `FileExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_file_extraction_config_qr_codes(const XBERGFileExtractionConfig *ptr);
+int32_t xberg_file_extraction_config_qr_codes(XBERGAlefHandle handle);
 
 /**
  * Create a `SvgOptions` from a JSON string. Returns null on failure.
@@ -4665,42 +4803,36 @@ int32_t xberg_file_extraction_config_qr_codes(const XBERGFileExtractionConfig *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_svg_options_free`.
  */
-XBERGSvgOptions *xberg_svg_options_from_json(const char *json);
+XBERGAlefHandle xberg_svg_options_from_json(const char *json);
 
 /**
  * Serialize a `SvgOptions` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_svg_options_to_json(const XBERGSvgOptions *ptr);
+char *xberg_svg_options_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SvgOptions` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_svg_options_free(XBERGSvgOptions *ptr);
+void xberg_svg_options_free(XBERGAlefHandle handle);
 
 /**
  * Get the `sanitize` field from a `SvgOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_svg_options_sanitize(const XBERGSvgOptions *ptr);
+int32_t xberg_svg_options_sanitize(XBERGAlefHandle handle);
 
 /**
  * Get the `render_dpi` field from a `SvgOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_svg_options_render_dpi(const XBERGSvgOptions *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGSvgOptions *xberg_svg_options_default(void);
+float xberg_svg_options_render_dpi(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractInput` from a JSON string. Returns null on failure.
@@ -4708,88 +4840,94 @@ XBERGSvgOptions *xberg_svg_options_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extract_input_free`.
  */
-XBERGExtractInput *xberg_extract_input_from_json(const char *json);
+XBERGAlefHandle xberg_extract_input_from_json(const char *json);
 
 /**
  * Serialize a `ExtractInput` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extract_input_to_json(const XBERGExtractInput *ptr);
+char *xberg_extract_input_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractInput` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extract_input_free(XBERGExtractInput *ptr);
+void xberg_extract_input_free(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `ExtractInput`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extract_input_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractInputKind *xberg_extract_input_kind(const XBERGExtractInput *ptr);
+XBERGAlefHandle xberg_extract_input_kind(XBERGAlefHandle handle);
 
 /**
  * Get the `bytes` field from a `ExtractInput`.
+ * The returned byte pointer is borrowed from `ptr` and must not be freed.
+ * It remains valid until `ptr` is destroyed or the field is mutated.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t *xberg_extract_input_bytes(const XBERGExtractInput *ptr,
+uint8_t *xberg_extract_input_bytes(XBERGAlefHandle handle,
                                    uintptr_t *out_len);
 
 /**
  * Get the `uri` field from a `ExtractInput`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extract_input_uri(const XBERGExtractInput *ptr);
+char *xberg_extract_input_uri(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `ExtractInput`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extract_input_mime_type(const XBERGExtractInput *ptr);
+char *xberg_extract_input_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `filename` field from a `ExtractInput`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extract_input_filename(const XBERGExtractInput *ptr);
+char *xberg_extract_input_filename(XBERGAlefHandle handle);
 
 /**
  * Get the `config` field from a `ExtractInput`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_file_extraction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFileExtractionConfig *xberg_extract_input_config(const XBERGExtractInput *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGExtractInput *xberg_extract_input_default(void);
+XBERGAlefHandle xberg_extract_input_config(XBERGAlefHandle handle);
 
 /**
  * Build a bytes input with a MIME type and optional filename hint.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGExtractInput *xberg_extract_input_from_bytes(const uint8_t *bytes,
-                                                  uintptr_t bytes_len,
-                                                  const char *mime_type,
-                                                  const char *filename);
+XBERGAlefHandle xberg_extract_input_from_bytes(const uint8_t *bytes,
+                                               uintptr_t bytes_len,
+                                               const char *mime_type,
+                                               const char *filename);
 
 /**
  * Build a URI input from a local path, `file://` URI, or HTTP(S) URL.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGExtractInput *xberg_extract_input_from_uri(const char *uri);
+XBERGAlefHandle xberg_extract_input_from_uri(const char *uri);
 
 /**
  * Create a `ExtractionErrorItem` from a JSON string. Returns null on failure.
@@ -4797,57 +4935,63 @@ XBERGExtractInput *xberg_extract_input_from_uri(const char *uri);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_error_item_free`.
  */
-XBERGExtractionErrorItem *xberg_extraction_error_item_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_error_item_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionErrorItem` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_error_item_to_json(const XBERGExtractionErrorItem *ptr);
+char *xberg_extraction_error_item_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionErrorItem` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_error_item_free(XBERGExtractionErrorItem *ptr);
+void xberg_extraction_error_item_free(XBERGAlefHandle handle);
 
 /**
  * Get the `index` field from a `ExtractionErrorItem`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_error_item_index(const XBERGExtractionErrorItem *ptr);
+uintptr_t xberg_extraction_error_item_index(XBERGAlefHandle handle);
 
 /**
  * Get the `code` field from a `ExtractionErrorItem`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extraction_error_item_code(const XBERGExtractionErrorItem *ptr);
+uint32_t xberg_extraction_error_item_code(XBERGAlefHandle handle);
 
 /**
  * Get the `error_type` field from a `ExtractionErrorItem`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_error_item_error_type(const XBERGExtractionErrorItem *ptr);
+char *xberg_extraction_error_item_error_type(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `ExtractionErrorItem`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_error_item_source(const XBERGExtractionErrorItem *ptr);
+char *xberg_extraction_error_item_source(XBERGAlefHandle handle);
 
 /**
  * Get the `message` field from a `ExtractionErrorItem`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_error_item_message(const XBERGExtractionErrorItem *ptr);
+char *xberg_extraction_error_item_message(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractionSummary` from a JSON string. Returns null on failure.
@@ -4855,64 +4999,64 @@ char *xberg_extraction_error_item_message(const XBERGExtractionErrorItem *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_summary_free`.
  */
-XBERGExtractionSummary *xberg_extraction_summary_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_summary_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionSummary` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_summary_to_json(const XBERGExtractionSummary *ptr);
+char *xberg_extraction_summary_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionSummary` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_summary_free(XBERGExtractionSummary *ptr);
+void xberg_extraction_summary_free(XBERGAlefHandle handle);
 
 /**
  * Get the `inputs` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_inputs(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_inputs(XBERGAlefHandle handle);
 
 /**
  * Get the `results` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_results(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_results(XBERGAlefHandle handle);
 
 /**
  * Get the `errors` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_errors(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_errors(XBERGAlefHandle handle);
 
 /**
  * Get the `remote_urls` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_remote_urls(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_remote_urls(XBERGAlefHandle handle);
 
 /**
  * Get the `pages_crawled` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_pages_crawled(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_pages_crawled(XBERGAlefHandle handle);
 
 /**
  * Get the `documents_downloaded` field from a `ExtractionSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_summary_documents_downloaded(const XBERGExtractionSummary *ptr);
+uintptr_t xberg_extraction_summary_documents_downloaded(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractionResult` from a JSON string. Returns null on failure.
@@ -4920,71 +5064,81 @@ uintptr_t xberg_extraction_summary_documents_downloaded(const XBERGExtractionSum
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_result_free`.
  */
-XBERGExtractionResult *xberg_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_result_to_json(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_result_free(XBERGExtractionResult *ptr);
+void xberg_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `results` field from a `ExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_result_results(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_results(XBERGAlefHandle handle);
 
 /**
  * Get the `errors` field from a `ExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_result_errors(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_errors(XBERGAlefHandle handle);
 
 /**
  * Get the `summary` field from a `ExtractionResult`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extraction_summary_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionSummary *xberg_extraction_result_summary(const XBERGExtractionResult *ptr);
+XBERGAlefHandle xberg_extraction_result_summary(XBERGAlefHandle handle);
 
 /**
  * Get the `crawl_final_urls` field from a `ExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_result_crawl_final_urls(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_crawl_final_urls(XBERGAlefHandle handle);
 
 /**
  * Get the `crawl_redirect_count` field from a `ExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_extraction_result_crawl_redirect_count(const XBERGExtractionResult *ptr);
+uintptr_t xberg_extraction_result_crawl_redirect_count(XBERGAlefHandle handle);
 
 /**
  * Get the `crawl_unique_normalized_urls` field from a `ExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_result_crawl_unique_normalized_urls(const XBERGExtractionResult *ptr);
+char *xberg_extraction_result_crawl_unique_normalized_urls(XBERGAlefHandle handle);
 
 /**
  * Build an output containing one successful result.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGExtractionResult *xberg_extraction_result_single(const XBERGExtractedDocument *result);
+XBERGAlefHandle xberg_extraction_result_single(XBERGAlefHandle result);
 
 /**
  * Create a `UrlExtractionConfig` from a JSON string. Returns null on failure.
@@ -4992,77 +5146,77 @@ XBERGExtractionResult *xberg_extraction_result_single(const XBERGExtractedDocume
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_url_extraction_config_free`.
  */
-XBERGUrlExtractionConfig *xberg_url_extraction_config_from_json(const char *json);
+XBERGAlefHandle xberg_url_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `UrlExtractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_url_extraction_config_to_json(const XBERGUrlExtractionConfig *ptr);
+char *xberg_url_extraction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `UrlExtractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_url_extraction_config_free(XBERGUrlExtractionConfig *ptr);
+void xberg_url_extraction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `mode` field from a `UrlExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_url_extraction_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlExtractionMode *xberg_url_extraction_config_mode(const XBERGUrlExtractionConfig *ptr);
+XBERGAlefHandle xberg_url_extraction_config_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `crawl` field from a `UrlExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_crawl_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCrawlConfig *xberg_url_extraction_config_crawl(const XBERGUrlExtractionConfig *ptr);
+XBERGAlefHandle xberg_url_extraction_config_crawl(XBERGAlefHandle handle);
 
 /**
  * Get the `document_url_pattern` field from a `UrlExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_url_extraction_config_document_url_pattern(const XBERGUrlExtractionConfig *ptr);
+char *xberg_url_extraction_config_document_url_pattern(XBERGAlefHandle handle);
 
 /**
  * Get the `max_document_urls_per_result` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_url_extraction_config_max_document_urls_per_result(const XBERGUrlExtractionConfig *ptr);
+uint32_t xberg_url_extraction_config_max_document_urls_per_result(XBERGAlefHandle handle);
 
 /**
  * Get the `max_total_urls` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_url_extraction_config_max_total_urls(const XBERGUrlExtractionConfig *ptr);
+uint32_t xberg_url_extraction_config_max_total_urls(XBERGAlefHandle handle);
 
 /**
  * Get the `allow_local_file_inputs` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_url_extraction_config_allow_local_file_inputs(const XBERGUrlExtractionConfig *ptr);
+int32_t xberg_url_extraction_config_allow_local_file_inputs(XBERGAlefHandle handle);
 
 /**
  * Get the `allow_file_uris` field from a `UrlExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_url_extraction_config_allow_file_uris(const XBERGUrlExtractionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGUrlExtractionConfig *xberg_url_extraction_config_default(void);
+int32_t xberg_url_extraction_config_allow_file_uris(XBERGAlefHandle handle);
 
 /**
  * Create a `ImageExtractionConfig` from a JSON string. Returns null on failure.
@@ -5070,140 +5224,138 @@ XBERGUrlExtractionConfig *xberg_url_extraction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_extraction_config_free`.
  */
-XBERGImageExtractionConfig *xberg_image_extraction_config_from_json(const char *json);
+XBERGAlefHandle xberg_image_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `ImageExtractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_extraction_config_to_json(const XBERGImageExtractionConfig *ptr);
+char *xberg_image_extraction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ImageExtractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_image_extraction_config_free(XBERGImageExtractionConfig *ptr);
+void xberg_image_extraction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_images` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_extract_images(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_extract_images(XBERGAlefHandle handle);
 
 /**
  * Get the `target_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_target_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_target_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `max_image_dimension` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_max_image_dimension(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_max_image_dimension(XBERGAlefHandle handle);
 
 /**
  * Get the `inject_placeholders` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_inject_placeholders(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_inject_placeholders(XBERGAlefHandle handle);
 
 /**
  * Get the `auto_adjust_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_auto_adjust_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_auto_adjust_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `min_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_min_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_min_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `max_dpi` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_max_dpi(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_max_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `max_images_per_page` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_image_extraction_config_max_images_per_page(const XBERGImageExtractionConfig *ptr);
+uint32_t xberg_image_extraction_config_max_images_per_page(XBERGAlefHandle handle);
 
 /**
  * Get the `classify` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_classify(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_classify(XBERGAlefHandle handle);
 
 /**
  * Get the `include_page_rasters` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_include_page_rasters(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_include_page_rasters(XBERGAlefHandle handle);
 
 /**
  * Get the `run_ocr_on_images` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_run_ocr_on_images(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_run_ocr_on_images(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_text_only` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_ocr_text_only(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_ocr_text_only(XBERGAlefHandle handle);
 
 /**
  * Get the `append_ocr_text` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_append_ocr_text(const XBERGImageExtractionConfig *ptr);
+int32_t xberg_image_extraction_config_append_ocr_text(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `ImageExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_output_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageOutputFormat *xberg_image_extraction_config_output_format(const XBERGImageExtractionConfig *ptr);
+XBERGAlefHandle xberg_image_extraction_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `svg` field from a `ImageExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_svg_options_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSvgOptions *xberg_image_extraction_config_svg(const XBERGImageExtractionConfig *ptr);
+XBERGAlefHandle xberg_image_extraction_config_svg(XBERGAlefHandle handle);
 
 /**
  * Get the `include_data_base64` field from a `ImageExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_extraction_config_include_data_base64(const XBERGImageExtractionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGImageExtractionConfig *xberg_image_extraction_config_default(void);
+int32_t xberg_image_extraction_config_include_data_base64(XBERGAlefHandle handle);
 
 /**
  * Create a `TokenReductionOptions` from a JSON string. Returns null on failure.
@@ -5211,42 +5363,38 @@ XBERGImageExtractionConfig *xberg_image_extraction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_token_reduction_options_free`.
  */
-XBERGTokenReductionOptions *xberg_token_reduction_options_from_json(const char *json);
+XBERGAlefHandle xberg_token_reduction_options_from_json(const char *json);
 
 /**
  * Serialize a `TokenReductionOptions` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_token_reduction_options_to_json(const XBERGTokenReductionOptions *ptr);
+char *xberg_token_reduction_options_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TokenReductionOptions` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_token_reduction_options_free(XBERGTokenReductionOptions *ptr);
+void xberg_token_reduction_options_free(XBERGAlefHandle handle);
 
 /**
  * Get the `mode` field from a `TokenReductionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_options_mode(const XBERGTokenReductionOptions *ptr);
+char *xberg_token_reduction_options_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_important_words` field from a `TokenReductionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_options_preserve_important_words(const XBERGTokenReductionOptions *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTokenReductionOptions *xberg_token_reduction_options_default(void);
+int32_t xberg_token_reduction_options_preserve_important_words(XBERGAlefHandle handle);
 
 /**
  * Create a `LanguageDetectionConfig` from a JSON string. Returns null on failure.
@@ -5254,49 +5402,43 @@ XBERGTokenReductionOptions *xberg_token_reduction_options_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_language_detection_config_free`.
  */
-XBERGLanguageDetectionConfig *xberg_language_detection_config_from_json(const char *json);
+XBERGAlefHandle xberg_language_detection_config_from_json(const char *json);
 
 /**
  * Serialize a `LanguageDetectionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_language_detection_config_to_json(const XBERGLanguageDetectionConfig *ptr);
+char *xberg_language_detection_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LanguageDetectionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_language_detection_config_free(XBERGLanguageDetectionConfig *ptr);
+void xberg_language_detection_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `LanguageDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_language_detection_config_enabled(const XBERGLanguageDetectionConfig *ptr);
+int32_t xberg_language_detection_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `min_confidence` field from a `LanguageDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_language_detection_config_min_confidence(const XBERGLanguageDetectionConfig *ptr);
+double xberg_language_detection_config_min_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `detect_multiple` field from a `LanguageDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_language_detection_config_detect_multiple(const XBERGLanguageDetectionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGLanguageDetectionConfig *xberg_language_detection_config_default(void);
+int32_t xberg_language_detection_config_detect_multiple(XBERGAlefHandle handle);
 
 /**
  * Create a `HtmlOutputConfig` from a JSON string. Returns null on failure.
@@ -5304,63 +5446,65 @@ XBERGLanguageDetectionConfig *xberg_language_detection_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_html_output_config_free`.
  */
-XBERGHtmlOutputConfig *xberg_html_output_config_from_json(const char *json);
+XBERGAlefHandle xberg_html_output_config_from_json(const char *json);
 
 /**
  * Serialize a `HtmlOutputConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_html_output_config_to_json(const XBERGHtmlOutputConfig *ptr);
+char *xberg_html_output_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HtmlOutputConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_html_output_config_free(XBERGHtmlOutputConfig *ptr);
+void xberg_html_output_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `css` field from a `HtmlOutputConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_output_config_css(const XBERGHtmlOutputConfig *ptr);
+char *xberg_html_output_config_css(XBERGAlefHandle handle);
 
 /**
  * Get the `css_file` field from a `HtmlOutputConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_output_config_css_file(const XBERGHtmlOutputConfig *ptr);
+char *xberg_html_output_config_css_file(XBERGAlefHandle handle);
 
 /**
  * Get the `theme` field from a `HtmlOutputConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_html_theme_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHtmlTheme *xberg_html_output_config_theme(const XBERGHtmlOutputConfig *ptr);
+XBERGAlefHandle xberg_html_output_config_theme(XBERGAlefHandle handle);
 
 /**
  * Get the `class_prefix` field from a `HtmlOutputConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_output_config_class_prefix(const XBERGHtmlOutputConfig *ptr);
+char *xberg_html_output_config_class_prefix(XBERGAlefHandle handle);
 
 /**
  * Get the `embed_css` field from a `HtmlOutputConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_html_output_config_embed_css(const XBERGHtmlOutputConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGHtmlOutputConfig *xberg_html_output_config_default(void);
+int32_t xberg_html_output_config_embed_css(XBERGAlefHandle handle);
 
 /**
  * Create a `LateInteractionConfig` from a JSON string. Returns null on failure.
@@ -5368,84 +5512,84 @@ XBERGHtmlOutputConfig *xberg_html_output_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_config_free`.
  */
-XBERGLateInteractionConfig *xberg_late_interaction_config_from_json(const char *json);
+XBERGAlefHandle xberg_late_interaction_config_from_json(const char *json);
 
 /**
  * Serialize a `LateInteractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_late_interaction_config_to_json(const XBERGLateInteractionConfig *ptr);
+char *xberg_late_interaction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LateInteractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_late_interaction_config_free(XBERGLateInteractionConfig *ptr);
+void xberg_late_interaction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `LateInteractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_late_interaction_model_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLateInteractionModelType *xberg_late_interaction_config_model(const XBERGLateInteractionConfig *ptr);
+XBERGAlefHandle xberg_late_interaction_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `batch_size` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_config_batch_size(const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_batch_size(XBERGAlefHandle handle);
 
 /**
  * Get the `max_length` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_config_max_length(const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `query_max_length` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_config_query_max_length(const XBERGLateInteractionConfig *ptr);
+uintptr_t xberg_late_interaction_config_query_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `show_download_progress` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_late_interaction_config_show_download_progress(const XBERGLateInteractionConfig *ptr);
+int32_t xberg_late_interaction_config_show_download_progress(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `LateInteractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_config_cache_dir(const XBERGLateInteractionConfig *ptr);
+char *xberg_late_interaction_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `LateInteractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_late_interaction_config_acceleration(const XBERGLateInteractionConfig *ptr);
+XBERGAlefHandle xberg_late_interaction_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `max_embed_duration_secs` field from a `LateInteractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_late_interaction_config_max_embed_duration_secs(const XBERGLateInteractionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGLateInteractionConfig *xberg_late_interaction_config_default(void);
+uint64_t xberg_late_interaction_config_max_embed_duration_secs(XBERGAlefHandle handle);
 
 /**
  * Create a `LayoutDetectionConfig` from a JSON string. Returns null on failure.
@@ -5453,84 +5597,88 @@ XBERGLateInteractionConfig *xberg_late_interaction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_layout_detection_config_free`.
  */
-XBERGLayoutDetectionConfig *xberg_layout_detection_config_from_json(const char *json);
+XBERGAlefHandle xberg_layout_detection_config_from_json(const char *json);
 
 /**
  * Serialize a `LayoutDetectionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_layout_detection_config_to_json(const XBERGLayoutDetectionConfig *ptr);
+char *xberg_layout_detection_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LayoutDetectionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_layout_detection_config_free(XBERGLayoutDetectionConfig *ptr);
+void xberg_layout_detection_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `strategy` field from a `LayoutDetectionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_layout_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutStrategy *xberg_layout_detection_config_strategy(const XBERGLayoutDetectionConfig *ptr);
+XBERGAlefHandle xberg_layout_detection_config_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence_threshold` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_layout_detection_config_confidence_threshold(const XBERGLayoutDetectionConfig *ptr);
+float xberg_layout_detection_config_confidence_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `apply_heuristics` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_layout_detection_config_apply_heuristics(const XBERGLayoutDetectionConfig *ptr);
+int32_t xberg_layout_detection_config_apply_heuristics(XBERGAlefHandle handle);
 
 /**
  * Get the `table_model` field from a `LayoutDetectionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_table_model_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableModel *xberg_layout_detection_config_table_model(const XBERGLayoutDetectionConfig *ptr);
+XBERGAlefHandle xberg_layout_detection_config_table_model(XBERGAlefHandle handle);
 
 /**
  * Get the `formula_model` field from a `LayoutDetectionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_formula_model_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFormulaModel *xberg_layout_detection_config_formula_model(const XBERGLayoutDetectionConfig *ptr);
+XBERGAlefHandle xberg_layout_detection_config_formula_model(XBERGAlefHandle handle);
 
 /**
  * Get the `table_overlap_preference` field from a `LayoutDetectionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_table_overlap_preference_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableOverlapPreference *xberg_layout_detection_config_table_overlap_preference(const XBERGLayoutDetectionConfig *ptr);
+XBERGAlefHandle xberg_layout_detection_config_table_overlap_preference(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `LayoutDetectionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_layout_detection_config_acceleration(const XBERGLayoutDetectionConfig *ptr);
+XBERGAlefHandle xberg_layout_detection_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_chart_understanding` field from a `LayoutDetectionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_layout_detection_config_enable_chart_understanding(const XBERGLayoutDetectionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGLayoutDetectionConfig *xberg_layout_detection_config_default(void);
+int32_t xberg_layout_detection_config_enable_chart_understanding(XBERGAlefHandle handle);
 
 /**
  * Create a `LlmConfig` from a JSON string. Returns null on failure.
@@ -5538,204 +5686,230 @@ XBERGLayoutDetectionConfig *xberg_layout_detection_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_config_free`.
  */
-XBERGLlmConfig *xberg_llm_config_from_json(const char *json);
+XBERGAlefHandle xberg_llm_config_from_json(const char *json);
 
 /**
  * Serialize a `LlmConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_config_to_json(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_config_free(XBERGLlmConfig *ptr);
+void xberg_llm_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_model(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `api_key` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_api_key(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_api_key(XBERGAlefHandle handle);
 
 /**
  * Get the `base_url` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_base_url(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_base_url(XBERGAlefHandle handle);
 
 /**
  * Get the `timeout_secs` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_config_timeout_secs(const XBERGLlmConfig *ptr);
+uint64_t xberg_llm_config_timeout_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `max_retries` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_llm_config_max_retries(const XBERGLlmConfig *ptr);
+uint32_t xberg_llm_config_max_retries(XBERGAlefHandle handle);
 
 /**
  * Get the `temperature` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_config_temperature(const XBERGLlmConfig *ptr);
+double xberg_llm_config_temperature(XBERGAlefHandle handle);
 
 /**
  * Get the `max_tokens` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_config_max_tokens(const XBERGLlmConfig *ptr);
+uint64_t xberg_llm_config_max_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `top_p` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_config_top_p(const XBERGLlmConfig *ptr);
+double xberg_llm_config_top_p(XBERGAlefHandle handle);
 
 /**
  * Get the `stop` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_stop(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_stop(XBERGAlefHandle handle);
 
 /**
  * Get the `seed` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int64_t xberg_llm_config_seed(const XBERGLlmConfig *ptr);
+int64_t xberg_llm_config_seed(XBERGAlefHandle handle);
 
 /**
  * Get the `presence_penalty` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_config_presence_penalty(const XBERGLlmConfig *ptr);
+double xberg_llm_config_presence_penalty(XBERGAlefHandle handle);
 
 /**
  * Get the `frequency_penalty` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_config_frequency_penalty(const XBERGLlmConfig *ptr);
+double xberg_llm_config_frequency_penalty(XBERGAlefHandle handle);
 
 /**
  * Get the `reasoning_effort` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_reasoning_effort(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_reasoning_effort(XBERGAlefHandle handle);
 
 /**
  * Get the `extra_body` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_extra_body(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_extra_body(XBERGAlefHandle handle);
 
 /**
  * Get the `load_env` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_llm_config_load_env(const XBERGLlmConfig *ptr);
+int32_t xberg_llm_config_load_env(XBERGAlefHandle handle);
 
 /**
  * Get the `headers` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_headers(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_headers(XBERGAlefHandle handle);
 
 /**
  * Get the `providers` field from a `LlmConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_config_providers(const XBERGLlmConfig *ptr);
+char *xberg_llm_config_providers(XBERGAlefHandle handle);
 
 /**
  * Get the `cache` field from a `LlmConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_cache_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmCacheConfig *xberg_llm_config_cache(const XBERGLlmConfig *ptr);
+XBERGAlefHandle xberg_llm_config_cache(XBERGAlefHandle handle);
 
 /**
  * Get the `budget` field from a `LlmConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_budget_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmBudgetConfig *xberg_llm_config_budget(const XBERGLlmConfig *ptr);
+XBERGAlefHandle xberg_llm_config_budget(XBERGAlefHandle handle);
 
 /**
  * Get the `rate_limit` field from a `LlmConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_rate_limit_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmRateLimitConfig *xberg_llm_config_rate_limit(const XBERGLlmConfig *ptr);
+XBERGAlefHandle xberg_llm_config_rate_limit(XBERGAlefHandle handle);
 
 /**
  * Get the `cost_tracking` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_llm_config_cost_tracking(const XBERGLlmConfig *ptr);
+int32_t xberg_llm_config_cost_tracking(XBERGAlefHandle handle);
 
 /**
  * Get the `tracing` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_llm_config_tracing(const XBERGLlmConfig *ptr);
+int32_t xberg_llm_config_tracing(XBERGAlefHandle handle);
 
 /**
  * Get the `cooldown_secs` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_config_cooldown_secs(const XBERGLlmConfig *ptr);
+uint64_t xberg_llm_config_cooldown_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `health_check_secs` field from a `LlmConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_config_health_check_secs(const XBERGLlmConfig *ptr);
+uint64_t xberg_llm_config_health_check_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `bedrock` field from a `LlmConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bedrock_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBedrockConfig *xberg_llm_config_bedrock(const XBERGLlmConfig *ptr);
+XBERGAlefHandle xberg_llm_config_bedrock(XBERGAlefHandle handle);
 
 /**
  * Get the `credential_provider` field from a `LlmConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_credential_provider_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCredentialProviderConfig *xberg_llm_config_credential_provider(const XBERGLlmConfig *ptr);
+XBERGAlefHandle xberg_llm_config_credential_provider(XBERGAlefHandle handle);
 
 /**
  * Validate the request-time sampling parameters that have a documented range:
@@ -5749,7 +5923,7 @@ XBERGCredentialProviderConfig *xberg_llm_config_credential_provider(const XBERGL
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_llm_config_validate(const XBERGLlmConfig *this_);
+int32_t xberg_llm_config_validate(XBERGAlefHandle this_);
 
 /**
  * Create a `LlmProviderConfig` from a JSON string. Returns null on failure.
@@ -5757,50 +5931,58 @@ int32_t xberg_llm_config_validate(const XBERGLlmConfig *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_provider_config_free`.
  */
-XBERGLlmProviderConfig *xberg_llm_provider_config_from_json(const char *json);
+XBERGAlefHandle xberg_llm_provider_config_from_json(const char *json);
 
 /**
  * Serialize a `LlmProviderConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_provider_config_to_json(const XBERGLlmProviderConfig *ptr);
+char *xberg_llm_provider_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmProviderConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_provider_config_free(XBERGLlmProviderConfig *ptr);
+void xberg_llm_provider_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `LlmProviderConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_provider_config_name(const XBERGLlmProviderConfig *ptr);
+char *xberg_llm_provider_config_name(XBERGAlefHandle handle);
 
 /**
  * Get the `base_url` field from a `LlmProviderConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_provider_config_base_url(const XBERGLlmProviderConfig *ptr);
+char *xberg_llm_provider_config_base_url(XBERGAlefHandle handle);
 
 /**
  * Get the `auth_header` field from a `LlmProviderConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_provider_config_auth_header(const XBERGLlmProviderConfig *ptr);
+char *xberg_llm_provider_config_auth_header(XBERGAlefHandle handle);
 
 /**
  * Get the `model_prefixes` field from a `LlmProviderConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_provider_config_model_prefixes(const XBERGLlmProviderConfig *ptr);
+char *xberg_llm_provider_config_model_prefixes(XBERGAlefHandle handle);
 
 /**
  * Create a `LlmCacheConfig` from a JSON string. Returns null on failure.
@@ -5808,50 +5990,54 @@ char *xberg_llm_provider_config_model_prefixes(const XBERGLlmProviderConfig *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_cache_config_free`.
  */
-XBERGLlmCacheConfig *xberg_llm_cache_config_from_json(const char *json);
+XBERGAlefHandle xberg_llm_cache_config_from_json(const char *json);
 
 /**
  * Serialize a `LlmCacheConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_cache_config_to_json(const XBERGLlmCacheConfig *ptr);
+char *xberg_llm_cache_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmCacheConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_cache_config_free(XBERGLlmCacheConfig *ptr);
+void xberg_llm_cache_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `max_entries` field from a `LlmCacheConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_llm_cache_config_max_entries(const XBERGLlmCacheConfig *ptr);
+uintptr_t xberg_llm_cache_config_max_entries(XBERGAlefHandle handle);
 
 /**
  * Get the `ttl_seconds` field from a `LlmCacheConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_cache_config_ttl_seconds(const XBERGLlmCacheConfig *ptr);
+uint64_t xberg_llm_cache_config_ttl_seconds(XBERGAlefHandle handle);
 
 /**
  * Get the `backend` field from a `LlmCacheConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_cache_config_backend(const XBERGLlmCacheConfig *ptr);
+char *xberg_llm_cache_config_backend(XBERGAlefHandle handle);
 
 /**
  * Get the `backend_config` field from a `LlmCacheConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_cache_config_backend_config(const XBERGLlmCacheConfig *ptr);
+char *xberg_llm_cache_config_backend_config(XBERGAlefHandle handle);
 
 /**
  * Create a `LlmBudgetConfig` from a JSON string. Returns null on failure.
@@ -5859,43 +6045,47 @@ char *xberg_llm_cache_config_backend_config(const XBERGLlmCacheConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_budget_config_free`.
  */
-XBERGLlmBudgetConfig *xberg_llm_budget_config_from_json(const char *json);
+XBERGAlefHandle xberg_llm_budget_config_from_json(const char *json);
 
 /**
  * Serialize a `LlmBudgetConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_budget_config_to_json(const XBERGLlmBudgetConfig *ptr);
+char *xberg_llm_budget_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmBudgetConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_budget_config_free(XBERGLlmBudgetConfig *ptr);
+void xberg_llm_budget_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `global_limit` field from a `LlmBudgetConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_budget_config_global_limit(const XBERGLlmBudgetConfig *ptr);
+double xberg_llm_budget_config_global_limit(XBERGAlefHandle handle);
 
 /**
  * Get the `model_limits` field from a `LlmBudgetConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_budget_config_model_limits(const XBERGLlmBudgetConfig *ptr);
+char *xberg_llm_budget_config_model_limits(XBERGAlefHandle handle);
 
 /**
  * Get the `enforcement` field from a `LlmBudgetConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_budget_config_enforcement(const XBERGLlmBudgetConfig *ptr);
+char *xberg_llm_budget_config_enforcement(XBERGAlefHandle handle);
 
 /**
  * Create a `LlmRateLimitConfig` from a JSON string. Returns null on failure.
@@ -5903,43 +6093,43 @@ char *xberg_llm_budget_config_enforcement(const XBERGLlmBudgetConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_rate_limit_config_free`.
  */
-XBERGLlmRateLimitConfig *xberg_llm_rate_limit_config_from_json(const char *json);
+XBERGAlefHandle xberg_llm_rate_limit_config_from_json(const char *json);
 
 /**
  * Serialize a `LlmRateLimitConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_rate_limit_config_to_json(const XBERGLlmRateLimitConfig *ptr);
+char *xberg_llm_rate_limit_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmRateLimitConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_rate_limit_config_free(XBERGLlmRateLimitConfig *ptr);
+void xberg_llm_rate_limit_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `rpm` field from a `LlmRateLimitConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_llm_rate_limit_config_rpm(const XBERGLlmRateLimitConfig *ptr);
+uint32_t xberg_llm_rate_limit_config_rpm(XBERGAlefHandle handle);
 
 /**
  * Get the `tpm` field from a `LlmRateLimitConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_rate_limit_config_tpm(const XBERGLlmRateLimitConfig *ptr);
+uint64_t xberg_llm_rate_limit_config_tpm(XBERGAlefHandle handle);
 
 /**
  * Get the `window_seconds` field from a `LlmRateLimitConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_rate_limit_config_window_seconds(const XBERGLlmRateLimitConfig *ptr);
+uint64_t xberg_llm_rate_limit_config_window_seconds(XBERGAlefHandle handle);
 
 /**
  * Create a `BedrockConfig` from a JSON string. Returns null on failure.
@@ -5947,57 +6137,67 @@ uint64_t xberg_llm_rate_limit_config_window_seconds(const XBERGLlmRateLimitConfi
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_bedrock_config_free`.
  */
-XBERGBedrockConfig *xberg_bedrock_config_from_json(const char *json);
+XBERGAlefHandle xberg_bedrock_config_from_json(const char *json);
 
 /**
  * Serialize a `BedrockConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_bedrock_config_to_json(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `BedrockConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_bedrock_config_free(XBERGBedrockConfig *ptr);
+void xberg_bedrock_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `region` field from a `BedrockConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bedrock_config_region(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_region(XBERGAlefHandle handle);
 
 /**
  * Get the `cross_region_prefix` field from a `BedrockConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bedrock_config_cross_region_prefix(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_cross_region_prefix(XBERGAlefHandle handle);
 
 /**
  * Get the `access_key_id` field from a `BedrockConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bedrock_config_access_key_id(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_access_key_id(XBERGAlefHandle handle);
 
 /**
  * Get the `secret_access_key` field from a `BedrockConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bedrock_config_secret_access_key(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_secret_access_key(XBERGAlefHandle handle);
 
 /**
  * Get the `session_token` field from a `BedrockConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bedrock_config_session_token(const XBERGBedrockConfig *ptr);
+char *xberg_bedrock_config_session_token(XBERGAlefHandle handle);
 
 /**
  * Create a `StructuredExtractionConfig` from a JSON string. Returns null on failure.
@@ -6005,64 +6205,74 @@ char *xberg_bedrock_config_session_token(const XBERGBedrockConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_structured_extraction_config_free`.
  */
-XBERGStructuredExtractionConfig *xberg_structured_extraction_config_from_json(const char *json);
+XBERGAlefHandle xberg_structured_extraction_config_from_json(const char *json);
 
 /**
  * Serialize a `StructuredExtractionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_structured_extraction_config_to_json(const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `StructuredExtractionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_structured_extraction_config_free(XBERGStructuredExtractionConfig *ptr);
+void xberg_structured_extraction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `schema` field from a `StructuredExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema(const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_name` field from a `StructuredExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema_name(const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema_name(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_description` field from a `StructuredExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_schema_description(const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_schema_description(XBERGAlefHandle handle);
 
 /**
  * Get the `strict` field from a `StructuredExtractionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_structured_extraction_config_strict(const XBERGStructuredExtractionConfig *ptr);
+int32_t xberg_structured_extraction_config_strict(XBERGAlefHandle handle);
 
 /**
  * Get the `prompt` field from a `StructuredExtractionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_extraction_config_prompt(const XBERGStructuredExtractionConfig *ptr);
+char *xberg_structured_extraction_config_prompt(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `StructuredExtractionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_structured_extraction_config_llm(const XBERGStructuredExtractionConfig *ptr);
+XBERGAlefHandle xberg_structured_extraction_config_llm(XBERGAlefHandle handle);
 
 /**
  * Create a `NerConfig` from a JSON string. Returns null on failure.
@@ -6070,57 +6280,67 @@ XBERGLlmConfig *xberg_structured_extraction_config_llm(const XBERGStructuredExtr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ner_config_free`.
  */
-XBERGNerConfig *xberg_ner_config_from_json(const char *json);
+XBERGAlefHandle xberg_ner_config_from_json(const char *json);
 
 /**
  * Serialize a `NerConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ner_config_to_json(const XBERGNerConfig *ptr);
+char *xberg_ner_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `NerConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ner_config_free(XBERGNerConfig *ptr);
+void xberg_ner_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `backend` field from a `NerConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ner_backend_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNerBackendKind *xberg_ner_config_backend(const XBERGNerConfig *ptr);
+XBERGAlefHandle xberg_ner_config_backend(XBERGAlefHandle handle);
 
 /**
  * Get the `categories` field from a `NerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ner_config_categories(const XBERGNerConfig *ptr);
+char *xberg_ner_config_categories(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `NerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ner_config_model(const XBERGNerConfig *ptr);
+char *xberg_ner_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `NerConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_ner_config_llm(const XBERGNerConfig *ptr);
+XBERGAlefHandle xberg_ner_config_llm(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_labels` field from a `NerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ner_config_custom_labels(const XBERGNerConfig *ptr);
+char *xberg_ner_config_custom_labels(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrQualityThresholds` from a JSON string. Returns null on failure.
@@ -6128,161 +6348,155 @@ char *xberg_ner_config_custom_labels(const XBERGNerConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_quality_thresholds_free`.
  */
-XBERGOcrQualityThresholds *xberg_ocr_quality_thresholds_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_quality_thresholds_from_json(const char *json);
 
 /**
  * Serialize a `OcrQualityThresholds` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_quality_thresholds_to_json(const XBERGOcrQualityThresholds *ptr);
+char *xberg_ocr_quality_thresholds_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrQualityThresholds` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_quality_thresholds_free(XBERGOcrQualityThresholds *ptr);
+void xberg_ocr_quality_thresholds_free(XBERGAlefHandle handle);
 
 /**
  * Get the `min_total_non_whitespace` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_total_non_whitespace(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_total_non_whitespace(XBERGAlefHandle handle);
 
 /**
  * Get the `min_non_whitespace_per_page` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_non_whitespace_per_page(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_non_whitespace_per_page(XBERGAlefHandle handle);
 
 /**
  * Get the `min_meaningful_word_len` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_meaningful_word_len(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_meaningful_word_len(XBERGAlefHandle handle);
 
 /**
  * Get the `min_meaningful_words` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_meaningful_words(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_meaningful_words(XBERGAlefHandle handle);
 
 /**
  * Get the `min_alnum_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_alnum_ratio(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_alnum_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `min_garbage_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_garbage_chars(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_garbage_chars(XBERGAlefHandle handle);
 
 /**
  * Get the `max_fragmented_word_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_max_fragmented_word_ratio(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_max_fragmented_word_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `critical_fragmented_word_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_critical_fragmented_word_ratio(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_critical_fragmented_word_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `min_avg_word_length` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_avg_word_length(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_avg_word_length(XBERGAlefHandle handle);
 
 /**
  * Get the `min_words_for_avg_length_check` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_words_for_avg_length_check(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_words_for_avg_length_check(XBERGAlefHandle handle);
 
 /**
  * Get the `min_consecutive_repeat_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_consecutive_repeat_ratio(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_consecutive_repeat_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `min_words_for_repeat_check` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_min_words_for_repeat_check(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_min_words_for_repeat_check(XBERGAlefHandle handle);
 
 /**
  * Get the `substantive_min_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_substantive_min_chars(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_substantive_min_chars(XBERGAlefHandle handle);
 
 /**
  * Get the `non_text_min_chars` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_ocr_quality_thresholds_non_text_min_chars(const XBERGOcrQualityThresholds *ptr);
+uintptr_t xberg_ocr_quality_thresholds_non_text_min_chars(XBERGAlefHandle handle);
 
 /**
  * Get the `alnum_ws_ratio_threshold` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_alnum_ws_ratio_threshold(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_alnum_ws_ratio_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `pipeline_min_quality` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_pipeline_min_quality(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_pipeline_min_quality(XBERGAlefHandle handle);
 
 /**
  * Get the `min_undecodable_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_undecodable_ratio(const XBERGOcrQualityThresholds *ptr);
+double xberg_ocr_quality_thresholds_min_undecodable_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_provenance_ocr_routing` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_quality_thresholds_enable_provenance_ocr_routing(const XBERGOcrQualityThresholds *ptr);
+int32_t xberg_ocr_quality_thresholds_enable_provenance_ocr_routing(XBERGAlefHandle handle);
 
 /**
  * Get the `min_provenance_fallback_ratio` field from a `OcrQualityThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_quality_thresholds_min_provenance_fallback_ratio(const XBERGOcrQualityThresholds *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGOcrQualityThresholds *xberg_ocr_quality_thresholds_default(void);
+double xberg_ocr_quality_thresholds_min_provenance_fallback_ratio(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrPipelineStage` from a JSON string. Returns null on failure.
@@ -6290,71 +6504,83 @@ XBERGOcrQualityThresholds *xberg_ocr_quality_thresholds_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_pipeline_stage_free`.
  */
-XBERGOcrPipelineStage *xberg_ocr_pipeline_stage_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_pipeline_stage_from_json(const char *json);
 
 /**
  * Serialize a `OcrPipelineStage` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_pipeline_stage_to_json(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrPipelineStage` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_pipeline_stage_free(XBERGOcrPipelineStage *ptr);
+void xberg_ocr_pipeline_stage_free(XBERGAlefHandle handle);
 
 /**
  * Get the `backend` field from a `OcrPipelineStage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_pipeline_stage_backend(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_backend(XBERGAlefHandle handle);
 
 /**
  * Get the `priority` field from a `OcrPipelineStage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_pipeline_stage_priority(const XBERGOcrPipelineStage *ptr);
+uint32_t xberg_ocr_pipeline_stage_priority(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `OcrPipelineStage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_pipeline_stage_language(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_language(XBERGAlefHandle handle);
 
 /**
  * Get the `tesseract_config` field from a `OcrPipelineStage`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_tesseract_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTesseractConfig *xberg_ocr_pipeline_stage_tesseract_config(const XBERGOcrPipelineStage *ptr);
+XBERGAlefHandle xberg_ocr_pipeline_stage_tesseract_config(XBERGAlefHandle handle);
 
 /**
  * Get the `paddle_ocr_config` field from a `OcrPipelineStage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_pipeline_stage_paddle_ocr_config(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_paddle_ocr_config(XBERGAlefHandle handle);
 
 /**
  * Get the `vlm_config` field from a `OcrPipelineStage`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_ocr_pipeline_stage_vlm_config(const XBERGOcrPipelineStage *ptr);
+XBERGAlefHandle xberg_ocr_pipeline_stage_vlm_config(XBERGAlefHandle handle);
 
 /**
  * Get the `backend_options` field from a `OcrPipelineStage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_pipeline_stage_backend_options(const XBERGOcrPipelineStage *ptr);
+char *xberg_ocr_pipeline_stage_backend_options(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrPipelineConfig` from a JSON string. Returns null on failure.
@@ -6362,36 +6588,40 @@ char *xberg_ocr_pipeline_stage_backend_options(const XBERGOcrPipelineStage *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_pipeline_config_free`.
  */
-XBERGOcrPipelineConfig *xberg_ocr_pipeline_config_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_pipeline_config_from_json(const char *json);
 
 /**
  * Serialize a `OcrPipelineConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_pipeline_config_to_json(const XBERGOcrPipelineConfig *ptr);
+char *xberg_ocr_pipeline_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrPipelineConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_pipeline_config_free(XBERGOcrPipelineConfig *ptr);
+void xberg_ocr_pipeline_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `stages` field from a `OcrPipelineConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_pipeline_config_stages(const XBERGOcrPipelineConfig *ptr);
+char *xberg_ocr_pipeline_config_stages(XBERGAlefHandle handle);
 
 /**
  * Get the `quality_thresholds` field from a `OcrPipelineConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_quality_thresholds_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrQualityThresholds *xberg_ocr_pipeline_config_quality_thresholds(const XBERGOcrPipelineConfig *ptr);
+XBERGAlefHandle xberg_ocr_pipeline_config_quality_thresholds(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrConfig` from a JSON string. Returns null on failure.
@@ -6399,147 +6629,171 @@ XBERGOcrQualityThresholds *xberg_ocr_pipeline_config_quality_thresholds(const XB
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_config_free`.
  */
-XBERGOcrConfig *xberg_ocr_config_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_config_from_json(const char *json);
 
 /**
  * Serialize a `OcrConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_config_to_json(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_config_free(XBERGOcrConfig *ptr);
+void xberg_ocr_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `OcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_config_enabled(const XBERGOcrConfig *ptr);
+int32_t xberg_ocr_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `backend` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_backend(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_backend(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_language(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_language(XBERGAlefHandle handle);
 
 /**
  * Get the `tesseract_config` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_tesseract_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTesseractConfig *xberg_ocr_config_tesseract_config(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_tesseract_config(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_output_format_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOutputFormat *xberg_ocr_config_output_format(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `paddle_ocr_config` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_paddle_ocr_config(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_paddle_ocr_config(XBERGAlefHandle handle);
 
 /**
  * Get the `backend_options` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_backend_options(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_backend_options(XBERGAlefHandle handle);
 
 /**
  * Get the `element_config` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_element_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrElementConfig *xberg_ocr_config_element_config(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_element_config(XBERGAlefHandle handle);
 
 /**
  * Get the `quality_thresholds` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_quality_thresholds_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrQualityThresholds *xberg_ocr_config_quality_thresholds(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_quality_thresholds(XBERGAlefHandle handle);
 
 /**
  * Get the `pipeline` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_pipeline_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrPipelineConfig *xberg_ocr_config_pipeline(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_pipeline(XBERGAlefHandle handle);
 
 /**
  * Get the `auto_rotate` field from a `OcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_config_auto_rotate(const XBERGOcrConfig *ptr);
+int32_t xberg_ocr_config_auto_rotate(XBERGAlefHandle handle);
 
 /**
  * Get the `vlm_fallback` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_vlm_fallback_policy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGVlmFallbackPolicy *xberg_ocr_config_vlm_fallback(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_vlm_fallback(XBERGAlefHandle handle);
 
 /**
  * Get the `vlm_config` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_ocr_config_vlm_config(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_vlm_config(XBERGAlefHandle handle);
 
 /**
  * Get the `vlm_prompt` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_vlm_prompt(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_vlm_prompt(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `OcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_ocr_config_acceleration(const XBERGOcrConfig *ptr);
+XBERGAlefHandle xberg_ocr_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `tessdata_bytes` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_tessdata_bytes(const XBERGOcrConfig *ptr);
+char *xberg_ocr_config_tessdata_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `tessdata_path` field from a `OcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_config_tessdata_path(const XBERGOcrConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGOcrConfig *xberg_ocr_config_default(void);
+char *xberg_ocr_config_tessdata_path(XBERGAlefHandle handle);
 
 /**
  * Create a `PageConfig` from a JSON string. Returns null on failure.
@@ -6547,49 +6801,45 @@ XBERGOcrConfig *xberg_ocr_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_config_free`.
  */
-XBERGPageConfig *xberg_page_config_from_json(const char *json);
+XBERGAlefHandle xberg_page_config_from_json(const char *json);
 
 /**
  * Serialize a `PageConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_config_to_json(const XBERGPageConfig *ptr);
+char *xberg_page_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_config_free(XBERGPageConfig *ptr);
+void xberg_page_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_pages` field from a `PageConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_config_extract_pages(const XBERGPageConfig *ptr);
+int32_t xberg_page_config_extract_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `insert_page_markers` field from a `PageConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_config_insert_page_markers(const XBERGPageConfig *ptr);
+int32_t xberg_page_config_insert_page_markers(XBERGAlefHandle handle);
 
 /**
  * Get the `marker_format` field from a `PageConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_config_marker_format(const XBERGPageConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGPageConfig *xberg_page_config_default(void);
+char *xberg_page_config_marker_format(XBERGAlefHandle handle);
 
 /**
  * Create a `PdfConfig` from a JSON string. Returns null on failure.
@@ -6597,112 +6847,110 @@ XBERGPageConfig *xberg_page_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pdf_config_free`.
  */
-XBERGPdfConfig *xberg_pdf_config_from_json(const char *json);
+XBERGAlefHandle xberg_pdf_config_from_json(const char *json);
 
 /**
  * Serialize a `PdfConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pdf_config_to_json(const XBERGPdfConfig *ptr);
+char *xberg_pdf_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PdfConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pdf_config_free(XBERGPdfConfig *ptr);
+void xberg_pdf_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_images` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_extract_images(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_extract_images(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_tables` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_extract_tables(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_extract_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `passwords` field from a `PdfConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_config_passwords(const XBERGPdfConfig *ptr);
+char *xberg_pdf_config_passwords(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_metadata` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_extract_metadata(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_extract_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `hierarchy` field from a `PdfConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_hierarchy_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHierarchyConfig *xberg_pdf_config_hierarchy(const XBERGPdfConfig *ptr);
+XBERGAlefHandle xberg_pdf_config_hierarchy(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_annotations` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_extract_annotations(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_extract_annotations(XBERGAlefHandle handle);
 
 /**
  * Get the `top_margin_fraction` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_pdf_config_top_margin_fraction(const XBERGPdfConfig *ptr);
+float xberg_pdf_config_top_margin_fraction(XBERGAlefHandle handle);
 
 /**
  * Get the `bottom_margin_fraction` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_pdf_config_bottom_margin_fraction(const XBERGPdfConfig *ptr);
+float xberg_pdf_config_bottom_margin_fraction(XBERGAlefHandle handle);
 
 /**
  * Get the `allow_single_column_tables` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_allow_single_column_tables(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_allow_single_column_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_inline_images` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_ocr_inline_images(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_ocr_inline_images(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_form_fields` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_extract_form_fields(const XBERGPdfConfig *ptr);
+int32_t xberg_pdf_config_extract_form_fields(XBERGAlefHandle handle);
 
 /**
  * Get the `reading_order` field from a `PdfConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_config_reading_order(const XBERGPdfConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGPdfConfig *xberg_pdf_config_default(void);
+int32_t xberg_pdf_config_reading_order(XBERGAlefHandle handle);
 
 /**
  * Create a `HierarchyConfig` from a JSON string. Returns null on failure.
@@ -6710,49 +6958,43 @@ XBERGPdfConfig *xberg_pdf_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_hierarchy_config_free`.
  */
-XBERGHierarchyConfig *xberg_hierarchy_config_from_json(const char *json);
+XBERGAlefHandle xberg_hierarchy_config_from_json(const char *json);
 
 /**
  * Serialize a `HierarchyConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_hierarchy_config_to_json(const XBERGHierarchyConfig *ptr);
+char *xberg_hierarchy_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HierarchyConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_hierarchy_config_free(XBERGHierarchyConfig *ptr);
+void xberg_hierarchy_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `HierarchyConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_hierarchy_config_enabled(const XBERGHierarchyConfig *ptr);
+int32_t xberg_hierarchy_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `k_clusters` field from a `HierarchyConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_hierarchy_config_k_clusters(const XBERGHierarchyConfig *ptr);
+uintptr_t xberg_hierarchy_config_k_clusters(XBERGAlefHandle handle);
 
 /**
  * Get the `include_bbox` field from a `HierarchyConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_hierarchy_config_include_bbox(const XBERGHierarchyConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGHierarchyConfig *xberg_hierarchy_config_default(void);
+int32_t xberg_hierarchy_config_include_bbox(XBERGAlefHandle handle);
 
 /**
  * Create a `PostProcessorConfig` from a JSON string. Returns null on failure.
@@ -6760,63 +7002,65 @@ XBERGHierarchyConfig *xberg_hierarchy_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_post_processor_config_free`.
  */
-XBERGPostProcessorConfig *xberg_post_processor_config_from_json(const char *json);
+XBERGAlefHandle xberg_post_processor_config_from_json(const char *json);
 
 /**
  * Serialize a `PostProcessorConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_post_processor_config_to_json(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PostProcessorConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_post_processor_config_free(XBERGPostProcessorConfig *ptr);
+void xberg_post_processor_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `PostProcessorConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_post_processor_config_enabled(const XBERGPostProcessorConfig *ptr);
+int32_t xberg_post_processor_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled_processors` field from a `PostProcessorConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_enabled_processors(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_enabled_processors(XBERGAlefHandle handle);
 
 /**
  * Get the `disabled_processors` field from a `PostProcessorConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_disabled_processors(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_disabled_processors(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled_set` field from a `PostProcessorConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_enabled_set(const XBERGPostProcessorConfig *ptr);
+char *xberg_post_processor_config_enabled_set(XBERGAlefHandle handle);
 
 /**
  * Get the `disabled_set` field from a `PostProcessorConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_post_processor_config_disabled_set(const XBERGPostProcessorConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGPostProcessorConfig *xberg_post_processor_config_default(void);
+char *xberg_post_processor_config_disabled_set(XBERGAlefHandle handle);
 
 /**
  * Create a `ChunkingConfig` from a JSON string. Returns null on failure.
@@ -6824,119 +7068,129 @@ XBERGPostProcessorConfig *xberg_post_processor_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunking_config_free`.
  */
-XBERGChunkingConfig *xberg_chunking_config_from_json(const char *json);
+XBERGAlefHandle xberg_chunking_config_from_json(const char *json);
 
 /**
  * Serialize a `ChunkingConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunking_config_to_json(const XBERGChunkingConfig *ptr);
+char *xberg_chunking_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkingConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunking_config_free(XBERGChunkingConfig *ptr);
+void xberg_chunking_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `max_characters` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunking_config_max_characters(const XBERGChunkingConfig *ptr);
+uintptr_t xberg_chunking_config_max_characters(XBERGAlefHandle handle);
 
 /**
  * Get the `overlap` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunking_config_overlap(const XBERGChunkingConfig *ptr);
+uintptr_t xberg_chunking_config_overlap(XBERGAlefHandle handle);
 
 /**
  * Get the `trim` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_chunking_config_trim(const XBERGChunkingConfig *ptr);
+int32_t xberg_chunking_config_trim(XBERGAlefHandle handle);
 
 /**
  * Get the `chunker_type` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunker_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkerType *xberg_chunking_config_chunker_type(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_chunker_type(XBERGAlefHandle handle);
 
 /**
  * Get the `embedding` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_embedding_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddingConfig *xberg_chunking_config_embedding(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_embedding(XBERGAlefHandle handle);
 
 /**
  * Get the `sparse_embedding` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_sparse_embedding_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSparseEmbeddingConfig *xberg_chunking_config_sparse_embedding(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_sparse_embedding(XBERGAlefHandle handle);
 
 /**
  * Get the `late_interaction` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_late_interaction_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLateInteractionConfig *xberg_chunking_config_late_interaction(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_late_interaction(XBERGAlefHandle handle);
 
 /**
  * Get the `preset` field from a `ChunkingConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunking_config_preset(const XBERGChunkingConfig *ptr);
+char *xberg_chunking_config_preset(XBERGAlefHandle handle);
 
 /**
  * Get the `sizing` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_sizing_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkSizing *xberg_chunking_config_sizing(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_sizing(XBERGAlefHandle handle);
 
 /**
  * Get the `prepend_heading_context` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_chunking_config_prepend_heading_context(const XBERGChunkingConfig *ptr);
+int32_t xberg_chunking_config_prepend_heading_context(XBERGAlefHandle handle);
 
 /**
  * Get the `topic_threshold` field from a `ChunkingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_chunking_config_topic_threshold(const XBERGChunkingConfig *ptr);
+float xberg_chunking_config_topic_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `table_chunking` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_table_chunking_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTableChunkingMode *xberg_chunking_config_table_chunking(const XBERGChunkingConfig *ptr);
+XBERGAlefHandle xberg_chunking_config_table_chunking(XBERGAlefHandle handle);
 
 /**
  * Get the `breadcrumb_target` field from a `ChunkingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_breadcrumb_target_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBreadcrumbTarget *xberg_chunking_config_breadcrumb_target(const XBERGChunkingConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGChunkingConfig *xberg_chunking_config_default(void);
+XBERGAlefHandle xberg_chunking_config_breadcrumb_target(XBERGAlefHandle handle);
 
 /**
  * Create a `EmbeddingConfig` from a JSON string. Returns null on failure.
@@ -6944,84 +7198,84 @@ XBERGChunkingConfig *xberg_chunking_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_embedding_config_free`.
  */
-XBERGEmbeddingConfig *xberg_embedding_config_from_json(const char *json);
+XBERGAlefHandle xberg_embedding_config_from_json(const char *json);
 
 /**
  * Serialize a `EmbeddingConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_embedding_config_to_json(const XBERGEmbeddingConfig *ptr);
+char *xberg_embedding_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmbeddingConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_embedding_config_free(XBERGEmbeddingConfig *ptr);
+void xberg_embedding_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `EmbeddingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_embedding_model_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddingModelType *xberg_embedding_config_model(const XBERGEmbeddingConfig *ptr);
+XBERGAlefHandle xberg_embedding_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `normalize` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_embedding_config_normalize(const XBERGEmbeddingConfig *ptr);
+int32_t xberg_embedding_config_normalize(XBERGAlefHandle handle);
 
 /**
  * Get the `batch_size` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_embedding_config_batch_size(const XBERGEmbeddingConfig *ptr);
+uintptr_t xberg_embedding_config_batch_size(XBERGAlefHandle handle);
 
 /**
  * Get the `show_download_progress` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_embedding_config_show_download_progress(const XBERGEmbeddingConfig *ptr);
+int32_t xberg_embedding_config_show_download_progress(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `EmbeddingConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedding_config_cache_dir(const XBERGEmbeddingConfig *ptr);
+char *xberg_embedding_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `EmbeddingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_embedding_config_acceleration(const XBERGEmbeddingConfig *ptr);
+XBERGAlefHandle xberg_embedding_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `max_embed_duration_secs` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_embedding_config_max_embed_duration_secs(const XBERGEmbeddingConfig *ptr);
+uint64_t xberg_embedding_config_max_embed_duration_secs(XBERGAlefHandle handle);
 
 /**
  * Get the `max_sequence_length` field from a `EmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_embedding_config_max_sequence_length(const XBERGEmbeddingConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGEmbeddingConfig *xberg_embedding_config_default(void);
+uintptr_t xberg_embedding_config_max_sequence_length(XBERGAlefHandle handle);
 
 /**
  * Create a `RedactionConfig` from a JSON string. Returns null on failure.
@@ -7029,70 +7283,74 @@ XBERGEmbeddingConfig *xberg_embedding_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_redaction_config_free`.
  */
-XBERGRedactionConfig *xberg_redaction_config_from_json(const char *json);
+XBERGAlefHandle xberg_redaction_config_from_json(const char *json);
 
 /**
  * Serialize a `RedactionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_redaction_config_to_json(const XBERGRedactionConfig *ptr);
+char *xberg_redaction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RedactionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_redaction_config_free(XBERGRedactionConfig *ptr);
+void xberg_redaction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `categories` field from a `RedactionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_config_categories(const XBERGRedactionConfig *ptr);
+char *xberg_redaction_config_categories(XBERGAlefHandle handle);
 
 /**
  * Get the `strategy` field from a `RedactionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_redaction_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionStrategy *xberg_redaction_config_strategy(const XBERGRedactionConfig *ptr);
+XBERGAlefHandle xberg_redaction_config_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `ner` field from a `RedactionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ner_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNerConfig *xberg_redaction_config_ner(const XBERGRedactionConfig *ptr);
+XBERGAlefHandle xberg_redaction_config_ner(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_offsets` field from a `RedactionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_redaction_config_preserve_offsets(const XBERGRedactionConfig *ptr);
+int32_t xberg_redaction_config_preserve_offsets(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_terms` field from a `RedactionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_config_custom_terms(const XBERGRedactionConfig *ptr);
+char *xberg_redaction_config_custom_terms(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_patterns` field from a `RedactionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_config_custom_patterns(const XBERGRedactionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGRedactionConfig *xberg_redaction_config_default(void);
+char *xberg_redaction_config_custom_patterns(XBERGAlefHandle handle);
 
 /**
  * Validate user-supplied terms and patterns at config-construction time.
@@ -7105,7 +7363,7 @@ XBERGRedactionConfig *xberg_redaction_config_default(void);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_redaction_config_validate(const XBERGRedactionConfig *this_);
+int32_t xberg_redaction_config_validate(XBERGAlefHandle this_);
 
 /**
  * Create a `RedactionTerm` from a JSON string. Returns null on failure.
@@ -7113,58 +7371,62 @@ int32_t xberg_redaction_config_validate(const XBERGRedactionConfig *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_redaction_term_free`.
  */
-XBERGRedactionTerm *xberg_redaction_term_from_json(const char *json);
+XBERGAlefHandle xberg_redaction_term_from_json(const char *json);
 
 /**
  * Serialize a `RedactionTerm` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_redaction_term_to_json(const XBERGRedactionTerm *ptr);
+char *xberg_redaction_term_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RedactionTerm` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_redaction_term_free(XBERGRedactionTerm *ptr);
+void xberg_redaction_term_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `RedactionTerm`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_term_label(const XBERGRedactionTerm *ptr);
+char *xberg_redaction_term_label(XBERGAlefHandle handle);
 
 /**
  * Get the `value` field from a `RedactionTerm`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_term_value(const XBERGRedactionTerm *ptr);
+char *xberg_redaction_term_value(XBERGAlefHandle handle);
 
 /**
  * Get the `case_sensitive` field from a `RedactionTerm`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_redaction_term_case_sensitive(const XBERGRedactionTerm *ptr);
+int32_t xberg_redaction_term_case_sensitive(XBERGAlefHandle handle);
 
 /**
  * Build a term whose label is the literal value itself (case-insensitive).
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGRedactionTerm *xberg_redaction_term_literal(const char *value);
+XBERGAlefHandle xberg_redaction_term_literal(const char *value);
 
 /**
  * Build a term with a custom label.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGRedactionTerm *xberg_redaction_term_labeled(const char *label,
-                                                 const char *value);
+XBERGAlefHandle xberg_redaction_term_labeled(const char *label,
+                                             const char *value);
 
 /**
  * Create a `RedactionPattern` from a JSON string. Returns null on failure.
@@ -7172,51 +7434,55 @@ XBERGRedactionTerm *xberg_redaction_term_labeled(const char *label,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_redaction_pattern_free`.
  */
-XBERGRedactionPattern *xberg_redaction_pattern_from_json(const char *json);
+XBERGAlefHandle xberg_redaction_pattern_from_json(const char *json);
 
 /**
  * Serialize a `RedactionPattern` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_redaction_pattern_to_json(const XBERGRedactionPattern *ptr);
+char *xberg_redaction_pattern_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RedactionPattern` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_redaction_pattern_free(XBERGRedactionPattern *ptr);
+void xberg_redaction_pattern_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `RedactionPattern`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_pattern_label(const XBERGRedactionPattern *ptr);
+char *xberg_redaction_pattern_label(XBERGAlefHandle handle);
 
 /**
  * Get the `pattern` field from a `RedactionPattern`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_pattern_pattern(const XBERGRedactionPattern *ptr);
+char *xberg_redaction_pattern_pattern(XBERGAlefHandle handle);
 
 /**
  * Get the `case_sensitive` field from a `RedactionPattern`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_redaction_pattern_case_sensitive(const XBERGRedactionPattern *ptr);
+int32_t xberg_redaction_pattern_case_sensitive(XBERGAlefHandle handle);
 
 /**
  * Build a pattern with the given label (case-insensitive by default).
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGRedactionPattern *xberg_redaction_pattern_labeled(const char *label,
-                                                       const char *pattern);
+XBERGAlefHandle xberg_redaction_pattern_labeled(const char *label,
+                                                const char *pattern);
 
 /**
  * Create a `RerankerConfig` from a JSON string. Returns null on failure.
@@ -7224,77 +7490,77 @@ XBERGRedactionPattern *xberg_redaction_pattern_labeled(const char *label,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_reranker_config_free`.
  */
-XBERGRerankerConfig *xberg_reranker_config_from_json(const char *json);
+XBERGAlefHandle xberg_reranker_config_from_json(const char *json);
 
 /**
  * Serialize a `RerankerConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_reranker_config_to_json(const XBERGRerankerConfig *ptr);
+char *xberg_reranker_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RerankerConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_reranker_config_free(XBERGRerankerConfig *ptr);
+void xberg_reranker_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `RerankerConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_reranker_model_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRerankerModelType *xberg_reranker_config_model(const XBERGRerankerConfig *ptr);
+XBERGAlefHandle xberg_reranker_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `top_k` field from a `RerankerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_reranker_config_top_k(const XBERGRerankerConfig *ptr);
+uintptr_t xberg_reranker_config_top_k(XBERGAlefHandle handle);
 
 /**
  * Get the `batch_size` field from a `RerankerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_reranker_config_batch_size(const XBERGRerankerConfig *ptr);
+uintptr_t xberg_reranker_config_batch_size(XBERGAlefHandle handle);
 
 /**
  * Get the `show_download_progress` field from a `RerankerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_reranker_config_show_download_progress(const XBERGRerankerConfig *ptr);
+int32_t xberg_reranker_config_show_download_progress(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `RerankerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_reranker_config_cache_dir(const XBERGRerankerConfig *ptr);
+char *xberg_reranker_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `RerankerConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_reranker_config_acceleration(const XBERGRerankerConfig *ptr);
+XBERGAlefHandle xberg_reranker_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `max_rerank_duration_secs` field from a `RerankerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_reranker_config_max_rerank_duration_secs(const XBERGRerankerConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGRerankerConfig *xberg_reranker_config_default(void);
+uint64_t xberg_reranker_config_max_rerank_duration_secs(XBERGAlefHandle handle);
 
 /**
  * Create a `SparseEmbeddingConfig` from a JSON string. Returns null on failure.
@@ -7302,77 +7568,77 @@ XBERGRerankerConfig *xberg_reranker_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sparse_embedding_config_free`.
  */
-XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_from_json(const char *json);
+XBERGAlefHandle xberg_sparse_embedding_config_from_json(const char *json);
 
 /**
  * Serialize a `SparseEmbeddingConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sparse_embedding_config_to_json(const XBERGSparseEmbeddingConfig *ptr);
+char *xberg_sparse_embedding_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SparseEmbeddingConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_sparse_embedding_config_free(XBERGSparseEmbeddingConfig *ptr);
+void xberg_sparse_embedding_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `SparseEmbeddingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_sparse_embedding_model_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSparseEmbeddingModelType *xberg_sparse_embedding_config_model(const XBERGSparseEmbeddingConfig *ptr);
+XBERGAlefHandle xberg_sparse_embedding_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `batch_size` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_sparse_embedding_config_batch_size(const XBERGSparseEmbeddingConfig *ptr);
+uintptr_t xberg_sparse_embedding_config_batch_size(XBERGAlefHandle handle);
 
 /**
  * Get the `max_length` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_sparse_embedding_config_max_length(const XBERGSparseEmbeddingConfig *ptr);
+uintptr_t xberg_sparse_embedding_config_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `show_download_progress` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_sparse_embedding_config_show_download_progress(const XBERGSparseEmbeddingConfig *ptr);
+int32_t xberg_sparse_embedding_config_show_download_progress(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `SparseEmbeddingConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_config_cache_dir(const XBERGSparseEmbeddingConfig *ptr);
+char *xberg_sparse_embedding_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `acceleration` field from a `SparseEmbeddingConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_acceleration_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAccelerationConfig *xberg_sparse_embedding_config_acceleration(const XBERGSparseEmbeddingConfig *ptr);
+XBERGAlefHandle xberg_sparse_embedding_config_acceleration(XBERGAlefHandle handle);
 
 /**
  * Get the `max_embed_duration_secs` field from a `SparseEmbeddingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_sparse_embedding_config_max_embed_duration_secs(const XBERGSparseEmbeddingConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_default(void);
+uint64_t xberg_sparse_embedding_config_max_embed_duration_secs(XBERGAlefHandle handle);
 
 /**
  * Create a `SummarizationConfig` from a JSON string. Returns null on failure.
@@ -7380,43 +7646,47 @@ XBERGSparseEmbeddingConfig *xberg_sparse_embedding_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_summarization_config_free`.
  */
-XBERGSummarizationConfig *xberg_summarization_config_from_json(const char *json);
+XBERGAlefHandle xberg_summarization_config_from_json(const char *json);
 
 /**
  * Serialize a `SummarizationConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_summarization_config_to_json(const XBERGSummarizationConfig *ptr);
+char *xberg_summarization_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SummarizationConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_summarization_config_free(XBERGSummarizationConfig *ptr);
+void xberg_summarization_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `strategy` field from a `SummarizationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_summary_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummaryStrategy *xberg_summarization_config_strategy(const XBERGSummarizationConfig *ptr);
+XBERGAlefHandle xberg_summarization_config_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `max_tokens` field from a `SummarizationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_summarization_config_max_tokens(const XBERGSummarizationConfig *ptr);
+uint32_t xberg_summarization_config_max_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `SummarizationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_summarization_config_llm(const XBERGSummarizationConfig *ptr);
+XBERGAlefHandle xberg_summarization_config_llm(XBERGAlefHandle handle);
 
 /**
  * Create a `TranscriptionConfig` from a JSON string. Returns null on failure.
@@ -7424,98 +7694,98 @@ XBERGLlmConfig *xberg_summarization_config_llm(const XBERGSummarizationConfig *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_transcription_config_free`.
  */
-XBERGTranscriptionConfig *xberg_transcription_config_from_json(const char *json);
+XBERGAlefHandle xberg_transcription_config_from_json(const char *json);
 
 /**
  * Serialize a `TranscriptionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_transcription_config_to_json(const XBERGTranscriptionConfig *ptr);
+char *xberg_transcription_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TranscriptionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_transcription_config_free(XBERGTranscriptionConfig *ptr);
+void xberg_transcription_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_transcription_config_enabled(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `TranscriptionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_whisper_model_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGWhisperModel *xberg_transcription_config_model(const XBERGTranscriptionConfig *ptr);
+XBERGAlefHandle xberg_transcription_config_model(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `TranscriptionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_transcription_config_language(const XBERGTranscriptionConfig *ptr);
+char *xberg_transcription_config_language(XBERGAlefHandle handle);
 
 /**
  * Get the `timestamps` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_transcription_config_timestamps(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_timestamps(XBERGAlefHandle handle);
 
 /**
  * Get the `max_duration_ms` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_transcription_config_max_duration_ms(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_max_duration_ms(XBERGAlefHandle handle);
 
 /**
  * Get the `max_bytes` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_transcription_config_max_bytes(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_max_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `timeout_ms` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_transcription_config_timeout_ms(const XBERGTranscriptionConfig *ptr);
+uint64_t xberg_transcription_config_timeout_ms(XBERGAlefHandle handle);
 
 /**
  * Get the `model_cache_dir` field from a `TranscriptionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_transcription_config_model_cache_dir(const XBERGTranscriptionConfig *ptr);
+char *xberg_transcription_config_model_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `allow_network` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_transcription_config_allow_network(const XBERGTranscriptionConfig *ptr);
+int32_t xberg_transcription_config_allow_network(XBERGAlefHandle handle);
 
 /**
  * Get the `verify_hash` field from a `TranscriptionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_transcription_config_verify_hash(const XBERGTranscriptionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTranscriptionConfig *xberg_transcription_config_default(void);
+int32_t xberg_transcription_config_verify_hash(XBERGAlefHandle handle);
 
 /**
  * Create a `TranslationConfig` from a JSON string. Returns null on failure.
@@ -7523,50 +7793,56 @@ XBERGTranscriptionConfig *xberg_transcription_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_translation_config_free`.
  */
-XBERGTranslationConfig *xberg_translation_config_from_json(const char *json);
+XBERGAlefHandle xberg_translation_config_from_json(const char *json);
 
 /**
  * Serialize a `TranslationConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_translation_config_to_json(const XBERGTranslationConfig *ptr);
+char *xberg_translation_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TranslationConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_translation_config_free(XBERGTranslationConfig *ptr);
+void xberg_translation_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `target_lang` field from a `TranslationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_config_target_lang(const XBERGTranslationConfig *ptr);
+char *xberg_translation_config_target_lang(XBERGAlefHandle handle);
 
 /**
  * Get the `source_lang` field from a `TranslationConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_config_source_lang(const XBERGTranslationConfig *ptr);
+char *xberg_translation_config_source_lang(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_markup` field from a `TranslationConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_translation_config_preserve_markup(const XBERGTranslationConfig *ptr);
+int32_t xberg_translation_config_preserve_markup(XBERGAlefHandle handle);
 
 /**
  * Get the `llm` field from a `TranslationConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_llm_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLlmConfig *xberg_translation_config_llm(const XBERGTranslationConfig *ptr);
+XBERGAlefHandle xberg_translation_config_llm(XBERGAlefHandle handle);
 
 /**
  * Create a `TreeSitterConfig` from a JSON string. Returns null on failure.
@@ -7574,63 +7850,65 @@ XBERGLlmConfig *xberg_translation_config_llm(const XBERGTranslationConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_tree_sitter_config_free`.
  */
-XBERGTreeSitterConfig *xberg_tree_sitter_config_from_json(const char *json);
+XBERGAlefHandle xberg_tree_sitter_config_from_json(const char *json);
 
 /**
  * Serialize a `TreeSitterConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_tree_sitter_config_to_json(const XBERGTreeSitterConfig *ptr);
+char *xberg_tree_sitter_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TreeSitterConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_tree_sitter_config_free(XBERGTreeSitterConfig *ptr);
+void xberg_tree_sitter_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `TreeSitterConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_config_enabled(const XBERGTreeSitterConfig *ptr);
+int32_t xberg_tree_sitter_config_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `TreeSitterConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tree_sitter_config_cache_dir(const XBERGTreeSitterConfig *ptr);
+char *xberg_tree_sitter_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `languages` field from a `TreeSitterConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tree_sitter_config_languages(const XBERGTreeSitterConfig *ptr);
+char *xberg_tree_sitter_config_languages(XBERGAlefHandle handle);
 
 /**
  * Get the `groups` field from a `TreeSitterConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tree_sitter_config_groups(const XBERGTreeSitterConfig *ptr);
+char *xberg_tree_sitter_config_groups(XBERGAlefHandle handle);
 
 /**
  * Get the `process` field from a `TreeSitterConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_tree_sitter_process_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTreeSitterProcessConfig *xberg_tree_sitter_config_process(const XBERGTreeSitterConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTreeSitterConfig *xberg_tree_sitter_config_default(void);
+XBERGAlefHandle xberg_tree_sitter_config_process(XBERGAlefHandle handle);
 
 /**
  * Create a `TreeSitterProcessConfig` from a JSON string. Returns null on failure.
@@ -7638,98 +7916,94 @@ XBERGTreeSitterConfig *xberg_tree_sitter_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_tree_sitter_process_config_free`.
  */
-XBERGTreeSitterProcessConfig *xberg_tree_sitter_process_config_from_json(const char *json);
+XBERGAlefHandle xberg_tree_sitter_process_config_from_json(const char *json);
 
 /**
  * Serialize a `TreeSitterProcessConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_tree_sitter_process_config_to_json(const XBERGTreeSitterProcessConfig *ptr);
+char *xberg_tree_sitter_process_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TreeSitterProcessConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_tree_sitter_process_config_free(XBERGTreeSitterProcessConfig *ptr);
+void xberg_tree_sitter_process_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `structure` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_structure(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_structure(XBERGAlefHandle handle);
 
 /**
  * Get the `imports` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_imports(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_imports(XBERGAlefHandle handle);
 
 /**
  * Get the `exports` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_exports(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_exports(XBERGAlefHandle handle);
 
 /**
  * Get the `comments` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_comments(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_comments(XBERGAlefHandle handle);
 
 /**
  * Get the `docstrings` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_docstrings(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_docstrings(XBERGAlefHandle handle);
 
 /**
  * Get the `symbols` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_symbols(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_symbols(XBERGAlefHandle handle);
 
 /**
  * Get the `diagnostics` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_diagnostics(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_diagnostics(XBERGAlefHandle handle);
 
 /**
  * Get the `data_extraction` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tree_sitter_process_config_data_extraction(const XBERGTreeSitterProcessConfig *ptr);
+int32_t xberg_tree_sitter_process_config_data_extraction(XBERGAlefHandle handle);
 
 /**
  * Get the `chunk_max_size` field from a `TreeSitterProcessConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_tree_sitter_process_config_chunk_max_size(const XBERGTreeSitterProcessConfig *ptr);
+uintptr_t xberg_tree_sitter_process_config_chunk_max_size(XBERGAlefHandle handle);
 
 /**
  * Get the `content_mode` field from a `TreeSitterProcessConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_code_content_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeContentMode *xberg_tree_sitter_process_config_content_mode(const XBERGTreeSitterProcessConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTreeSitterProcessConfig *xberg_tree_sitter_process_config_default(void);
+XBERGAlefHandle xberg_tree_sitter_process_config_content_mode(XBERGAlefHandle handle);
 
 /**
  * Create a `SupportedFormat` from a JSON string. Returns null on failure.
@@ -7737,36 +8011,40 @@ XBERGTreeSitterProcessConfig *xberg_tree_sitter_process_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_supported_format_free`.
  */
-XBERGSupportedFormat *xberg_supported_format_from_json(const char *json);
+XBERGAlefHandle xberg_supported_format_from_json(const char *json);
 
 /**
  * Serialize a `SupportedFormat` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_supported_format_to_json(const XBERGSupportedFormat *ptr);
+char *xberg_supported_format_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SupportedFormat` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_supported_format_free(XBERGSupportedFormat *ptr);
+void xberg_supported_format_free(XBERGAlefHandle handle);
 
 /**
  * Get the `extension` field from a `SupportedFormat`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_supported_format_extension(const XBERGSupportedFormat *ptr);
+char *xberg_supported_format_extension(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `SupportedFormat`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_supported_format_mime_type(const XBERGSupportedFormat *ptr);
+char *xberg_supported_format_mime_type(XBERGAlefHandle handle);
 
 /**
  * Create a `ServerConfig` from a JSON string. Returns null on failure.
@@ -7774,63 +8052,61 @@ char *xberg_supported_format_mime_type(const XBERGSupportedFormat *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_server_config_free`.
  */
-XBERGServerConfig *xberg_server_config_from_json(const char *json);
+XBERGAlefHandle xberg_server_config_from_json(const char *json);
 
 /**
  * Serialize a `ServerConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_server_config_to_json(const XBERGServerConfig *ptr);
+char *xberg_server_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ServerConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_server_config_free(XBERGServerConfig *ptr);
+void xberg_server_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `host` field from a `ServerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_server_config_host(const XBERGServerConfig *ptr);
+char *xberg_server_config_host(XBERGAlefHandle handle);
 
 /**
  * Get the `port` field from a `ServerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint16_t xberg_server_config_port(const XBERGServerConfig *ptr);
+uint16_t xberg_server_config_port(XBERGAlefHandle handle);
 
 /**
  * Get the `cors_origins` field from a `ServerConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_server_config_cors_origins(const XBERGServerConfig *ptr);
+char *xberg_server_config_cors_origins(XBERGAlefHandle handle);
 
 /**
  * Get the `max_request_body_bytes` field from a `ServerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_server_config_max_request_body_bytes(const XBERGServerConfig *ptr);
+uintptr_t xberg_server_config_max_request_body_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `max_multipart_field_bytes` field from a `ServerConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_server_config_max_multipart_field_bytes(const XBERGServerConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGServerConfig *xberg_server_config_default(void);
+uintptr_t xberg_server_config_max_multipart_field_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the server listen address (host:port).
@@ -7843,7 +8119,7 @@ XBERGServerConfig *xberg_server_config_default(void);
  * assert_eq!(config.listen_addr(), "127.0.0.1:8000");
  * \endcode
  */
-char *xberg_server_config_listen_addr(const XBERGServerConfig *this_);
+char *xberg_server_config_listen_addr(XBERGAlefHandle this_);
 
 /**
  * Check if CORS allows all origins.
@@ -7862,7 +8138,7 @@ char *xberg_server_config_listen_addr(const XBERGServerConfig *this_);
  * assert!(!config.cors_allows_all());
  * \endcode
  */
-int32_t xberg_server_config_cors_allows_all(const XBERGServerConfig *this_);
+int32_t xberg_server_config_cors_allows_all(XBERGAlefHandle this_);
 
 /**
  * Check if a given origin is allowed by CORS configuration.
@@ -7884,7 +8160,7 @@ int32_t xberg_server_config_cors_allows_all(const XBERGServerConfig *this_);
  * assert!(!config.is_origin_allowed("https://denied.com"));
  * \endcode
  */
-int32_t xberg_server_config_is_origin_allowed(const XBERGServerConfig *this_,
+int32_t xberg_server_config_is_origin_allowed(XBERGAlefHandle this_,
                                               const char *origin);
 
 /**
@@ -7898,7 +8174,7 @@ int32_t xberg_server_config_is_origin_allowed(const XBERGServerConfig *this_,
  * assert_eq!(config.max_request_body_mb(), 100);
  * \endcode
  */
-uintptr_t xberg_server_config_max_request_body_mb(const XBERGServerConfig *this_);
+uintptr_t xberg_server_config_max_request_body_mb(XBERGAlefHandle this_);
 
 /**
  * Get maximum multipart field size in megabytes (rounded up).
@@ -7911,7 +8187,7 @@ uintptr_t xberg_server_config_max_request_body_mb(const XBERGServerConfig *this_
  * assert_eq!(config.max_multipart_field_mb(), 100);
  * \endcode
  */
-uintptr_t xberg_server_config_max_multipart_field_mb(const XBERGServerConfig *this_);
+uintptr_t xberg_server_config_max_multipart_field_mb(XBERGAlefHandle this_);
 
 /**
  * Create a `StructuredDataResult` from a JSON string. Returns null on failure.
@@ -7919,64 +8195,76 @@ uintptr_t xberg_server_config_max_multipart_field_mb(const XBERGServerConfig *th
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_structured_data_result_free`.
  */
-XBERGStructuredDataResult *xberg_structured_data_result_from_json(const char *json);
+XBERGAlefHandle xberg_structured_data_result_from_json(const char *json);
 
 /**
  * Serialize a `StructuredDataResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_structured_data_result_to_json(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `StructuredDataResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_structured_data_result_free(XBERGStructuredDataResult *ptr);
+void xberg_structured_data_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_content(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `format` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_format(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_format(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_metadata(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `text_fields` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_text_fields(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_text_fields(XBERGAlefHandle handle);
 
 /**
  * Get the `value` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_value(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_value(XBERGAlefHandle handle);
 
 /**
  * Get the `flattened` field from a `StructuredDataResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_result_flattened(const XBERGStructuredDataResult *ptr);
+char *xberg_structured_data_result_flattened(XBERGAlefHandle handle);
 
 /**
  * Create a `DocxAppProperties` from a JSON string. Returns null on failure.
@@ -7984,134 +8272,142 @@ char *xberg_structured_data_result_flattened(const XBERGStructuredDataResult *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_docx_app_properties_free`.
  */
-XBERGDocxAppProperties *xberg_docx_app_properties_from_json(const char *json);
+XBERGAlefHandle xberg_docx_app_properties_from_json(const char *json);
 
 /**
  * Serialize a `DocxAppProperties` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_docx_app_properties_to_json(const XBERGDocxAppProperties *ptr);
+char *xberg_docx_app_properties_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocxAppProperties` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_docx_app_properties_free(XBERGDocxAppProperties *ptr);
+void xberg_docx_app_properties_free(XBERGAlefHandle handle);
 
 /**
  * Get the `application` field from a `DocxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_docx_app_properties_application(const XBERGDocxAppProperties *ptr);
+char *xberg_docx_app_properties_application(XBERGAlefHandle handle);
 
 /**
  * Get the `app_version` field from a `DocxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_docx_app_properties_app_version(const XBERGDocxAppProperties *ptr);
+char *xberg_docx_app_properties_app_version(XBERGAlefHandle handle);
 
 /**
  * Get the `template` field from a `DocxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_docx_app_properties_template(const XBERGDocxAppProperties *ptr);
+char *xberg_docx_app_properties_template(XBERGAlefHandle handle);
 
 /**
  * Get the `total_time` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_total_time(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_total_time(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_pages(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `words` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_words(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_words(XBERGAlefHandle handle);
 
 /**
  * Get the `characters` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_characters(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_characters(XBERGAlefHandle handle);
 
 /**
  * Get the `characters_with_spaces` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_characters_with_spaces(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_characters_with_spaces(XBERGAlefHandle handle);
 
 /**
  * Get the `lines` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_lines(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_lines(XBERGAlefHandle handle);
 
 /**
  * Get the `paragraphs` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_paragraphs(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_paragraphs(XBERGAlefHandle handle);
 
 /**
  * Get the `company` field from a `DocxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_docx_app_properties_company(const XBERGDocxAppProperties *ptr);
+char *xberg_docx_app_properties_company(XBERGAlefHandle handle);
 
 /**
  * Get the `doc_security` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_doc_security(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_doc_security(XBERGAlefHandle handle);
 
 /**
  * Get the `scale_crop` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_scale_crop(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_scale_crop(XBERGAlefHandle handle);
 
 /**
  * Get the `links_up_to_date` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_links_up_to_date(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_links_up_to_date(XBERGAlefHandle handle);
 
 /**
  * Get the `shared_doc` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_shared_doc(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_shared_doc(XBERGAlefHandle handle);
 
 /**
  * Get the `hyperlinks_changed` field from a `DocxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_docx_app_properties_hyperlinks_changed(const XBERGDocxAppProperties *ptr);
+int32_t xberg_docx_app_properties_hyperlinks_changed(XBERGAlefHandle handle);
 
 /**
  * Create a `XlsxAppProperties` from a JSON string. Returns null on failure.
@@ -8119,85 +8415,93 @@ int32_t xberg_docx_app_properties_hyperlinks_changed(const XBERGDocxAppPropertie
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_xlsx_app_properties_free`.
  */
-XBERGXlsxAppProperties *xberg_xlsx_app_properties_from_json(const char *json);
+XBERGAlefHandle xberg_xlsx_app_properties_from_json(const char *json);
 
 /**
  * Serialize a `XlsxAppProperties` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_xlsx_app_properties_to_json(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `XlsxAppProperties` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_xlsx_app_properties_free(XBERGXlsxAppProperties *ptr);
+void xberg_xlsx_app_properties_free(XBERGAlefHandle handle);
 
 /**
  * Get the `application` field from a `XlsxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xlsx_app_properties_application(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_application(XBERGAlefHandle handle);
 
 /**
  * Get the `app_version` field from a `XlsxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xlsx_app_properties_app_version(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_app_version(XBERGAlefHandle handle);
 
 /**
  * Get the `doc_security` field from a `XlsxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_xlsx_app_properties_doc_security(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_doc_security(XBERGAlefHandle handle);
 
 /**
  * Get the `scale_crop` field from a `XlsxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_xlsx_app_properties_scale_crop(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_scale_crop(XBERGAlefHandle handle);
 
 /**
  * Get the `links_up_to_date` field from a `XlsxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_xlsx_app_properties_links_up_to_date(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_links_up_to_date(XBERGAlefHandle handle);
 
 /**
  * Get the `shared_doc` field from a `XlsxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_xlsx_app_properties_shared_doc(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_shared_doc(XBERGAlefHandle handle);
 
 /**
  * Get the `hyperlinks_changed` field from a `XlsxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_xlsx_app_properties_hyperlinks_changed(const XBERGXlsxAppProperties *ptr);
+int32_t xberg_xlsx_app_properties_hyperlinks_changed(XBERGAlefHandle handle);
 
 /**
  * Get the `company` field from a `XlsxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xlsx_app_properties_company(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_company(XBERGAlefHandle handle);
 
 /**
  * Get the `worksheet_names` field from a `XlsxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xlsx_app_properties_worksheet_names(const XBERGXlsxAppProperties *ptr);
+char *xberg_xlsx_app_properties_worksheet_names(XBERGAlefHandle handle);
 
 /**
  * Create a `PptxAppProperties` from a JSON string. Returns null on failure.
@@ -8205,127 +8509,137 @@ char *xberg_xlsx_app_properties_worksheet_names(const XBERGXlsxAppProperties *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pptx_app_properties_free`.
  */
-XBERGPptxAppProperties *xberg_pptx_app_properties_from_json(const char *json);
+XBERGAlefHandle xberg_pptx_app_properties_from_json(const char *json);
 
 /**
  * Serialize a `PptxAppProperties` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pptx_app_properties_to_json(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PptxAppProperties` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pptx_app_properties_free(XBERGPptxAppProperties *ptr);
+void xberg_pptx_app_properties_free(XBERGAlefHandle handle);
 
 /**
  * Get the `application` field from a `PptxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_application(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_application(XBERGAlefHandle handle);
 
 /**
  * Get the `app_version` field from a `PptxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_app_version(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_app_version(XBERGAlefHandle handle);
 
 /**
  * Get the `total_time` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_total_time(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_total_time(XBERGAlefHandle handle);
 
 /**
  * Get the `company` field from a `PptxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_company(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_company(XBERGAlefHandle handle);
 
 /**
  * Get the `doc_security` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_doc_security(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_doc_security(XBERGAlefHandle handle);
 
 /**
  * Get the `scale_crop` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_scale_crop(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_scale_crop(XBERGAlefHandle handle);
 
 /**
  * Get the `links_up_to_date` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_links_up_to_date(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_links_up_to_date(XBERGAlefHandle handle);
 
 /**
  * Get the `shared_doc` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_shared_doc(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_shared_doc(XBERGAlefHandle handle);
 
 /**
  * Get the `hyperlinks_changed` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_hyperlinks_changed(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_hyperlinks_changed(XBERGAlefHandle handle);
 
 /**
  * Get the `slides` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_slides(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_slides(XBERGAlefHandle handle);
 
 /**
  * Get the `notes` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_notes(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_notes(XBERGAlefHandle handle);
 
 /**
  * Get the `hidden_slides` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_hidden_slides(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_hidden_slides(XBERGAlefHandle handle);
 
 /**
  * Get the `multimedia_clips` field from a `PptxAppProperties`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pptx_app_properties_multimedia_clips(const XBERGPptxAppProperties *ptr);
+int32_t xberg_pptx_app_properties_multimedia_clips(XBERGAlefHandle handle);
 
 /**
  * Get the `presentation_format` field from a `PptxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_presentation_format(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_presentation_format(XBERGAlefHandle handle);
 
 /**
  * Get the `slide_titles` field from a `PptxAppProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_app_properties_slide_titles(const XBERGPptxAppProperties *ptr);
+char *xberg_pptx_app_properties_slide_titles(XBERGAlefHandle handle);
 
 /**
  * Create a `CoreProperties` from a JSON string. Returns null on failure.
@@ -8333,127 +8647,157 @@ char *xberg_pptx_app_properties_slide_titles(const XBERGPptxAppProperties *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_core_properties_free`.
  */
-XBERGCoreProperties *xberg_core_properties_from_json(const char *json);
+XBERGAlefHandle xberg_core_properties_from_json(const char *json);
 
 /**
  * Serialize a `CoreProperties` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_core_properties_to_json(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CoreProperties` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_core_properties_free(XBERGCoreProperties *ptr);
+void xberg_core_properties_free(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_title(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_title(XBERGAlefHandle handle);
 
 /**
  * Get the `subject` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_subject(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_subject(XBERGAlefHandle handle);
 
 /**
  * Get the `creator` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_creator(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_creator(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_keywords(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_description(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_description(XBERGAlefHandle handle);
 
 /**
  * Get the `last_modified_by` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_last_modified_by(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_last_modified_by(XBERGAlefHandle handle);
 
 /**
  * Get the `revision` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_revision(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_revision(XBERGAlefHandle handle);
 
 /**
  * Get the `created` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_created(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_created(XBERGAlefHandle handle);
 
 /**
  * Get the `modified` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_modified(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_modified(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_category(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_category(XBERGAlefHandle handle);
 
 /**
  * Get the `content_status` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_content_status(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_content_status(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_language(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_language(XBERGAlefHandle handle);
 
 /**
  * Get the `identifier` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_identifier(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_identifier(XBERGAlefHandle handle);
 
 /**
  * Get the `version` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_version(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_version(XBERGAlefHandle handle);
 
 /**
  * Get the `last_printed` field from a `CoreProperties`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_core_properties_last_printed(const XBERGCoreProperties *ptr);
+char *xberg_core_properties_last_printed(XBERGAlefHandle handle);
 
 /**
  * Create a `SecurityLimits` from a JSON string. Returns null on failure.
@@ -8461,91 +8805,85 @@ char *xberg_core_properties_last_printed(const XBERGCoreProperties *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_security_limits_free`.
  */
-XBERGSecurityLimits *xberg_security_limits_from_json(const char *json);
+XBERGAlefHandle xberg_security_limits_from_json(const char *json);
 
 /**
  * Serialize a `SecurityLimits` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_security_limits_to_json(const XBERGSecurityLimits *ptr);
+char *xberg_security_limits_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SecurityLimits` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_security_limits_free(XBERGSecurityLimits *ptr);
+void xberg_security_limits_free(XBERGAlefHandle handle);
 
 /**
  * Get the `max_archive_size` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_archive_size(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_archive_size(XBERGAlefHandle handle);
 
 /**
  * Get the `max_compression_ratio` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_compression_ratio(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_compression_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `max_files_in_archive` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_files_in_archive(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_files_in_archive(XBERGAlefHandle handle);
 
 /**
  * Get the `max_nesting_depth` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_nesting_depth(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_nesting_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `max_entity_length` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_entity_length(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_entity_length(XBERGAlefHandle handle);
 
 /**
  * Get the `max_content_size` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_content_size(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_content_size(XBERGAlefHandle handle);
 
 /**
  * Get the `max_iterations` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_iterations(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_iterations(XBERGAlefHandle handle);
 
 /**
  * Get the `max_xml_depth` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_xml_depth(const XBERGSecurityLimits *ptr);
+uintptr_t xberg_security_limits_max_xml_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `max_table_cells` field from a `SecurityLimits`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_security_limits_max_table_cells(const XBERGSecurityLimits *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGSecurityLimits *xberg_security_limits_default(void);
+uintptr_t xberg_security_limits_max_table_cells(XBERGAlefHandle handle);
 
 /**
  * Create a `TokenReductionConfig` from a JSON string. Returns null on failure.
@@ -8553,112 +8891,114 @@ XBERGSecurityLimits *xberg_security_limits_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_token_reduction_config_free`.
  */
-XBERGTokenReductionConfig *xberg_token_reduction_config_from_json(const char *json);
+XBERGAlefHandle xberg_token_reduction_config_from_json(const char *json);
 
 /**
  * Serialize a `TokenReductionConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_token_reduction_config_to_json(const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TokenReductionConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_token_reduction_config_free(XBERGTokenReductionConfig *ptr);
+void xberg_token_reduction_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `TokenReductionConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_reduction_level_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGReductionLevel *xberg_token_reduction_config_level(const XBERGTokenReductionConfig *ptr);
+XBERGAlefHandle xberg_token_reduction_config_level(XBERGAlefHandle handle);
 
 /**
  * Get the `language_hint` field from a `TokenReductionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_language_hint(const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_language_hint(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_markdown` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_preserve_markdown(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_preserve_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_code` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_preserve_code(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_preserve_code(XBERGAlefHandle handle);
 
 /**
  * Get the `semantic_threshold` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_token_reduction_config_semantic_threshold(const XBERGTokenReductionConfig *ptr);
+float xberg_token_reduction_config_semantic_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_parallel` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_enable_parallel(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_enable_parallel(XBERGAlefHandle handle);
 
 /**
  * Get the `use_simd` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_use_simd(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_use_simd(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_stopwords` field from a `TokenReductionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_custom_stopwords(const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_custom_stopwords(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_patterns` field from a `TokenReductionConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_token_reduction_config_preserve_patterns(const XBERGTokenReductionConfig *ptr);
+char *xberg_token_reduction_config_preserve_patterns(XBERGAlefHandle handle);
 
 /**
  * Get the `target_reduction` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_token_reduction_config_target_reduction(const XBERGTokenReductionConfig *ptr);
+float xberg_token_reduction_config_target_reduction(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_semantic_clustering` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_enable_semantic_clustering(const XBERGTokenReductionConfig *ptr);
+int32_t xberg_token_reduction_config_enable_semantic_clustering(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_important_words` field from a `TokenReductionConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_token_reduction_config_preserve_important_words(const XBERGTokenReductionConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTokenReductionConfig *xberg_token_reduction_config_default(void);
+int32_t xberg_token_reduction_config_preserve_important_words(XBERGAlefHandle handle);
 
 /**
  * Create a `PatternMatch` from a JSON string. Returns null on failure.
@@ -8666,59 +9006,63 @@ XBERGTokenReductionConfig *xberg_token_reduction_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pattern_match_free`.
  */
-XBERGPatternMatch *xberg_pattern_match_from_json(const char *json);
+XBERGAlefHandle xberg_pattern_match_from_json(const char *json);
 
 /**
  * Serialize a `PatternMatch` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pattern_match_to_json(const XBERGPatternMatch *ptr);
+char *xberg_pattern_match_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PatternMatch` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pattern_match_free(XBERGPatternMatch *ptr);
+void xberg_pattern_match_free(XBERGAlefHandle handle);
 
 /**
  * Get the `start` field from a `PatternMatch`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pattern_match_start(const XBERGPatternMatch *ptr);
+uintptr_t xberg_pattern_match_start(XBERGAlefHandle handle);
 
 /**
  * Get the `end` field from a `PatternMatch`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pattern_match_end(const XBERGPatternMatch *ptr);
+uintptr_t xberg_pattern_match_end(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `PatternMatch`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pii_category_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPiiCategory *xberg_pattern_match_category(const XBERGPatternMatch *ptr);
+XBERGAlefHandle xberg_pattern_match_category(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `PatternMatch`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pattern_match_text(const XBERGPatternMatch *ptr);
+char *xberg_pattern_match_text(XBERGAlefHandle handle);
 
 /**
  * Free a `TokenCounter` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_token_counter_free(XBERGTokenCounter *ptr);
+void xberg_token_counter_free(XBERGAlefHandle handle);
 
-XBERGTokenCounter *xberg_token_counter_new(void);
+XBERGAlefHandle xberg_token_counter_new(void);
 
 /**
  * Create a `FootnoteConfig` from a JSON string. Returns null on failure.
@@ -8726,43 +9070,37 @@ XBERGTokenCounter *xberg_token_counter_new(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_footnote_config_free`.
  */
-XBERGFootnoteConfig *xberg_footnote_config_from_json(const char *json);
+XBERGAlefHandle xberg_footnote_config_from_json(const char *json);
 
 /**
  * Serialize a `FootnoteConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_footnote_config_to_json(const XBERGFootnoteConfig *ptr);
+char *xberg_footnote_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FootnoteConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_footnote_config_free(XBERGFootnoteConfig *ptr);
+void xberg_footnote_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `parse_citations` field from a `FootnoteConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_footnote_config_parse_citations(const XBERGFootnoteConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGFootnoteConfig *xberg_footnote_config_default(void);
+int32_t xberg_footnote_config_parse_citations(XBERGAlefHandle handle);
 
 /**
  * Set whether to parse the citation block.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGFootnoteConfig *xberg_footnote_config_with_parse_citations(XBERGFootnoteConfig *this_,
-                                                                int32_t enabled);
+XBERGAlefHandle xberg_footnote_config_with_parse_citations(XBERGAlefHandle this_,
+                                                           int32_t enabled);
 
 /**
  * Create a `FootnoteAnchor` from a JSON string. Returns null on failure.
@@ -8770,36 +9108,38 @@ XBERGFootnoteConfig *xberg_footnote_config_with_parse_citations(XBERGFootnoteCon
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_footnote_anchor_free`.
  */
-XBERGFootnoteAnchor *xberg_footnote_anchor_from_json(const char *json);
+XBERGAlefHandle xberg_footnote_anchor_from_json(const char *json);
 
 /**
  * Serialize a `FootnoteAnchor` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_footnote_anchor_to_json(const XBERGFootnoteAnchor *ptr);
+char *xberg_footnote_anchor_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FootnoteAnchor` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_footnote_anchor_free(XBERGFootnoteAnchor *ptr);
+void xberg_footnote_anchor_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `FootnoteAnchor`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_footnote_anchor_label(const XBERGFootnoteAnchor *ptr);
+char *xberg_footnote_anchor_label(XBERGAlefHandle handle);
 
 /**
  * Get the `offset` field from a `FootnoteAnchor`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_footnote_anchor_offset(const XBERGFootnoteAnchor *ptr);
+uintptr_t xberg_footnote_anchor_offset(XBERGAlefHandle handle);
 
 /**
  * Create a `FootnoteDefinition` from a JSON string. Returns null on failure.
@@ -8807,43 +9147,47 @@ uintptr_t xberg_footnote_anchor_offset(const XBERGFootnoteAnchor *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_footnote_definition_free`.
  */
-XBERGFootnoteDefinition *xberg_footnote_definition_from_json(const char *json);
+XBERGAlefHandle xberg_footnote_definition_from_json(const char *json);
 
 /**
  * Serialize a `FootnoteDefinition` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_footnote_definition_to_json(const XBERGFootnoteDefinition *ptr);
+char *xberg_footnote_definition_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FootnoteDefinition` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_footnote_definition_free(XBERGFootnoteDefinition *ptr);
+void xberg_footnote_definition_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `FootnoteDefinition`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_footnote_definition_label(const XBERGFootnoteDefinition *ptr);
+char *xberg_footnote_definition_label(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `FootnoteDefinition`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_footnote_definition_content(const XBERGFootnoteDefinition *ptr);
+char *xberg_footnote_definition_content(XBERGAlefHandle handle);
 
 /**
  * Get the `offset` field from a `FootnoteDefinition`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_footnote_definition_offset(const XBERGFootnoteDefinition *ptr);
+uintptr_t xberg_footnote_definition_offset(XBERGAlefHandle handle);
 
 /**
  * Create a `Citation` from a JSON string. Returns null on failure.
@@ -8851,50 +9195,58 @@ uintptr_t xberg_footnote_definition_offset(const XBERGFootnoteDefinition *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_citation_free`.
  */
-XBERGCitation *xberg_citation_from_json(const char *json);
+XBERGAlefHandle xberg_citation_from_json(const char *json);
 
 /**
  * Serialize a `Citation` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_citation_to_json(const XBERGCitation *ptr);
+char *xberg_citation_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Citation` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_citation_free(XBERGCitation *ptr);
+void xberg_citation_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `Citation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_label(const XBERGCitation *ptr);
+char *xberg_citation_label(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `Citation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_source(const XBERGCitation *ptr);
+char *xberg_citation_source(XBERGAlefHandle handle);
 
 /**
  * Get the `locator` field from a `Citation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_locator(const XBERGCitation *ptr);
+char *xberg_citation_locator(XBERGAlefHandle handle);
 
 /**
  * Get the `excerpt` field from a `Citation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_excerpt(const XBERGCitation *ptr);
+char *xberg_citation_excerpt(XBERGAlefHandle handle);
 
 /**
  * Create a `PdfAnnotation` from a JSON string. Returns null on failure.
@@ -8902,92 +9254,110 @@ char *xberg_citation_excerpt(const XBERGCitation *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pdf_annotation_free`.
  */
-XBERGPdfAnnotation *xberg_pdf_annotation_from_json(const char *json);
+XBERGAlefHandle xberg_pdf_annotation_from_json(const char *json);
 
 /**
  * Serialize a `PdfAnnotation` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pdf_annotation_to_json(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PdfAnnotation` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pdf_annotation_free(XBERGPdfAnnotation *ptr);
+void xberg_pdf_annotation_free(XBERGAlefHandle handle);
 
 /**
  * Get the `annotation_type` field from a `PdfAnnotation`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pdf_annotation_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPdfAnnotationType *xberg_pdf_annotation_annotation_type(const XBERGPdfAnnotation *ptr);
+XBERGAlefHandle xberg_pdf_annotation_annotation_type(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_content(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_content(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `PdfAnnotation`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pdf_annotation_page_number(const XBERGPdfAnnotation *ptr);
+uint32_t xberg_pdf_annotation_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `bounding_box` field from a `PdfAnnotation`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_pdf_annotation_bounding_box(const XBERGPdfAnnotation *ptr);
+XBERGAlefHandle xberg_pdf_annotation_bounding_box(XBERGAlefHandle handle);
 
 /**
  * Get the `author` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_author(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_author(XBERGAlefHandle handle);
 
 /**
  * Get the `modified` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_modified(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_modified(XBERGAlefHandle handle);
 
 /**
  * Get the `color` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_color(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_color(XBERGAlefHandle handle);
 
 /**
  * Get the `subject` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_subject(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_subject(XBERGAlefHandle handle);
 
 /**
  * Get the `quad_points` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_quad_points(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_quad_points(XBERGAlefHandle handle);
 
 /**
  * Get the `marked_text` field from a `PdfAnnotation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_annotation_marked_text(const XBERGPdfAnnotation *ptr);
+char *xberg_pdf_annotation_marked_text(XBERGAlefHandle handle);
 
 /**
  * Create a `PageClassification` from a JSON string. Returns null on failure.
@@ -8995,36 +9365,38 @@ char *xberg_pdf_annotation_marked_text(const XBERGPdfAnnotation *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_classification_free`.
  */
-XBERGPageClassification *xberg_page_classification_from_json(const char *json);
+XBERGAlefHandle xberg_page_classification_from_json(const char *json);
 
 /**
  * Serialize a `PageClassification` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_classification_to_json(const XBERGPageClassification *ptr);
+char *xberg_page_classification_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageClassification` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_classification_free(XBERGPageClassification *ptr);
+void xberg_page_classification_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `PageClassification`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_classification_page_number(const XBERGPageClassification *ptr);
+uint32_t xberg_page_classification_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `labels` field from a `PageClassification`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_classification_labels(const XBERGPageClassification *ptr);
+char *xberg_page_classification_labels(XBERGAlefHandle handle);
 
 /**
  * Create a `ClassificationLabel` from a JSON string. Returns null on failure.
@@ -9032,36 +9404,38 @@ char *xberg_page_classification_labels(const XBERGPageClassification *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_classification_label_free`.
  */
-XBERGClassificationLabel *xberg_classification_label_from_json(const char *json);
+XBERGAlefHandle xberg_classification_label_from_json(const char *json);
 
 /**
  * Serialize a `ClassificationLabel` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_classification_label_to_json(const XBERGClassificationLabel *ptr);
+char *xberg_classification_label_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ClassificationLabel` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_classification_label_free(XBERGClassificationLabel *ptr);
+void xberg_classification_label_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `ClassificationLabel`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_classification_label_label(const XBERGClassificationLabel *ptr);
+char *xberg_classification_label_label(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `ClassificationLabel`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_classification_label_confidence(const XBERGClassificationLabel *ptr);
+float xberg_classification_label_confidence(XBERGAlefHandle handle);
 
 /**
  * Create a `DjotContent` from a JSON string. Returns null on failure.
@@ -9069,71 +9443,85 @@ float xberg_classification_label_confidence(const XBERGClassificationLabel *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_djot_content_free`.
  */
-XBERGDjotContent *xberg_djot_content_from_json(const char *json);
+XBERGAlefHandle xberg_djot_content_from_json(const char *json);
 
 /**
  * Serialize a `DjotContent` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_djot_content_to_json(const XBERGDjotContent *ptr);
+char *xberg_djot_content_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DjotContent` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_djot_content_free(XBERGDjotContent *ptr);
+void xberg_djot_content_free(XBERGAlefHandle handle);
 
 /**
  * Get the `plain_text` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_plain_text(const XBERGDjotContent *ptr);
+char *xberg_djot_content_plain_text(XBERGAlefHandle handle);
 
 /**
  * Get the `blocks` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_blocks(const XBERGDjotContent *ptr);
+char *xberg_djot_content_blocks(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `DjotContent`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMetadata *xberg_djot_content_metadata(const XBERGDjotContent *ptr);
+XBERGAlefHandle xberg_djot_content_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `tables` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_tables(const XBERGDjotContent *ptr);
+char *xberg_djot_content_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_images(const XBERGDjotContent *ptr);
+char *xberg_djot_content_images(XBERGAlefHandle handle);
 
 /**
  * Get the `links` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_links(const XBERGDjotContent *ptr);
+char *xberg_djot_content_links(XBERGAlefHandle handle);
 
 /**
  * Get the `footnotes` field from a `DjotContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_content_footnotes(const XBERGDjotContent *ptr);
+char *xberg_djot_content_footnotes(XBERGAlefHandle handle);
 
 /**
  * Create a `FormattedBlock` from a JSON string. Returns null on failure.
@@ -9141,64 +9529,74 @@ char *xberg_djot_content_footnotes(const XBERGDjotContent *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_formatted_block_free`.
  */
-XBERGFormattedBlock *xberg_formatted_block_from_json(const char *json);
+XBERGAlefHandle xberg_formatted_block_from_json(const char *json);
 
 /**
  * Serialize a `FormattedBlock` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_formatted_block_to_json(const XBERGFormattedBlock *ptr);
+char *xberg_formatted_block_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FormattedBlock` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_formatted_block_free(XBERGFormattedBlock *ptr);
+void xberg_formatted_block_free(XBERGAlefHandle handle);
 
 /**
  * Get the `block_type` field from a `FormattedBlock`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_block_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBlockType *xberg_formatted_block_block_type(const XBERGFormattedBlock *ptr);
+XBERGAlefHandle xberg_formatted_block_block_type(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `FormattedBlock`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_formatted_block_level(const XBERGFormattedBlock *ptr);
+uintptr_t xberg_formatted_block_level(XBERGAlefHandle handle);
 
 /**
  * Get the `inline_content` field from a `FormattedBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_formatted_block_inline_content(const XBERGFormattedBlock *ptr);
+char *xberg_formatted_block_inline_content(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `FormattedBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_formatted_block_language(const XBERGFormattedBlock *ptr);
+char *xberg_formatted_block_language(XBERGAlefHandle handle);
 
 /**
  * Get the `code` field from a `FormattedBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_formatted_block_code(const XBERGFormattedBlock *ptr);
+char *xberg_formatted_block_code(XBERGAlefHandle handle);
 
 /**
  * Get the `children` field from a `FormattedBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_formatted_block_children(const XBERGFormattedBlock *ptr);
+char *xberg_formatted_block_children(XBERGAlefHandle handle);
 
 /**
  * Create a `InlineElement` from a JSON string. Returns null on failure.
@@ -9206,43 +9604,49 @@ char *xberg_formatted_block_children(const XBERGFormattedBlock *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_inline_element_free`.
  */
-XBERGInlineElement *xberg_inline_element_from_json(const char *json);
+XBERGAlefHandle xberg_inline_element_from_json(const char *json);
 
 /**
  * Serialize a `InlineElement` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_inline_element_to_json(const XBERGInlineElement *ptr);
+char *xberg_inline_element_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `InlineElement` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_inline_element_free(XBERGInlineElement *ptr);
+void xberg_inline_element_free(XBERGAlefHandle handle);
 
 /**
  * Get the `element_type` field from a `InlineElement`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_inline_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGInlineType *xberg_inline_element_element_type(const XBERGInlineElement *ptr);
+XBERGAlefHandle xberg_inline_element_element_type(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `InlineElement`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_inline_element_content(const XBERGInlineElement *ptr);
+char *xberg_inline_element_content(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `InlineElement`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_inline_element_metadata(const XBERGInlineElement *ptr);
+char *xberg_inline_element_metadata(XBERGAlefHandle handle);
 
 /**
  * Create a `DjotImage` from a JSON string. Returns null on failure.
@@ -9250,43 +9654,49 @@ char *xberg_inline_element_metadata(const XBERGInlineElement *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_djot_image_free`.
  */
-XBERGDjotImage *xberg_djot_image_from_json(const char *json);
+XBERGAlefHandle xberg_djot_image_from_json(const char *json);
 
 /**
  * Serialize a `DjotImage` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_djot_image_to_json(const XBERGDjotImage *ptr);
+char *xberg_djot_image_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DjotImage` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_djot_image_free(XBERGDjotImage *ptr);
+void xberg_djot_image_free(XBERGAlefHandle handle);
 
 /**
  * Get the `src` field from a `DjotImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_image_src(const XBERGDjotImage *ptr);
+char *xberg_djot_image_src(XBERGAlefHandle handle);
 
 /**
  * Get the `alt` field from a `DjotImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_image_alt(const XBERGDjotImage *ptr);
+char *xberg_djot_image_alt(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `DjotImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_image_title(const XBERGDjotImage *ptr);
+char *xberg_djot_image_title(XBERGAlefHandle handle);
 
 /**
  * Create a `DjotLink` from a JSON string. Returns null on failure.
@@ -9294,43 +9704,49 @@ char *xberg_djot_image_title(const XBERGDjotImage *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_djot_link_free`.
  */
-XBERGDjotLink *xberg_djot_link_from_json(const char *json);
+XBERGAlefHandle xberg_djot_link_from_json(const char *json);
 
 /**
  * Serialize a `DjotLink` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_djot_link_to_json(const XBERGDjotLink *ptr);
+char *xberg_djot_link_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DjotLink` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_djot_link_free(XBERGDjotLink *ptr);
+void xberg_djot_link_free(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `DjotLink`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_link_url(const XBERGDjotLink *ptr);
+char *xberg_djot_link_url(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `DjotLink`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_link_text(const XBERGDjotLink *ptr);
+char *xberg_djot_link_text(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `DjotLink`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_djot_link_title(const XBERGDjotLink *ptr);
+char *xberg_djot_link_title(XBERGAlefHandle handle);
 
 /**
  * Create a `Footnote` from a JSON string. Returns null on failure.
@@ -9338,36 +9754,40 @@ char *xberg_djot_link_title(const XBERGDjotLink *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_footnote_free`.
  */
-XBERGFootnote *xberg_footnote_from_json(const char *json);
+XBERGAlefHandle xberg_footnote_from_json(const char *json);
 
 /**
  * Serialize a `Footnote` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_footnote_to_json(const XBERGFootnote *ptr);
+char *xberg_footnote_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Footnote` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_footnote_free(XBERGFootnote *ptr);
+void xberg_footnote_free(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `Footnote`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_footnote_label(const XBERGFootnote *ptr);
+char *xberg_footnote_label(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `Footnote`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_footnote_content(const XBERGFootnote *ptr);
+char *xberg_footnote_content(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentStructure` from a JSON string. Returns null on failure.
@@ -9375,50 +9795,58 @@ char *xberg_footnote_content(const XBERGFootnote *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_structure_free`.
  */
-XBERGDocumentStructure *xberg_document_structure_from_json(const char *json);
+XBERGAlefHandle xberg_document_structure_from_json(const char *json);
 
 /**
  * Serialize a `DocumentStructure` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_structure_to_json(const XBERGDocumentStructure *ptr);
+char *xberg_document_structure_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentStructure` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_structure_free(XBERGDocumentStructure *ptr);
+void xberg_document_structure_free(XBERGAlefHandle handle);
 
 /**
  * Get the `nodes` field from a `DocumentStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_structure_nodes(const XBERGDocumentStructure *ptr);
+char *xberg_document_structure_nodes(XBERGAlefHandle handle);
 
 /**
  * Get the `source_format` field from a `DocumentStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_structure_source_format(const XBERGDocumentStructure *ptr);
+char *xberg_document_structure_source_format(XBERGAlefHandle handle);
 
 /**
  * Get the `relationships` field from a `DocumentStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_structure_relationships(const XBERGDocumentStructure *ptr);
+char *xberg_document_structure_relationships(XBERGAlefHandle handle);
 
 /**
  * Get the `node_types` field from a `DocumentStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_structure_node_types(const XBERGDocumentStructure *ptr);
+char *xberg_document_structure_node_types(XBERGAlefHandle handle);
 
 /**
  * Compute and populate the `node_types` field from the current `nodes`.
@@ -9451,20 +9879,14 @@ char *xberg_document_structure_node_types(const XBERGDocumentStructure *ptr);
  * assert!(structure.node_types.contains(&"paragraph".to_string()));
  * \endcode
  */
-void xberg_document_structure_finalize_node_types(XBERGDocumentStructure *this_);
+void xberg_document_structure_finalize_node_types(XBERGAlefHandle this_);
 
 /**
  * Check if the document structure is empty.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_document_structure_is_empty(const XBERGDocumentStructure *this_);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGDocumentStructure *xberg_document_structure_default(void);
+int32_t xberg_document_structure_is_empty(XBERGAlefHandle this_);
 
 /**
  * Create a `DocumentRelationship` from a JSON string. Returns null on failure.
@@ -9472,43 +9894,45 @@ XBERGDocumentStructure *xberg_document_structure_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_relationship_free`.
  */
-XBERGDocumentRelationship *xberg_document_relationship_from_json(const char *json);
+XBERGAlefHandle xberg_document_relationship_from_json(const char *json);
 
 /**
  * Serialize a `DocumentRelationship` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_relationship_to_json(const XBERGDocumentRelationship *ptr);
+char *xberg_document_relationship_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentRelationship` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_relationship_free(XBERGDocumentRelationship *ptr);
+void xberg_document_relationship_free(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `DocumentRelationship`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_relationship_source(const XBERGDocumentRelationship *ptr);
+uint32_t xberg_document_relationship_source(XBERGAlefHandle handle);
 
 /**
  * Get the `target` field from a `DocumentRelationship`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_relationship_target(const XBERGDocumentRelationship *ptr);
+uint32_t xberg_document_relationship_target(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `DocumentRelationship`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_relationship_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRelationshipKind *xberg_document_relationship_kind(const XBERGDocumentRelationship *ptr);
+XBERGAlefHandle xberg_document_relationship_kind(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentNode` from a JSON string. Returns null on failure.
@@ -9516,92 +9940,106 @@ XBERGRelationshipKind *xberg_document_relationship_kind(const XBERGDocumentRelat
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_node_free`.
  */
-XBERGDocumentNode *xberg_document_node_from_json(const char *json);
+XBERGAlefHandle xberg_document_node_from_json(const char *json);
 
 /**
  * Serialize a `DocumentNode` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_node_to_json(const XBERGDocumentNode *ptr);
+char *xberg_document_node_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentNode` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_node_free(XBERGDocumentNode *ptr);
+void xberg_document_node_free(XBERGAlefHandle handle);
 
 /**
  * Get the `id` field from a `DocumentNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_node_id(const XBERGDocumentNode *ptr);
+char *xberg_document_node_id(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `DocumentNode`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_node_content_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNodeContent *xberg_document_node_content(const XBERGDocumentNode *ptr);
+XBERGAlefHandle xberg_document_node_content(XBERGAlefHandle handle);
 
 /**
  * Get the `parent` field from a `DocumentNode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_node_parent(const XBERGDocumentNode *ptr);
+uint32_t xberg_document_node_parent(XBERGAlefHandle handle);
 
 /**
  * Get the `children` field from a `DocumentNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_node_children(const XBERGDocumentNode *ptr);
+char *xberg_document_node_children(XBERGAlefHandle handle);
 
 /**
  * Get the `content_layer` field from a `DocumentNode`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_content_layer_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentLayer *xberg_document_node_content_layer(const XBERGDocumentNode *ptr);
+XBERGAlefHandle xberg_document_node_content_layer(XBERGAlefHandle handle);
 
 /**
  * Get the `page` field from a `DocumentNode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_node_page(const XBERGDocumentNode *ptr);
+uint32_t xberg_document_node_page(XBERGAlefHandle handle);
 
 /**
  * Get the `page_end` field from a `DocumentNode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_node_page_end(const XBERGDocumentNode *ptr);
+uint32_t xberg_document_node_page_end(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `DocumentNode`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_document_node_bbox(const XBERGDocumentNode *ptr);
+XBERGAlefHandle xberg_document_node_bbox(XBERGAlefHandle handle);
 
 /**
  * Get the `annotations` field from a `DocumentNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_node_annotations(const XBERGDocumentNode *ptr);
+char *xberg_document_node_annotations(XBERGAlefHandle handle);
 
 /**
  * Get the `attributes` field from a `DocumentNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_node_attributes(const XBERGDocumentNode *ptr);
+char *xberg_document_node_attributes(XBERGAlefHandle handle);
 
 /**
  * Create a `TableGrid` from a JSON string. Returns null on failure.
@@ -9609,43 +10047,45 @@ char *xberg_document_node_attributes(const XBERGDocumentNode *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_table_grid_free`.
  */
-XBERGTableGrid *xberg_table_grid_from_json(const char *json);
+XBERGAlefHandle xberg_table_grid_from_json(const char *json);
 
 /**
  * Serialize a `TableGrid` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_table_grid_to_json(const XBERGTableGrid *ptr);
+char *xberg_table_grid_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TableGrid` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_table_grid_free(XBERGTableGrid *ptr);
+void xberg_table_grid_free(XBERGAlefHandle handle);
 
 /**
  * Get the `rows` field from a `TableGrid`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_table_grid_rows(const XBERGTableGrid *ptr);
+uint32_t xberg_table_grid_rows(XBERGAlefHandle handle);
 
 /**
  * Get the `cols` field from a `TableGrid`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_table_grid_cols(const XBERGTableGrid *ptr);
+uint32_t xberg_table_grid_cols(XBERGAlefHandle handle);
 
 /**
  * Get the `cells` field from a `TableGrid`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_grid_cells(const XBERGTableGrid *ptr);
+char *xberg_table_grid_cells(XBERGAlefHandle handle);
 
 /**
  * Create a `GridCell` from a JSON string. Returns null on failure.
@@ -9653,71 +10093,75 @@ char *xberg_table_grid_cells(const XBERGTableGrid *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_grid_cell_free`.
  */
-XBERGGridCell *xberg_grid_cell_from_json(const char *json);
+XBERGAlefHandle xberg_grid_cell_from_json(const char *json);
 
 /**
  * Serialize a `GridCell` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_grid_cell_to_json(const XBERGGridCell *ptr);
+char *xberg_grid_cell_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `GridCell` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_grid_cell_free(XBERGGridCell *ptr);
+void xberg_grid_cell_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `GridCell`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_grid_cell_content(const XBERGGridCell *ptr);
+char *xberg_grid_cell_content(XBERGAlefHandle handle);
 
 /**
  * Get the `row` field from a `GridCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_grid_cell_row(const XBERGGridCell *ptr);
+uint32_t xberg_grid_cell_row(XBERGAlefHandle handle);
 
 /**
  * Get the `col` field from a `GridCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_grid_cell_col(const XBERGGridCell *ptr);
+uint32_t xberg_grid_cell_col(XBERGAlefHandle handle);
 
 /**
  * Get the `row_span` field from a `GridCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_grid_cell_row_span(const XBERGGridCell *ptr);
+uint32_t xberg_grid_cell_row_span(XBERGAlefHandle handle);
 
 /**
  * Get the `col_span` field from a `GridCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_grid_cell_col_span(const XBERGGridCell *ptr);
+uint32_t xberg_grid_cell_col_span(XBERGAlefHandle handle);
 
 /**
  * Get the `is_header` field from a `GridCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_grid_cell_is_header(const XBERGGridCell *ptr);
+int32_t xberg_grid_cell_is_header(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `GridCell`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_grid_cell_bbox(const XBERGGridCell *ptr);
+XBERGAlefHandle xberg_grid_cell_bbox(XBERGAlefHandle handle);
 
 /**
  * Create a `TextAnnotation` from a JSON string. Returns null on failure.
@@ -9725,43 +10169,45 @@ XBERGBoundingBox *xberg_grid_cell_bbox(const XBERGGridCell *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_text_annotation_free`.
  */
-XBERGTextAnnotation *xberg_text_annotation_from_json(const char *json);
+XBERGAlefHandle xberg_text_annotation_from_json(const char *json);
 
 /**
  * Serialize a `TextAnnotation` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_text_annotation_to_json(const XBERGTextAnnotation *ptr);
+char *xberg_text_annotation_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TextAnnotation` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_text_annotation_free(XBERGTextAnnotation *ptr);
+void xberg_text_annotation_free(XBERGAlefHandle handle);
 
 /**
  * Get the `start` field from a `TextAnnotation`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_text_annotation_start(const XBERGTextAnnotation *ptr);
+uint32_t xberg_text_annotation_start(XBERGAlefHandle handle);
 
 /**
  * Get the `end` field from a `TextAnnotation`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_text_annotation_end(const XBERGTextAnnotation *ptr);
+uint32_t xberg_text_annotation_end(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `TextAnnotation`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_annotation_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAnnotationKind *xberg_text_annotation_kind(const XBERGTextAnnotation *ptr);
+XBERGAlefHandle xberg_text_annotation_kind(XBERGAlefHandle handle);
 
 /**
  * Create a `Entity` from a JSON string. Returns null on failure.
@@ -9769,57 +10215,61 @@ XBERGAnnotationKind *xberg_text_annotation_kind(const XBERGTextAnnotation *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_entity_free`.
  */
-XBERGEntity *xberg_entity_from_json(const char *json);
+XBERGAlefHandle xberg_entity_from_json(const char *json);
 
 /**
  * Serialize a `Entity` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_entity_to_json(const XBERGEntity *ptr);
+char *xberg_entity_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Entity` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_entity_free(XBERGEntity *ptr);
+void xberg_entity_free(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `Entity`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_entity_category_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEntityCategory *xberg_entity_category(const XBERGEntity *ptr);
+XBERGAlefHandle xberg_entity_category(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `Entity`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_entity_text(const XBERGEntity *ptr);
+char *xberg_entity_text(XBERGAlefHandle handle);
 
 /**
  * Get the `start` field from a `Entity`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_entity_start(const XBERGEntity *ptr);
+uint32_t xberg_entity_start(XBERGAlefHandle handle);
 
 /**
  * Get the `end` field from a `Entity`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_entity_end(const XBERGEntity *ptr);
+uint32_t xberg_entity_end(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `Entity`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_entity_confidence(const XBERGEntity *ptr);
+float xberg_entity_confidence(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentCounts` from a JSON string. Returns null on failure.
@@ -9827,43 +10277,43 @@ float xberg_entity_confidence(const XBERGEntity *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_counts_free`.
  */
-XBERGDocumentCounts *xberg_document_counts_from_json(const char *json);
+XBERGAlefHandle xberg_document_counts_from_json(const char *json);
 
 /**
  * Serialize a `DocumentCounts` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_counts_to_json(const XBERGDocumentCounts *ptr);
+char *xberg_document_counts_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentCounts` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_counts_free(XBERGDocumentCounts *ptr);
+void xberg_document_counts_free(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `DocumentCounts`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_document_counts_pages(const XBERGDocumentCounts *ptr);
+uintptr_t xberg_document_counts_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `tables` field from a `DocumentCounts`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_document_counts_tables(const XBERGDocumentCounts *ptr);
+uintptr_t xberg_document_counts_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `DocumentCounts`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_document_counts_images(const XBERGDocumentCounts *ptr);
+uintptr_t xberg_document_counts_images(XBERGAlefHandle handle);
 
 /**
  * Create a `LanguageConfidence` from a JSON string. Returns null on failure.
@@ -9871,57 +10321,61 @@ uintptr_t xberg_document_counts_images(const XBERGDocumentCounts *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_language_confidence_free`.
  */
-XBERGLanguageConfidence *xberg_language_confidence_from_json(const char *json);
+XBERGAlefHandle xberg_language_confidence_from_json(const char *json);
 
 /**
  * Serialize a `LanguageConfidence` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_language_confidence_to_json(const XBERGLanguageConfidence *ptr);
+char *xberg_language_confidence_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LanguageConfidence` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_language_confidence_free(XBERGLanguageConfidence *ptr);
+void xberg_language_confidence_free(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `LanguageConfidence`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_language_confidence_language(const XBERGLanguageConfidence *ptr);
+char *xberg_language_confidence_language(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `LanguageConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_language_confidence_confidence(const XBERGLanguageConfidence *ptr);
+double xberg_language_confidence_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `proportion` field from a `LanguageConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_language_confidence_proportion(const XBERGLanguageConfidence *ptr);
+double xberg_language_confidence_proportion(XBERGAlefHandle handle);
 
 /**
  * Get the `script` field from a `LanguageConfidence`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_language_confidence_script(const XBERGLanguageConfidence *ptr);
+char *xberg_language_confidence_script(XBERGAlefHandle handle);
 
 /**
  * Get the `reliable` field from a `LanguageConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_language_confidence_reliable(const XBERGLanguageConfidence *ptr);
+int32_t xberg_language_confidence_reliable(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractedDocument` from a JSON string. Returns null on failure.
@@ -9929,253 +10383,317 @@ int32_t xberg_language_confidence_reliable(const XBERGLanguageConfidence *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extracted_document_free`.
  */
-XBERGExtractedDocument *xberg_extracted_document_from_json(const char *json);
+XBERGAlefHandle xberg_extracted_document_from_json(const char *json);
 
 /**
  * Serialize a `ExtractedDocument` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extracted_document_to_json(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractedDocument` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extracted_document_free(XBERGExtractedDocument *ptr);
+void xberg_extracted_document_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_content(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_content(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_mime_type(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMetadata *xberg_extracted_document_metadata(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `extraction_method` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extraction_method_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionMethod *xberg_extracted_document_extraction_method(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_extraction_method(XBERGAlefHandle handle);
 
 /**
  * Get the `tables` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_tables(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `counts` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_document_counts_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentCounts *xberg_extracted_document_counts(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_counts(XBERGAlefHandle handle);
 
 /**
  * Get the `detected_languages` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_detected_languages(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_detected_languages(XBERGAlefHandle handle);
 
 /**
  * Get the `detected_language_confidences` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_detected_language_confidences(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_detected_language_confidences(XBERGAlefHandle handle);
 
 /**
  * Get the `chunks` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_chunks(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_chunks(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_images(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_images(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_pages(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `elements` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_elements(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_elements(XBERGAlefHandle handle);
 
 /**
  * Get the `djot_content` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_djot_content_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDjotContent *xberg_extracted_document_djot_content(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_djot_content(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_elements` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_ocr_elements(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_ocr_elements(XBERGAlefHandle handle);
 
 /**
  * Get the `document` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_document_structure_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentStructure *xberg_extracted_document_document(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_document(XBERGAlefHandle handle);
 
 /**
  * Get the `extracted_keywords` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_extracted_keywords(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_extracted_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `quality_score` field from a `ExtractedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_extracted_document_quality_score(const XBERGExtractedDocument *ptr);
+double xberg_extracted_document_quality_score(XBERGAlefHandle handle);
 
 /**
  * Get the `processing_warnings` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_processing_warnings(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_processing_warnings(XBERGAlefHandle handle);
 
 /**
  * Get the `annotations` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_annotations(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_annotations(XBERGAlefHandle handle);
 
 /**
  * Get the `children` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_children(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_children(XBERGAlefHandle handle);
 
 /**
  * Get the `uris` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_uris(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_uris(XBERGAlefHandle handle);
 
 /**
  * Get the `revisions` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_revisions(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_revisions(XBERGAlefHandle handle);
 
 /**
  * Get the `structured_output` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_structured_output(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_structured_output(XBERGAlefHandle handle);
 
 /**
  * Get the `code_intelligence` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_code_intelligence(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_code_intelligence(XBERGAlefHandle handle);
 
 /**
  * Get the `llm_usage` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_llm_usage(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_llm_usage(XBERGAlefHandle handle);
 
 /**
  * Get the `entities` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_entities(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_entities(XBERGAlefHandle handle);
 
 /**
  * Get the `summary` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_document_summary_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentSummary *xberg_extracted_document_summary(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_summary(XBERGAlefHandle handle);
 
 /**
  * Get the `extraction_confidence` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extraction_confidence_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionConfidence *xberg_extracted_document_extraction_confidence(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_extraction_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `translation` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_translation_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTranslation *xberg_extracted_document_translation(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_translation(XBERGAlefHandle handle);
 
 /**
  * Get the `page_classifications` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_page_classifications(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_page_classifications(XBERGAlefHandle handle);
 
 /**
  * Get the `redaction_report` field from a `ExtractedDocument`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_redaction_report_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionReport *xberg_extracted_document_redaction_report(const XBERGExtractedDocument *ptr);
+XBERGAlefHandle xberg_extracted_document_redaction_report(XBERGAlefHandle handle);
 
 /**
  * Get the `formulas` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_formulas(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_formulas(XBERGAlefHandle handle);
 
 /**
  * Get the `form_fields` field from a `ExtractedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_document_form_fields(const XBERGExtractedDocument *ptr);
+char *xberg_extracted_document_form_fields(XBERGAlefHandle handle);
 
 /**
  * Create a `ArchiveEntry` from a JSON string. Returns null on failure.
@@ -10183,43 +10701,49 @@ char *xberg_extracted_document_form_fields(const XBERGExtractedDocument *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_archive_entry_free`.
  */
-XBERGArchiveEntry *xberg_archive_entry_from_json(const char *json);
+XBERGAlefHandle xberg_archive_entry_from_json(const char *json);
 
 /**
  * Serialize a `ArchiveEntry` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_archive_entry_to_json(const XBERGArchiveEntry *ptr);
+char *xberg_archive_entry_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ArchiveEntry` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_archive_entry_free(XBERGArchiveEntry *ptr);
+void xberg_archive_entry_free(XBERGAlefHandle handle);
 
 /**
  * Get the `path` field from a `ArchiveEntry`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_archive_entry_path(const XBERGArchiveEntry *ptr);
+char *xberg_archive_entry_path(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `ArchiveEntry`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_archive_entry_mime_type(const XBERGArchiveEntry *ptr);
+char *xberg_archive_entry_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `result` field from a `ArchiveEntry`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extracted_document_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractedDocument *xberg_archive_entry_result(const XBERGArchiveEntry *ptr);
+XBERGAlefHandle xberg_archive_entry_result(XBERGAlefHandle handle);
 
 /**
  * Create a `ProcessingWarning` from a JSON string. Returns null on failure.
@@ -10227,36 +10751,40 @@ XBERGExtractedDocument *xberg_archive_entry_result(const XBERGArchiveEntry *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_processing_warning_free`.
  */
-XBERGProcessingWarning *xberg_processing_warning_from_json(const char *json);
+XBERGAlefHandle xberg_processing_warning_from_json(const char *json);
 
 /**
  * Serialize a `ProcessingWarning` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_processing_warning_to_json(const XBERGProcessingWarning *ptr);
+char *xberg_processing_warning_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ProcessingWarning` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_processing_warning_free(XBERGProcessingWarning *ptr);
+void xberg_processing_warning_free(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `ProcessingWarning`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_processing_warning_source(const XBERGProcessingWarning *ptr);
+char *xberg_processing_warning_source(XBERGAlefHandle handle);
 
 /**
  * Get the `message` field from a `ProcessingWarning`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_processing_warning_message(const XBERGProcessingWarning *ptr);
+char *xberg_processing_warning_message(XBERGAlefHandle handle);
 
 /**
  * Create a `LlmUsage` from a JSON string. Returns null on failure.
@@ -10264,71 +10792,77 @@ char *xberg_processing_warning_message(const XBERGProcessingWarning *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_llm_usage_free`.
  */
-XBERGLlmUsage *xberg_llm_usage_from_json(const char *json);
+XBERGAlefHandle xberg_llm_usage_from_json(const char *json);
 
 /**
  * Serialize a `LlmUsage` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_llm_usage_to_json(const XBERGLlmUsage *ptr);
+char *xberg_llm_usage_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LlmUsage` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_llm_usage_free(XBERGLlmUsage *ptr);
+void xberg_llm_usage_free(XBERGAlefHandle handle);
 
 /**
  * Get the `model` field from a `LlmUsage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_usage_model(const XBERGLlmUsage *ptr);
+char *xberg_llm_usage_model(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `LlmUsage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_usage_source(const XBERGLlmUsage *ptr);
+char *xberg_llm_usage_source(XBERGAlefHandle handle);
 
 /**
  * Get the `input_tokens` field from a `LlmUsage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_usage_input_tokens(const XBERGLlmUsage *ptr);
+uint64_t xberg_llm_usage_input_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `output_tokens` field from a `LlmUsage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_usage_output_tokens(const XBERGLlmUsage *ptr);
+uint64_t xberg_llm_usage_output_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `total_tokens` field from a `LlmUsage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_llm_usage_total_tokens(const XBERGLlmUsage *ptr);
+uint64_t xberg_llm_usage_total_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `estimated_cost` field from a `LlmUsage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_llm_usage_estimated_cost(const XBERGLlmUsage *ptr);
+double xberg_llm_usage_estimated_cost(XBERGAlefHandle handle);
 
 /**
  * Get the `finish_reason` field from a `LlmUsage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_llm_usage_finish_reason(const XBERGLlmUsage *ptr);
+char *xberg_llm_usage_finish_reason(XBERGAlefHandle handle);
 
 /**
  * Create a `Chunk` from a JSON string. Returns null on failure.
@@ -10336,64 +10870,76 @@ char *xberg_llm_usage_finish_reason(const XBERGLlmUsage *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_free`.
  */
-XBERGChunk *xberg_chunk_from_json(const char *json);
+XBERGAlefHandle xberg_chunk_from_json(const char *json);
 
 /**
  * Serialize a `Chunk` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_to_json(const XBERGChunk *ptr);
+char *xberg_chunk_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Chunk` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_free(XBERGChunk *ptr);
+void xberg_chunk_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `Chunk`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_content(const XBERGChunk *ptr);
+char *xberg_chunk_content(XBERGAlefHandle handle);
 
 /**
  * Get the `chunk_type` field from a `Chunk`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkType *xberg_chunk_chunk_type(const XBERGChunk *ptr);
+XBERGAlefHandle xberg_chunk_chunk_type(XBERGAlefHandle handle);
 
 /**
  * Get the `embedding` field from a `Chunk`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_embedding(const XBERGChunk *ptr);
+char *xberg_chunk_embedding(XBERGAlefHandle handle);
 
 /**
  * Get the `sparse_embedding` field from a `Chunk`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_sparse_embedding_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSparseEmbedding *xberg_chunk_sparse_embedding(const XBERGChunk *ptr);
+XBERGAlefHandle xberg_chunk_sparse_embedding(XBERGAlefHandle handle);
 
 /**
  * Get the `late_interaction` field from a `Chunk`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_multi_vector_embedding_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMultiVectorEmbedding *xberg_chunk_late_interaction(const XBERGChunk *ptr);
+XBERGAlefHandle xberg_chunk_late_interaction(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `Chunk`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkMetadata *xberg_chunk_metadata(const XBERGChunk *ptr);
+XBERGAlefHandle xberg_chunk_metadata(XBERGAlefHandle handle);
 
 /**
  * Create a `HeadingContext` from a JSON string. Returns null on failure.
@@ -10401,29 +10947,31 @@ XBERGChunkMetadata *xberg_chunk_metadata(const XBERGChunk *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_heading_context_free`.
  */
-XBERGHeadingContext *xberg_heading_context_from_json(const char *json);
+XBERGAlefHandle xberg_heading_context_from_json(const char *json);
 
 /**
  * Serialize a `HeadingContext` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_heading_context_to_json(const XBERGHeadingContext *ptr);
+char *xberg_heading_context_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HeadingContext` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_heading_context_free(XBERGHeadingContext *ptr);
+void xberg_heading_context_free(XBERGAlefHandle handle);
 
 /**
  * Get the `headings` field from a `HeadingContext`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_heading_context_headings(const XBERGHeadingContext *ptr);
+char *xberg_heading_context_headings(XBERGAlefHandle handle);
 
 /**
  * Create a `HeadingLevel` from a JSON string. Returns null on failure.
@@ -10431,36 +10979,38 @@ char *xberg_heading_context_headings(const XBERGHeadingContext *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_heading_level_free`.
  */
-XBERGHeadingLevel *xberg_heading_level_from_json(const char *json);
+XBERGAlefHandle xberg_heading_level_from_json(const char *json);
 
 /**
  * Serialize a `HeadingLevel` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_heading_level_to_json(const XBERGHeadingLevel *ptr);
+char *xberg_heading_level_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HeadingLevel` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_heading_level_free(XBERGHeadingLevel *ptr);
+void xberg_heading_level_free(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `HeadingLevel`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t xberg_heading_level_level(const XBERGHeadingLevel *ptr);
+uint8_t xberg_heading_level_level(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `HeadingLevel`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_heading_level_text(const XBERGHeadingLevel *ptr);
+char *xberg_heading_level_text(XBERGAlefHandle handle);
 
 /**
  * Create a `ChunkMetadata` from a JSON string. Returns null on failure.
@@ -10468,113 +11018,125 @@ char *xberg_heading_level_text(const XBERGHeadingLevel *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_metadata_free`.
  */
-XBERGChunkMetadata *xberg_chunk_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_chunk_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ChunkMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_metadata_to_json(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_metadata_free(XBERGChunkMetadata *ptr);
+void xberg_chunk_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_start` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_metadata_byte_start(const XBERGChunkMetadata *ptr);
+uintptr_t xberg_chunk_metadata_byte_start(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_end` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_metadata_byte_end(const XBERGChunkMetadata *ptr);
+uintptr_t xberg_chunk_metadata_byte_end(XBERGAlefHandle handle);
 
 /**
  * Get the `token_count` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_metadata_token_count(const XBERGChunkMetadata *ptr);
+uintptr_t xberg_chunk_metadata_token_count(XBERGAlefHandle handle);
 
 /**
  * Get the `chunk_index` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_metadata_chunk_index(const XBERGChunkMetadata *ptr);
+uintptr_t xberg_chunk_metadata_chunk_index(XBERGAlefHandle handle);
 
 /**
  * Get the `total_chunks` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_chunk_metadata_total_chunks(const XBERGChunkMetadata *ptr);
+uintptr_t xberg_chunk_metadata_total_chunks(XBERGAlefHandle handle);
 
 /**
  * Get the `first_page` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_chunk_metadata_first_page(const XBERGChunkMetadata *ptr);
+uint32_t xberg_chunk_metadata_first_page(XBERGAlefHandle handle);
 
 /**
  * Get the `last_page` field from a `ChunkMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_chunk_metadata_last_page(const XBERGChunkMetadata *ptr);
+uint32_t xberg_chunk_metadata_last_page(XBERGAlefHandle handle);
 
 /**
  * Get the `heading_context` field from a `ChunkMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_heading_context_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHeadingContext *xberg_chunk_metadata_heading_context(const XBERGChunkMetadata *ptr);
+XBERGAlefHandle xberg_chunk_metadata_heading_context(XBERGAlefHandle handle);
 
 /**
  * Get the `heading_path` field from a `ChunkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_metadata_heading_path(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_heading_path(XBERGAlefHandle handle);
 
 /**
  * Get the `image_indices` field from a `ChunkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_metadata_image_indices(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_image_indices(XBERGAlefHandle handle);
 
 /**
  * Get the `node_ids` field from a `ChunkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_metadata_node_ids(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_node_ids(XBERGAlefHandle handle);
 
 /**
  * Get the `page_spans` field from a `ChunkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_metadata_page_spans(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_page_spans(XBERGAlefHandle handle);
 
 /**
  * Get the `classifications` field from a `ChunkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_chunk_metadata_classifications(const XBERGChunkMetadata *ptr);
+char *xberg_chunk_metadata_classifications(XBERGAlefHandle handle);
 
 /**
  * Create a `PageSpan` from a JSON string. Returns null on failure.
@@ -10582,36 +11144,38 @@ char *xberg_chunk_metadata_classifications(const XBERGChunkMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_span_free`.
  */
-XBERGPageSpan *xberg_page_span_from_json(const char *json);
+XBERGAlefHandle xberg_page_span_from_json(const char *json);
 
 /**
  * Serialize a `PageSpan` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_span_to_json(const XBERGPageSpan *ptr);
+char *xberg_page_span_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageSpan` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_span_free(XBERGPageSpan *ptr);
+void xberg_page_span_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page` field from a `PageSpan`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_span_page(const XBERGPageSpan *ptr);
+uint32_t xberg_page_span_page(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `PageSpan`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_page_span_bbox(const XBERGPageSpan *ptr);
+XBERGAlefHandle xberg_page_span_bbox(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractedImage` from a JSON string. Returns null on failure.
@@ -10619,156 +11183,178 @@ XBERGBoundingBox *xberg_page_span_bbox(const XBERGPageSpan *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extracted_image_free`.
  */
-XBERGExtractedImage *xberg_extracted_image_from_json(const char *json);
+XBERGAlefHandle xberg_extracted_image_from_json(const char *json);
 
 /**
  * Serialize a `ExtractedImage` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extracted_image_to_json(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractedImage` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extracted_image_free(XBERGExtractedImage *ptr);
+void xberg_extracted_image_free(XBERGAlefHandle handle);
 
 /**
  * Get the `data` field from a `ExtractedImage`.
+ * The returned byte pointer is borrowed from `ptr` and must not be freed.
+ * It remains valid until `ptr` is destroyed or the field is mutated.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t *xberg_extracted_image_data(const XBERGExtractedImage *ptr,
+uint8_t *xberg_extracted_image_data(XBERGAlefHandle handle,
                                     uintptr_t *out_len);
 
 /**
  * Get the `format` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_format(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_format(XBERGAlefHandle handle);
 
 /**
  * Get the `image_index` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_image_index(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_image_index(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_page_number(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `width` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_width(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_width(XBERGAlefHandle handle);
 
 /**
  * Get the `height` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_height(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_height(XBERGAlefHandle handle);
 
 /**
  * Get the `colorspace` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_colorspace(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_colorspace(XBERGAlefHandle handle);
 
 /**
  * Get the `bits_per_component` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_bits_per_component(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_bits_per_component(XBERGAlefHandle handle);
 
 /**
  * Get the `is_mask` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_extracted_image_is_mask(const XBERGExtractedImage *ptr);
+int32_t xberg_extracted_image_is_mask(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_description(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_description(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_result` field from a `ExtractedImage`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extracted_document_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractedDocument *xberg_extracted_image_ocr_result(const XBERGExtractedImage *ptr);
+XBERGAlefHandle xberg_extracted_image_ocr_result(XBERGAlefHandle handle);
 
 /**
  * Get the `bounding_box` field from a `ExtractedImage`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_extracted_image_bounding_box(const XBERGExtractedImage *ptr);
+XBERGAlefHandle xberg_extracted_image_bounding_box(XBERGAlefHandle handle);
 
 /**
  * Get the `source_path` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_source_path(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_source_path(XBERGAlefHandle handle);
 
 /**
  * Get the `image_kind` field from a `ExtractedImage`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageKind *xberg_extracted_image_image_kind(const XBERGExtractedImage *ptr);
+XBERGAlefHandle xberg_extracted_image_image_kind(XBERGAlefHandle handle);
 
 /**
  * Get the `kind_confidence` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extracted_image_kind_confidence(const XBERGExtractedImage *ptr);
+float xberg_extracted_image_kind_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `cluster_id` field from a `ExtractedImage`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_image_cluster_id(const XBERGExtractedImage *ptr);
+uint32_t xberg_extracted_image_cluster_id(XBERGAlefHandle handle);
 
 /**
  * Get the `caption` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_caption(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_caption(XBERGAlefHandle handle);
 
 /**
  * Get the `qr_codes` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_qr_codes(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_qr_codes(XBERGAlefHandle handle);
 
 /**
  * Get the `data_base64` field from a `ExtractedImage`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_image_data_base64(const XBERGExtractedImage *ptr);
+char *xberg_extracted_image_data_base64(XBERGAlefHandle handle);
 
 /**
  * Create a `BoundingBox` from a JSON string. Returns null on failure.
@@ -10776,50 +11362,50 @@ char *xberg_extracted_image_data_base64(const XBERGExtractedImage *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_bounding_box_free`.
  */
-XBERGBoundingBox *xberg_bounding_box_from_json(const char *json);
+XBERGAlefHandle xberg_bounding_box_from_json(const char *json);
 
 /**
  * Serialize a `BoundingBox` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_bounding_box_to_json(const XBERGBoundingBox *ptr);
+char *xberg_bounding_box_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `BoundingBox` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_bounding_box_free(XBERGBoundingBox *ptr);
+void xberg_bounding_box_free(XBERGAlefHandle handle);
 
 /**
  * Get the `x0` field from a `BoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_bounding_box_x0(const XBERGBoundingBox *ptr);
+double xberg_bounding_box_x0(XBERGAlefHandle handle);
 
 /**
  * Get the `y0` field from a `BoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_bounding_box_y0(const XBERGBoundingBox *ptr);
+double xberg_bounding_box_y0(XBERGAlefHandle handle);
 
 /**
  * Get the `x1` field from a `BoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_bounding_box_x1(const XBERGBoundingBox *ptr);
+double xberg_bounding_box_x1(XBERGAlefHandle handle);
 
 /**
  * Get the `y1` field from a `BoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_bounding_box_y1(const XBERGBoundingBox *ptr);
+double xberg_bounding_box_y1(XBERGAlefHandle handle);
 
 /**
  * Create a `ElementMetadata` from a JSON string. Returns null on failure.
@@ -10827,57 +11413,63 @@ double xberg_bounding_box_y1(const XBERGBoundingBox *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_element_metadata_free`.
  */
-XBERGElementMetadata *xberg_element_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_element_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ElementMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_element_metadata_to_json(const XBERGElementMetadata *ptr);
+char *xberg_element_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ElementMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_element_metadata_free(XBERGElementMetadata *ptr);
+void xberg_element_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `ElementMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_element_metadata_page_number(const XBERGElementMetadata *ptr);
+uint32_t xberg_element_metadata_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `filename` field from a `ElementMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_element_metadata_filename(const XBERGElementMetadata *ptr);
+char *xberg_element_metadata_filename(XBERGAlefHandle handle);
 
 /**
  * Get the `coordinates` field from a `ElementMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_element_metadata_coordinates(const XBERGElementMetadata *ptr);
+XBERGAlefHandle xberg_element_metadata_coordinates(XBERGAlefHandle handle);
 
 /**
  * Get the `element_index` field from a `ElementMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_element_metadata_element_index(const XBERGElementMetadata *ptr);
+uintptr_t xberg_element_metadata_element_index(XBERGAlefHandle handle);
 
 /**
  * Get the `additional` field from a `ElementMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_element_metadata_additional(const XBERGElementMetadata *ptr);
+char *xberg_element_metadata_additional(XBERGAlefHandle handle);
 
 /**
  * Create a `Element` from a JSON string. Returns null on failure.
@@ -10885,43 +11477,49 @@ char *xberg_element_metadata_additional(const XBERGElementMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_element_free`.
  */
-XBERGElement *xberg_element_from_json(const char *json);
+XBERGAlefHandle xberg_element_from_json(const char *json);
 
 /**
  * Serialize a `Element` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_element_to_json(const XBERGElement *ptr);
+char *xberg_element_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Element` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_element_free(XBERGElement *ptr);
+void xberg_element_free(XBERGAlefHandle handle);
 
 /**
  * Get the `element_type` field from a `Element`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_element_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGElementType *xberg_element_element_type(const XBERGElement *ptr);
+XBERGAlefHandle xberg_element_element_type(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `Element`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_element_text(const XBERGElement *ptr);
+char *xberg_element_text(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `Element`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_element_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGElementMetadata *xberg_element_metadata(const XBERGElement *ptr);
+XBERGAlefHandle xberg_element_metadata(XBERGAlefHandle handle);
 
 /**
  * Create a `PdfFormField` from a JSON string. Returns null on failure.
@@ -10929,92 +11527,106 @@ XBERGElementMetadata *xberg_element_metadata(const XBERGElement *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pdf_form_field_free`.
  */
-XBERGPdfFormField *xberg_pdf_form_field_from_json(const char *json);
+XBERGAlefHandle xberg_pdf_form_field_from_json(const char *json);
 
 /**
  * Serialize a `PdfFormField` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pdf_form_field_to_json(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PdfFormField` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pdf_form_field_free(XBERGPdfFormField *ptr);
+void xberg_pdf_form_field_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `PdfFormField`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_form_field_name(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_name(XBERGAlefHandle handle);
 
 /**
  * Get the `full_name` field from a `PdfFormField`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_form_field_full_name(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_full_name(XBERGAlefHandle handle);
 
 /**
  * Get the `field_type` field from a `PdfFormField`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_form_field_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFormFieldType *xberg_pdf_form_field_field_type(const XBERGPdfFormField *ptr);
+XBERGAlefHandle xberg_pdf_form_field_field_type(XBERGAlefHandle handle);
 
 /**
  * Get the `value` field from a `PdfFormField`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_form_field_value(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_value(XBERGAlefHandle handle);
 
 /**
  * Get the `default_value` field from a `PdfFormField`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_form_field_default_value(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_default_value(XBERGAlefHandle handle);
 
 /**
  * Get the `flags` field from a `PdfFormField`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pdf_form_field_flags(const XBERGPdfFormField *ptr);
+uint32_t xberg_pdf_form_field_flags(XBERGAlefHandle handle);
 
 /**
  * Get the `page` field from a `PdfFormField`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pdf_form_field_page(const XBERGPdfFormField *ptr);
+uint32_t xberg_pdf_form_field_page(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `PdfFormField`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_pdf_form_field_bbox(const XBERGPdfFormField *ptr);
+XBERGAlefHandle xberg_pdf_form_field_bbox(XBERGAlefHandle handle);
 
 /**
  * Get the `max_length` field from a `PdfFormField`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pdf_form_field_max_length(const XBERGPdfFormField *ptr);
+uint32_t xberg_pdf_form_field_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `tooltip` field from a `PdfFormField`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_form_field_tooltip(const XBERGPdfFormField *ptr);
+char *xberg_pdf_form_field_tooltip(XBERGAlefHandle handle);
 
 /**
  * Create a `ExcelWorkbook` from a JSON string. Returns null on failure.
@@ -11022,43 +11634,49 @@ char *xberg_pdf_form_field_tooltip(const XBERGPdfFormField *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_excel_workbook_free`.
  */
-XBERGExcelWorkbook *xberg_excel_workbook_from_json(const char *json);
+XBERGAlefHandle xberg_excel_workbook_from_json(const char *json);
 
 /**
  * Serialize a `ExcelWorkbook` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_excel_workbook_to_json(const XBERGExcelWorkbook *ptr);
+char *xberg_excel_workbook_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExcelWorkbook` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_excel_workbook_free(XBERGExcelWorkbook *ptr);
+void xberg_excel_workbook_free(XBERGAlefHandle handle);
 
 /**
  * Get the `sheets` field from a `ExcelWorkbook`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_workbook_sheets(const XBERGExcelWorkbook *ptr);
+char *xberg_excel_workbook_sheets(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `ExcelWorkbook`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_workbook_metadata(const XBERGExcelWorkbook *ptr);
+char *xberg_excel_workbook_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `revisions` field from a `ExcelWorkbook`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_workbook_revisions(const XBERGExcelWorkbook *ptr);
+char *xberg_excel_workbook_revisions(XBERGAlefHandle handle);
 
 /**
  * Create a `ExcelSheet` from a JSON string. Returns null on failure.
@@ -11066,64 +11684,70 @@ char *xberg_excel_workbook_revisions(const XBERGExcelWorkbook *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_excel_sheet_free`.
  */
-XBERGExcelSheet *xberg_excel_sheet_from_json(const char *json);
+XBERGAlefHandle xberg_excel_sheet_from_json(const char *json);
 
 /**
  * Serialize a `ExcelSheet` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_excel_sheet_to_json(const XBERGExcelSheet *ptr);
+char *xberg_excel_sheet_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExcelSheet` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_excel_sheet_free(XBERGExcelSheet *ptr);
+void xberg_excel_sheet_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `ExcelSheet`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_sheet_name(const XBERGExcelSheet *ptr);
+char *xberg_excel_sheet_name(XBERGAlefHandle handle);
 
 /**
  * Get the `markdown` field from a `ExcelSheet`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_sheet_markdown(const XBERGExcelSheet *ptr);
+char *xberg_excel_sheet_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `row_count` field from a `ExcelSheet`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_excel_sheet_row_count(const XBERGExcelSheet *ptr);
+uintptr_t xberg_excel_sheet_row_count(XBERGAlefHandle handle);
 
 /**
  * Get the `col_count` field from a `ExcelSheet`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_excel_sheet_col_count(const XBERGExcelSheet *ptr);
+uintptr_t xberg_excel_sheet_col_count(XBERGAlefHandle handle);
 
 /**
  * Get the `cell_count` field from a `ExcelSheet`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_excel_sheet_cell_count(const XBERGExcelSheet *ptr);
+uintptr_t xberg_excel_sheet_cell_count(XBERGAlefHandle handle);
 
 /**
  * Get the `table_cells` field from a `ExcelSheet`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_sheet_table_cells(const XBERGExcelSheet *ptr);
+char *xberg_excel_sheet_table_cells(XBERGAlefHandle handle);
 
 /**
  * Create a `XmlExtractionResult` from a JSON string. Returns null on failure.
@@ -11131,43 +11755,47 @@ char *xberg_excel_sheet_table_cells(const XBERGExcelSheet *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_xml_extraction_result_free`.
  */
-XBERGXmlExtractionResult *xberg_xml_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_xml_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `XmlExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_xml_extraction_result_to_json(const XBERGXmlExtractionResult *ptr);
+char *xberg_xml_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `XmlExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_xml_extraction_result_free(XBERGXmlExtractionResult *ptr);
+void xberg_xml_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `XmlExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xml_extraction_result_content(const XBERGXmlExtractionResult *ptr);
+char *xberg_xml_extraction_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `element_count` field from a `XmlExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_xml_extraction_result_element_count(const XBERGXmlExtractionResult *ptr);
+uintptr_t xberg_xml_extraction_result_element_count(XBERGAlefHandle handle);
 
 /**
  * Get the `unique_elements` field from a `XmlExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xml_extraction_result_unique_elements(const XBERGXmlExtractionResult *ptr);
+char *xberg_xml_extraction_result_unique_elements(XBERGAlefHandle handle);
 
 /**
  * Create a `TextExtractionResult` from a JSON string. Returns null on failure.
@@ -11175,57 +11803,61 @@ char *xberg_xml_extraction_result_unique_elements(const XBERGXmlExtractionResult
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_text_extraction_result_free`.
  */
-XBERGTextExtractionResult *xberg_text_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_text_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `TextExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_text_extraction_result_to_json(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TextExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_text_extraction_result_free(XBERGTextExtractionResult *ptr);
+void xberg_text_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `TextExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_text_extraction_result_content(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `line_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_text_extraction_result_line_count(const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_line_count(XBERGAlefHandle handle);
 
 /**
  * Get the `word_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_text_extraction_result_word_count(const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_word_count(XBERGAlefHandle handle);
 
 /**
  * Get the `character_count` field from a `TextExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_text_extraction_result_character_count(const XBERGTextExtractionResult *ptr);
+uintptr_t xberg_text_extraction_result_character_count(XBERGAlefHandle handle);
 
 /**
  * Get the `headers` field from a `TextExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_text_extraction_result_headers(const XBERGTextExtractionResult *ptr);
+char *xberg_text_extraction_result_headers(XBERGAlefHandle handle);
 
 /**
  * Create a `PptxExtractionResult` from a JSON string. Returns null on failure.
@@ -11233,99 +11865,115 @@ char *xberg_text_extraction_result_headers(const XBERGTextExtractionResult *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pptx_extraction_result_free`.
  */
-XBERGPptxExtractionResult *xberg_pptx_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_pptx_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `PptxExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pptx_extraction_result_to_json(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PptxExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pptx_extraction_result_free(XBERGPptxExtractionResult *ptr);
+void xberg_pptx_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `PptxExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_content(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `PptxExtractionResult`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pptx_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPptxMetadata *xberg_pptx_extraction_result_metadata(const XBERGPptxExtractionResult *ptr);
+XBERGAlefHandle xberg_pptx_extraction_result_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `slide_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pptx_extraction_result_slide_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_slide_count(XBERGAlefHandle handle);
 
 /**
  * Get the `image_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pptx_extraction_result_image_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_image_count(XBERGAlefHandle handle);
 
 /**
  * Get the `table_count` field from a `PptxExtractionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pptx_extraction_result_table_count(const XBERGPptxExtractionResult *ptr);
+uintptr_t xberg_pptx_extraction_result_table_count(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `PptxExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_images(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_images(XBERGAlefHandle handle);
 
 /**
  * Get the `page_structure` field from a `PptxExtractionResult`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_structure_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageStructure *xberg_pptx_extraction_result_page_structure(const XBERGPptxExtractionResult *ptr);
+XBERGAlefHandle xberg_pptx_extraction_result_page_structure(XBERGAlefHandle handle);
 
 /**
  * Get the `page_contents` field from a `PptxExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_page_contents(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_page_contents(XBERGAlefHandle handle);
 
 /**
  * Get the `document` field from a `PptxExtractionResult`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_document_structure_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentStructure *xberg_pptx_extraction_result_document(const XBERGPptxExtractionResult *ptr);
+XBERGAlefHandle xberg_pptx_extraction_result_document(XBERGAlefHandle handle);
 
 /**
  * Get the `office_metadata` field from a `PptxExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_office_metadata(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_office_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `revisions` field from a `PptxExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_extraction_result_revisions(const XBERGPptxExtractionResult *ptr);
+char *xberg_pptx_extraction_result_revisions(XBERGAlefHandle handle);
 
 /**
  * Create a `EmailExtractionResult` from a JSON string. Returns null on failure.
@@ -11333,106 +11981,130 @@ char *xberg_pptx_extraction_result_revisions(const XBERGPptxExtractionResult *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_email_extraction_result_free`.
  */
-XBERGEmailExtractionResult *xberg_email_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_email_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `EmailExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_email_extraction_result_to_json(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmailExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_email_extraction_result_free(XBERGEmailExtractionResult *ptr);
+void xberg_email_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `subject` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_subject(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_subject(XBERGAlefHandle handle);
 
 /**
  * Get the `from_email` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_from_email(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_from_email(XBERGAlefHandle handle);
 
 /**
  * Get the `to_emails` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_to_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_to_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `cc_emails` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_cc_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_cc_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `bcc_emails` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_bcc_emails(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_bcc_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `date` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_date(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_date(XBERGAlefHandle handle);
 
 /**
  * Get the `message_id` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_message_id(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_message_id(XBERGAlefHandle handle);
 
 /**
  * Get the `plain_text` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_plain_text(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_plain_text(XBERGAlefHandle handle);
 
 /**
  * Get the `html_content` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_html_content(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_html_content(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_content(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `attachments` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_attachments(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_attachments(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `EmailExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_extraction_result_metadata(const XBERGEmailExtractionResult *ptr);
+char *xberg_email_extraction_result_metadata(XBERGAlefHandle handle);
 
 /**
  * Create a `EmailAttachment` from a JSON string. Returns null on failure.
@@ -11440,64 +12112,72 @@ char *xberg_email_extraction_result_metadata(const XBERGEmailExtractionResult *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_email_attachment_free`.
  */
-XBERGEmailAttachment *xberg_email_attachment_from_json(const char *json);
+XBERGAlefHandle xberg_email_attachment_from_json(const char *json);
 
 /**
  * Serialize a `EmailAttachment` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_email_attachment_to_json(const XBERGEmailAttachment *ptr);
+char *xberg_email_attachment_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmailAttachment` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_email_attachment_free(XBERGEmailAttachment *ptr);
+void xberg_email_attachment_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `EmailAttachment`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_attachment_name(const XBERGEmailAttachment *ptr);
+char *xberg_email_attachment_name(XBERGAlefHandle handle);
 
 /**
  * Get the `filename` field from a `EmailAttachment`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_attachment_filename(const XBERGEmailAttachment *ptr);
+char *xberg_email_attachment_filename(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `EmailAttachment`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_attachment_mime_type(const XBERGEmailAttachment *ptr);
+char *xberg_email_attachment_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `size` field from a `EmailAttachment`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_email_attachment_size(const XBERGEmailAttachment *ptr);
+uintptr_t xberg_email_attachment_size(XBERGAlefHandle handle);
 
 /**
  * Get the `is_image` field from a `EmailAttachment`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_email_attachment_is_image(const XBERGEmailAttachment *ptr);
+int32_t xberg_email_attachment_is_image(XBERGAlefHandle handle);
 
 /**
  * Get the `data` field from a `EmailAttachment`.
+ * The returned byte pointer is borrowed from `ptr` and must not be freed.
+ * It remains valid until `ptr` is destroyed or the field is mutated.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t *xberg_email_attachment_data(const XBERGEmailAttachment *ptr,
+uint8_t *xberg_email_attachment_data(XBERGAlefHandle handle,
                                      uintptr_t *out_len);
 
 /**
@@ -11506,57 +12186,67 @@ uint8_t *xberg_email_attachment_data(const XBERGEmailAttachment *ptr,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_extraction_result_free`.
  */
-XBERGOcrExtractionResult *xberg_ocr_extraction_result_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_extraction_result_from_json(const char *json);
 
 /**
  * Serialize a `OcrExtractionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_extraction_result_to_json(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrExtractionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_extraction_result_free(XBERGOcrExtractionResult *ptr);
+void xberg_ocr_extraction_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `OcrExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_extraction_result_content(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_content(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `OcrExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_extraction_result_mime_type(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata` field from a `OcrExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_extraction_result_metadata(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `tables` field from a `OcrExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_extraction_result_tables(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_elements` field from a `OcrExtractionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_extraction_result_ocr_elements(const XBERGOcrExtractionResult *ptr);
+char *xberg_ocr_extraction_result_ocr_elements(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrTable` from a JSON string. Returns null on failure.
@@ -11564,50 +12254,56 @@ char *xberg_ocr_extraction_result_ocr_elements(const XBERGOcrExtractionResult *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_table_free`.
  */
-XBERGOcrTable *xberg_ocr_table_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_table_from_json(const char *json);
 
 /**
  * Serialize a `OcrTable` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_table_to_json(const XBERGOcrTable *ptr);
+char *xberg_ocr_table_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrTable` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_table_free(XBERGOcrTable *ptr);
+void xberg_ocr_table_free(XBERGAlefHandle handle);
 
 /**
  * Get the `cells` field from a `OcrTable`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_table_cells(const XBERGOcrTable *ptr);
+char *xberg_ocr_table_cells(XBERGAlefHandle handle);
 
 /**
  * Get the `markdown` field from a `OcrTable`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_table_markdown(const XBERGOcrTable *ptr);
+char *xberg_ocr_table_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `OcrTable`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_table_page_number(const XBERGOcrTable *ptr);
+uint32_t xberg_ocr_table_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `bounding_box` field from a `OcrTable`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_table_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrTableBoundingBox *xberg_ocr_table_bounding_box(const XBERGOcrTable *ptr);
+XBERGAlefHandle xberg_ocr_table_bounding_box(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrTableBoundingBox` from a JSON string. Returns null on failure.
@@ -11615,50 +12311,50 @@ XBERGOcrTableBoundingBox *xberg_ocr_table_bounding_box(const XBERGOcrTable *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_table_bounding_box_free`.
  */
-XBERGOcrTableBoundingBox *xberg_ocr_table_bounding_box_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_table_bounding_box_from_json(const char *json);
 
 /**
  * Serialize a `OcrTableBoundingBox` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_table_bounding_box_to_json(const XBERGOcrTableBoundingBox *ptr);
+char *xberg_ocr_table_bounding_box_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrTableBoundingBox` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_table_bounding_box_free(XBERGOcrTableBoundingBox *ptr);
+void xberg_ocr_table_bounding_box_free(XBERGAlefHandle handle);
 
 /**
  * Get the `left` field from a `OcrTableBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_table_bounding_box_left(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_left(XBERGAlefHandle handle);
 
 /**
  * Get the `top` field from a `OcrTableBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_table_bounding_box_top(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_top(XBERGAlefHandle handle);
 
 /**
  * Get the `right` field from a `OcrTableBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_table_bounding_box_right(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_right(XBERGAlefHandle handle);
 
 /**
  * Get the `bottom` field from a `OcrTableBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_table_bounding_box_bottom(const XBERGOcrTableBoundingBox *ptr);
+uint32_t xberg_ocr_table_bounding_box_bottom(XBERGAlefHandle handle);
 
 /**
  * Create a `ImagePreprocessingConfig` from a JSON string. Returns null on failure.
@@ -11666,77 +12362,73 @@ uint32_t xberg_ocr_table_bounding_box_bottom(const XBERGOcrTableBoundingBox *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_preprocessing_config_free`.
  */
-XBERGImagePreprocessingConfig *xberg_image_preprocessing_config_from_json(const char *json);
+XBERGAlefHandle xberg_image_preprocessing_config_from_json(const char *json);
 
 /**
  * Serialize a `ImagePreprocessingConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_preprocessing_config_to_json(const XBERGImagePreprocessingConfig *ptr);
+char *xberg_image_preprocessing_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ImagePreprocessingConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_image_preprocessing_config_free(XBERGImagePreprocessingConfig *ptr);
+void xberg_image_preprocessing_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `target_dpi` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_target_dpi(const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_target_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `auto_rotate` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_auto_rotate(const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_auto_rotate(XBERGAlefHandle handle);
 
 /**
  * Get the `deskew` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_deskew(const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_deskew(XBERGAlefHandle handle);
 
 /**
  * Get the `denoise` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_denoise(const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_denoise(XBERGAlefHandle handle);
 
 /**
  * Get the `contrast_enhance` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_contrast_enhance(const XBERGImagePreprocessingConfig *ptr);
+int32_t xberg_image_preprocessing_config_contrast_enhance(XBERGAlefHandle handle);
 
 /**
  * Get the `binarization_method` field from a `ImagePreprocessingConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_config_binarization_method(const XBERGImagePreprocessingConfig *ptr);
+char *xberg_image_preprocessing_config_binarization_method(XBERGAlefHandle handle);
 
 /**
  * Get the `invert_colors` field from a `ImagePreprocessingConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_config_invert_colors(const XBERGImagePreprocessingConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGImagePreprocessingConfig *xberg_image_preprocessing_config_default(void);
+int32_t xberg_image_preprocessing_config_invert_colors(XBERGAlefHandle handle);
 
 /**
  * Create a `TesseractConfig` from a JSON string. Returns null on failure.
@@ -11744,175 +12436,179 @@ XBERGImagePreprocessingConfig *xberg_image_preprocessing_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_tesseract_config_free`.
  */
-XBERGTesseractConfig *xberg_tesseract_config_from_json(const char *json);
+XBERGAlefHandle xberg_tesseract_config_from_json(const char *json);
 
 /**
  * Serialize a `TesseractConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_tesseract_config_to_json(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TesseractConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_tesseract_config_free(XBERGTesseractConfig *ptr);
+void xberg_tesseract_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `TesseractConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tesseract_config_language(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_language(XBERGAlefHandle handle);
 
 /**
  * Get the `psm` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_psm(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_psm(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `TesseractConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tesseract_config_output_format(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `oem` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_oem(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_oem(XBERGAlefHandle handle);
 
 /**
  * Get the `min_confidence` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_tesseract_config_min_confidence(const XBERGTesseractConfig *ptr);
+double xberg_tesseract_config_min_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `preprocessing` field from a `TesseractConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_preprocessing_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImagePreprocessingConfig *xberg_tesseract_config_preprocessing(const XBERGTesseractConfig *ptr);
+XBERGAlefHandle xberg_tesseract_config_preprocessing(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_table_detection` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_enable_table_detection(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_enable_table_detection(XBERGAlefHandle handle);
 
 /**
  * Get the `table_min_confidence` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_tesseract_config_table_min_confidence(const XBERGTesseractConfig *ptr);
+double xberg_tesseract_config_table_min_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `table_column_threshold` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_table_column_threshold(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_table_column_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `table_row_threshold_ratio` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_tesseract_config_table_row_threshold_ratio(const XBERGTesseractConfig *ptr);
+double xberg_tesseract_config_table_row_threshold_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `use_cache` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_use_cache(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_use_cache(XBERGAlefHandle handle);
 
 /**
  * Get the `classify_use_pre_adapted_templates` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_classify_use_pre_adapted_templates(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_classify_use_pre_adapted_templates(XBERGAlefHandle handle);
 
 /**
  * Get the `language_model_ngram_on` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_language_model_ngram_on(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_language_model_ngram_on(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_dont_blkrej_good_wds` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_dont_blkrej_good_wds(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_dont_blkrej_good_wds(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_dont_rowrej_good_wds` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_dont_rowrej_good_wds(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_dont_rowrej_good_wds(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_enable_dict_correction` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_enable_dict_correction(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_enable_dict_correction(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_char_whitelist` field from a `TesseractConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tesseract_config_tessedit_char_whitelist(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_tessedit_char_whitelist(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_char_blacklist` field from a `TesseractConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_tesseract_config_tessedit_char_blacklist(const XBERGTesseractConfig *ptr);
+char *xberg_tesseract_config_tessedit_char_blacklist(XBERGAlefHandle handle);
 
 /**
  * Get the `tessedit_use_primary_params_model` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_tessedit_use_primary_params_model(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_tessedit_use_primary_params_model(XBERGAlefHandle handle);
 
 /**
  * Get the `textord_space_size_is_variable` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_textord_space_size_is_variable(const XBERGTesseractConfig *ptr);
+int32_t xberg_tesseract_config_textord_space_size_is_variable(XBERGAlefHandle handle);
 
 /**
  * Get the `thresholding_method` field from a `TesseractConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_tesseract_config_thresholding_method(const XBERGTesseractConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGTesseractConfig *xberg_tesseract_config_default(void);
+int32_t xberg_tesseract_config_thresholding_method(XBERGAlefHandle handle);
 
 /**
  * Create a `ImagePreprocessingMetadata` from a JSON string. Returns null on failure.
@@ -11920,85 +12616,89 @@ XBERGTesseractConfig *xberg_tesseract_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_preprocessing_metadata_free`.
  */
-XBERGImagePreprocessingMetadata *xberg_image_preprocessing_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_image_preprocessing_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ImagePreprocessingMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_preprocessing_metadata_to_json(const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ImagePreprocessingMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_image_preprocessing_metadata_free(XBERGImagePreprocessingMetadata *ptr);
+void xberg_image_preprocessing_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `target_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_target_dpi(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_target_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `scale_factor` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_image_preprocessing_metadata_scale_factor(const XBERGImagePreprocessingMetadata *ptr);
+double xberg_image_preprocessing_metadata_scale_factor(XBERGAlefHandle handle);
 
 /**
  * Get the `auto_adjusted` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_auto_adjusted(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_auto_adjusted(XBERGAlefHandle handle);
 
 /**
  * Get the `final_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_final_dpi(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_final_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `resample_method` field from a `ImagePreprocessingMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_metadata_resample_method(const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_resample_method(XBERGAlefHandle handle);
 
 /**
  * Get the `dimension_clamped` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_dimension_clamped(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_dimension_clamped(XBERGAlefHandle handle);
 
 /**
  * Get the `calculated_dpi` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_calculated_dpi(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_calculated_dpi(XBERGAlefHandle handle);
 
 /**
  * Get the `skipped_resize` field from a `ImagePreprocessingMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_image_preprocessing_metadata_skipped_resize(const XBERGImagePreprocessingMetadata *ptr);
+int32_t xberg_image_preprocessing_metadata_skipped_resize(XBERGAlefHandle handle);
 
 /**
  * Get the `resize_error` field from a `ImagePreprocessingMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_preprocessing_metadata_resize_error(const XBERGImagePreprocessingMetadata *ptr);
+char *xberg_image_preprocessing_metadata_resize_error(XBERGAlefHandle handle);
 
 /**
  * Create a `Formula` from a JSON string. Returns null on failure.
@@ -12006,43 +12706,47 @@ char *xberg_image_preprocessing_metadata_resize_error(const XBERGImagePreprocess
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_formula_free`.
  */
-XBERGFormula *xberg_formula_from_json(const char *json);
+XBERGAlefHandle xberg_formula_from_json(const char *json);
 
 /**
  * Serialize a `Formula` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_formula_to_json(const XBERGFormula *ptr);
+char *xberg_formula_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Formula` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_formula_free(XBERGFormula *ptr);
+void xberg_formula_free(XBERGAlefHandle handle);
 
 /**
  * Get the `latex` field from a `Formula`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_formula_latex(const XBERGFormula *ptr);
+char *xberg_formula_latex(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `Formula`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_formula_bbox(const XBERGFormula *ptr);
+XBERGAlefHandle xberg_formula_bbox(XBERGAlefHandle handle);
 
 /**
  * Get the `page` field from a `Formula`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_formula_page(const XBERGFormula *ptr);
+uint32_t xberg_formula_page(XBERGAlefHandle handle);
 
 /**
  * Create a `CodeMetadata` from a JSON string. Returns null on failure.
@@ -12050,36 +12754,40 @@ uint32_t xberg_formula_page(const XBERGFormula *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_code_metadata_free`.
  */
-XBERGCodeMetadata *xberg_code_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_code_metadata_from_json(const char *json);
 
 /**
  * Serialize a `CodeMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_code_metadata_to_json(const XBERGCodeMetadata *ptr);
+char *xberg_code_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CodeMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_code_metadata_free(XBERGCodeMetadata *ptr);
+void xberg_code_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `chunks` field from a `CodeMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_metadata_chunks(const XBERGCodeMetadata *ptr);
+char *xberg_code_metadata_chunks(XBERGAlefHandle handle);
 
 /**
  * Get the `data` field from a `CodeMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_code_data_node_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeDataNode *xberg_code_metadata_data(const XBERGCodeMetadata *ptr);
+XBERGAlefHandle xberg_code_metadata_data(XBERGAlefHandle handle);
 
 /**
  * Create a `CodeChunkInfo` from a JSON string. Returns null on failure.
@@ -12087,57 +12795,63 @@ XBERGCodeDataNode *xberg_code_metadata_data(const XBERGCodeMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_code_chunk_info_free`.
  */
-XBERGCodeChunkInfo *xberg_code_chunk_info_from_json(const char *json);
+XBERGAlefHandle xberg_code_chunk_info_from_json(const char *json);
 
 /**
  * Serialize a `CodeChunkInfo` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_code_chunk_info_to_json(const XBERGCodeChunkInfo *ptr);
+char *xberg_code_chunk_info_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CodeChunkInfo` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_code_chunk_info_free(XBERGCodeChunkInfo *ptr);
+void xberg_code_chunk_info_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `CodeChunkInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_chunk_info_text(const XBERGCodeChunkInfo *ptr);
+char *xberg_code_chunk_info_text(XBERGAlefHandle handle);
 
 /**
  * Get the `context_path` field from a `CodeChunkInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_chunk_info_context_path(const XBERGCodeChunkInfo *ptr);
+char *xberg_code_chunk_info_context_path(XBERGAlefHandle handle);
 
 /**
  * Get the `node_types` field from a `CodeChunkInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_chunk_info_node_types(const XBERGCodeChunkInfo *ptr);
+char *xberg_code_chunk_info_node_types(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_start` field from a `CodeChunkInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_chunk_info_byte_start(const XBERGCodeChunkInfo *ptr);
+uintptr_t xberg_code_chunk_info_byte_start(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_end` field from a `CodeChunkInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_chunk_info_byte_end(const XBERGCodeChunkInfo *ptr);
+uintptr_t xberg_code_chunk_info_byte_end(XBERGAlefHandle handle);
 
 /**
  * Create a `CodeDataAttribute` from a JSON string. Returns null on failure.
@@ -12145,50 +12859,54 @@ uintptr_t xberg_code_chunk_info_byte_end(const XBERGCodeChunkInfo *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_code_data_attribute_free`.
  */
-XBERGCodeDataAttribute *xberg_code_data_attribute_from_json(const char *json);
+XBERGAlefHandle xberg_code_data_attribute_from_json(const char *json);
 
 /**
  * Serialize a `CodeDataAttribute` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_code_data_attribute_to_json(const XBERGCodeDataAttribute *ptr);
+char *xberg_code_data_attribute_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CodeDataAttribute` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_code_data_attribute_free(XBERGCodeDataAttribute *ptr);
+void xberg_code_data_attribute_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `CodeDataAttribute`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_attribute_name(const XBERGCodeDataAttribute *ptr);
+char *xberg_code_data_attribute_name(XBERGAlefHandle handle);
 
 /**
  * Get the `value` field from a `CodeDataAttribute`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_attribute_value(const XBERGCodeDataAttribute *ptr);
+char *xberg_code_data_attribute_value(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_start` field from a `CodeDataAttribute`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_data_attribute_byte_start(const XBERGCodeDataAttribute *ptr);
+uintptr_t xberg_code_data_attribute_byte_start(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_end` field from a `CodeDataAttribute`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_data_attribute_byte_end(const XBERGCodeDataAttribute *ptr);
+uintptr_t xberg_code_data_attribute_byte_end(XBERGAlefHandle handle);
 
 /**
  * Create a `CodeDataNode` from a JSON string. Returns null on failure.
@@ -12196,71 +12914,81 @@ uintptr_t xberg_code_data_attribute_byte_end(const XBERGCodeDataAttribute *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_code_data_node_free`.
  */
-XBERGCodeDataNode *xberg_code_data_node_from_json(const char *json);
+XBERGAlefHandle xberg_code_data_node_from_json(const char *json);
 
 /**
  * Serialize a `CodeDataNode` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_code_data_node_to_json(const XBERGCodeDataNode *ptr);
+char *xberg_code_data_node_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CodeDataNode` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_code_data_node_free(XBERGCodeDataNode *ptr);
+void xberg_code_data_node_free(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `CodeDataNode`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_code_data_node_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeDataNodeKind *xberg_code_data_node_kind(const XBERGCodeDataNode *ptr);
+XBERGAlefHandle xberg_code_data_node_kind(XBERGAlefHandle handle);
 
 /**
  * Get the `key` field from a `CodeDataNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_node_key(const XBERGCodeDataNode *ptr);
+char *xberg_code_data_node_key(XBERGAlefHandle handle);
 
 /**
  * Get the `value` field from a `CodeDataNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_node_value(const XBERGCodeDataNode *ptr);
+char *xberg_code_data_node_value(XBERGAlefHandle handle);
 
 /**
  * Get the `attributes` field from a `CodeDataNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_node_attributes(const XBERGCodeDataNode *ptr);
+char *xberg_code_data_node_attributes(XBERGAlefHandle handle);
 
 /**
  * Get the `children` field from a `CodeDataNode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_code_data_node_children(const XBERGCodeDataNode *ptr);
+char *xberg_code_data_node_children(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_start` field from a `CodeDataNode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_data_node_byte_start(const XBERGCodeDataNode *ptr);
+uintptr_t xberg_code_data_node_byte_start(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_end` field from a `CodeDataNode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_code_data_node_byte_end(const XBERGCodeDataNode *ptr);
+uintptr_t xberg_code_data_node_byte_end(XBERGAlefHandle handle);
 
 /**
  * Create a `Metadata` from a JSON string. Returns null on failure.
@@ -12268,176 +12996,216 @@ uintptr_t xberg_code_data_node_byte_end(const XBERGCodeDataNode *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_metadata_free`.
  */
-XBERGMetadata *xberg_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_metadata_from_json(const char *json);
 
 /**
  * Serialize a `Metadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_metadata_to_json(const XBERGMetadata *ptr);
+char *xberg_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Metadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_metadata_free(XBERGMetadata *ptr);
+void xberg_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_title(const XBERGMetadata *ptr);
+char *xberg_metadata_title(XBERGAlefHandle handle);
 
 /**
  * Get the `subject` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_subject(const XBERGMetadata *ptr);
+char *xberg_metadata_subject(XBERGAlefHandle handle);
 
 /**
  * Get the `authors` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_authors(const XBERGMetadata *ptr);
+char *xberg_metadata_authors(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_keywords(const XBERGMetadata *ptr);
+char *xberg_metadata_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_language(const XBERGMetadata *ptr);
+char *xberg_metadata_language(XBERGAlefHandle handle);
 
 /**
  * Get the `created_at` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_created_at(const XBERGMetadata *ptr);
+char *xberg_metadata_created_at(XBERGAlefHandle handle);
 
 /**
  * Get the `modified_at` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_modified_at(const XBERGMetadata *ptr);
+char *xberg_metadata_modified_at(XBERGAlefHandle handle);
 
 /**
  * Get the `created_by` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_created_by(const XBERGMetadata *ptr);
+char *xberg_metadata_created_by(XBERGAlefHandle handle);
 
 /**
  * Get the `modified_by` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_modified_by(const XBERGMetadata *ptr);
+char *xberg_metadata_modified_by(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `Metadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_structure_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageStructure *xberg_metadata_pages(const XBERGMetadata *ptr);
+XBERGAlefHandle xberg_metadata_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `format` field from a `Metadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_format_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGFormatMetadata *xberg_metadata_format(const XBERGMetadata *ptr);
+XBERGAlefHandle xberg_metadata_format(XBERGAlefHandle handle);
 
 /**
  * Get the `image_preprocessing` field from a `Metadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_preprocessing_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImagePreprocessingMetadata *xberg_metadata_image_preprocessing(const XBERGMetadata *ptr);
+XBERGAlefHandle xberg_metadata_image_preprocessing(XBERGAlefHandle handle);
 
 /**
  * Get the `json_schema` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_json_schema(const XBERGMetadata *ptr);
+char *xberg_metadata_json_schema(XBERGAlefHandle handle);
 
 /**
  * Get the `error` field from a `Metadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_error_metadata_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGErrorMetadata *xberg_metadata_error(const XBERGMetadata *ptr);
+XBERGAlefHandle xberg_metadata_error(XBERGAlefHandle handle);
 
 /**
  * Get the `extraction_duration_ms` field from a `Metadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_metadata_extraction_duration_ms(const XBERGMetadata *ptr);
+uint64_t xberg_metadata_extraction_duration_ms(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_category(const XBERGMetadata *ptr);
+char *xberg_metadata_category(XBERGAlefHandle handle);
 
 /**
  * Get the `tags` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_tags(const XBERGMetadata *ptr);
+char *xberg_metadata_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `document_version` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_document_version(const XBERGMetadata *ptr);
+char *xberg_metadata_document_version(XBERGAlefHandle handle);
 
 /**
  * Get the `abstract_text` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_abstract_text(const XBERGMetadata *ptr);
+char *xberg_metadata_abstract_text(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_output_format(const XBERGMetadata *ptr);
+char *xberg_metadata_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_used` field from a `Metadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_metadata_ocr_used(const XBERGMetadata *ptr);
+int32_t xberg_metadata_ocr_used(XBERGAlefHandle handle);
 
 /**
  * Get the `additional` field from a `Metadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_metadata_additional(const XBERGMetadata *ptr);
+char *xberg_metadata_additional(XBERGAlefHandle handle);
 
 /**
  * Returns `true` when no metadata fields, format-specific metadata, or
@@ -12445,7 +13213,7 @@ char *xberg_metadata_additional(const XBERGMetadata *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_metadata_is_empty(const XBERGMetadata *this_);
+int32_t xberg_metadata_is_empty(XBERGAlefHandle this_);
 
 /**
  * Create a `ExcelMetadata` from a JSON string. Returns null on failure.
@@ -12453,36 +13221,38 @@ int32_t xberg_metadata_is_empty(const XBERGMetadata *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_excel_metadata_free`.
  */
-XBERGExcelMetadata *xberg_excel_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_excel_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ExcelMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_excel_metadata_to_json(const XBERGExcelMetadata *ptr);
+char *xberg_excel_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExcelMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_excel_metadata_free(XBERGExcelMetadata *ptr);
+void xberg_excel_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `sheet_count` field from a `ExcelMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_excel_metadata_sheet_count(const XBERGExcelMetadata *ptr);
+uint32_t xberg_excel_metadata_sheet_count(XBERGAlefHandle handle);
 
 /**
  * Get the `sheet_names` field from a `ExcelMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_excel_metadata_sheet_names(const XBERGExcelMetadata *ptr);
+char *xberg_excel_metadata_sheet_names(XBERGAlefHandle handle);
 
 /**
  * Create a `EmailMetadata` from a JSON string. Returns null on failure.
@@ -12490,71 +13260,85 @@ char *xberg_excel_metadata_sheet_names(const XBERGExcelMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_email_metadata_free`.
  */
-XBERGEmailMetadata *xberg_email_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_email_metadata_from_json(const char *json);
 
 /**
  * Serialize a `EmailMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_email_metadata_to_json(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmailMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_email_metadata_free(XBERGEmailMetadata *ptr);
+void xberg_email_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `from_email` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_from_email(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_from_email(XBERGAlefHandle handle);
 
 /**
  * Get the `from_name` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_from_name(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_from_name(XBERGAlefHandle handle);
 
 /**
  * Get the `to_emails` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_to_emails(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_to_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `cc_emails` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_cc_emails(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_cc_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `bcc_emails` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_bcc_emails(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_bcc_emails(XBERGAlefHandle handle);
 
 /**
  * Get the `message_id` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_message_id(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_message_id(XBERGAlefHandle handle);
 
 /**
  * Get the `attachments` field from a `EmailMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_email_metadata_attachments(const XBERGEmailMetadata *ptr);
+char *xberg_email_metadata_attachments(XBERGAlefHandle handle);
 
 /**
  * Create a `ArchiveMetadata` from a JSON string. Returns null on failure.
@@ -12562,57 +13346,61 @@ char *xberg_email_metadata_attachments(const XBERGEmailMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_archive_metadata_free`.
  */
-XBERGArchiveMetadata *xberg_archive_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_archive_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ArchiveMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_archive_metadata_to_json(const XBERGArchiveMetadata *ptr);
+char *xberg_archive_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ArchiveMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_archive_metadata_free(XBERGArchiveMetadata *ptr);
+void xberg_archive_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `format` field from a `ArchiveMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_archive_metadata_format(const XBERGArchiveMetadata *ptr);
+char *xberg_archive_metadata_format(XBERGAlefHandle handle);
 
 /**
  * Get the `file_count` field from a `ArchiveMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_archive_metadata_file_count(const XBERGArchiveMetadata *ptr);
+uint32_t xberg_archive_metadata_file_count(XBERGAlefHandle handle);
 
 /**
  * Get the `file_list` field from a `ArchiveMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_archive_metadata_file_list(const XBERGArchiveMetadata *ptr);
+char *xberg_archive_metadata_file_list(XBERGAlefHandle handle);
 
 /**
  * Get the `total_size` field from a `ArchiveMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_archive_metadata_total_size(const XBERGArchiveMetadata *ptr);
+uint64_t xberg_archive_metadata_total_size(XBERGAlefHandle handle);
 
 /**
  * Get the `compressed_size` field from a `ArchiveMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_archive_metadata_compressed_size(const XBERGArchiveMetadata *ptr);
+uint64_t xberg_archive_metadata_compressed_size(XBERGAlefHandle handle);
 
 /**
  * Create a `ImageMetadata` from a JSON string. Returns null on failure.
@@ -12620,50 +13408,54 @@ uint64_t xberg_archive_metadata_compressed_size(const XBERGArchiveMetadata *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_metadata_free`.
  */
-XBERGImageMetadata *xberg_image_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_image_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ImageMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_metadata_to_json(const XBERGImageMetadata *ptr);
+char *xberg_image_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ImageMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_image_metadata_free(XBERGImageMetadata *ptr);
+void xberg_image_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `width` field from a `ImageMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_image_metadata_width(const XBERGImageMetadata *ptr);
+uint32_t xberg_image_metadata_width(XBERGAlefHandle handle);
 
 /**
  * Get the `height` field from a `ImageMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_image_metadata_height(const XBERGImageMetadata *ptr);
+uint32_t xberg_image_metadata_height(XBERGAlefHandle handle);
 
 /**
  * Get the `format` field from a `ImageMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_metadata_format(const XBERGImageMetadata *ptr);
+char *xberg_image_metadata_format(XBERGAlefHandle handle);
 
 /**
  * Get the `exif` field from a `ImageMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_metadata_exif(const XBERGImageMetadata *ptr);
+char *xberg_image_metadata_exif(XBERGAlefHandle handle);
 
 /**
  * Create a `XmlMetadata` from a JSON string. Returns null on failure.
@@ -12671,36 +13463,38 @@ char *xberg_image_metadata_exif(const XBERGImageMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_xml_metadata_free`.
  */
-XBERGXmlMetadata *xberg_xml_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_xml_metadata_from_json(const char *json);
 
 /**
  * Serialize a `XmlMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_xml_metadata_to_json(const XBERGXmlMetadata *ptr);
+char *xberg_xml_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `XmlMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_xml_metadata_free(XBERGXmlMetadata *ptr);
+void xberg_xml_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `element_count` field from a `XmlMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_xml_metadata_element_count(const XBERGXmlMetadata *ptr);
+uint32_t xberg_xml_metadata_element_count(XBERGAlefHandle handle);
 
 /**
  * Get the `unique_elements` field from a `XmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_xml_metadata_unique_elements(const XBERGXmlMetadata *ptr);
+char *xberg_xml_metadata_unique_elements(XBERGAlefHandle handle);
 
 /**
  * Create a `TextMetadata` from a JSON string. Returns null on failure.
@@ -12708,50 +13502,52 @@ char *xberg_xml_metadata_unique_elements(const XBERGXmlMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_text_metadata_free`.
  */
-XBERGTextMetadata *xberg_text_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_text_metadata_from_json(const char *json);
 
 /**
  * Serialize a `TextMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_text_metadata_to_json(const XBERGTextMetadata *ptr);
+char *xberg_text_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TextMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_text_metadata_free(XBERGTextMetadata *ptr);
+void xberg_text_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `line_count` field from a `TextMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_text_metadata_line_count(const XBERGTextMetadata *ptr);
+uint32_t xberg_text_metadata_line_count(XBERGAlefHandle handle);
 
 /**
  * Get the `word_count` field from a `TextMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_text_metadata_word_count(const XBERGTextMetadata *ptr);
+uint32_t xberg_text_metadata_word_count(XBERGAlefHandle handle);
 
 /**
  * Get the `character_count` field from a `TextMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_text_metadata_character_count(const XBERGTextMetadata *ptr);
+uint32_t xberg_text_metadata_character_count(XBERGAlefHandle handle);
 
 /**
  * Get the `headers` field from a `TextMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_text_metadata_headers(const XBERGTextMetadata *ptr);
+char *xberg_text_metadata_headers(XBERGAlefHandle handle);
 
 /**
  * Create a `HeaderMetadata` from a JSON string. Returns null on failure.
@@ -12759,57 +13555,61 @@ char *xberg_text_metadata_headers(const XBERGTextMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_header_metadata_free`.
  */
-XBERGHeaderMetadata *xberg_header_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_header_metadata_from_json(const char *json);
 
 /**
  * Serialize a `HeaderMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_header_metadata_to_json(const XBERGHeaderMetadata *ptr);
+char *xberg_header_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HeaderMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_header_metadata_free(XBERGHeaderMetadata *ptr);
+void xberg_header_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `HeaderMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t xberg_header_metadata_level(const XBERGHeaderMetadata *ptr);
+uint8_t xberg_header_metadata_level(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `HeaderMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_header_metadata_text(const XBERGHeaderMetadata *ptr);
+char *xberg_header_metadata_text(XBERGAlefHandle handle);
 
 /**
  * Get the `id` field from a `HeaderMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_header_metadata_id(const XBERGHeaderMetadata *ptr);
+char *xberg_header_metadata_id(XBERGAlefHandle handle);
 
 /**
  * Get the `depth` field from a `HeaderMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_header_metadata_depth(const XBERGHeaderMetadata *ptr);
+uint32_t xberg_header_metadata_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `html_offset` field from a `HeaderMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_header_metadata_html_offset(const XBERGHeaderMetadata *ptr);
+uint32_t xberg_header_metadata_html_offset(XBERGAlefHandle handle);
 
 /**
  * Create a `LinkMetadata` from a JSON string. Returns null on failure.
@@ -12817,57 +13617,67 @@ uint32_t xberg_header_metadata_html_offset(const XBERGHeaderMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_link_metadata_free`.
  */
-XBERGLinkMetadata *xberg_link_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_link_metadata_from_json(const char *json);
 
 /**
  * Serialize a `LinkMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_link_metadata_to_json(const XBERGLinkMetadata *ptr);
+char *xberg_link_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LinkMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_link_metadata_free(XBERGLinkMetadata *ptr);
+void xberg_link_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `href` field from a `LinkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_link_metadata_href(const XBERGLinkMetadata *ptr);
+char *xberg_link_metadata_href(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `LinkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_link_metadata_text(const XBERGLinkMetadata *ptr);
+char *xberg_link_metadata_text(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `LinkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_link_metadata_title(const XBERGLinkMetadata *ptr);
+char *xberg_link_metadata_title(XBERGAlefHandle handle);
 
 /**
  * Get the `link_type` field from a `LinkMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_link_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLinkType *xberg_link_metadata_link_type(const XBERGLinkMetadata *ptr);
+XBERGAlefHandle xberg_link_metadata_link_type(XBERGAlefHandle handle);
 
 /**
  * Get the `rel` field from a `LinkMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_link_metadata_rel(const XBERGLinkMetadata *ptr);
+char *xberg_link_metadata_rel(XBERGAlefHandle handle);
 
 /**
  * Create a `ImageMetadataType` from a JSON string. Returns null on failure.
@@ -12875,50 +13685,58 @@ char *xberg_link_metadata_rel(const XBERGLinkMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_image_metadata_type_free`.
  */
-XBERGImageMetadataType *xberg_image_metadata_type_from_json(const char *json);
+XBERGAlefHandle xberg_image_metadata_type_from_json(const char *json);
 
 /**
  * Serialize a `ImageMetadataType` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_image_metadata_type_to_json(const XBERGImageMetadataType *ptr);
+char *xberg_image_metadata_type_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ImageMetadataType` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_image_metadata_type_free(XBERGImageMetadataType *ptr);
+void xberg_image_metadata_type_free(XBERGAlefHandle handle);
 
 /**
  * Get the `src` field from a `ImageMetadataType`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_metadata_type_src(const XBERGImageMetadataType *ptr);
+char *xberg_image_metadata_type_src(XBERGAlefHandle handle);
 
 /**
  * Get the `alt` field from a `ImageMetadataType`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_metadata_type_alt(const XBERGImageMetadataType *ptr);
+char *xberg_image_metadata_type_alt(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `ImageMetadataType`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_image_metadata_type_title(const XBERGImageMetadataType *ptr);
+char *xberg_image_metadata_type_title(XBERGAlefHandle handle);
 
 /**
  * Get the `image_type` field from a `ImageMetadataType`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_image_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGImageType *xberg_image_metadata_type_image_type(const XBERGImageMetadataType *ptr);
+XBERGAlefHandle xberg_image_metadata_type_image_type(XBERGAlefHandle handle);
 
 /**
  * Create a `StructuredData` from a JSON string. Returns null on failure.
@@ -12926,43 +13744,49 @@ XBERGImageType *xberg_image_metadata_type_image_type(const XBERGImageMetadataTyp
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_structured_data_free`.
  */
-XBERGStructuredData *xberg_structured_data_from_json(const char *json);
+XBERGAlefHandle xberg_structured_data_from_json(const char *json);
 
 /**
  * Serialize a `StructuredData` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_structured_data_to_json(const XBERGStructuredData *ptr);
+char *xberg_structured_data_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `StructuredData` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_structured_data_free(XBERGStructuredData *ptr);
+void xberg_structured_data_free(XBERGAlefHandle handle);
 
 /**
  * Get the `data_type` field from a `StructuredData`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_structured_data_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGStructuredDataType *xberg_structured_data_data_type(const XBERGStructuredData *ptr);
+XBERGAlefHandle xberg_structured_data_data_type(XBERGAlefHandle handle);
 
 /**
  * Get the `raw_json` field from a `StructuredData`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_raw_json(const XBERGStructuredData *ptr);
+char *xberg_structured_data_raw_json(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_type` field from a `StructuredData`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_structured_data_schema_type(const XBERGStructuredData *ptr);
+char *xberg_structured_data_schema_type(XBERGAlefHandle handle);
 
 /**
  * Create a `HtmlMetadata` from a JSON string. Returns null on failure.
@@ -12970,127 +13794,157 @@ char *xberg_structured_data_schema_type(const XBERGStructuredData *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_html_metadata_free`.
  */
-XBERGHtmlMetadata *xberg_html_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_html_metadata_from_json(const char *json);
 
 /**
  * Serialize a `HtmlMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_html_metadata_to_json(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HtmlMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_html_metadata_free(XBERGHtmlMetadata *ptr);
+void xberg_html_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_title(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_title(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_description(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_description(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_keywords(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `author` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_author(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_author(XBERGAlefHandle handle);
 
 /**
  * Get the `canonical_url` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_canonical_url(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_canonical_url(XBERGAlefHandle handle);
 
 /**
  * Get the `base_href` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_base_href(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_base_href(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_language(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_language(XBERGAlefHandle handle);
 
 /**
  * Get the `text_direction` field from a `HtmlMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_text_direction_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGTextDirection *xberg_html_metadata_text_direction(const XBERGHtmlMetadata *ptr);
+XBERGAlefHandle xberg_html_metadata_text_direction(XBERGAlefHandle handle);
 
 /**
  * Get the `open_graph` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_open_graph(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_open_graph(XBERGAlefHandle handle);
 
 /**
  * Get the `twitter_card` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_twitter_card(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_twitter_card(XBERGAlefHandle handle);
 
 /**
  * Get the `meta_tags` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_meta_tags(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_meta_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `headers` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_headers(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_headers(XBERGAlefHandle handle);
 
 /**
  * Get the `links` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_links(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_links(XBERGAlefHandle handle);
 
 /**
  * Get the `images` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_images(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_images(XBERGAlefHandle handle);
 
 /**
  * Get the `structured_data` field from a `HtmlMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_html_metadata_structured_data(const XBERGHtmlMetadata *ptr);
+char *xberg_html_metadata_structured_data(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrMetadata` from a JSON string. Returns null on failure.
@@ -13098,64 +13952,68 @@ char *xberg_html_metadata_structured_data(const XBERGHtmlMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_metadata_free`.
  */
-XBERGOcrMetadata *xberg_ocr_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_metadata_from_json(const char *json);
 
 /**
  * Serialize a `OcrMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_metadata_to_json(const XBERGOcrMetadata *ptr);
+char *xberg_ocr_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_metadata_free(XBERGOcrMetadata *ptr);
+void xberg_ocr_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `OcrMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_metadata_language(const XBERGOcrMetadata *ptr);
+char *xberg_ocr_metadata_language(XBERGAlefHandle handle);
 
 /**
  * Get the `psm` field from a `OcrMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_metadata_psm(const XBERGOcrMetadata *ptr);
+int32_t xberg_ocr_metadata_psm(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `OcrMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_metadata_output_format(const XBERGOcrMetadata *ptr);
+char *xberg_ocr_metadata_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `table_count` field from a `OcrMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_metadata_table_count(const XBERGOcrMetadata *ptr);
+uint32_t xberg_ocr_metadata_table_count(XBERGAlefHandle handle);
 
 /**
  * Get the `table_rows` field from a `OcrMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_metadata_table_rows(const XBERGOcrMetadata *ptr);
+uint32_t xberg_ocr_metadata_table_rows(XBERGAlefHandle handle);
 
 /**
  * Get the `table_cols` field from a `OcrMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_metadata_table_cols(const XBERGOcrMetadata *ptr);
+uint32_t xberg_ocr_metadata_table_cols(XBERGAlefHandle handle);
 
 /**
  * Create a `ErrorMetadata` from a JSON string. Returns null on failure.
@@ -13163,36 +14021,40 @@ uint32_t xberg_ocr_metadata_table_cols(const XBERGOcrMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_error_metadata_free`.
  */
-XBERGErrorMetadata *xberg_error_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_error_metadata_from_json(const char *json);
 
 /**
  * Serialize a `ErrorMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_error_metadata_to_json(const XBERGErrorMetadata *ptr);
+char *xberg_error_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ErrorMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_error_metadata_free(XBERGErrorMetadata *ptr);
+void xberg_error_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `error_type` field from a `ErrorMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_error_metadata_error_type(const XBERGErrorMetadata *ptr);
+char *xberg_error_metadata_error_type(XBERGAlefHandle handle);
 
 /**
  * Get the `message` field from a `ErrorMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_error_metadata_message(const XBERGErrorMetadata *ptr);
+char *xberg_error_metadata_message(XBERGAlefHandle handle);
 
 /**
  * Create a `PptxMetadata` from a JSON string. Returns null on failure.
@@ -13200,50 +14062,52 @@ char *xberg_error_metadata_message(const XBERGErrorMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pptx_metadata_free`.
  */
-XBERGPptxMetadata *xberg_pptx_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_pptx_metadata_from_json(const char *json);
 
 /**
  * Serialize a `PptxMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pptx_metadata_to_json(const XBERGPptxMetadata *ptr);
+char *xberg_pptx_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PptxMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pptx_metadata_free(XBERGPptxMetadata *ptr);
+void xberg_pptx_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `slide_count` field from a `PptxMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pptx_metadata_slide_count(const XBERGPptxMetadata *ptr);
+uint32_t xberg_pptx_metadata_slide_count(XBERGAlefHandle handle);
 
 /**
  * Get the `slide_names` field from a `PptxMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pptx_metadata_slide_names(const XBERGPptxMetadata *ptr);
+char *xberg_pptx_metadata_slide_names(XBERGAlefHandle handle);
 
 /**
  * Get the `image_count` field from a `PptxMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pptx_metadata_image_count(const XBERGPptxMetadata *ptr);
+uint32_t xberg_pptx_metadata_image_count(XBERGAlefHandle handle);
 
 /**
  * Get the `table_count` field from a `PptxMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pptx_metadata_table_count(const XBERGPptxMetadata *ptr);
+uint32_t xberg_pptx_metadata_table_count(XBERGAlefHandle handle);
 
 /**
  * Create a `DocxMetadata` from a JSON string. Returns null on failure.
@@ -13251,43 +14115,49 @@ uint32_t xberg_pptx_metadata_table_count(const XBERGPptxMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_docx_metadata_free`.
  */
-XBERGDocxMetadata *xberg_docx_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_docx_metadata_from_json(const char *json);
 
 /**
  * Serialize a `DocxMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_docx_metadata_to_json(const XBERGDocxMetadata *ptr);
+char *xberg_docx_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocxMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_docx_metadata_free(XBERGDocxMetadata *ptr);
+void xberg_docx_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `core_properties` field from a `DocxMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_core_properties_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCoreProperties *xberg_docx_metadata_core_properties(const XBERGDocxMetadata *ptr);
+XBERGAlefHandle xberg_docx_metadata_core_properties(XBERGAlefHandle handle);
 
 /**
  * Get the `app_properties` field from a `DocxMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_docx_app_properties_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocxAppProperties *xberg_docx_metadata_app_properties(const XBERGDocxMetadata *ptr);
+XBERGAlefHandle xberg_docx_metadata_app_properties(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_properties` field from a `DocxMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_docx_metadata_custom_properties(const XBERGDocxMetadata *ptr);
+char *xberg_docx_metadata_custom_properties(XBERGAlefHandle handle);
 
 /**
  * Create a `CsvMetadata` from a JSON string. Returns null on failure.
@@ -13295,57 +14165,61 @@ char *xberg_docx_metadata_custom_properties(const XBERGDocxMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_csv_metadata_free`.
  */
-XBERGCsvMetadata *xberg_csv_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_csv_metadata_from_json(const char *json);
 
 /**
  * Serialize a `CsvMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_csv_metadata_to_json(const XBERGCsvMetadata *ptr);
+char *xberg_csv_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CsvMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_csv_metadata_free(XBERGCsvMetadata *ptr);
+void xberg_csv_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `row_count` field from a `CsvMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_csv_metadata_row_count(const XBERGCsvMetadata *ptr);
+uint32_t xberg_csv_metadata_row_count(XBERGAlefHandle handle);
 
 /**
  * Get the `column_count` field from a `CsvMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_csv_metadata_column_count(const XBERGCsvMetadata *ptr);
+uint32_t xberg_csv_metadata_column_count(XBERGAlefHandle handle);
 
 /**
  * Get the `delimiter` field from a `CsvMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_csv_metadata_delimiter(const XBERGCsvMetadata *ptr);
+char *xberg_csv_metadata_delimiter(XBERGAlefHandle handle);
 
 /**
  * Get the `has_header` field from a `CsvMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_csv_metadata_has_header(const XBERGCsvMetadata *ptr);
+int32_t xberg_csv_metadata_has_header(XBERGAlefHandle handle);
 
 /**
  * Get the `column_types` field from a `CsvMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_csv_metadata_column_types(const XBERGCsvMetadata *ptr);
+char *xberg_csv_metadata_column_types(XBERGAlefHandle handle);
 
 /**
  * Create a `BibtexMetadata` from a JSON string. Returns null on failure.
@@ -13353,57 +14227,65 @@ char *xberg_csv_metadata_column_types(const XBERGCsvMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_bibtex_metadata_free`.
  */
-XBERGBibtexMetadata *xberg_bibtex_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_bibtex_metadata_from_json(const char *json);
 
 /**
  * Serialize a `BibtexMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_bibtex_metadata_to_json(const XBERGBibtexMetadata *ptr);
+char *xberg_bibtex_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `BibtexMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_bibtex_metadata_free(XBERGBibtexMetadata *ptr);
+void xberg_bibtex_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `entry_count` field from a `BibtexMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_bibtex_metadata_entry_count(const XBERGBibtexMetadata *ptr);
+uintptr_t xberg_bibtex_metadata_entry_count(XBERGAlefHandle handle);
 
 /**
  * Get the `citation_keys` field from a `BibtexMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bibtex_metadata_citation_keys(const XBERGBibtexMetadata *ptr);
+char *xberg_bibtex_metadata_citation_keys(XBERGAlefHandle handle);
 
 /**
  * Get the `authors` field from a `BibtexMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bibtex_metadata_authors(const XBERGBibtexMetadata *ptr);
+char *xberg_bibtex_metadata_authors(XBERGAlefHandle handle);
 
 /**
  * Get the `year_range` field from a `BibtexMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_year_range_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYearRange *xberg_bibtex_metadata_year_range(const XBERGBibtexMetadata *ptr);
+XBERGAlefHandle xberg_bibtex_metadata_year_range(XBERGAlefHandle handle);
 
 /**
  * Get the `entry_types` field from a `BibtexMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_bibtex_metadata_entry_types(const XBERGBibtexMetadata *ptr);
+char *xberg_bibtex_metadata_entry_types(XBERGAlefHandle handle);
 
 /**
  * Create a `CitationMetadata` from a JSON string. Returns null on failure.
@@ -13411,64 +14293,74 @@ char *xberg_bibtex_metadata_entry_types(const XBERGBibtexMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_citation_metadata_free`.
  */
-XBERGCitationMetadata *xberg_citation_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_citation_metadata_from_json(const char *json);
 
 /**
  * Serialize a `CitationMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_citation_metadata_to_json(const XBERGCitationMetadata *ptr);
+char *xberg_citation_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CitationMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_citation_metadata_free(XBERGCitationMetadata *ptr);
+void xberg_citation_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `citation_count` field from a `CitationMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_citation_metadata_citation_count(const XBERGCitationMetadata *ptr);
+uintptr_t xberg_citation_metadata_citation_count(XBERGAlefHandle handle);
 
 /**
  * Get the `format` field from a `CitationMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_metadata_format(const XBERGCitationMetadata *ptr);
+char *xberg_citation_metadata_format(XBERGAlefHandle handle);
 
 /**
  * Get the `authors` field from a `CitationMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_metadata_authors(const XBERGCitationMetadata *ptr);
+char *xberg_citation_metadata_authors(XBERGAlefHandle handle);
 
 /**
  * Get the `year_range` field from a `CitationMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_year_range_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYearRange *xberg_citation_metadata_year_range(const XBERGCitationMetadata *ptr);
+XBERGAlefHandle xberg_citation_metadata_year_range(XBERGAlefHandle handle);
 
 /**
  * Get the `dois` field from a `CitationMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_metadata_dois(const XBERGCitationMetadata *ptr);
+char *xberg_citation_metadata_dois(XBERGAlefHandle handle);
 
 /**
  * Get the `keywords` field from a `CitationMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_citation_metadata_keywords(const XBERGCitationMetadata *ptr);
+char *xberg_citation_metadata_keywords(XBERGAlefHandle handle);
 
 /**
  * Create a `YearRange` from a JSON string. Returns null on failure.
@@ -13476,43 +14368,45 @@ char *xberg_citation_metadata_keywords(const XBERGCitationMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_year_range_free`.
  */
-XBERGYearRange *xberg_year_range_from_json(const char *json);
+XBERGAlefHandle xberg_year_range_from_json(const char *json);
 
 /**
  * Serialize a `YearRange` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_year_range_to_json(const XBERGYearRange *ptr);
+char *xberg_year_range_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `YearRange` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_year_range_free(XBERGYearRange *ptr);
+void xberg_year_range_free(XBERGAlefHandle handle);
 
 /**
  * Get the `min` field from a `YearRange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_year_range_min(const XBERGYearRange *ptr);
+uint32_t xberg_year_range_min(XBERGAlefHandle handle);
 
 /**
  * Get the `max` field from a `YearRange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_year_range_max(const XBERGYearRange *ptr);
+uint32_t xberg_year_range_max(XBERGAlefHandle handle);
 
 /**
  * Get the `years` field from a `YearRange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_year_range_years(const XBERGYearRange *ptr);
+char *xberg_year_range_years(XBERGAlefHandle handle);
 
 /**
  * Create a `FictionBookMetadata` from a JSON string. Returns null on failure.
@@ -13520,43 +14414,49 @@ char *xberg_year_range_years(const XBERGYearRange *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_fiction_book_metadata_free`.
  */
-XBERGFictionBookMetadata *xberg_fiction_book_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_fiction_book_metadata_from_json(const char *json);
 
 /**
  * Serialize a `FictionBookMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_fiction_book_metadata_to_json(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `FictionBookMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_fiction_book_metadata_free(XBERGFictionBookMetadata *ptr);
+void xberg_fiction_book_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `genres` field from a `FictionBookMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_fiction_book_metadata_genres(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_genres(XBERGAlefHandle handle);
 
 /**
  * Get the `sequences` field from a `FictionBookMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_fiction_book_metadata_sequences(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_sequences(XBERGAlefHandle handle);
 
 /**
  * Get the `annotation` field from a `FictionBookMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_fiction_book_metadata_annotation(const XBERGFictionBookMetadata *ptr);
+char *xberg_fiction_book_metadata_annotation(XBERGAlefHandle handle);
 
 /**
  * Create a `DbfMetadata` from a JSON string. Returns null on failure.
@@ -13564,43 +14464,45 @@ char *xberg_fiction_book_metadata_annotation(const XBERGFictionBookMetadata *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_dbf_metadata_free`.
  */
-XBERGDbfMetadata *xberg_dbf_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_dbf_metadata_from_json(const char *json);
 
 /**
  * Serialize a `DbfMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_dbf_metadata_to_json(const XBERGDbfMetadata *ptr);
+char *xberg_dbf_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DbfMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_dbf_metadata_free(XBERGDbfMetadata *ptr);
+void xberg_dbf_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `record_count` field from a `DbfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_dbf_metadata_record_count(const XBERGDbfMetadata *ptr);
+uintptr_t xberg_dbf_metadata_record_count(XBERGAlefHandle handle);
 
 /**
  * Get the `field_count` field from a `DbfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_dbf_metadata_field_count(const XBERGDbfMetadata *ptr);
+uintptr_t xberg_dbf_metadata_field_count(XBERGAlefHandle handle);
 
 /**
  * Get the `fields` field from a `DbfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_dbf_metadata_fields(const XBERGDbfMetadata *ptr);
+char *xberg_dbf_metadata_fields(XBERGAlefHandle handle);
 
 /**
  * Create a `DbfFieldInfo` from a JSON string. Returns null on failure.
@@ -13608,36 +14510,40 @@ char *xberg_dbf_metadata_fields(const XBERGDbfMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_dbf_field_info_free`.
  */
-XBERGDbfFieldInfo *xberg_dbf_field_info_from_json(const char *json);
+XBERGAlefHandle xberg_dbf_field_info_from_json(const char *json);
 
 /**
  * Serialize a `DbfFieldInfo` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_dbf_field_info_to_json(const XBERGDbfFieldInfo *ptr);
+char *xberg_dbf_field_info_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DbfFieldInfo` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_dbf_field_info_free(XBERGDbfFieldInfo *ptr);
+void xberg_dbf_field_info_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `DbfFieldInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_dbf_field_info_name(const XBERGDbfFieldInfo *ptr);
+char *xberg_dbf_field_info_name(XBERGAlefHandle handle);
 
 /**
  * Get the `field_type` field from a `DbfFieldInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_dbf_field_info_field_type(const XBERGDbfFieldInfo *ptr);
+char *xberg_dbf_field_info_field_type(XBERGAlefHandle handle);
 
 /**
  * Create a `JatsMetadata` from a JSON string. Returns null on failure.
@@ -13645,50 +14551,58 @@ char *xberg_dbf_field_info_field_type(const XBERGDbfFieldInfo *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_jats_metadata_free`.
  */
-XBERGJatsMetadata *xberg_jats_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_jats_metadata_from_json(const char *json);
 
 /**
  * Serialize a `JatsMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_jats_metadata_to_json(const XBERGJatsMetadata *ptr);
+char *xberg_jats_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `JatsMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_jats_metadata_free(XBERGJatsMetadata *ptr);
+void xberg_jats_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `copyright` field from a `JatsMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_jats_metadata_copyright(const XBERGJatsMetadata *ptr);
+char *xberg_jats_metadata_copyright(XBERGAlefHandle handle);
 
 /**
  * Get the `license` field from a `JatsMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_jats_metadata_license(const XBERGJatsMetadata *ptr);
+char *xberg_jats_metadata_license(XBERGAlefHandle handle);
 
 /**
  * Get the `history_dates` field from a `JatsMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_jats_metadata_history_dates(const XBERGJatsMetadata *ptr);
+char *xberg_jats_metadata_history_dates(XBERGAlefHandle handle);
 
 /**
  * Get the `contributor_roles` field from a `JatsMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_jats_metadata_contributor_roles(const XBERGJatsMetadata *ptr);
+char *xberg_jats_metadata_contributor_roles(XBERGAlefHandle handle);
 
 /**
  * Create a `ContributorRole` from a JSON string. Returns null on failure.
@@ -13696,36 +14610,40 @@ char *xberg_jats_metadata_contributor_roles(const XBERGJatsMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_contributor_role_free`.
  */
-XBERGContributorRole *xberg_contributor_role_from_json(const char *json);
+XBERGAlefHandle xberg_contributor_role_from_json(const char *json);
 
 /**
  * Serialize a `ContributorRole` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_contributor_role_to_json(const XBERGContributorRole *ptr);
+char *xberg_contributor_role_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ContributorRole` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_contributor_role_free(XBERGContributorRole *ptr);
+void xberg_contributor_role_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `ContributorRole`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_contributor_role_name(const XBERGContributorRole *ptr);
+char *xberg_contributor_role_name(XBERGAlefHandle handle);
 
 /**
  * Get the `role` field from a `ContributorRole`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_contributor_role_role(const XBERGContributorRole *ptr);
+char *xberg_contributor_role_role(XBERGAlefHandle handle);
 
 /**
  * Create a `EpubMetadata` from a JSON string. Returns null on failure.
@@ -13733,64 +14651,76 @@ char *xberg_contributor_role_role(const XBERGContributorRole *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_epub_metadata_free`.
  */
-XBERGEpubMetadata *xberg_epub_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_epub_metadata_from_json(const char *json);
 
 /**
  * Serialize a `EpubMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_epub_metadata_to_json(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EpubMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_epub_metadata_free(XBERGEpubMetadata *ptr);
+void xberg_epub_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `coverage` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_coverage(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_coverage(XBERGAlefHandle handle);
 
 /**
  * Get the `dc_format` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_dc_format(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_dc_format(XBERGAlefHandle handle);
 
 /**
  * Get the `relation` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_relation(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_relation(XBERGAlefHandle handle);
 
 /**
  * Get the `source` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_source(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_source(XBERGAlefHandle handle);
 
 /**
  * Get the `dc_type` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_dc_type(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_dc_type(XBERGAlefHandle handle);
 
 /**
  * Get the `cover_image` field from a `EpubMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_epub_metadata_cover_image(const XBERGEpubMetadata *ptr);
+char *xberg_epub_metadata_cover_image(XBERGAlefHandle handle);
 
 /**
  * Create a `PstMetadata` from a JSON string. Returns null on failure.
@@ -13798,29 +14728,29 @@ char *xberg_epub_metadata_cover_image(const XBERGEpubMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pst_metadata_free`.
  */
-XBERGPstMetadata *xberg_pst_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_pst_metadata_from_json(const char *json);
 
 /**
  * Serialize a `PstMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pst_metadata_to_json(const XBERGPstMetadata *ptr);
+char *xberg_pst_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PstMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pst_metadata_free(XBERGPstMetadata *ptr);
+void xberg_pst_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `message_count` field from a `PstMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_pst_metadata_message_count(const XBERGPstMetadata *ptr);
+uintptr_t xberg_pst_metadata_message_count(XBERGAlefHandle handle);
 
 /**
  * Create a `AudioMetadata` from a JSON string. Returns null on failure.
@@ -13828,64 +14758,68 @@ uintptr_t xberg_pst_metadata_message_count(const XBERGPstMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_audio_metadata_free`.
  */
-XBERGAudioMetadata *xberg_audio_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_audio_metadata_from_json(const char *json);
 
 /**
  * Serialize a `AudioMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_audio_metadata_to_json(const XBERGAudioMetadata *ptr);
+char *xberg_audio_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `AudioMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_audio_metadata_free(XBERGAudioMetadata *ptr);
+void xberg_audio_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `duration_ms` field from a `AudioMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_audio_metadata_duration_ms(const XBERGAudioMetadata *ptr);
+uint64_t xberg_audio_metadata_duration_ms(XBERGAlefHandle handle);
 
 /**
  * Get the `codec` field from a `AudioMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_audio_metadata_codec(const XBERGAudioMetadata *ptr);
+char *xberg_audio_metadata_codec(XBERGAlefHandle handle);
 
 /**
  * Get the `container` field from a `AudioMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_audio_metadata_container(const XBERGAudioMetadata *ptr);
+char *xberg_audio_metadata_container(XBERGAlefHandle handle);
 
 /**
  * Get the `sample_rate_hz` field from a `AudioMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_audio_metadata_sample_rate_hz(const XBERGAudioMetadata *ptr);
+uint32_t xberg_audio_metadata_sample_rate_hz(XBERGAlefHandle handle);
 
 /**
  * Get the `channels` field from a `AudioMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint16_t xberg_audio_metadata_channels(const XBERGAudioMetadata *ptr);
+uint16_t xberg_audio_metadata_channels(XBERGAlefHandle handle);
 
 /**
  * Get the `bitrate` field from a `AudioMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_audio_metadata_bitrate(const XBERGAudioMetadata *ptr);
+uint32_t xberg_audio_metadata_bitrate(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrConfidence` from a JSON string. Returns null on failure.
@@ -13893,36 +14827,36 @@ uint32_t xberg_audio_metadata_bitrate(const XBERGAudioMetadata *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_confidence_free`.
  */
-XBERGOcrConfidence *xberg_ocr_confidence_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_confidence_from_json(const char *json);
 
 /**
  * Serialize a `OcrConfidence` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_confidence_to_json(const XBERGOcrConfidence *ptr);
+char *xberg_ocr_confidence_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrConfidence` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_confidence_free(XBERGOcrConfidence *ptr);
+void xberg_ocr_confidence_free(XBERGAlefHandle handle);
 
 /**
  * Get the `detection` field from a `OcrConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_confidence_detection(const XBERGOcrConfidence *ptr);
+double xberg_ocr_confidence_detection(XBERGAlefHandle handle);
 
 /**
  * Get the `recognition` field from a `OcrConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_confidence_recognition(const XBERGOcrConfidence *ptr);
+double xberg_ocr_confidence_recognition(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrRotation` from a JSON string. Returns null on failure.
@@ -13930,36 +14864,36 @@ double xberg_ocr_confidence_recognition(const XBERGOcrConfidence *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_rotation_free`.
  */
-XBERGOcrRotation *xberg_ocr_rotation_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_rotation_from_json(const char *json);
 
 /**
  * Serialize a `OcrRotation` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_rotation_to_json(const XBERGOcrRotation *ptr);
+char *xberg_ocr_rotation_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrRotation` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_rotation_free(XBERGOcrRotation *ptr);
+void xberg_ocr_rotation_free(XBERGAlefHandle handle);
 
 /**
  * Get the `angle_degrees` field from a `OcrRotation`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_rotation_angle_degrees(const XBERGOcrRotation *ptr);
+double xberg_ocr_rotation_angle_degrees(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `OcrRotation`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_rotation_confidence(const XBERGOcrRotation *ptr);
+double xberg_ocr_rotation_confidence(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrElement` from a JSON string. Returns null on failure.
@@ -13967,78 +14901,92 @@ double xberg_ocr_rotation_confidence(const XBERGOcrRotation *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_element_free`.
  */
-XBERGOcrElement *xberg_ocr_element_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_element_from_json(const char *json);
 
 /**
  * Serialize a `OcrElement` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_element_to_json(const XBERGOcrElement *ptr);
+char *xberg_ocr_element_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrElement` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_element_free(XBERGOcrElement *ptr);
+void xberg_ocr_element_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `OcrElement`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_element_text(const XBERGOcrElement *ptr);
+char *xberg_ocr_element_text(XBERGAlefHandle handle);
 
 /**
  * Get the `geometry` field from a `OcrElement`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_bounding_geometry_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrBoundingGeometry *xberg_ocr_element_geometry(const XBERGOcrElement *ptr);
+XBERGAlefHandle xberg_ocr_element_geometry(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `OcrElement`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_confidence_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrConfidence *xberg_ocr_element_confidence(const XBERGOcrElement *ptr);
+XBERGAlefHandle xberg_ocr_element_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `OcrElement`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_element_level_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrElementLevel *xberg_ocr_element_level(const XBERGOcrElement *ptr);
+XBERGAlefHandle xberg_ocr_element_level(XBERGAlefHandle handle);
 
 /**
  * Get the `rotation` field from a `OcrElement`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_rotation_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrRotation *xberg_ocr_element_rotation(const XBERGOcrElement *ptr);
+XBERGAlefHandle xberg_ocr_element_rotation(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `OcrElement`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_ocr_element_page_number(const XBERGOcrElement *ptr);
+uint32_t xberg_ocr_element_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `parent_id` field from a `OcrElement`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_element_parent_id(const XBERGOcrElement *ptr);
+char *xberg_ocr_element_parent_id(XBERGAlefHandle handle);
 
 /**
  * Get the `backend_metadata` field from a `OcrElement`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ocr_element_backend_metadata(const XBERGOcrElement *ptr);
+char *xberg_ocr_element_backend_metadata(XBERGAlefHandle handle);
 
 /**
  * Create a `OcrElementConfig` from a JSON string. Returns null on failure.
@@ -14046,50 +14994,52 @@ char *xberg_ocr_element_backend_metadata(const XBERGOcrElement *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ocr_element_config_free`.
  */
-XBERGOcrElementConfig *xberg_ocr_element_config_from_json(const char *json);
+XBERGAlefHandle xberg_ocr_element_config_from_json(const char *json);
 
 /**
  * Serialize a `OcrElementConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ocr_element_config_to_json(const XBERGOcrElementConfig *ptr);
+char *xberg_ocr_element_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OcrElementConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ocr_element_config_free(XBERGOcrElementConfig *ptr);
+void xberg_ocr_element_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `include_elements` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_element_config_include_elements(const XBERGOcrElementConfig *ptr);
+int32_t xberg_ocr_element_config_include_elements(XBERGAlefHandle handle);
 
 /**
  * Get the `min_level` field from a `OcrElementConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ocr_element_level_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGOcrElementLevel *xberg_ocr_element_config_min_level(const XBERGOcrElementConfig *ptr);
+XBERGAlefHandle xberg_ocr_element_config_min_level(XBERGAlefHandle handle);
 
 /**
  * Get the `min_confidence` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_ocr_element_config_min_confidence(const XBERGOcrElementConfig *ptr);
+double xberg_ocr_element_config_min_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `build_hierarchy` field from a `OcrElementConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ocr_element_config_build_hierarchy(const XBERGOcrElementConfig *ptr);
+int32_t xberg_ocr_element_config_build_hierarchy(XBERGAlefHandle handle);
 
 /**
  * Create a `PageStructure` from a JSON string. Returns null on failure.
@@ -14097,50 +15047,56 @@ int32_t xberg_ocr_element_config_build_hierarchy(const XBERGOcrElementConfig *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_structure_free`.
  */
-XBERGPageStructure *xberg_page_structure_from_json(const char *json);
+XBERGAlefHandle xberg_page_structure_from_json(const char *json);
 
 /**
  * Serialize a `PageStructure` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_structure_to_json(const XBERGPageStructure *ptr);
+char *xberg_page_structure_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageStructure` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_structure_free(XBERGPageStructure *ptr);
+void xberg_page_structure_free(XBERGAlefHandle handle);
 
 /**
  * Get the `total_count` field from a `PageStructure`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_structure_total_count(const XBERGPageStructure *ptr);
+uint32_t xberg_page_structure_total_count(XBERGAlefHandle handle);
 
 /**
  * Get the `unit_type` field from a `PageStructure`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_unit_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageUnitType *xberg_page_structure_unit_type(const XBERGPageStructure *ptr);
+XBERGAlefHandle xberg_page_structure_unit_type(XBERGAlefHandle handle);
 
 /**
  * Get the `boundaries` field from a `PageStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_structure_boundaries(const XBERGPageStructure *ptr);
+char *xberg_page_structure_boundaries(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `PageStructure`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_structure_pages(const XBERGPageStructure *ptr);
+char *xberg_page_structure_pages(XBERGAlefHandle handle);
 
 /**
  * Create a `PageBoundary` from a JSON string. Returns null on failure.
@@ -14148,43 +15104,43 @@ char *xberg_page_structure_pages(const XBERGPageStructure *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_boundary_free`.
  */
-XBERGPageBoundary *xberg_page_boundary_from_json(const char *json);
+XBERGAlefHandle xberg_page_boundary_from_json(const char *json);
 
 /**
  * Serialize a `PageBoundary` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_boundary_to_json(const XBERGPageBoundary *ptr);
+char *xberg_page_boundary_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageBoundary` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_boundary_free(XBERGPageBoundary *ptr);
+void xberg_page_boundary_free(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_start` field from a `PageBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_page_boundary_byte_start(const XBERGPageBoundary *ptr);
+uintptr_t xberg_page_boundary_byte_start(XBERGAlefHandle handle);
 
 /**
  * Get the `byte_end` field from a `PageBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_page_boundary_byte_end(const XBERGPageBoundary *ptr);
+uintptr_t xberg_page_boundary_byte_end(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `PageBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_boundary_page_number(const XBERGPageBoundary *ptr);
+uint32_t xberg_page_boundary_page_number(XBERGAlefHandle handle);
 
 /**
  * Create a `PageInfo` from a JSON string. Returns null on failure.
@@ -14192,71 +15148,73 @@ uint32_t xberg_page_boundary_page_number(const XBERGPageBoundary *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_info_free`.
  */
-XBERGPageInfo *xberg_page_info_from_json(const char *json);
+XBERGAlefHandle xberg_page_info_from_json(const char *json);
 
 /**
  * Serialize a `PageInfo` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_info_to_json(const XBERGPageInfo *ptr);
+char *xberg_page_info_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageInfo` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_info_free(XBERGPageInfo *ptr);
+void xberg_page_info_free(XBERGAlefHandle handle);
 
 /**
  * Get the `number` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_info_number(const XBERGPageInfo *ptr);
+uint32_t xberg_page_info_number(XBERGAlefHandle handle);
 
 /**
  * Get the `title` field from a `PageInfo`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_info_title(const XBERGPageInfo *ptr);
+char *xberg_page_info_title(XBERGAlefHandle handle);
 
 /**
  * Get the `image_count` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_info_image_count(const XBERGPageInfo *ptr);
+uint32_t xberg_page_info_image_count(XBERGAlefHandle handle);
 
 /**
  * Get the `table_count` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_info_table_count(const XBERGPageInfo *ptr);
+uint32_t xberg_page_info_table_count(XBERGAlefHandle handle);
 
 /**
  * Get the `hidden` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_info_hidden(const XBERGPageInfo *ptr);
+int32_t xberg_page_info_hidden(XBERGAlefHandle handle);
 
 /**
  * Get the `is_blank` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_info_is_blank(const XBERGPageInfo *ptr);
+int32_t xberg_page_info_is_blank(XBERGAlefHandle handle);
 
 /**
  * Get the `has_vector_graphics` field from a `PageInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_info_has_vector_graphics(const XBERGPageInfo *ptr);
+int32_t xberg_page_info_has_vector_graphics(XBERGAlefHandle handle);
 
 /**
  * Create a `PageContent` from a JSON string. Returns null on failure.
@@ -14264,92 +15222,108 @@ int32_t xberg_page_info_has_vector_graphics(const XBERGPageInfo *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_content_free`.
  */
-XBERGPageContent *xberg_page_content_from_json(const char *json);
+XBERGAlefHandle xberg_page_content_from_json(const char *json);
 
 /**
  * Serialize a `PageContent` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_content_to_json(const XBERGPageContent *ptr);
+char *xberg_page_content_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageContent` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_content_free(XBERGPageContent *ptr);
+void xberg_page_content_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `PageContent`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_content_page_number(const XBERGPageContent *ptr);
+uint32_t xberg_page_content_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_content(const XBERGPageContent *ptr);
+char *xberg_page_content_content(XBERGAlefHandle handle);
 
 /**
  * Get the `tables` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_tables(const XBERGPageContent *ptr);
+char *xberg_page_content_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `image_indices` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_image_indices(const XBERGPageContent *ptr);
+char *xberg_page_content_image_indices(XBERGAlefHandle handle);
 
 /**
  * Get the `hierarchy` field from a `PageContent`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_hierarchy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageHierarchy *xberg_page_content_hierarchy(const XBERGPageContent *ptr);
+XBERGAlefHandle xberg_page_content_hierarchy(XBERGAlefHandle handle);
 
 /**
  * Get the `is_blank` field from a `PageContent`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_content_is_blank(const XBERGPageContent *ptr);
+int32_t xberg_page_content_is_blank(XBERGAlefHandle handle);
 
 /**
  * Get the `layout_regions` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_layout_regions(const XBERGPageContent *ptr);
+char *xberg_page_content_layout_regions(XBERGAlefHandle handle);
 
 /**
  * Get the `speaker_notes` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_speaker_notes(const XBERGPageContent *ptr);
+char *xberg_page_content_speaker_notes(XBERGAlefHandle handle);
 
 /**
  * Get the `section_name` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_section_name(const XBERGPageContent *ptr);
+char *xberg_page_content_section_name(XBERGAlefHandle handle);
 
 /**
  * Get the `sheet_name` field from a `PageContent`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_content_sheet_name(const XBERGPageContent *ptr);
+char *xberg_page_content_sheet_name(XBERGAlefHandle handle);
 
 /**
  * Create a `LayoutRegion` from a JSON string. Returns null on failure.
@@ -14357,50 +15331,54 @@ char *xberg_page_content_sheet_name(const XBERGPageContent *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_layout_region_free`.
  */
-XBERGLayoutRegion *xberg_layout_region_from_json(const char *json);
+XBERGAlefHandle xberg_layout_region_from_json(const char *json);
 
 /**
  * Serialize a `LayoutRegion` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_layout_region_to_json(const XBERGLayoutRegion *ptr);
+char *xberg_layout_region_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LayoutRegion` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_layout_region_free(XBERGLayoutRegion *ptr);
+void xberg_layout_region_free(XBERGAlefHandle handle);
 
 /**
  * Get the `class_name` field from a `LayoutRegion`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_layout_region_class_name(const XBERGLayoutRegion *ptr);
+char *xberg_layout_region_class_name(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `LayoutRegion`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_layout_region_confidence(const XBERGLayoutRegion *ptr);
+double xberg_layout_region_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `bounding_box` field from a `LayoutRegion`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_layout_region_bounding_box(const XBERGLayoutRegion *ptr);
+XBERGAlefHandle xberg_layout_region_bounding_box(XBERGAlefHandle handle);
 
 /**
  * Get the `area_fraction` field from a `LayoutRegion`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-double xberg_layout_region_area_fraction(const XBERGLayoutRegion *ptr);
+double xberg_layout_region_area_fraction(XBERGAlefHandle handle);
 
 /**
  * Create a `PageHierarchy` from a JSON string. Returns null on failure.
@@ -14408,36 +15386,38 @@ double xberg_layout_region_area_fraction(const XBERGLayoutRegion *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_hierarchy_free`.
  */
-XBERGPageHierarchy *xberg_page_hierarchy_from_json(const char *json);
+XBERGAlefHandle xberg_page_hierarchy_from_json(const char *json);
 
 /**
  * Serialize a `PageHierarchy` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_hierarchy_to_json(const XBERGPageHierarchy *ptr);
+char *xberg_page_hierarchy_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageHierarchy` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_hierarchy_free(XBERGPageHierarchy *ptr);
+void xberg_page_hierarchy_free(XBERGAlefHandle handle);
 
 /**
  * Get the `block_count` field from a `PageHierarchy`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_hierarchy_block_count(const XBERGPageHierarchy *ptr);
+uint32_t xberg_page_hierarchy_block_count(XBERGAlefHandle handle);
 
 /**
  * Get the `blocks` field from a `PageHierarchy`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_hierarchy_blocks(const XBERGPageHierarchy *ptr);
+char *xberg_page_hierarchy_blocks(XBERGAlefHandle handle);
 
 /**
  * Create a `HierarchicalBlock` from a JSON string. Returns null on failure.
@@ -14445,43 +15425,47 @@ char *xberg_page_hierarchy_blocks(const XBERGPageHierarchy *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_hierarchical_block_free`.
  */
-XBERGHierarchicalBlock *xberg_hierarchical_block_from_json(const char *json);
+XBERGAlefHandle xberg_hierarchical_block_from_json(const char *json);
 
 /**
  * Serialize a `HierarchicalBlock` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_hierarchical_block_to_json(const XBERGHierarchicalBlock *ptr);
+char *xberg_hierarchical_block_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HierarchicalBlock` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_hierarchical_block_free(XBERGHierarchicalBlock *ptr);
+void xberg_hierarchical_block_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `HierarchicalBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_hierarchical_block_text(const XBERGHierarchicalBlock *ptr);
+char *xberg_hierarchical_block_text(XBERGAlefHandle handle);
 
 /**
  * Get the `font_size` field from a `HierarchicalBlock`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_hierarchical_block_font_size(const XBERGHierarchicalBlock *ptr);
+float xberg_hierarchical_block_font_size(XBERGAlefHandle handle);
 
 /**
  * Get the `level` field from a `HierarchicalBlock`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_hierarchical_block_level(const XBERGHierarchicalBlock *ptr);
+char *xberg_hierarchical_block_level(XBERGAlefHandle handle);
 
 /**
  * Create a `QrCode` from a JSON string. Returns null on failure.
@@ -14489,43 +15473,47 @@ char *xberg_hierarchical_block_level(const XBERGHierarchicalBlock *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_qr_code_free`.
  */
-XBERGQrCode *xberg_qr_code_from_json(const char *json);
+XBERGAlefHandle xberg_qr_code_from_json(const char *json);
 
 /**
  * Serialize a `QrCode` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_qr_code_to_json(const XBERGQrCode *ptr);
+char *xberg_qr_code_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `QrCode` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_qr_code_free(XBERGQrCode *ptr);
+void xberg_qr_code_free(XBERGAlefHandle handle);
 
 /**
  * Get the `payload` field from a `QrCode`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_qr_code_payload(const XBERGQrCode *ptr);
+char *xberg_qr_code_payload(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `QrCode`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_qr_code_confidence(const XBERGQrCode *ptr);
+float xberg_qr_code_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `QrCode`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_qr_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGQrBoundingBox *xberg_qr_code_bbox(const XBERGQrCode *ptr);
+XBERGAlefHandle xberg_qr_code_bbox(XBERGAlefHandle handle);
 
 /**
  * Create a `QrBoundingBox` from a JSON string. Returns null on failure.
@@ -14533,50 +15521,50 @@ XBERGQrBoundingBox *xberg_qr_code_bbox(const XBERGQrCode *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_qr_bounding_box_free`.
  */
-XBERGQrBoundingBox *xberg_qr_bounding_box_from_json(const char *json);
+XBERGAlefHandle xberg_qr_bounding_box_from_json(const char *json);
 
 /**
  * Serialize a `QrBoundingBox` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_qr_bounding_box_to_json(const XBERGQrBoundingBox *ptr);
+char *xberg_qr_bounding_box_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `QrBoundingBox` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_qr_bounding_box_free(XBERGQrBoundingBox *ptr);
+void xberg_qr_bounding_box_free(XBERGAlefHandle handle);
 
 /**
  * Get the `x` field from a `QrBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_qr_bounding_box_x(const XBERGQrBoundingBox *ptr);
+uint32_t xberg_qr_bounding_box_x(XBERGAlefHandle handle);
 
 /**
  * Get the `y` field from a `QrBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_qr_bounding_box_y(const XBERGQrBoundingBox *ptr);
+uint32_t xberg_qr_bounding_box_y(XBERGAlefHandle handle);
 
 /**
  * Get the `width` field from a `QrBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_qr_bounding_box_width(const XBERGQrBoundingBox *ptr);
+uint32_t xberg_qr_bounding_box_width(XBERGAlefHandle handle);
 
 /**
  * Get the `height` field from a `QrBoundingBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_qr_bounding_box_height(const XBERGQrBoundingBox *ptr);
+uint32_t xberg_qr_bounding_box_height(XBERGAlefHandle handle);
 
 /**
  * Create a `RedactionReport` from a JSON string. Returns null on failure.
@@ -14584,36 +15572,38 @@ uint32_t xberg_qr_bounding_box_height(const XBERGQrBoundingBox *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_redaction_report_free`.
  */
-XBERGRedactionReport *xberg_redaction_report_from_json(const char *json);
+XBERGAlefHandle xberg_redaction_report_from_json(const char *json);
 
 /**
  * Serialize a `RedactionReport` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_redaction_report_to_json(const XBERGRedactionReport *ptr);
+char *xberg_redaction_report_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RedactionReport` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_redaction_report_free(XBERGRedactionReport *ptr);
+void xberg_redaction_report_free(XBERGAlefHandle handle);
 
 /**
  * Get the `findings` field from a `RedactionReport`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_report_findings(const XBERGRedactionReport *ptr);
+char *xberg_redaction_report_findings(XBERGAlefHandle handle);
 
 /**
  * Get the `total_redacted` field from a `RedactionReport`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_redaction_report_total_redacted(const XBERGRedactionReport *ptr);
+uint32_t xberg_redaction_report_total_redacted(XBERGAlefHandle handle);
 
 /**
  * Create a `RedactionFinding` from a JSON string. Returns null on failure.
@@ -14621,57 +15611,63 @@ uint32_t xberg_redaction_report_total_redacted(const XBERGRedactionReport *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_redaction_finding_free`.
  */
-XBERGRedactionFinding *xberg_redaction_finding_from_json(const char *json);
+XBERGAlefHandle xberg_redaction_finding_from_json(const char *json);
 
 /**
  * Serialize a `RedactionFinding` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_redaction_finding_to_json(const XBERGRedactionFinding *ptr);
+char *xberg_redaction_finding_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RedactionFinding` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_redaction_finding_free(XBERGRedactionFinding *ptr);
+void xberg_redaction_finding_free(XBERGAlefHandle handle);
 
 /**
  * Get the `start` field from a `RedactionFinding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_redaction_finding_start(const XBERGRedactionFinding *ptr);
+uint32_t xberg_redaction_finding_start(XBERGAlefHandle handle);
 
 /**
  * Get the `end` field from a `RedactionFinding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_redaction_finding_end(const XBERGRedactionFinding *ptr);
+uint32_t xberg_redaction_finding_end(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `RedactionFinding`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_pii_category_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPiiCategory *xberg_redaction_finding_category(const XBERGRedactionFinding *ptr);
+XBERGAlefHandle xberg_redaction_finding_category(XBERGAlefHandle handle);
 
 /**
  * Get the `strategy` field from a `RedactionFinding`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_redaction_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRedactionStrategy *xberg_redaction_finding_strategy(const XBERGRedactionFinding *ptr);
+XBERGAlefHandle xberg_redaction_finding_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `replacement_token` field from a `RedactionFinding`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_redaction_finding_replacement_token(const XBERGRedactionFinding *ptr);
+char *xberg_redaction_finding_replacement_token(XBERGAlefHandle handle);
 
 /**
  * Create a `CellChange` from a JSON string. Returns null on failure.
@@ -14679,50 +15675,54 @@ char *xberg_redaction_finding_replacement_token(const XBERGRedactionFinding *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_cell_change_free`.
  */
-XBERGCellChange *xberg_cell_change_from_json(const char *json);
+XBERGAlefHandle xberg_cell_change_from_json(const char *json);
 
 /**
  * Serialize a `CellChange` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_cell_change_to_json(const XBERGCellChange *ptr);
+char *xberg_cell_change_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CellChange` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_cell_change_free(XBERGCellChange *ptr);
+void xberg_cell_change_free(XBERGAlefHandle handle);
 
 /**
  * Get the `row` field from a `CellChange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_cell_change_row(const XBERGCellChange *ptr);
+uintptr_t xberg_cell_change_row(XBERGAlefHandle handle);
 
 /**
  * Get the `col` field from a `CellChange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_cell_change_col(const XBERGCellChange *ptr);
+uintptr_t xberg_cell_change_col(XBERGAlefHandle handle);
 
 /**
  * Get the `from` field from a `CellChange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_cell_change_from(const XBERGCellChange *ptr);
+char *xberg_cell_change_from(XBERGAlefHandle handle);
 
 /**
  * Get the `to` field from a `CellChange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_cell_change_to(const XBERGCellChange *ptr);
+char *xberg_cell_change_to(XBERGAlefHandle handle);
 
 /**
  * Create a `PropertyChange` from a JSON string. Returns null on failure.
@@ -14730,43 +15730,49 @@ char *xberg_cell_change_to(const XBERGCellChange *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_property_change_free`.
  */
-XBERGPropertyChange *xberg_property_change_from_json(const char *json);
+XBERGAlefHandle xberg_property_change_from_json(const char *json);
 
 /**
  * Serialize a `PropertyChange` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_property_change_to_json(const XBERGPropertyChange *ptr);
+char *xberg_property_change_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PropertyChange` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_property_change_free(XBERGPropertyChange *ptr);
+void xberg_property_change_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `PropertyChange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_property_change_name(const XBERGPropertyChange *ptr);
+char *xberg_property_change_name(XBERGAlefHandle handle);
 
 /**
  * Get the `from` field from a `PropertyChange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_property_change_from(const XBERGPropertyChange *ptr);
+char *xberg_property_change_from(XBERGAlefHandle handle);
 
 /**
  * Get the `to` field from a `PropertyChange`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_property_change_to(const XBERGPropertyChange *ptr);
+char *xberg_property_change_to(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentRevision` from a JSON string. Returns null on failure.
@@ -14774,64 +15780,76 @@ char *xberg_property_change_to(const XBERGPropertyChange *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_revision_free`.
  */
-XBERGDocumentRevision *xberg_document_revision_from_json(const char *json);
+XBERGAlefHandle xberg_document_revision_from_json(const char *json);
 
 /**
  * Serialize a `DocumentRevision` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_revision_to_json(const XBERGDocumentRevision *ptr);
+char *xberg_document_revision_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentRevision` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_revision_free(XBERGDocumentRevision *ptr);
+void xberg_document_revision_free(XBERGAlefHandle handle);
 
 /**
  * Get the `revision_id` field from a `DocumentRevision`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_revision_revision_id(const XBERGDocumentRevision *ptr);
+char *xberg_document_revision_revision_id(XBERGAlefHandle handle);
 
 /**
  * Get the `author` field from a `DocumentRevision`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_revision_author(const XBERGDocumentRevision *ptr);
+char *xberg_document_revision_author(XBERGAlefHandle handle);
 
 /**
  * Get the `timestamp` field from a `DocumentRevision`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_revision_timestamp(const XBERGDocumentRevision *ptr);
+char *xberg_document_revision_timestamp(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `DocumentRevision`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_revision_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionKind *xberg_document_revision_kind(const XBERGDocumentRevision *ptr);
+XBERGAlefHandle xberg_document_revision_kind(XBERGAlefHandle handle);
 
 /**
  * Get the `anchor` field from a `DocumentRevision`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_revision_anchor_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionAnchor *xberg_document_revision_anchor(const XBERGDocumentRevision *ptr);
+XBERGAlefHandle xberg_document_revision_anchor(XBERGAlefHandle handle);
 
 /**
  * Get the `delta` field from a `DocumentRevision`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_revision_delta_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRevisionDelta *xberg_document_revision_delta(const XBERGDocumentRevision *ptr);
+XBERGAlefHandle xberg_document_revision_delta(XBERGAlefHandle handle);
 
 /**
  * Create a `RevisionDelta` from a JSON string. Returns null on failure.
@@ -14839,43 +15857,49 @@ XBERGRevisionDelta *xberg_document_revision_delta(const XBERGDocumentRevision *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_revision_delta_free`.
  */
-XBERGRevisionDelta *xberg_revision_delta_from_json(const char *json);
+XBERGAlefHandle xberg_revision_delta_from_json(const char *json);
 
 /**
  * Serialize a `RevisionDelta` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_revision_delta_to_json(const XBERGRevisionDelta *ptr);
+char *xberg_revision_delta_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RevisionDelta` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_revision_delta_free(XBERGRevisionDelta *ptr);
+void xberg_revision_delta_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `RevisionDelta`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_revision_delta_content(const XBERGRevisionDelta *ptr);
+char *xberg_revision_delta_content(XBERGAlefHandle handle);
 
 /**
  * Get the `table_changes` field from a `RevisionDelta`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_revision_delta_table_changes(const XBERGRevisionDelta *ptr);
+char *xberg_revision_delta_table_changes(XBERGAlefHandle handle);
 
 /**
  * Get the `property_changes` field from a `RevisionDelta`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_revision_delta_property_changes(const XBERGRevisionDelta *ptr);
+char *xberg_revision_delta_property_changes(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentSummary` from a JSON string. Returns null on failure.
@@ -14883,43 +15907,47 @@ char *xberg_revision_delta_property_changes(const XBERGRevisionDelta *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_summary_free`.
  */
-XBERGDocumentSummary *xberg_document_summary_from_json(const char *json);
+XBERGAlefHandle xberg_document_summary_from_json(const char *json);
 
 /**
  * Serialize a `DocumentSummary` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_summary_to_json(const XBERGDocumentSummary *ptr);
+char *xberg_document_summary_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentSummary` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_summary_free(XBERGDocumentSummary *ptr);
+void xberg_document_summary_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `DocumentSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_summary_text(const XBERGDocumentSummary *ptr);
+char *xberg_document_summary_text(XBERGAlefHandle handle);
 
 /**
  * Get the `strategy` field from a `DocumentSummary`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_summary_strategy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSummaryStrategy *xberg_document_summary_strategy(const XBERGDocumentSummary *ptr);
+XBERGAlefHandle xberg_document_summary_strategy(XBERGAlefHandle handle);
 
 /**
  * Get the `token_count` field from a `DocumentSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_summary_token_count(const XBERGDocumentSummary *ptr);
+uint32_t xberg_document_summary_token_count(XBERGAlefHandle handle);
 
 /**
  * Create a `Table` from a JSON string. Returns null on failure.
@@ -14927,64 +15955,74 @@ uint32_t xberg_document_summary_token_count(const XBERGDocumentSummary *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_table_free`.
  */
-XBERGTable *xberg_table_from_json(const char *json);
+XBERGAlefHandle xberg_table_from_json(const char *json);
 
 /**
  * Serialize a `Table` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_table_to_json(const XBERGTable *ptr);
+char *xberg_table_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Table` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_table_free(XBERGTable *ptr);
+void xberg_table_free(XBERGAlefHandle handle);
 
 /**
  * Get the `cells` field from a `Table`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_cells(const XBERGTable *ptr);
+char *xberg_table_cells(XBERGAlefHandle handle);
 
 /**
  * Get the `markdown` field from a `Table`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_markdown(const XBERGTable *ptr);
+char *xberg_table_markdown(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `Table`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_table_page_number(const XBERGTable *ptr);
+uint32_t xberg_table_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `bounding_box` field from a `Table`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_bounding_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundingBox *xberg_table_bounding_box(const XBERGTable *ptr);
+XBERGAlefHandle xberg_table_bounding_box(XBERGAlefHandle handle);
 
 /**
  * Get the `table_id` field from a `Table`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_table_id(const XBERGTable *ptr);
+char *xberg_table_table_id(XBERGAlefHandle handle);
 
 /**
  * Get the `columns` field from a `Table`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_columns(const XBERGTable *ptr);
+char *xberg_table_columns(XBERGAlefHandle handle);
 
 /**
  * Create a `TableCell` from a JSON string. Returns null on failure.
@@ -14992,50 +16030,52 @@ char *xberg_table_columns(const XBERGTable *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_table_cell_free`.
  */
-XBERGTableCell *xberg_table_cell_from_json(const char *json);
+XBERGAlefHandle xberg_table_cell_from_json(const char *json);
 
 /**
  * Serialize a `TableCell` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_table_cell_to_json(const XBERGTableCell *ptr);
+char *xberg_table_cell_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TableCell` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_table_cell_free(XBERGTableCell *ptr);
+void xberg_table_cell_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `TableCell`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_cell_content(const XBERGTableCell *ptr);
+char *xberg_table_cell_content(XBERGAlefHandle handle);
 
 /**
  * Get the `row_span` field from a `TableCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_table_cell_row_span(const XBERGTableCell *ptr);
+uint32_t xberg_table_cell_row_span(XBERGAlefHandle handle);
 
 /**
  * Get the `col_span` field from a `TableCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_table_cell_col_span(const XBERGTableCell *ptr);
+uint32_t xberg_table_cell_col_span(XBERGAlefHandle handle);
 
 /**
  * Get the `is_header` field from a `TableCell`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_table_cell_is_header(const XBERGTableCell *ptr);
+int32_t xberg_table_cell_is_header(XBERGAlefHandle handle);
 
 /**
  * Create a `Translation` from a JSON string. Returns null on failure.
@@ -15043,50 +16083,58 @@ int32_t xberg_table_cell_is_header(const XBERGTableCell *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_translation_free`.
  */
-XBERGTranslation *xberg_translation_from_json(const char *json);
+XBERGAlefHandle xberg_translation_from_json(const char *json);
 
 /**
  * Serialize a `Translation` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_translation_to_json(const XBERGTranslation *ptr);
+char *xberg_translation_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Translation` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_translation_free(XBERGTranslation *ptr);
+void xberg_translation_free(XBERGAlefHandle handle);
 
 /**
  * Get the `target_lang` field from a `Translation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_target_lang(const XBERGTranslation *ptr);
+char *xberg_translation_target_lang(XBERGAlefHandle handle);
 
 /**
  * Get the `source_lang` field from a `Translation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_source_lang(const XBERGTranslation *ptr);
+char *xberg_translation_source_lang(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `Translation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_content(const XBERGTranslation *ptr);
+char *xberg_translation_content(XBERGAlefHandle handle);
 
 /**
  * Get the `formatted_content` field from a `Translation`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_translation_formatted_content(const XBERGTranslation *ptr);
+char *xberg_translation_formatted_content(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractedUri` from a JSON string. Returns null on failure.
@@ -15094,50 +16142,56 @@ char *xberg_translation_formatted_content(const XBERGTranslation *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extracted_uri_free`.
  */
-XBERGExtractedUri *xberg_extracted_uri_from_json(const char *json);
+XBERGAlefHandle xberg_extracted_uri_from_json(const char *json);
 
 /**
  * Serialize a `ExtractedUri` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extracted_uri_to_json(const XBERGExtractedUri *ptr);
+char *xberg_extracted_uri_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractedUri` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extracted_uri_free(XBERGExtractedUri *ptr);
+void xberg_extracted_uri_free(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `ExtractedUri`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_uri_url(const XBERGExtractedUri *ptr);
+char *xberg_extracted_uri_url(XBERGAlefHandle handle);
 
 /**
  * Get the `label` field from a `ExtractedUri`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extracted_uri_label(const XBERGExtractedUri *ptr);
+char *xberg_extracted_uri_label(XBERGAlefHandle handle);
 
 /**
  * Get the `page` field from a `ExtractedUri`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_extracted_uri_page(const XBERGExtractedUri *ptr);
+uint32_t xberg_extracted_uri_page(XBERGAlefHandle handle);
 
 /**
  * Get the `kind` field from a `ExtractedUri`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_uri_kind_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUriKind *xberg_extracted_uri_kind(const XBERGExtractedUri *ptr);
+XBERGAlefHandle xberg_extracted_uri_kind(XBERGAlefHandle handle);
 
 /**
  * Create a `DetectResponse` from a JSON string. Returns null on failure.
@@ -15145,36 +16199,40 @@ XBERGUriKind *xberg_extracted_uri_kind(const XBERGExtractedUri *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_detect_response_free`.
  */
-XBERGDetectResponse *xberg_detect_response_from_json(const char *json);
+XBERGAlefHandle xberg_detect_response_from_json(const char *json);
 
 /**
  * Serialize a `DetectResponse` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_detect_response_to_json(const XBERGDetectResponse *ptr);
+char *xberg_detect_response_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DetectResponse` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_detect_response_free(XBERGDetectResponse *ptr);
+void xberg_detect_response_free(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `DetectResponse`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_detect_response_mime_type(const XBERGDetectResponse *ptr);
+char *xberg_detect_response_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `filename` field from a `DetectResponse`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_detect_response_filename(const XBERGDetectResponse *ptr);
+char *xberg_detect_response_filename(XBERGAlefHandle handle);
 
 /**
  * Create a `DiffOptions` from a JSON string. Returns null on failure.
@@ -15182,49 +16240,43 @@ char *xberg_detect_response_filename(const XBERGDetectResponse *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_diff_options_free`.
  */
-XBERGDiffOptions *xberg_diff_options_from_json(const char *json);
+XBERGAlefHandle xberg_diff_options_from_json(const char *json);
 
 /**
  * Serialize a `DiffOptions` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_diff_options_to_json(const XBERGDiffOptions *ptr);
+char *xberg_diff_options_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DiffOptions` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_diff_options_free(XBERGDiffOptions *ptr);
+void xberg_diff_options_free(XBERGAlefHandle handle);
 
 /**
  * Get the `include_metadata` field from a `DiffOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_diff_options_include_metadata(const XBERGDiffOptions *ptr);
+int32_t xberg_diff_options_include_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `include_embedded` field from a `DiffOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_diff_options_include_embedded(const XBERGDiffOptions *ptr);
+int32_t xberg_diff_options_include_embedded(XBERGAlefHandle handle);
 
 /**
  * Get the `max_content_chars` field from a `DiffOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_diff_options_max_content_chars(const XBERGDiffOptions *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGDiffOptions *xberg_diff_options_default(void);
+uintptr_t xberg_diff_options_max_content_chars(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractionDiff` from a JSON string. Returns null on failure.
@@ -15232,64 +16284,76 @@ XBERGDiffOptions *xberg_diff_options_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_diff_free`.
  */
-XBERGExtractionDiff *xberg_extraction_diff_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_diff_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionDiff` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_diff_to_json(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionDiff` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_diff_free(XBERGExtractionDiff *ptr);
+void xberg_extraction_diff_free(XBERGAlefHandle handle);
 
 /**
  * Get the `content_diff` field from a `ExtractionDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_diff_content_diff(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_content_diff(XBERGAlefHandle handle);
 
 /**
  * Get the `tables_added` field from a `ExtractionDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_diff_tables_added(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_tables_added(XBERGAlefHandle handle);
 
 /**
  * Get the `tables_removed` field from a `ExtractionDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_diff_tables_removed(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_tables_removed(XBERGAlefHandle handle);
 
 /**
  * Get the `tables_changed` field from a `ExtractionDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_diff_tables_changed(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_tables_changed(XBERGAlefHandle handle);
 
 /**
  * Get the `metadata_changed` field from a `ExtractionDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_extraction_diff_metadata_changed(const XBERGExtractionDiff *ptr);
+char *xberg_extraction_diff_metadata_changed(XBERGAlefHandle handle);
 
 /**
  * Get the `embedded_changes` field from a `ExtractionDiff`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_embedded_changes_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGEmbeddedChanges *xberg_extraction_diff_embedded_changes(const XBERGExtractionDiff *ptr);
+XBERGAlefHandle xberg_extraction_diff_embedded_changes(XBERGAlefHandle handle);
 
 /**
  * Create a `DiffHunk` from a JSON string. Returns null on failure.
@@ -15297,57 +16361,59 @@ XBERGEmbeddedChanges *xberg_extraction_diff_embedded_changes(const XBERGExtracti
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_diff_hunk_free`.
  */
-XBERGDiffHunk *xberg_diff_hunk_from_json(const char *json);
+XBERGAlefHandle xberg_diff_hunk_from_json(const char *json);
 
 /**
  * Serialize a `DiffHunk` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_diff_hunk_to_json(const XBERGDiffHunk *ptr);
+char *xberg_diff_hunk_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DiffHunk` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_diff_hunk_free(XBERGDiffHunk *ptr);
+void xberg_diff_hunk_free(XBERGAlefHandle handle);
 
 /**
  * Get the `from_line` field from a `DiffHunk`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_diff_hunk_from_line(const XBERGDiffHunk *ptr);
+uintptr_t xberg_diff_hunk_from_line(XBERGAlefHandle handle);
 
 /**
  * Get the `from_count` field from a `DiffHunk`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_diff_hunk_from_count(const XBERGDiffHunk *ptr);
+uintptr_t xberg_diff_hunk_from_count(XBERGAlefHandle handle);
 
 /**
  * Get the `to_line` field from a `DiffHunk`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_diff_hunk_to_line(const XBERGDiffHunk *ptr);
+uintptr_t xberg_diff_hunk_to_line(XBERGAlefHandle handle);
 
 /**
  * Get the `to_count` field from a `DiffHunk`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_diff_hunk_to_count(const XBERGDiffHunk *ptr);
+uintptr_t xberg_diff_hunk_to_count(XBERGAlefHandle handle);
 
 /**
  * Get the `lines` field from a `DiffHunk`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_diff_hunk_lines(const XBERGDiffHunk *ptr);
+char *xberg_diff_hunk_lines(XBERGAlefHandle handle);
 
 /**
  * Create a `TableDiff` from a JSON string. Returns null on failure.
@@ -15355,43 +16421,45 @@ char *xberg_diff_hunk_lines(const XBERGDiffHunk *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_table_diff_free`.
  */
-XBERGTableDiff *xberg_table_diff_from_json(const char *json);
+XBERGAlefHandle xberg_table_diff_from_json(const char *json);
 
 /**
  * Serialize a `TableDiff` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_table_diff_to_json(const XBERGTableDiff *ptr);
+char *xberg_table_diff_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `TableDiff` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_table_diff_free(XBERGTableDiff *ptr);
+void xberg_table_diff_free(XBERGAlefHandle handle);
 
 /**
  * Get the `from_index` field from a `TableDiff`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_table_diff_from_index(const XBERGTableDiff *ptr);
+uintptr_t xberg_table_diff_from_index(XBERGAlefHandle handle);
 
 /**
  * Get the `to_index` field from a `TableDiff`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_table_diff_to_index(const XBERGTableDiff *ptr);
+uintptr_t xberg_table_diff_to_index(XBERGAlefHandle handle);
 
 /**
  * Get the `cell_changes` field from a `TableDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_table_diff_cell_changes(const XBERGTableDiff *ptr);
+char *xberg_table_diff_cell_changes(XBERGAlefHandle handle);
 
 /**
  * Create a `EmbeddedChanges` from a JSON string. Returns null on failure.
@@ -15399,43 +16467,49 @@ char *xberg_table_diff_cell_changes(const XBERGTableDiff *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_embedded_changes_free`.
  */
-XBERGEmbeddedChanges *xberg_embedded_changes_from_json(const char *json);
+XBERGAlefHandle xberg_embedded_changes_from_json(const char *json);
 
 /**
  * Serialize a `EmbeddedChanges` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_embedded_changes_to_json(const XBERGEmbeddedChanges *ptr);
+char *xberg_embedded_changes_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmbeddedChanges` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_embedded_changes_free(XBERGEmbeddedChanges *ptr);
+void xberg_embedded_changes_free(XBERGAlefHandle handle);
 
 /**
  * Get the `added` field from a `EmbeddedChanges`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_changes_added(const XBERGEmbeddedChanges *ptr);
+char *xberg_embedded_changes_added(XBERGAlefHandle handle);
 
 /**
  * Get the `removed` field from a `EmbeddedChanges`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_changes_removed(const XBERGEmbeddedChanges *ptr);
+char *xberg_embedded_changes_removed(XBERGAlefHandle handle);
 
 /**
  * Get the `changed` field from a `EmbeddedChanges`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_changes_changed(const XBERGEmbeddedChanges *ptr);
+char *xberg_embedded_changes_changed(XBERGAlefHandle handle);
 
 /**
  * Create a `EmbeddedDiff` from a JSON string. Returns null on failure.
@@ -15443,36 +16517,40 @@ char *xberg_embedded_changes_changed(const XBERGEmbeddedChanges *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_embedded_diff_free`.
  */
-XBERGEmbeddedDiff *xberg_embedded_diff_from_json(const char *json);
+XBERGAlefHandle xberg_embedded_diff_from_json(const char *json);
 
 /**
  * Serialize a `EmbeddedDiff` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_embedded_diff_to_json(const XBERGEmbeddedDiff *ptr);
+char *xberg_embedded_diff_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmbeddedDiff` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_embedded_diff_free(XBERGEmbeddedDiff *ptr);
+void xberg_embedded_diff_free(XBERGAlefHandle handle);
 
 /**
  * Get the `path` field from a `EmbeddedDiff`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_diff_path(const XBERGEmbeddedDiff *ptr);
+char *xberg_embedded_diff_path(XBERGAlefHandle handle);
 
 /**
  * Get the `diff` field from a `EmbeddedDiff`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_extraction_diff_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGExtractionDiff *xberg_embedded_diff_diff(const XBERGEmbeddedDiff *ptr);
+XBERGAlefHandle xberg_embedded_diff_diff(XBERGAlefHandle handle);
 
 /**
  * Create a `RerankedDocument` from a JSON string. Returns null on failure.
@@ -15480,43 +16558,45 @@ XBERGExtractionDiff *xberg_embedded_diff_diff(const XBERGEmbeddedDiff *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_reranked_document_free`.
  */
-XBERGRerankedDocument *xberg_reranked_document_from_json(const char *json);
+XBERGAlefHandle xberg_reranked_document_from_json(const char *json);
 
 /**
  * Serialize a `RerankedDocument` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_reranked_document_to_json(const XBERGRerankedDocument *ptr);
+char *xberg_reranked_document_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RerankedDocument` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_reranked_document_free(XBERGRerankedDocument *ptr);
+void xberg_reranked_document_free(XBERGAlefHandle handle);
 
 /**
  * Get the `index` field from a `RerankedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_reranked_document_index(const XBERGRerankedDocument *ptr);
+uintptr_t xberg_reranked_document_index(XBERGAlefHandle handle);
 
 /**
  * Get the `score` field from a `RerankedDocument`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_reranked_document_score(const XBERGRerankedDocument *ptr);
+float xberg_reranked_document_score(XBERGAlefHandle handle);
 
 /**
  * Get the `document` field from a `RerankedDocument`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_reranked_document_document(const XBERGRerankedDocument *ptr);
+char *xberg_reranked_document_document(XBERGAlefHandle handle);
 
 /**
  * Create a `SparseEmbedding` from a JSON string. Returns null on failure.
@@ -15524,36 +16604,40 @@ char *xberg_reranked_document_document(const XBERGRerankedDocument *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sparse_embedding_free`.
  */
-XBERGSparseEmbedding *xberg_sparse_embedding_from_json(const char *json);
+XBERGAlefHandle xberg_sparse_embedding_from_json(const char *json);
 
 /**
  * Serialize a `SparseEmbedding` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sparse_embedding_to_json(const XBERGSparseEmbedding *ptr);
+char *xberg_sparse_embedding_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SparseEmbedding` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_sparse_embedding_free(XBERGSparseEmbedding *ptr);
+void xberg_sparse_embedding_free(XBERGAlefHandle handle);
 
 /**
  * Get the `indices` field from a `SparseEmbedding`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_indices(const XBERGSparseEmbedding *ptr);
+char *xberg_sparse_embedding_indices(XBERGAlefHandle handle);
 
 /**
  * Get the `values` field from a `SparseEmbedding`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_values(const XBERGSparseEmbedding *ptr);
+char *xberg_sparse_embedding_values(XBERGAlefHandle handle);
 
 /**
  * Create a `SparseEmbeddingPreset` from a JSON string. Returns null on failure.
@@ -15561,64 +16645,74 @@ char *xberg_sparse_embedding_values(const XBERGSparseEmbedding *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sparse_embedding_preset_free`.
  */
-XBERGSparseEmbeddingPreset *xberg_sparse_embedding_preset_from_json(const char *json);
+XBERGAlefHandle xberg_sparse_embedding_preset_from_json(const char *json);
 
 /**
  * Serialize a `SparseEmbeddingPreset` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sparse_embedding_preset_to_json(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SparseEmbeddingPreset` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_sparse_embedding_preset_free(XBERGSparseEmbeddingPreset *ptr);
+void xberg_sparse_embedding_preset_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `SparseEmbeddingPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_name(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_name(XBERGAlefHandle handle);
 
 /**
  * Get the `model_repo` field from a `SparseEmbeddingPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_model_repo(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_model_repo(XBERGAlefHandle handle);
 
 /**
  * Get the `model_file` field from a `SparseEmbeddingPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_model_file(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_model_file(XBERGAlefHandle handle);
 
 /**
  * Get the `additional_files` field from a `SparseEmbeddingPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_additional_files(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_additional_files(XBERGAlefHandle handle);
 
 /**
  * Get the `max_length` field from a `SparseEmbeddingPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_sparse_embedding_preset_max_length(const XBERGSparseEmbeddingPreset *ptr);
+uintptr_t xberg_sparse_embedding_preset_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `SparseEmbeddingPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sparse_embedding_preset_description(const XBERGSparseEmbeddingPreset *ptr);
+char *xberg_sparse_embedding_preset_description(XBERGAlefHandle handle);
 
 /**
  * Create a `MultiVectorEmbedding` from a JSON string. Returns null on failure.
@@ -15626,43 +16720,45 @@ char *xberg_sparse_embedding_preset_description(const XBERGSparseEmbeddingPreset
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_multi_vector_embedding_free`.
  */
-XBERGMultiVectorEmbedding *xberg_multi_vector_embedding_from_json(const char *json);
+XBERGAlefHandle xberg_multi_vector_embedding_from_json(const char *json);
 
 /**
  * Serialize a `MultiVectorEmbedding` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_multi_vector_embedding_to_json(const XBERGMultiVectorEmbedding *ptr);
+char *xberg_multi_vector_embedding_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `MultiVectorEmbedding` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_multi_vector_embedding_free(XBERGMultiVectorEmbedding *ptr);
+void xberg_multi_vector_embedding_free(XBERGAlefHandle handle);
 
 /**
  * Get the `num_tokens` field from a `MultiVectorEmbedding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_multi_vector_embedding_num_tokens(const XBERGMultiVectorEmbedding *ptr);
+uint32_t xberg_multi_vector_embedding_num_tokens(XBERGAlefHandle handle);
 
 /**
  * Get the `dim` field from a `MultiVectorEmbedding`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_multi_vector_embedding_dim(const XBERGMultiVectorEmbedding *ptr);
+uint32_t xberg_multi_vector_embedding_dim(XBERGAlefHandle handle);
 
 /**
  * Get the `data` field from a `MultiVectorEmbedding`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_multi_vector_embedding_data(const XBERGMultiVectorEmbedding *ptr);
+char *xberg_multi_vector_embedding_data(XBERGAlefHandle handle);
 
 /**
  * Returns `true` if `data` holds exactly `num_tokens * dim` values â i.e.
@@ -15680,7 +16776,7 @@ char *xberg_multi_vector_embedding_data(const XBERGMultiVectorEmbedding *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_multi_vector_embedding_is_well_formed(const XBERGMultiVectorEmbedding *this_);
+int32_t xberg_multi_vector_embedding_is_well_formed(XBERGAlefHandle this_);
 
 /**
  * Create a `LateInteractionPreset` from a JSON string. Returns null on failure.
@@ -15688,78 +16784,88 @@ int32_t xberg_multi_vector_embedding_is_well_formed(const XBERGMultiVectorEmbedd
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_preset_free`.
  */
-XBERGLateInteractionPreset *xberg_late_interaction_preset_from_json(const char *json);
+XBERGAlefHandle xberg_late_interaction_preset_from_json(const char *json);
 
 /**
  * Serialize a `LateInteractionPreset` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_late_interaction_preset_to_json(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LateInteractionPreset` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_late_interaction_preset_free(XBERGLateInteractionPreset *ptr);
+void xberg_late_interaction_preset_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `LateInteractionPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_name(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_name(XBERGAlefHandle handle);
 
 /**
  * Get the `model_repo` field from a `LateInteractionPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_model_repo(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_model_repo(XBERGAlefHandle handle);
 
 /**
  * Get the `model_file` field from a `LateInteractionPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_model_file(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_model_file(XBERGAlefHandle handle);
 
 /**
  * Get the `additional_files` field from a `LateInteractionPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_additional_files(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_additional_files(XBERGAlefHandle handle);
 
 /**
  * Get the `max_length` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_preset_max_length(const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `query_max_length` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_preset_query_max_length(const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_query_max_length(XBERGAlefHandle handle);
 
 /**
  * Get the `dim` field from a `LateInteractionPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_preset_dim(const XBERGLateInteractionPreset *ptr);
+uintptr_t xberg_late_interaction_preset_dim(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `LateInteractionPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_late_interaction_preset_description(const XBERGLateInteractionPreset *ptr);
+char *xberg_late_interaction_preset_description(XBERGAlefHandle handle);
 
 /**
  * Create a `LateInteractionMatch` from a JSON string. Returns null on failure.
@@ -15767,36 +16873,36 @@ char *xberg_late_interaction_preset_description(const XBERGLateInteractionPreset
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_late_interaction_match_free`.
  */
-XBERGLateInteractionMatch *xberg_late_interaction_match_from_json(const char *json);
+XBERGAlefHandle xberg_late_interaction_match_from_json(const char *json);
 
 /**
  * Serialize a `LateInteractionMatch` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_late_interaction_match_to_json(const XBERGLateInteractionMatch *ptr);
+char *xberg_late_interaction_match_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LateInteractionMatch` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_late_interaction_match_free(XBERGLateInteractionMatch *ptr);
+void xberg_late_interaction_match_free(XBERGAlefHandle handle);
 
 /**
  * Get the `index` field from a `LateInteractionMatch`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_late_interaction_match_index(const XBERGLateInteractionMatch *ptr);
+uintptr_t xberg_late_interaction_match_index(XBERGAlefHandle handle);
 
 /**
  * Get the `score` field from a `LateInteractionMatch`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_late_interaction_match_score(const XBERGLateInteractionMatch *ptr);
+float xberg_late_interaction_match_score(XBERGAlefHandle handle);
 
 /**
  * Create a `YakeParams` from a JSON string. Returns null on failure.
@@ -15804,35 +16910,29 @@ float xberg_late_interaction_match_score(const XBERGLateInteractionMatch *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_yake_params_free`.
  */
-XBERGYakeParams *xberg_yake_params_from_json(const char *json);
+XBERGAlefHandle xberg_yake_params_from_json(const char *json);
 
 /**
  * Serialize a `YakeParams` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_yake_params_to_json(const XBERGYakeParams *ptr);
+char *xberg_yake_params_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `YakeParams` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_yake_params_free(XBERGYakeParams *ptr);
+void xberg_yake_params_free(XBERGAlefHandle handle);
 
 /**
  * Get the `window_size` field from a `YakeParams`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_yake_params_window_size(const XBERGYakeParams *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGYakeParams *xberg_yake_params_default(void);
+uintptr_t xberg_yake_params_window_size(XBERGAlefHandle handle);
 
 /**
  * Create a `RakeParams` from a JSON string. Returns null on failure.
@@ -15840,42 +16940,36 @@ XBERGYakeParams *xberg_yake_params_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_rake_params_free`.
  */
-XBERGRakeParams *xberg_rake_params_from_json(const char *json);
+XBERGAlefHandle xberg_rake_params_from_json(const char *json);
 
 /**
  * Serialize a `RakeParams` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_rake_params_to_json(const XBERGRakeParams *ptr);
+char *xberg_rake_params_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RakeParams` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_rake_params_free(XBERGRakeParams *ptr);
+void xberg_rake_params_free(XBERGAlefHandle handle);
 
 /**
  * Get the `min_word_length` field from a `RakeParams`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_rake_params_min_word_length(const XBERGRakeParams *ptr);
+uintptr_t xberg_rake_params_min_word_length(XBERGAlefHandle handle);
 
 /**
  * Get the `max_words_per_phrase` field from a `RakeParams`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_rake_params_max_words_per_phrase(const XBERGRakeParams *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGRakeParams *xberg_rake_params_default(void);
+uintptr_t xberg_rake_params_max_words_per_phrase(XBERGAlefHandle handle);
 
 /**
  * Create a `KeywordConfig` from a JSON string. Returns null on failure.
@@ -15883,70 +16977,72 @@ XBERGRakeParams *xberg_rake_params_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_keyword_config_free`.
  */
-XBERGKeywordConfig *xberg_keyword_config_from_json(const char *json);
+XBERGAlefHandle xberg_keyword_config_from_json(const char *json);
 
 /**
  * Serialize a `KeywordConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_keyword_config_to_json(const XBERGKeywordConfig *ptr);
+char *xberg_keyword_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `KeywordConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_keyword_config_free(XBERGKeywordConfig *ptr);
+void xberg_keyword_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `algorithm` field from a `KeywordConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_keyword_algorithm_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordAlgorithm *xberg_keyword_config_algorithm(const XBERGKeywordConfig *ptr);
+XBERGAlefHandle xberg_keyword_config_algorithm(XBERGAlefHandle handle);
 
 /**
  * Get the `max_keywords` field from a `KeywordConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_keyword_config_max_keywords(const XBERGKeywordConfig *ptr);
+uintptr_t xberg_keyword_config_max_keywords(XBERGAlefHandle handle);
 
 /**
  * Get the `min_score` field from a `KeywordConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_keyword_config_min_score(const XBERGKeywordConfig *ptr);
+float xberg_keyword_config_min_score(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `KeywordConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_keyword_config_language(const XBERGKeywordConfig *ptr);
+char *xberg_keyword_config_language(XBERGAlefHandle handle);
 
 /**
  * Get the `yake_params` field from a `KeywordConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_yake_params_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGYakeParams *xberg_keyword_config_yake_params(const XBERGKeywordConfig *ptr);
+XBERGAlefHandle xberg_keyword_config_yake_params(XBERGAlefHandle handle);
 
 /**
  * Get the `rake_params` field from a `KeywordConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_rake_params_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGRakeParams *xberg_keyword_config_rake_params(const XBERGKeywordConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGKeywordConfig *xberg_keyword_config_default(void);
+XBERGAlefHandle xberg_keyword_config_rake_params(XBERGAlefHandle handle);
 
 /**
  * Create a `Keyword` from a JSON string. Returns null on failure.
@@ -15954,50 +17050,56 @@ XBERGKeywordConfig *xberg_keyword_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_keyword_free`.
  */
-XBERGKeyword *xberg_keyword_from_json(const char *json);
+XBERGAlefHandle xberg_keyword_from_json(const char *json);
 
 /**
  * Serialize a `Keyword` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_keyword_to_json(const XBERGKeyword *ptr);
+char *xberg_keyword_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Keyword` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_keyword_free(XBERGKeyword *ptr);
+void xberg_keyword_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text` field from a `Keyword`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_keyword_text(const XBERGKeyword *ptr);
+char *xberg_keyword_text(XBERGAlefHandle handle);
 
 /**
  * Get the `score` field from a `Keyword`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_keyword_score(const XBERGKeyword *ptr);
+float xberg_keyword_score(XBERGAlefHandle handle);
 
 /**
  * Get the `algorithm` field from a `Keyword`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_keyword_algorithm_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGKeywordAlgorithm *xberg_keyword_algorithm(const XBERGKeyword *ptr);
+XBERGAlefHandle xberg_keyword_algorithm(XBERGAlefHandle handle);
 
 /**
  * Get the `positions` field from a `Keyword`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_keyword_positions(const XBERGKeyword *ptr);
+char *xberg_keyword_positions(XBERGAlefHandle handle);
 
 /**
  * Create a `DocumentMetadata` from a JSON string. Returns null on failure.
@@ -16005,64 +17107,68 @@ char *xberg_keyword_positions(const XBERGKeyword *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_metadata_free`.
  */
-XBERGDocumentMetadata *xberg_document_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_document_metadata_from_json(const char *json);
 
 /**
  * Serialize a `DocumentMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_metadata_to_json(const XBERGDocumentMetadata *ptr);
+char *xberg_document_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_metadata_free(XBERGDocumentMetadata *ptr);
+void xberg_document_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `DocumentMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_document_metadata_mime_type(const XBERGDocumentMetadata *ptr);
+char *xberg_document_metadata_mime_type(XBERGAlefHandle handle);
 
 /**
  * Get the `size_bytes` field from a `DocumentMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_document_metadata_size_bytes(const XBERGDocumentMetadata *ptr);
+uint64_t xberg_document_metadata_size_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `page_count` field from a `DocumentMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_metadata_page_count(const XBERGDocumentMetadata *ptr);
+uint32_t xberg_document_metadata_page_count(XBERGAlefHandle handle);
 
 /**
  * Get the `force_ocr` field from a `DocumentMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_document_metadata_force_ocr(const XBERGDocumentMetadata *ptr);
+int32_t xberg_document_metadata_force_ocr(XBERGAlefHandle handle);
 
 /**
  * Get the `user_chunk_config` field from a `DocumentMetadata`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_user_chunk_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUserChunkConfig *xberg_document_metadata_user_chunk_config(const XBERGDocumentMetadata *ptr);
+XBERGAlefHandle xberg_document_metadata_user_chunk_config(XBERGAlefHandle handle);
 
 /**
  * Get the `chunking_enabled` field from a `DocumentMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_document_metadata_chunking_enabled(const XBERGDocumentMetadata *ptr);
+int32_t xberg_document_metadata_chunking_enabled(XBERGAlefHandle handle);
 
 /**
  * Create a `UserChunkConfig` from a JSON string. Returns null on failure.
@@ -16070,50 +17176,52 @@ int32_t xberg_document_metadata_chunking_enabled(const XBERGDocumentMetadata *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_user_chunk_config_free`.
  */
-XBERGUserChunkConfig *xberg_user_chunk_config_from_json(const char *json);
+XBERGAlefHandle xberg_user_chunk_config_from_json(const char *json);
 
 /**
  * Serialize a `UserChunkConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_user_chunk_config_to_json(const XBERGUserChunkConfig *ptr);
+char *xberg_user_chunk_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `UserChunkConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_user_chunk_config_free(XBERGUserChunkConfig *ptr);
+void xberg_user_chunk_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_ranges` field from a `UserChunkConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_user_chunk_config_page_ranges(const XBERGUserChunkConfig *ptr);
+char *xberg_user_chunk_config_page_ranges(XBERGAlefHandle handle);
 
 /**
  * Get the `pages_per_chunk` field from a `UserChunkConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_user_chunk_config_pages_per_chunk(const XBERGUserChunkConfig *ptr);
+uint32_t xberg_user_chunk_config_pages_per_chunk(XBERGAlefHandle handle);
 
 /**
  * Get the `force_chunking` field from a `UserChunkConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_user_chunk_config_force_chunking(const XBERGUserChunkConfig *ptr);
+int32_t xberg_user_chunk_config_force_chunking(XBERGAlefHandle handle);
 
 /**
  * Get the `disable_chunking` field from a `UserChunkConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_user_chunk_config_disable_chunking(const XBERGUserChunkConfig *ptr);
+int32_t xberg_user_chunk_config_disable_chunking(XBERGAlefHandle handle);
 
 /**
  * Create a `ExtractionConfidence` from a JSON string. Returns null on failure.
@@ -16121,50 +17229,52 @@ int32_t xberg_user_chunk_config_disable_chunking(const XBERGUserChunkConfig *ptr
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_extraction_confidence_free`.
  */
-XBERGExtractionConfidence *xberg_extraction_confidence_from_json(const char *json);
+XBERGAlefHandle xberg_extraction_confidence_from_json(const char *json);
 
 /**
  * Serialize a `ExtractionConfidence` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_extraction_confidence_to_json(const XBERGExtractionConfidence *ptr);
+char *xberg_extraction_confidence_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ExtractionConfidence` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_extraction_confidence_free(XBERGExtractionConfidence *ptr);
+void xberg_extraction_confidence_free(XBERGAlefHandle handle);
 
 /**
  * Get the `text_coverage` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_text_coverage(const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_text_coverage(XBERGAlefHandle handle);
 
 /**
  * Get the `ocr_aggregate` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_ocr_aggregate(const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_ocr_aggregate(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_compliance` field from a `ExtractionConfidence`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_schema_compliance_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSchemaCompliance *xberg_extraction_confidence_schema_compliance(const XBERGExtractionConfidence *ptr);
+XBERGAlefHandle xberg_extraction_confidence_schema_compliance(XBERGAlefHandle handle);
 
 /**
  * Get the `combined` field from a `ExtractionConfidence`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_extraction_confidence_combined(const XBERGExtractionConfidence *ptr);
+float xberg_extraction_confidence_combined(XBERGAlefHandle handle);
 
 /**
  * Create a `HeuristicsConfig` from a JSON string. Returns null on failure.
@@ -16172,105 +17282,99 @@ float xberg_extraction_confidence_combined(const XBERGExtractionConfidence *ptr)
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_heuristics_config_free`.
  */
-XBERGHeuristicsConfig *xberg_heuristics_config_from_json(const char *json);
+XBERGAlefHandle xberg_heuristics_config_from_json(const char *json);
 
 /**
  * Serialize a `HeuristicsConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_heuristics_config_to_json(const XBERGHeuristicsConfig *ptr);
+char *xberg_heuristics_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `HeuristicsConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_heuristics_config_free(XBERGHeuristicsConfig *ptr);
+void xberg_heuristics_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_pdf_text_heuristics` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_heuristics_config_enable_pdf_text_heuristics(const XBERGHeuristicsConfig *ptr);
+int32_t xberg_heuristics_config_enable_pdf_text_heuristics(XBERGAlefHandle handle);
 
 /**
  * Get the `text_layer_threshold` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_heuristics_config_text_layer_threshold(const XBERGHeuristicsConfig *ptr);
+float xberg_heuristics_config_text_layer_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `file_size_threshold_bytes` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_file_size_threshold_bytes(const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_file_size_threshold_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `page_count_threshold` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_page_count_threshold(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_page_count_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `target_pages_per_chunk` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_target_pages_per_chunk(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_target_pages_per_chunk(XBERGAlefHandle handle);
 
 /**
  * Get the `max_pages_per_chunk` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_max_pages_per_chunk(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_max_pages_per_chunk(XBERGAlefHandle handle);
 
 /**
  * Get the `disk_processing_threshold_bytes` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_disk_processing_threshold_bytes(const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_disk_processing_threshold_bytes(XBERGAlefHandle handle);
 
 /**
  * Get the `min_chars_per_page` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_min_chars_per_page(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_min_chars_per_page(XBERGAlefHandle handle);
 
 /**
  * Get the `max_xlsx_sheet_count` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_max_xlsx_sheet_count(const XBERGHeuristicsConfig *ptr);
+uint32_t xberg_heuristics_config_max_xlsx_sheet_count(XBERGAlefHandle handle);
 
 /**
  * Get the `max_xlsx_workbook_cells` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_heuristics_config_max_xlsx_workbook_cells(const XBERGHeuristicsConfig *ptr);
+uint64_t xberg_heuristics_config_max_xlsx_workbook_cells(XBERGAlefHandle handle);
 
 /**
  * Get the `max_pptx_embedded_count` field from a `HeuristicsConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_heuristics_config_max_pptx_embedded_count(const XBERGHeuristicsConfig *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGHeuristicsConfig *xberg_heuristics_config_default(void);
+uint32_t xberg_heuristics_config_max_pptx_embedded_count(XBERGAlefHandle handle);
 
 /**
  * Validate the configuration.
@@ -16281,7 +17385,7 @@ XBERGHeuristicsConfig *xberg_heuristics_config_default(void);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_heuristics_config_validate(const XBERGHeuristicsConfig *this_);
+int32_t xberg_heuristics_config_validate(XBERGAlefHandle this_);
 
 /**
  * Create a `ChunkInfo` from a JSON string. Returns null on failure.
@@ -16289,43 +17393,45 @@ int32_t xberg_heuristics_config_validate(const XBERGHeuristicsConfig *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_chunk_info_free`.
  */
-XBERGChunkInfo *xberg_chunk_info_from_json(const char *json);
+XBERGAlefHandle xberg_chunk_info_from_json(const char *json);
 
 /**
  * Serialize a `ChunkInfo` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_chunk_info_to_json(const XBERGChunkInfo *ptr);
+char *xberg_chunk_info_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkInfo` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_info_free(XBERGChunkInfo *ptr);
+void xberg_chunk_info_free(XBERGAlefHandle handle);
 
 /**
  * Get the `index` field from a `ChunkInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_chunk_info_index(const XBERGChunkInfo *ptr);
+uint32_t xberg_chunk_info_index(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `ChunkInfo`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_range_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPageRange *xberg_chunk_info_pages(const XBERGChunkInfo *ptr);
+XBERGAlefHandle xberg_chunk_info_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `estimated_time_ms` field from a `ChunkInfo`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_chunk_info_estimated_time_ms(const XBERGChunkInfo *ptr);
+uint64_t xberg_chunk_info_estimated_time_ms(XBERGAlefHandle handle);
 
 /**
  * Create a `PageRange` from a JSON string. Returns null on failure.
@@ -16333,43 +17439,43 @@ uint64_t xberg_chunk_info_estimated_time_ms(const XBERGChunkInfo *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_range_free`.
  */
-XBERGPageRange *xberg_page_range_from_json(const char *json);
+XBERGAlefHandle xberg_page_range_from_json(const char *json);
 
 /**
  * Serialize a `PageRange` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_range_to_json(const XBERGPageRange *ptr);
+char *xberg_page_range_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageRange` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_range_free(XBERGPageRange *ptr);
+void xberg_page_range_free(XBERGAlefHandle handle);
 
 /**
  * Get the `start` field from a `PageRange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_range_start(const XBERGPageRange *ptr);
+uint32_t xberg_page_range_start(XBERGAlefHandle handle);
 
 /**
  * Get the `end` field from a `PageRange`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_range_end(const XBERGPageRange *ptr);
+uint32_t xberg_page_range_end(XBERGAlefHandle handle);
 
 /**
  * Get the number of pages in this range.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-uint32_t xberg_page_range_page_count(const XBERGPageRange *this_);
+uint32_t xberg_page_range_page_count(XBERGAlefHandle this_);
 
 /**
  * Create a `MultidocInput` from a JSON string. Returns null on failure.
@@ -16377,36 +17483,38 @@ uint32_t xberg_page_range_page_count(const XBERGPageRange *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_multidoc_input_free`.
  */
-XBERGMultidocInput *xberg_multidoc_input_from_json(const char *json);
+XBERGAlefHandle xberg_multidoc_input_from_json(const char *json);
 
 /**
  * Serialize a `MultidocInput` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_multidoc_input_to_json(const XBERGMultidocInput *ptr);
+char *xberg_multidoc_input_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `MultidocInput` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_multidoc_input_free(XBERGMultidocInput *ptr);
+void xberg_multidoc_input_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_count` field from a `MultidocInput`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_multidoc_input_page_count(const XBERGMultidocInput *ptr);
+uint32_t xberg_multidoc_input_page_count(XBERGAlefHandle handle);
 
 /**
  * Get the `pages` field from a `MultidocInput`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_multidoc_input_pages(const XBERGMultidocInput *ptr);
+char *xberg_multidoc_input_pages(XBERGAlefHandle handle);
 
 /**
  * Create a `PageSignals` from a JSON string. Returns null on failure.
@@ -16414,64 +17522,66 @@ char *xberg_multidoc_input_pages(const XBERGMultidocInput *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_page_signals_free`.
  */
-XBERGPageSignals *xberg_page_signals_from_json(const char *json);
+XBERGAlefHandle xberg_page_signals_from_json(const char *json);
 
 /**
  * Serialize a `PageSignals` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_page_signals_to_json(const XBERGPageSignals *ptr);
+char *xberg_page_signals_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PageSignals` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_page_signals_free(XBERGPageSignals *ptr);
+void xberg_page_signals_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_number` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_page_signals_page_number(const XBERGPageSignals *ptr);
+uint32_t xberg_page_signals_page_number(XBERGAlefHandle handle);
 
 /**
  * Get the `text_excerpt` field from a `PageSignals`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_page_signals_text_excerpt(const XBERGPageSignals *ptr);
+char *xberg_page_signals_text_excerpt(XBERGAlefHandle handle);
 
 /**
  * Get the `starts_with_letterhead_like` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_signals_starts_with_letterhead_like(const XBERGPageSignals *ptr);
+int32_t xberg_page_signals_starts_with_letterhead_like(XBERGAlefHandle handle);
 
 /**
  * Get the `has_page_number_one_marker` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_signals_has_page_number_one_marker(const XBERGPageSignals *ptr);
+int32_t xberg_page_signals_has_page_number_one_marker(XBERGAlefHandle handle);
 
 /**
  * Get the `has_signature_block` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_page_signals_has_signature_block(const XBERGPageSignals *ptr);
+int32_t xberg_page_signals_has_signature_block(XBERGAlefHandle handle);
 
 /**
  * Get the `layout_text_density` field from a `PageSignals`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_page_signals_layout_text_density(const XBERGPageSignals *ptr);
+float xberg_page_signals_layout_text_density(XBERGAlefHandle handle);
 
 /**
  * Derive signals from raw page text.
@@ -16488,9 +17598,9 @@ float xberg_page_signals_layout_text_density(const XBERGPageSignals *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPageSignals *xberg_page_signals_from_page_text(uint32_t page_number,
-                                                    const char *text,
-                                                    float layout_text_density);
+XBERGAlefHandle xberg_page_signals_from_page_text(uint32_t page_number,
+                                                  const char *text,
+                                                  float layout_text_density);
 
 /**
  * Create a `DocumentBoundary` from a JSON string. Returns null on failure.
@@ -16498,50 +17608,52 @@ XBERGPageSignals *xberg_page_signals_from_page_text(uint32_t page_number,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_document_boundary_free`.
  */
-XBERGDocumentBoundary *xberg_document_boundary_from_json(const char *json);
+XBERGAlefHandle xberg_document_boundary_from_json(const char *json);
 
 /**
  * Serialize a `DocumentBoundary` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_document_boundary_to_json(const XBERGDocumentBoundary *ptr);
+char *xberg_document_boundary_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DocumentBoundary` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_document_boundary_free(XBERGDocumentBoundary *ptr);
+void xberg_document_boundary_free(XBERGAlefHandle handle);
 
 /**
  * Get the `start_page` field from a `DocumentBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_boundary_start_page(const XBERGDocumentBoundary *ptr);
+uint32_t xberg_document_boundary_start_page(XBERGAlefHandle handle);
 
 /**
  * Get the `end_page` field from a `DocumentBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_document_boundary_end_page(const XBERGDocumentBoundary *ptr);
+uint32_t xberg_document_boundary_end_page(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `DocumentBoundary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_document_boundary_confidence(const XBERGDocumentBoundary *ptr);
+float xberg_document_boundary_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `reason` field from a `DocumentBoundary`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_boundary_reason_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBoundaryReason *xberg_document_boundary_reason(const XBERGDocumentBoundary *ptr);
+XBERGAlefHandle xberg_document_boundary_reason(XBERGAlefHandle handle);
 
 /**
  * Create a `MultidocThresholds` from a JSON string. Returns null on failure.
@@ -16549,51 +17661,45 @@ XBERGBoundaryReason *xberg_document_boundary_reason(const XBERGDocumentBoundary 
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_multidoc_thresholds_free`.
  */
-XBERGMultidocThresholds *xberg_multidoc_thresholds_from_json(const char *json);
+XBERGAlefHandle xberg_multidoc_thresholds_from_json(const char *json);
 
 /**
  * Serialize a `MultidocThresholds` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_multidoc_thresholds_to_json(const XBERGMultidocThresholds *ptr);
+char *xberg_multidoc_thresholds_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `MultidocThresholds` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_multidoc_thresholds_free(XBERGMultidocThresholds *ptr);
+void xberg_multidoc_thresholds_free(XBERGAlefHandle handle);
 
 /**
  * Get the `density_shift_threshold` field from a `MultidocThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_multidoc_thresholds_density_shift_threshold(const XBERGMultidocThresholds *ptr);
+float xberg_multidoc_thresholds_density_shift_threshold(XBERGAlefHandle handle);
 
 /**
  * Get the `bigram_overlap_min` field from a `MultidocThresholds`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_multidoc_thresholds_bigram_overlap_min(const XBERGMultidocThresholds *ptr);
-
-/**
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGMultidocThresholds *xberg_multidoc_thresholds_default(void);
+float xberg_multidoc_thresholds_bigram_overlap_min(XBERGAlefHandle handle);
 
 /**
  * Free a `MetaSchema` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_meta_schema_free(XBERGMetaSchema *ptr);
+void xberg_meta_schema_free(XBERGAlefHandle handle);
 
-XBERGMetaSchema *xberg_meta_schema_compile(const char *meta_schema_json);
+XBERGAlefHandle xberg_meta_schema_compile(const char *meta_schema_json);
 
 /**
  * Validate `raw` against the meta-schema and deserialize into a `Preset`,
@@ -16601,48 +17707,48 @@ XBERGMetaSchema *xberg_meta_schema_compile(const char *meta_schema_json);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPreset *xberg_meta_schema_parse_preset(const XBERGMetaSchema *this_,
-                                            const char *path,
-                                            const uint8_t *raw,
-                                            uintptr_t raw_len);
+XBERGAlefHandle xberg_meta_schema_parse_preset(XBERGAlefHandle this_,
+                                               const char *path,
+                                               const uint8_t *raw,
+                                               uintptr_t raw_len);
 
 /**
  * Free a `Registry` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_registry_free(XBERGRegistry *ptr);
+void xberg_registry_free(XBERGAlefHandle handle);
 
-XBERGRegistry *xberg_registry_load_embedded(void);
+XBERGAlefHandle xberg_registry_load_embedded(void);
 
 /**
  * Look up a preset by its identifier.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPreset *xberg_registry_get(const XBERGRegistry *this_,
-                                const char *id);
+XBERGAlefHandle xberg_registry_get(XBERGAlefHandle this_,
+                                   const char *id);
 
 /**
  * Materialize a `PresetSummary` list for the public registry endpoint.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-char *xberg_registry_summaries(const XBERGRegistry *this_);
+char *xberg_registry_summaries(XBERGAlefHandle this_);
 
 /**
  * Number of presets currently loaded.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-uintptr_t xberg_registry_len(const XBERGRegistry *this_);
+uintptr_t xberg_registry_len(XBERGAlefHandle this_);
 
 /**
  * Whether the registry contains zero presets.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_registry_is_empty(const XBERGRegistry *this_);
+int32_t xberg_registry_is_empty(XBERGAlefHandle this_);
 
 /**
  * Read raw sample bytes for `<preset_id>` from
@@ -16650,7 +17756,7 @@ int32_t xberg_registry_is_empty(const XBERGRegistry *this_);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
+uint8_t *xberg_registry_sample_bytes(XBERGAlefHandle this_,
                                      const char *preset_id,
                                      const char *name);
 
@@ -16673,7 +17779,7 @@ uint8_t *xberg_registry_sample_bytes(const XBERGRegistry *this_,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-uintptr_t xberg_registry_extend_from_dir(XBERGRegistry *this_,
+uintptr_t xberg_registry_extend_from_dir(XBERGAlefHandle this_,
                                          const char *dir);
 
 /**
@@ -16682,85 +17788,101 @@ uintptr_t xberg_registry_extend_from_dir(XBERGRegistry *this_,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_resolved_preset_free`.
  */
-XBERGResolvedPreset *xberg_resolved_preset_from_json(const char *json);
+XBERGAlefHandle xberg_resolved_preset_from_json(const char *json);
 
 /**
  * Serialize a `ResolvedPreset` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_resolved_preset_to_json(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ResolvedPreset` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_resolved_preset_free(XBERGResolvedPreset *ptr);
+void xberg_resolved_preset_free(XBERGAlefHandle handle);
 
 /**
  * Get the `id` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_id(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_id(XBERGAlefHandle handle);
 
 /**
  * Get the `version` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_version(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_version(XBERGAlefHandle handle);
 
 /**
  * Get the `fingerprint` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_fingerprint(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_fingerprint(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_name` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_schema_name(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_schema_name(XBERGAlefHandle handle);
 
 /**
  * Get the `schema` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_schema(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_schema(XBERGAlefHandle handle);
 
 /**
  * Get the `system_prompt` field from a `ResolvedPreset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_resolved_preset_system_prompt(const XBERGResolvedPreset *ptr);
+char *xberg_resolved_preset_system_prompt(XBERGAlefHandle handle);
 
 /**
  * Get the `merge_mode` field from a `ResolvedPreset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_merge_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMergeMode *xberg_resolved_preset_merge_mode(const XBERGResolvedPreset *ptr);
+XBERGAlefHandle xberg_resolved_preset_merge_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `preferred_call_mode` field from a `ResolvedPreset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_call_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCallMode *xberg_resolved_preset_preferred_call_mode(const XBERGResolvedPreset *ptr);
+XBERGAlefHandle xberg_resolved_preset_preferred_call_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `emit_citations` field from a `ResolvedPreset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_resolved_preset_emit_citations(const XBERGResolvedPreset *ptr);
+int32_t xberg_resolved_preset_emit_citations(XBERGAlefHandle handle);
 
 /**
  * Create a `PresetSample` from a JSON string. Returns null on failure.
@@ -16768,36 +17890,40 @@ int32_t xberg_resolved_preset_emit_citations(const XBERGResolvedPreset *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_preset_sample_free`.
  */
-XBERGPresetSample *xberg_preset_sample_from_json(const char *json);
+XBERGAlefHandle xberg_preset_sample_from_json(const char *json);
 
 /**
  * Serialize a `PresetSample` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_preset_sample_to_json(const XBERGPresetSample *ptr);
+char *xberg_preset_sample_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PresetSample` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_preset_sample_free(XBERGPresetSample *ptr);
+void xberg_preset_sample_free(XBERGAlefHandle handle);
 
 /**
  * Get the `input_path` field from a `PresetSample`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_sample_input_path(const XBERGPresetSample *ptr);
+char *xberg_preset_sample_input_path(XBERGAlefHandle handle);
 
 /**
  * Get the `output_path` field from a `PresetSample`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_sample_output_path(const XBERGPresetSample *ptr);
+char *xberg_preset_sample_output_path(XBERGAlefHandle handle);
 
 /**
  * Create a `Preset` from a JSON string. Returns null on failure.
@@ -16805,120 +17931,146 @@ char *xberg_preset_sample_output_path(const XBERGPresetSample *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_preset_free`.
  */
-XBERGPreset *xberg_preset_from_json(const char *json);
+XBERGAlefHandle xberg_preset_from_json(const char *json);
 
 /**
  * Serialize a `Preset` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_preset_to_json(const XBERGPreset *ptr);
+char *xberg_preset_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `Preset` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_preset_free(XBERGPreset *ptr);
+void xberg_preset_free(XBERGAlefHandle handle);
 
 /**
  * Get the `id` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_id(const XBERGPreset *ptr);
+char *xberg_preset_id(XBERGAlefHandle handle);
 
 /**
  * Get the `version` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_version(const XBERGPreset *ptr);
+char *xberg_preset_version(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_name` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_schema_name(const XBERGPreset *ptr);
+char *xberg_preset_schema_name(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_description(const XBERGPreset *ptr);
+char *xberg_preset_description(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `Preset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_preset_category_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPresetCategory *xberg_preset_category(const XBERGPreset *ptr);
+XBERGAlefHandle xberg_preset_category(XBERGAlefHandle handle);
 
 /**
  * Get the `tags` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_tags(const XBERGPreset *ptr);
+char *xberg_preset_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `schema` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_schema(const XBERGPreset *ptr);
+char *xberg_preset_schema(XBERGAlefHandle handle);
 
 /**
  * Get the `system_prompt` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_system_prompt(const XBERGPreset *ptr);
+char *xberg_preset_system_prompt(XBERGAlefHandle handle);
 
 /**
  * Get the `context_template` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_context_template(const XBERGPreset *ptr);
+char *xberg_preset_context_template(XBERGAlefHandle handle);
 
 /**
  * Get the `merge_mode` field from a `Preset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_merge_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGMergeMode *xberg_preset_merge_mode(const XBERGPreset *ptr);
+XBERGAlefHandle xberg_preset_merge_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `preferred_call_mode` field from a `Preset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_call_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCallMode *xberg_preset_preferred_call_mode(const XBERGPreset *ptr);
+XBERGAlefHandle xberg_preset_preferred_call_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `emit_citations` field from a `Preset`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preset_emit_citations(const XBERGPreset *ptr);
+int32_t xberg_preset_emit_citations(XBERGAlefHandle handle);
 
 /**
  * Get the `sample` field from a `Preset`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_preset_sample_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPresetSample *xberg_preset_sample(const XBERGPreset *ptr);
+XBERGAlefHandle xberg_preset_sample(XBERGAlefHandle handle);
 
 /**
  * Get the `fingerprint` field from a `Preset`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_fingerprint(const XBERGPreset *ptr);
+char *xberg_preset_fingerprint(XBERGAlefHandle handle);
 
 /**
  * Create a `PresetSummary` from a JSON string. Returns null on failure.
@@ -16926,85 +18078,101 @@ char *xberg_preset_fingerprint(const XBERGPreset *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_preset_summary_free`.
  */
-XBERGPresetSummary *xberg_preset_summary_from_json(const char *json);
+XBERGAlefHandle xberg_preset_summary_from_json(const char *json);
 
 /**
  * Serialize a `PresetSummary` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_preset_summary_to_json(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PresetSummary` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_preset_summary_free(XBERGPresetSummary *ptr);
+void xberg_preset_summary_free(XBERGAlefHandle handle);
 
 /**
  * Get the `id` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_id(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_id(XBERGAlefHandle handle);
 
 /**
  * Get the `version` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_version(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_version(XBERGAlefHandle handle);
 
 /**
  * Get the `schema_name` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_schema_name(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_schema_name(XBERGAlefHandle handle);
 
 /**
  * Get the `description` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_description(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_description(XBERGAlefHandle handle);
 
 /**
  * Get the `category` field from a `PresetSummary`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_preset_category_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPresetCategory *xberg_preset_summary_category(const XBERGPresetSummary *ptr);
+XBERGAlefHandle xberg_preset_summary_category(XBERGAlefHandle handle);
 
 /**
  * Get the `tags` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_tags(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `preferred_call_mode` field from a `PresetSummary`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_call_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCallMode *xberg_preset_summary_preferred_call_mode(const XBERGPresetSummary *ptr);
+XBERGAlefHandle xberg_preset_summary_preferred_call_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `emit_citations` field from a `PresetSummary`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preset_summary_emit_citations(const XBERGPresetSummary *ptr);
+int32_t xberg_preset_summary_emit_citations(XBERGAlefHandle handle);
 
 /**
  * Get the `fingerprint` field from a `PresetSummary`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_preset_summary_fingerprint(const XBERGPresetSummary *ptr);
+char *xberg_preset_summary_fingerprint(XBERGAlefHandle handle);
 
 /**
  * Create a `DoctorCheck` from a JSON string. Returns null on failure.
@@ -17012,43 +18180,49 @@ char *xberg_preset_summary_fingerprint(const XBERGPresetSummary *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_doctor_check_free`.
  */
-XBERGDoctorCheck *xberg_doctor_check_from_json(const char *json);
+XBERGAlefHandle xberg_doctor_check_from_json(const char *json);
 
 /**
  * Serialize a `DoctorCheck` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_doctor_check_to_json(const XBERGDoctorCheck *ptr);
+char *xberg_doctor_check_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DoctorCheck` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_doctor_check_free(XBERGDoctorCheck *ptr);
+void xberg_doctor_check_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `DoctorCheck`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_doctor_check_name(const XBERGDoctorCheck *ptr);
+char *xberg_doctor_check_name(XBERGAlefHandle handle);
 
 /**
  * Get the `status` field from a `DoctorCheck`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_probe_status_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGProbeStatus *xberg_doctor_check_status(const XBERGDoctorCheck *ptr);
+XBERGAlefHandle xberg_doctor_check_status(XBERGAlefHandle handle);
 
 /**
  * Get the `message` field from a `DoctorCheck`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_doctor_check_message(const XBERGDoctorCheck *ptr);
+char *xberg_doctor_check_message(XBERGAlefHandle handle);
 
 /**
  * A `ProbeStatus.Pass` verdict: the checked backend or setting will
@@ -17056,8 +18230,8 @@ char *xberg_doctor_check_message(const XBERGDoctorCheck *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGDoctorCheck *xberg_doctor_check_pass(const char *name,
-                                          const char *message);
+XBERGAlefHandle xberg_doctor_check_pass(const char *name,
+                                        const char *message);
 
 /**
  * A `ProbeStatus.Warn` verdict: the check ran and found something
@@ -17065,8 +18239,8 @@ XBERGDoctorCheck *xberg_doctor_check_pass(const char *name,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGDoctorCheck *xberg_doctor_check_warn(const char *name,
-                                          const char *message);
+XBERGAlefHandle xberg_doctor_check_warn(const char *name,
+                                        const char *message);
 
 /**
  * A `ProbeStatus.Fail` verdict: the configured setup will not work (or
@@ -17074,8 +18248,8 @@ XBERGDoctorCheck *xberg_doctor_check_warn(const char *name,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGDoctorCheck *xberg_doctor_check_fail(const char *name,
-                                          const char *message);
+XBERGAlefHandle xberg_doctor_check_fail(const char *name,
+                                        const char *message);
 
 /**
  * A `ProbeStatus.Skip` verdict: the check cannot run locally; first
@@ -17083,8 +18257,8 @@ XBERGDoctorCheck *xberg_doctor_check_fail(const char *name,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGDoctorCheck *xberg_doctor_check_skip(const char *name,
-                                          const char *message);
+XBERGAlefHandle xberg_doctor_check_skip(const char *name,
+                                        const char *message);
 
 /**
  * Create a `DoctorReport` from a JSON string. Returns null on failure.
@@ -17092,29 +18266,31 @@ XBERGDoctorCheck *xberg_doctor_check_skip(const char *name,
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_doctor_report_free`.
  */
-XBERGDoctorReport *xberg_doctor_report_from_json(const char *json);
+XBERGAlefHandle xberg_doctor_report_from_json(const char *json);
 
 /**
  * Serialize a `DoctorReport` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_doctor_report_to_json(const XBERGDoctorReport *ptr);
+char *xberg_doctor_report_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DoctorReport` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_doctor_report_free(XBERGDoctorReport *ptr);
+void xberg_doctor_report_free(XBERGAlefHandle handle);
 
 /**
  * Get the `checks` field from a `DoctorReport`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_doctor_report_checks(const XBERGDoctorReport *ptr);
+char *xberg_doctor_report_checks(XBERGAlefHandle handle);
 
 /**
  * Whether no check failed. Warnings and skips do not count as failures,
@@ -17122,7 +18298,7 @@ char *xberg_doctor_report_checks(const XBERGDoctorReport *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_doctor_report_is_ok(const XBERGDoctorReport *this_);
+int32_t xberg_doctor_report_is_ok(XBERGAlefHandle this_);
 
 /**
  * Create a `PaddleOcrConfig` from a JSON string. Returns null on failure.
@@ -17130,120 +18306,130 @@ int32_t xberg_doctor_report_is_ok(const XBERGDoctorReport *this_);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_paddle_ocr_config_free`.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_from_json(const char *json);
+XBERGAlefHandle xberg_paddle_ocr_config_from_json(const char *json);
 
 /**
  * Serialize a `PaddleOcrConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_paddle_ocr_config_to_json(const XBERGPaddleOcrConfig *ptr);
+char *xberg_paddle_ocr_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PaddleOcrConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_paddle_ocr_config_free(XBERGPaddleOcrConfig *ptr);
+void xberg_paddle_ocr_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `language` field from a `PaddleOcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_paddle_ocr_config_language(const XBERGPaddleOcrConfig *ptr);
+char *xberg_paddle_ocr_config_language(XBERGAlefHandle handle);
 
 /**
  * Get the `cache_dir` field from a `PaddleOcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_paddle_ocr_config_cache_dir(const XBERGPaddleOcrConfig *ptr);
+char *xberg_paddle_ocr_config_cache_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `use_angle_cls` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_paddle_ocr_config_use_angle_cls(const XBERGPaddleOcrConfig *ptr);
+int32_t xberg_paddle_ocr_config_use_angle_cls(XBERGAlefHandle handle);
 
 /**
  * Get the `enable_table_detection` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_paddle_ocr_config_enable_table_detection(const XBERGPaddleOcrConfig *ptr);
+int32_t xberg_paddle_ocr_config_enable_table_detection(XBERGAlefHandle handle);
 
 /**
  * Get the `det_db_thresh` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_det_db_thresh(const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_det_db_thresh(XBERGAlefHandle handle);
 
 /**
  * Get the `det_db_box_thresh` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_det_db_box_thresh(const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_det_db_box_thresh(XBERGAlefHandle handle);
 
 /**
  * Get the `det_db_unclip_ratio` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_det_db_unclip_ratio(const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_det_db_unclip_ratio(XBERGAlefHandle handle);
 
 /**
  * Get the `det_limit_side_len` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_paddle_ocr_config_det_limit_side_len(const XBERGPaddleOcrConfig *ptr);
+uint32_t xberg_paddle_ocr_config_det_limit_side_len(XBERGAlefHandle handle);
 
 /**
  * Get the `rec_batch_num` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_paddle_ocr_config_rec_batch_num(const XBERGPaddleOcrConfig *ptr);
+uint32_t xberg_paddle_ocr_config_rec_batch_num(XBERGAlefHandle handle);
 
 /**
  * Get the `padding` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_paddle_ocr_config_padding(const XBERGPaddleOcrConfig *ptr);
+uint32_t xberg_paddle_ocr_config_padding(XBERGAlefHandle handle);
 
 /**
  * Get the `drop_score` field from a `PaddleOcrConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_paddle_ocr_config_drop_score(const XBERGPaddleOcrConfig *ptr);
+float xberg_paddle_ocr_config_drop_score(XBERGAlefHandle handle);
 
 /**
  * Get the `model_tier` field from a `PaddleOcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_paddle_ocr_config_model_tier(const XBERGPaddleOcrConfig *ptr);
+char *xberg_paddle_ocr_config_model_tier(XBERGAlefHandle handle);
 
 /**
  * Get the `model_version` field from a `PaddleOcrConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_paddle_ocr_config_model_version(const XBERGPaddleOcrConfig *ptr);
+char *xberg_paddle_ocr_config_model_version(XBERGAlefHandle handle);
 
 /**
  * Get the `inference_backend` field from a `PaddleOcrConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_paddle_inference_backend_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPaddleInferenceBackend *xberg_paddle_ocr_config_inference_backend(const XBERGPaddleOcrConfig *ptr);
+XBERGAlefHandle xberg_paddle_ocr_config_inference_backend(XBERGAlefHandle handle);
 
 /**
  * Sets a custom Hugging Face Hub cache root for model files.
@@ -17258,8 +18444,8 @@ XBERGPaddleInferenceBackend *xberg_paddle_ocr_config_inference_backend(const XBE
  *     .with_cache_dir(PathBuf::from("/tmp/paddle-cache"));
  * \endcode
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfig *this_,
-                                                             const char *path);
+XBERGAlefHandle xberg_paddle_ocr_config_with_cache_dir(XBERGAlefHandle this_,
+                                                       const char *path);
 
 /**
  * Enables or disables table structure detection.
@@ -17273,8 +18459,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_cache_dir(XBERGPaddleOcrConfi
  *     .with_table_detection(true);
  * \endcode
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOcrConfig *this_,
-                                                                   int32_t enable);
+XBERGAlefHandle xberg_paddle_ocr_config_with_table_detection(XBERGAlefHandle this_,
+                                                             int32_t enable);
 
 /**
  * Enables or disables angle classification for rotated text.
@@ -17282,8 +18468,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_table_detection(XBERGPaddleOc
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfig *this_,
-                                                             int32_t enable);
+XBERGAlefHandle xberg_paddle_ocr_config_with_angle_cls(XBERGAlefHandle this_,
+                                                       int32_t enable);
 
 /**
  * Sets the database threshold for text detection.
@@ -17291,8 +18477,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_angle_cls(XBERGPaddleOcrConfi
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrConfig *this_,
-                                                                 float threshold);
+XBERGAlefHandle xberg_paddle_ocr_config_with_det_db_thresh(XBERGAlefHandle this_,
+                                                           float threshold);
 
 /**
  * Sets the box threshold for text bounding box refinement.
@@ -17300,8 +18486,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_thresh(XBERGPaddleOcrC
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddleOcrConfig *this_,
-                                                                     float threshold);
+XBERGAlefHandle xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGAlefHandle this_,
+                                                               float threshold);
 
 /**
  * Sets the unclip ratio for expanding text bounding boxes.
@@ -17309,8 +18495,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_box_thresh(XBERGPaddle
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPaddleOcrConfig *this_,
-                                                                       float ratio);
+XBERGAlefHandle xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGAlefHandle this_,
+                                                                 float ratio);
 
 /**
  * Sets the maximum side length for detection images.
@@ -17318,8 +18504,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_db_unclip_ratio(XBERGPadd
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddleOcrConfig *this_,
-                                                                      uint32_t length);
+XBERGAlefHandle xberg_paddle_ocr_config_with_det_limit_side_len(XBERGAlefHandle this_,
+                                                                uint32_t length);
 
 /**
  * Sets the batch size for recognition inference.
@@ -17327,8 +18513,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_det_limit_side_len(XBERGPaddl
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrConfig *this_,
-                                                                 uint32_t batch_size);
+XBERGAlefHandle xberg_paddle_ocr_config_with_rec_batch_num(XBERGAlefHandle this_,
+                                                           uint32_t batch_size);
 
 /**
  * Sets the minimum recognition confidence threshold.
@@ -17336,8 +18522,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_rec_batch_num(XBERGPaddleOcrC
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConfig *this_,
-                                                              float score);
+XBERGAlefHandle xberg_paddle_ocr_config_with_drop_score(XBERGAlefHandle this_,
+                                                        float score);
 
 /**
  * Sets padding in pixels added around images before detection.
@@ -17345,8 +18531,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_drop_score(XBERGPaddleOcrConf
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig *this_,
-                                                           uint32_t padding);
+XBERGAlefHandle xberg_paddle_ocr_config_with_padding(XBERGAlefHandle this_,
+                                                     uint32_t padding);
 
 /**
  * Sets the model tier controlling detection/recognition model size.
@@ -17355,8 +18541,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_padding(XBERGPaddleOcrConfig 
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConfig *this_,
-                                                              const char *tier);
+XBERGAlefHandle xberg_paddle_ocr_config_with_model_tier(XBERGAlefHandle this_,
+                                                        const char *tier);
 
 /**
  * Sets the model generation.
@@ -17365,15 +18551,8 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_tier(XBERGPaddleOcrConf
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_with_model_version(XBERGPaddleOcrConfig *this_,
-                                                                 const char *version);
-
-/**
- * Creates a default configuration with English language support.
- * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
- * freed with the appropriate free function.
- */
-XBERGPaddleOcrConfig *xberg_paddle_ocr_config_default(void);
+XBERGAlefHandle xberg_paddle_ocr_config_with_model_version(XBERGAlefHandle this_,
+                                                           const char *version);
 
 /**
  * Create a `ModelPaths` from a JSON string. Returns null on failure.
@@ -17381,50 +18560,58 @@ XBERGPaddleOcrConfig *xberg_paddle_ocr_config_default(void);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_model_paths_free`.
  */
-XBERGModelPaths *xberg_model_paths_from_json(const char *json);
+XBERGAlefHandle xberg_model_paths_from_json(const char *json);
 
 /**
  * Serialize a `ModelPaths` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_model_paths_to_json(const XBERGModelPaths *ptr);
+char *xberg_model_paths_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ModelPaths` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_model_paths_free(XBERGModelPaths *ptr);
+void xberg_model_paths_free(XBERGAlefHandle handle);
 
 /**
  * Get the `det_model` field from a `ModelPaths`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_model_paths_det_model(const XBERGModelPaths *ptr);
+char *xberg_model_paths_det_model(XBERGAlefHandle handle);
 
 /**
  * Get the `cls_model` field from a `ModelPaths`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_model_paths_cls_model(const XBERGModelPaths *ptr);
+char *xberg_model_paths_cls_model(XBERGAlefHandle handle);
 
 /**
  * Get the `rec_model` field from a `ModelPaths`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_model_paths_rec_model(const XBERGModelPaths *ptr);
+char *xberg_model_paths_rec_model(XBERGAlefHandle handle);
 
 /**
  * Get the `dict_file` field from a `ModelPaths`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_model_paths_dict_file(const XBERGModelPaths *ptr);
+char *xberg_model_paths_dict_file(XBERGAlefHandle handle);
 
 /**
  * Create a `OrientationResult` from a JSON string. Returns null on failure.
@@ -17432,36 +18619,36 @@ char *xberg_model_paths_dict_file(const XBERGModelPaths *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_orientation_result_free`.
  */
-XBERGOrientationResult *xberg_orientation_result_from_json(const char *json);
+XBERGAlefHandle xberg_orientation_result_from_json(const char *json);
 
 /**
  * Serialize a `OrientationResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_orientation_result_to_json(const XBERGOrientationResult *ptr);
+char *xberg_orientation_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `OrientationResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_orientation_result_free(XBERGOrientationResult *ptr);
+void xberg_orientation_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `degrees` field from a `OrientationResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_orientation_result_degrees(const XBERGOrientationResult *ptr);
+uint32_t xberg_orientation_result_degrees(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `OrientationResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_orientation_result_confidence(const XBERGOrientationResult *ptr);
+float xberg_orientation_result_confidence(XBERGAlefHandle handle);
 
 /**
  * Create a `BBox` from a JSON string. Returns null on failure.
@@ -17469,50 +18656,50 @@ float xberg_orientation_result_confidence(const XBERGOrientationResult *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_b_box_free`.
  */
-XBERGBBox *xberg_b_box_from_json(const char *json);
+XBERGAlefHandle xberg_b_box_from_json(const char *json);
 
 /**
  * Serialize a `BBox` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_b_box_to_json(const XBERGBBox *ptr);
+char *xberg_b_box_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `BBox` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_b_box_free(XBERGBBox *ptr);
+void xberg_b_box_free(XBERGAlefHandle handle);
 
 /**
  * Get the `x1` field from a `BBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_b_box_x1(const XBERGBBox *ptr);
+float xberg_b_box_x1(XBERGAlefHandle handle);
 
 /**
  * Get the `y1` field from a `BBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_b_box_y1(const XBERGBBox *ptr);
+float xberg_b_box_y1(XBERGAlefHandle handle);
 
 /**
  * Get the `x2` field from a `BBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_b_box_x2(const XBERGBBox *ptr);
+float xberg_b_box_x2(XBERGAlefHandle handle);
 
 /**
  * Get the `y2` field from a `BBox`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_b_box_y2(const XBERGBBox *ptr);
+float xberg_b_box_y2(XBERGAlefHandle handle);
 
 /**
  * Create a `LayoutDetection` from a JSON string. Returns null on failure.
@@ -17520,43 +18707,47 @@ float xberg_b_box_y2(const XBERGBBox *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_layout_detection_free`.
  */
-XBERGLayoutDetection *xberg_layout_detection_from_json(const char *json);
+XBERGAlefHandle xberg_layout_detection_from_json(const char *json);
 
 /**
  * Serialize a `LayoutDetection` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_layout_detection_to_json(const XBERGLayoutDetection *ptr);
+char *xberg_layout_detection_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `LayoutDetection` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_layout_detection_free(XBERGLayoutDetection *ptr);
+void xberg_layout_detection_free(XBERGAlefHandle handle);
 
 /**
  * Get the `class_name` field from a `LayoutDetection`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_layout_class_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLayoutClass *xberg_layout_detection_class_name(const XBERGLayoutDetection *ptr);
+XBERGAlefHandle xberg_layout_detection_class_name(XBERGAlefHandle handle);
 
 /**
  * Get the `confidence` field from a `LayoutDetection`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_layout_detection_confidence(const XBERGLayoutDetection *ptr);
+float xberg_layout_detection_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `bbox` field from a `LayoutDetection`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_b_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBBox *xberg_layout_detection_bbox(const XBERGLayoutDetection *ptr);
+XBERGAlefHandle xberg_layout_detection_bbox(XBERGAlefHandle handle);
 
 /**
  * Create a `RecognizedTable` from a JSON string. Returns null on failure.
@@ -17564,43 +18755,49 @@ XBERGBBox *xberg_layout_detection_bbox(const XBERGLayoutDetection *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_recognized_table_free`.
  */
-XBERGRecognizedTable *xberg_recognized_table_from_json(const char *json);
+XBERGAlefHandle xberg_recognized_table_from_json(const char *json);
 
 /**
  * Serialize a `RecognizedTable` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_recognized_table_to_json(const XBERGRecognizedTable *ptr);
+char *xberg_recognized_table_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `RecognizedTable` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_recognized_table_free(XBERGRecognizedTable *ptr);
+void xberg_recognized_table_free(XBERGAlefHandle handle);
 
 /**
  * Get the `detection_bbox` field from a `RecognizedTable`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_b_box_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBBox *xberg_recognized_table_detection_bbox(const XBERGRecognizedTable *ptr);
+XBERGAlefHandle xberg_recognized_table_detection_bbox(XBERGAlefHandle handle);
 
 /**
  * Get the `cells` field from a `RecognizedTable`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_recognized_table_cells(const XBERGRecognizedTable *ptr);
+char *xberg_recognized_table_cells(XBERGAlefHandle handle);
 
 /**
  * Get the `markdown` field from a `RecognizedTable`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_recognized_table_markdown(const XBERGRecognizedTable *ptr);
+char *xberg_recognized_table_markdown(XBERGAlefHandle handle);
 
 /**
  * Create a `DetectionResult` from a JSON string. Returns null on failure.
@@ -17608,43 +18805,45 @@ char *xberg_recognized_table_markdown(const XBERGRecognizedTable *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_detection_result_free`.
  */
-XBERGDetectionResult *xberg_detection_result_from_json(const char *json);
+XBERGAlefHandle xberg_detection_result_from_json(const char *json);
 
 /**
  * Serialize a `DetectionResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_detection_result_to_json(const XBERGDetectionResult *ptr);
+char *xberg_detection_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `DetectionResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_detection_result_free(XBERGDetectionResult *ptr);
+void xberg_detection_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `page_width` field from a `DetectionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_detection_result_page_width(const XBERGDetectionResult *ptr);
+uint32_t xberg_detection_result_page_width(XBERGAlefHandle handle);
 
 /**
  * Get the `page_height` field from a `DetectionResult`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_detection_result_page_height(const XBERGDetectionResult *ptr);
+uint32_t xberg_detection_result_page_height(XBERGAlefHandle handle);
 
 /**
  * Get the `detections` field from a `DetectionResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_detection_result_detections(const XBERGDetectionResult *ptr);
+char *xberg_detection_result_detections(XBERGAlefHandle handle);
 
 /**
  * Create a `EmbeddedFile` from a JSON string. Returns null on failure.
@@ -17652,36 +18851,40 @@ char *xberg_detection_result_detections(const XBERGDetectionResult *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_embedded_file_free`.
  */
-XBERGEmbeddedFile *xberg_embedded_file_from_json(const char *json);
+XBERGAlefHandle xberg_embedded_file_from_json(const char *json);
 
 /**
  * Serialize a `EmbeddedFile` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_embedded_file_to_json(const XBERGEmbeddedFile *ptr);
+char *xberg_embedded_file_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `EmbeddedFile` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_embedded_file_free(XBERGEmbeddedFile *ptr);
+void xberg_embedded_file_free(XBERGAlefHandle handle);
 
 /**
  * Get the `name` field from a `EmbeddedFile`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_file_name(const XBERGEmbeddedFile *ptr);
+char *xberg_embedded_file_name(XBERGAlefHandle handle);
 
 /**
  * Get the `data` field from a `EmbeddedFile`.
+ * The returned byte pointer is borrowed from `ptr` and must not be freed.
+ * It remains valid until `ptr` is destroyed or the field is mutated.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t *xberg_embedded_file_data(const XBERGEmbeddedFile *ptr,
+uint8_t *xberg_embedded_file_data(XBERGAlefHandle handle,
                                   uintptr_t *out_len);
 
 /**
@@ -17689,14 +18892,16 @@ uint8_t *xberg_embedded_file_data(const XBERGEmbeddedFile *ptr,
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_embedded_file_compressed_size(const XBERGEmbeddedFile *ptr);
+uintptr_t xberg_embedded_file_compressed_size(XBERGAlefHandle handle);
 
 /**
  * Get the `mime_type` field from a `EmbeddedFile`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_embedded_file_mime_type(const XBERGEmbeddedFile *ptr);
+char *xberg_embedded_file_mime_type(XBERGAlefHandle handle);
 
 /**
  * Create a `PdfMetadata` from a JSON string. Returns null on failure.
@@ -17704,106 +18909,118 @@ char *xberg_embedded_file_mime_type(const XBERGEmbeddedFile *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_pdf_metadata_free`.
  */
-XBERGPdfMetadata *xberg_pdf_metadata_from_json(const char *json);
+XBERGAlefHandle xberg_pdf_metadata_from_json(const char *json);
 
 /**
  * Serialize a `PdfMetadata` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_pdf_metadata_to_json(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PdfMetadata` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_pdf_metadata_free(XBERGPdfMetadata *ptr);
+void xberg_pdf_metadata_free(XBERGAlefHandle handle);
 
 /**
  * Get the `pdf_version` field from a `PdfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_metadata_pdf_version(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_pdf_version(XBERGAlefHandle handle);
 
 /**
  * Get the `producer` field from a `PdfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_metadata_producer(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_producer(XBERGAlefHandle handle);
 
 /**
  * Get the `is_encrypted` field from a `PdfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_pdf_metadata_is_encrypted(const XBERGPdfMetadata *ptr);
+int32_t xberg_pdf_metadata_is_encrypted(XBERGAlefHandle handle);
 
 /**
  * Get the `width` field from a `PdfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int64_t xberg_pdf_metadata_width(const XBERGPdfMetadata *ptr);
+int64_t xberg_pdf_metadata_width(XBERGAlefHandle handle);
 
 /**
  * Get the `height` field from a `PdfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int64_t xberg_pdf_metadata_height(const XBERGPdfMetadata *ptr);
+int64_t xberg_pdf_metadata_height(XBERGAlefHandle handle);
 
 /**
  * Get the `page_count` field from a `PdfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_pdf_metadata_page_count(const XBERGPdfMetadata *ptr);
+uint32_t xberg_pdf_metadata_page_count(XBERGAlefHandle handle);
 
 /**
  * Get the `scanned_confidence` field from a `PdfMetadata`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-float xberg_pdf_metadata_scanned_confidence(const XBERGPdfMetadata *ptr);
+float xberg_pdf_metadata_scanned_confidence(XBERGAlefHandle handle);
 
 /**
  * Get the `scanned_pages` field from a `PdfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_metadata_scanned_pages(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_scanned_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `layout_gated_pages` field from a `PdfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_metadata_layout_gated_pages(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_layout_gated_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `layout_gate_reasons` field from a `PdfMetadata`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_pdf_metadata_layout_gate_reasons(const XBERGPdfMetadata *ptr);
+char *xberg_pdf_metadata_layout_gate_reasons(XBERGAlefHandle handle);
 
 /**
  * Free a `ChunkClassificationEnrichmentConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_chunk_classification_enrichment_config_free(XBERGChunkClassificationEnrichmentConfig *ptr);
+void xberg_chunk_classification_enrichment_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `config` field from a `ChunkClassificationEnrichmentConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_chunk_classification_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGChunkClassificationConfig *xberg_chunk_classification_enrichment_config_config(const XBERGChunkClassificationEnrichmentConfig *ptr);
+XBERGAlefHandle xberg_chunk_classification_enrichment_config_config(XBERGAlefHandle handle);
 
 /**
  * Create a `ProxyConfig` from a JSON string. Returns null on failure.
@@ -17811,43 +19028,49 @@ XBERGChunkClassificationConfig *xberg_chunk_classification_enrichment_config_con
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_proxy_config_free`.
  */
-XBERGProxyConfig *xberg_proxy_config_from_json(const char *json);
+XBERGAlefHandle xberg_proxy_config_from_json(const char *json);
 
 /**
  * Serialize a `ProxyConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_proxy_config_to_json(const XBERGProxyConfig *ptr);
+char *xberg_proxy_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ProxyConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_proxy_config_free(XBERGProxyConfig *ptr);
+void xberg_proxy_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `ProxyConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_proxy_config_url(const XBERGProxyConfig *ptr);
+char *xberg_proxy_config_url(XBERGAlefHandle handle);
 
 /**
  * Get the `username` field from a `ProxyConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_proxy_config_username(const XBERGProxyConfig *ptr);
+char *xberg_proxy_config_username(XBERGAlefHandle handle);
 
 /**
  * Get the `password` field from a `ProxyConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_proxy_config_password(const XBERGProxyConfig *ptr);
+char *xberg_proxy_config_password(XBERGAlefHandle handle);
 
 /**
  * Create a `ContentConfig` from a JSON string. Returns null on failure.
@@ -17855,106 +19078,116 @@ char *xberg_proxy_config_password(const XBERGProxyConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_content_config_free`.
  */
-XBERGContentConfig *xberg_content_config_from_json(const char *json);
+XBERGAlefHandle xberg_content_config_from_json(const char *json);
 
 /**
  * Serialize a `ContentConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_content_config_to_json(const XBERGContentConfig *ptr);
+char *xberg_content_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ContentConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_content_config_free(XBERGContentConfig *ptr);
+void xberg_content_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `output_format` field from a `ContentConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_content_config_output_format(const XBERGContentConfig *ptr);
+char *xberg_content_config_output_format(XBERGAlefHandle handle);
 
 /**
  * Get the `preprocessing_preset` field from a `ContentConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_content_config_preprocessing_preset(const XBERGContentConfig *ptr);
+char *xberg_content_config_preprocessing_preset(XBERGAlefHandle handle);
 
 /**
  * Get the `remove_navigation` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_config_remove_navigation(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_remove_navigation(XBERGAlefHandle handle);
 
 /**
  * Get the `remove_forms` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_config_remove_forms(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_remove_forms(XBERGAlefHandle handle);
 
 /**
  * Get the `strip_tags` field from a `ContentConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_content_config_strip_tags(const XBERGContentConfig *ptr);
+char *xberg_content_config_strip_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_tags` field from a `ContentConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_content_config_preserve_tags(const XBERGContentConfig *ptr);
+char *xberg_content_config_preserve_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `exclude_selectors` field from a `ContentConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_content_config_exclude_selectors(const XBERGContentConfig *ptr);
+char *xberg_content_config_exclude_selectors(XBERGAlefHandle handle);
 
 /**
  * Get the `skip_images` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_config_skip_images(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_skip_images(XBERGAlefHandle handle);
 
 /**
  * Get the `max_depth` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_content_config_max_depth(const XBERGContentConfig *ptr);
+uintptr_t xberg_content_config_max_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `wrap` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_config_wrap(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_wrap(XBERGAlefHandle handle);
 
 /**
  * Get the `wrap_width` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_content_config_wrap_width(const XBERGContentConfig *ptr);
+uintptr_t xberg_content_config_wrap_width(XBERGAlefHandle handle);
 
 /**
  * Get the `include_document_structure` field from a `ContentConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_content_config_include_document_structure(const XBERGContentConfig *ptr);
+int32_t xberg_content_config_include_document_structure(XBERGAlefHandle handle);
 
 /**
  * Create a `BrowserConfig` from a JSON string. Returns null on failure.
@@ -17962,113 +19195,131 @@ int32_t xberg_content_config_include_document_structure(const XBERGContentConfig
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_browser_config_free`.
  */
-XBERGBrowserConfig *xberg_browser_config_from_json(const char *json);
+XBERGAlefHandle xberg_browser_config_from_json(const char *json);
 
 /**
  * Serialize a `BrowserConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_browser_config_to_json(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `BrowserConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_browser_config_free(XBERGBrowserConfig *ptr);
+void xberg_browser_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `mode` field from a `BrowserConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_browser_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBrowserMode *xberg_browser_config_mode(const XBERGBrowserConfig *ptr);
+XBERGAlefHandle xberg_browser_config_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `backend` field from a `BrowserConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_browser_backend_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBrowserBackend *xberg_browser_config_backend(const XBERGBrowserConfig *ptr);
+XBERGAlefHandle xberg_browser_config_backend(XBERGAlefHandle handle);
 
 /**
  * Get the `endpoint` field from a `BrowserConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_browser_config_endpoint(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_endpoint(XBERGAlefHandle handle);
 
 /**
  * Get the `timeout` field from a `BrowserConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_browser_config_timeout(const XBERGBrowserConfig *ptr);
+uint64_t xberg_browser_config_timeout(XBERGAlefHandle handle);
 
 /**
  * Get the `wait` field from a `BrowserConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_browser_wait_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBrowserWait *xberg_browser_config_wait(const XBERGBrowserConfig *ptr);
+XBERGAlefHandle xberg_browser_config_wait(XBERGAlefHandle handle);
 
 /**
  * Get the `wait_selector` field from a `BrowserConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_browser_config_wait_selector(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_wait_selector(XBERGAlefHandle handle);
 
 /**
  * Get the `extra_wait` field from a `BrowserConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_browser_config_extra_wait(const XBERGBrowserConfig *ptr);
+uint64_t xberg_browser_config_extra_wait(XBERGAlefHandle handle);
 
 /**
  * Get the `proxy` field from a `BrowserConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_proxy_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGProxyConfig *xberg_browser_config_proxy(const XBERGBrowserConfig *ptr);
+XBERGAlefHandle xberg_browser_config_proxy(XBERGAlefHandle handle);
 
 /**
  * Get the `block_url_patterns` field from a `BrowserConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_browser_config_block_url_patterns(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_block_url_patterns(XBERGAlefHandle handle);
 
 /**
  * Get the `eval_script` field from a `BrowserConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_browser_config_eval_script(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_eval_script(XBERGAlefHandle handle);
 
 /**
  * Get the `robots_user_agent` field from a `BrowserConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_browser_config_robots_user_agent(const XBERGBrowserConfig *ptr);
+char *xberg_browser_config_robots_user_agent(XBERGAlefHandle handle);
 
 /**
  * Get the `capture_network_events` field from a `BrowserConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_browser_config_capture_network_events(const XBERGBrowserConfig *ptr);
+int32_t xberg_browser_config_capture_network_events(XBERGAlefHandle handle);
 
 /**
  * Get the `session_affinity` field from a `BrowserConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_browser_config_session_affinity(const XBERGBrowserConfig *ptr);
+int32_t xberg_browser_config_session_affinity(XBERGAlefHandle handle);
 
 /**
  * Create a `CrawlConfig` from a JSON string. Returns null on failure.
@@ -18076,323 +19327,361 @@ int32_t xberg_browser_config_session_affinity(const XBERGBrowserConfig *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_crawl_config_free`.
  */
-XBERGCrawlConfig *xberg_crawl_config_from_json(const char *json);
+XBERGAlefHandle xberg_crawl_config_from_json(const char *json);
 
 /**
  * Serialize a `CrawlConfig` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_crawl_config_to_json(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `CrawlConfig` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_crawl_config_free(XBERGCrawlConfig *ptr);
+void xberg_crawl_config_free(XBERGAlefHandle handle);
 
 /**
  * Get the `max_depth` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_depth(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `max_pages` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_pages(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_pages(XBERGAlefHandle handle);
 
 /**
  * Get the `max_links_per_page` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_links_per_page(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_links_per_page(XBERGAlefHandle handle);
 
 /**
  * Get the `max_concurrent` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_concurrent(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_concurrent(XBERGAlefHandle handle);
 
 /**
  * Get the `respect_robots_txt` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_respect_robots_txt(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_respect_robots_txt(XBERGAlefHandle handle);
 
 /**
  * Get the `soft_http_errors` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_soft_http_errors(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_soft_http_errors(XBERGAlefHandle handle);
 
 /**
  * Get the `user_agent` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_user_agent(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_user_agent(XBERGAlefHandle handle);
 
 /**
  * Get the `stay_on_domain` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_stay_on_domain(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_stay_on_domain(XBERGAlefHandle handle);
 
 /**
  * Get the `allow_subdomains` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_allow_subdomains(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_allow_subdomains(XBERGAlefHandle handle);
 
 /**
  * Get the `include_paths` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_include_paths(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_include_paths(XBERGAlefHandle handle);
 
 /**
  * Get the `exclude_paths` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_exclude_paths(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_exclude_paths(XBERGAlefHandle handle);
 
 /**
  * Get the `custom_headers` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_custom_headers(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_custom_headers(XBERGAlefHandle handle);
 
 /**
  * Get the `request_timeout` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_crawl_config_request_timeout(const XBERGCrawlConfig *ptr);
+uint64_t xberg_crawl_config_request_timeout(XBERGAlefHandle handle);
 
 /**
  * Get the `rate_limit_ms` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_crawl_config_rate_limit_ms(const XBERGCrawlConfig *ptr);
+uint64_t xberg_crawl_config_rate_limit_ms(XBERGAlefHandle handle);
 
 /**
  * Get the `max_redirects` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_redirects(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_redirects(XBERGAlefHandle handle);
 
 /**
  * Get the `retry_count` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_retry_count(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_retry_count(XBERGAlefHandle handle);
 
 /**
  * Get the `retry_codes` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_retry_codes(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_retry_codes(XBERGAlefHandle handle);
 
 /**
  * Get the `cookies_enabled` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_cookies_enabled(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_cookies_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `auth` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_auth_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGAuthConfig *xberg_crawl_config_auth(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_auth(XBERGAlefHandle handle);
 
 /**
  * Get the `max_body_size` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_body_size(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_body_size(XBERGAlefHandle handle);
 
 /**
  * Get the `remove_tags` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_remove_tags(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_remove_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `content` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_content_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGContentConfig *xberg_crawl_config_content(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_content(XBERGAlefHandle handle);
 
 /**
  * Get the `map_limit` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_map_limit(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_map_limit(XBERGAlefHandle handle);
 
 /**
  * Get the `map_search` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_map_search(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_map_search(XBERGAlefHandle handle);
 
 /**
  * Get the `download_assets` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_download_assets(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_download_assets(XBERGAlefHandle handle);
 
 /**
  * Get the `asset_types` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_asset_types(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_asset_types(XBERGAlefHandle handle);
 
 /**
  * Get the `max_asset_size` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_max_asset_size(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_max_asset_size(XBERGAlefHandle handle);
 
 /**
  * Get the `browser` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_browser_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGBrowserConfig *xberg_crawl_config_browser(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_browser(XBERGAlefHandle handle);
 
 /**
  * Get the `proxy` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_proxy_config_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGProxyConfig *xberg_crawl_config_proxy(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_proxy(XBERGAlefHandle handle);
 
 /**
  * Get the `user_agents` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_user_agents(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_user_agents(XBERGAlefHandle handle);
 
 /**
  * Get the `capture_screenshot` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_capture_screenshot(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_capture_screenshot(XBERGAlefHandle handle);
 
 /**
  * Get the `follow_document_urls` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_follow_document_urls(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_follow_document_urls(XBERGAlefHandle handle);
 
 /**
  * Get the `document_url_depth` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint32_t xberg_crawl_config_document_url_depth(const XBERGCrawlConfig *ptr);
+uint32_t xberg_crawl_config_document_url_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `download_documents` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_download_documents(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_download_documents(XBERGAlefHandle handle);
 
 /**
  * Get the `document_max_size` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_crawl_config_document_max_size(const XBERGCrawlConfig *ptr);
+uintptr_t xberg_crawl_config_document_max_size(XBERGAlefHandle handle);
 
 /**
  * Get the `document_mime_types` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_document_mime_types(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_document_mime_types(XBERGAlefHandle handle);
 
 /**
  * Get the `document_output_dir` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_document_output_dir(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_document_output_dir(XBERGAlefHandle handle);
 
 /**
  * Get the `document_content_encoding` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_document_content_encoding_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGDocumentContentEncoding *xberg_crawl_config_document_content_encoding(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_document_content_encoding(XBERGAlefHandle handle);
 
 /**
  * Get the `warc_output` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_warc_output(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_warc_output(XBERGAlefHandle handle);
 
 /**
  * Get the `browser_profile` field from a `CrawlConfig`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_crawl_config_browser_profile(const XBERGCrawlConfig *ptr);
+char *xberg_crawl_config_browser_profile(XBERGAlefHandle handle);
 
 /**
  * Get the `save_browser_profile` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_save_browser_profile(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_save_browser_profile(XBERGAlefHandle handle);
 
 /**
  * Get the `ssrf` field from a `CrawlConfig`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_ssrf_policy_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGSsrfPolicy *xberg_crawl_config_ssrf(const XBERGCrawlConfig *ptr);
+XBERGAlefHandle xberg_crawl_config_ssrf(XBERGAlefHandle handle);
 
 /**
  * Get the `ssrf_deny_private_explicit` field from a `CrawlConfig`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_crawl_config_ssrf_deny_private_explicit(const XBERGCrawlConfig *ptr);
+int32_t xberg_crawl_config_ssrf_deny_private_explicit(XBERGAlefHandle handle);
 
 /**
  * Create a `SitemapUrl` from a JSON string. Returns null on failure.
@@ -18400,50 +19689,58 @@ int32_t xberg_crawl_config_ssrf_deny_private_explicit(const XBERGCrawlConfig *pt
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_sitemap_url_free`.
  */
-XBERGSitemapUrl *xberg_sitemap_url_from_json(const char *json);
+XBERGAlefHandle xberg_sitemap_url_from_json(const char *json);
 
 /**
  * Serialize a `SitemapUrl` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_sitemap_url_to_json(const XBERGSitemapUrl *ptr);
+char *xberg_sitemap_url_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SitemapUrl` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_sitemap_url_free(XBERGSitemapUrl *ptr);
+void xberg_sitemap_url_free(XBERGAlefHandle handle);
 
 /**
  * Get the `url` field from a `SitemapUrl`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sitemap_url_url(const XBERGSitemapUrl *ptr);
+char *xberg_sitemap_url_url(XBERGAlefHandle handle);
 
 /**
  * Get the `lastmod` field from a `SitemapUrl`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sitemap_url_lastmod(const XBERGSitemapUrl *ptr);
+char *xberg_sitemap_url_lastmod(XBERGAlefHandle handle);
 
 /**
  * Get the `changefreq` field from a `SitemapUrl`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sitemap_url_changefreq(const XBERGSitemapUrl *ptr);
+char *xberg_sitemap_url_changefreq(XBERGAlefHandle handle);
 
 /**
  * Get the `priority` field from a `SitemapUrl`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_sitemap_url_priority(const XBERGSitemapUrl *ptr);
+char *xberg_sitemap_url_priority(XBERGAlefHandle handle);
 
 /**
  * Create a `MapResult` from a JSON string. Returns null on failure.
@@ -18451,29 +19748,31 @@ char *xberg_sitemap_url_priority(const XBERGSitemapUrl *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_map_result_free`.
  */
-XBERGMapResult *xberg_map_result_from_json(const char *json);
+XBERGAlefHandle xberg_map_result_from_json(const char *json);
 
 /**
  * Serialize a `MapResult` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_map_result_to_json(const XBERGMapResult *ptr);
+char *xberg_map_result_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `MapResult` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_map_result_free(XBERGMapResult *ptr);
+void xberg_map_result_free(XBERGAlefHandle handle);
 
 /**
  * Get the `urls` field from a `MapResult`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_map_result_urls(const XBERGMapResult *ptr);
+char *xberg_map_result_urls(XBERGAlefHandle handle);
 
 /**
  * Create a `SsrfPolicy` from a JSON string. Returns null on failure.
@@ -18481,43 +19780,45 @@ char *xberg_map_result_urls(const XBERGMapResult *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_ssrf_policy_free`.
  */
-XBERGSsrfPolicy *xberg_ssrf_policy_from_json(const char *json);
+XBERGAlefHandle xberg_ssrf_policy_from_json(const char *json);
 
 /**
  * Serialize a `SsrfPolicy` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_ssrf_policy_to_json(const XBERGSsrfPolicy *ptr);
+char *xberg_ssrf_policy_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `SsrfPolicy` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_ssrf_policy_free(XBERGSsrfPolicy *ptr);
+void xberg_ssrf_policy_free(XBERGAlefHandle handle);
 
 /**
  * Get the `deny_private` field from a `SsrfPolicy`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_ssrf_policy_deny_private(const XBERGSsrfPolicy *ptr);
+int32_t xberg_ssrf_policy_deny_private(XBERGAlefHandle handle);
 
 /**
  * Get the `allowlist` field from a `SsrfPolicy`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_ssrf_policy_allowlist(const XBERGSsrfPolicy *ptr);
+char *xberg_ssrf_policy_allowlist(XBERGAlefHandle handle);
 
 /**
  * Get the `max_redirects` field from a `SsrfPolicy`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint8_t xberg_ssrf_policy_max_redirects(const XBERGSsrfPolicy *ptr);
+uint8_t xberg_ssrf_policy_max_redirects(XBERGAlefHandle handle);
 
 /**
  * Create a `ConversionOptions` from a JSON string. Returns null on failure.
@@ -18525,295 +19826,333 @@ uint8_t xberg_ssrf_policy_max_redirects(const XBERGSsrfPolicy *ptr);
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_conversion_options_free`.
  */
-XBERGConversionOptions *xberg_conversion_options_from_json(const char *json);
+XBERGAlefHandle xberg_conversion_options_from_json(const char *json);
 
 /**
  * Serialize a `ConversionOptions` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_conversion_options_to_json(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `ConversionOptions` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_conversion_options_free(XBERGConversionOptions *ptr);
+void xberg_conversion_options_free(XBERGAlefHandle handle);
 
 /**
  * Get the `heading_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_heading_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHeadingStyle *xberg_conversion_options_heading_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_heading_style(XBERGAlefHandle handle);
 
 /**
  * Get the `list_indent_type` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_list_indent_type_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGListIndentType *xberg_conversion_options_list_indent_type(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_list_indent_type(XBERGAlefHandle handle);
 
 /**
  * Get the `list_indent_width` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_conversion_options_list_indent_width(const XBERGConversionOptions *ptr);
+uintptr_t xberg_conversion_options_list_indent_width(XBERGAlefHandle handle);
 
 /**
  * Get the `bullets` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_bullets(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_bullets(XBERGAlefHandle handle);
 
 /**
  * Get the `strong_em_symbol` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_strong_em_symbol(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_strong_em_symbol(XBERGAlefHandle handle);
 
 /**
  * Get the `escape_asterisks` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_escape_asterisks(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_asterisks(XBERGAlefHandle handle);
 
 /**
  * Get the `escape_underscores` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_escape_underscores(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_underscores(XBERGAlefHandle handle);
 
 /**
  * Get the `escape_misc` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_escape_misc(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_misc(XBERGAlefHandle handle);
 
 /**
  * Get the `escape_ascii` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_escape_ascii(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_escape_ascii(XBERGAlefHandle handle);
 
 /**
  * Get the `code_language` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_code_language(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_code_language(XBERGAlefHandle handle);
 
 /**
  * Get the `autolinks` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_autolinks(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_autolinks(XBERGAlefHandle handle);
 
 /**
  * Get the `default_title` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_default_title(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_default_title(XBERGAlefHandle handle);
 
 /**
  * Get the `br_in_tables` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_br_in_tables(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_br_in_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `compact_tables` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_compact_tables(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_compact_tables(XBERGAlefHandle handle);
 
 /**
  * Get the `highlight_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_highlight_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGHighlightStyle *xberg_conversion_options_highlight_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_highlight_style(XBERGAlefHandle handle);
 
 /**
  * Get the `extract_metadata` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_extract_metadata(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_extract_metadata(XBERGAlefHandle handle);
 
 /**
  * Get the `whitespace_mode` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_whitespace_mode_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGWhitespaceMode *xberg_conversion_options_whitespace_mode(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_whitespace_mode(XBERGAlefHandle handle);
 
 /**
  * Get the `strip_newlines` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_strip_newlines(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_strip_newlines(XBERGAlefHandle handle);
 
 /**
  * Get the `wrap` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_wrap(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_wrap(XBERGAlefHandle handle);
 
 /**
  * Get the `wrap_width` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_conversion_options_wrap_width(const XBERGConversionOptions *ptr);
+uintptr_t xberg_conversion_options_wrap_width(XBERGAlefHandle handle);
 
 /**
  * Get the `convert_as_inline` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_convert_as_inline(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_convert_as_inline(XBERGAlefHandle handle);
 
 /**
  * Get the `sub_symbol` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_sub_symbol(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_sub_symbol(XBERGAlefHandle handle);
 
 /**
  * Get the `sup_symbol` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_sup_symbol(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_sup_symbol(XBERGAlefHandle handle);
 
 /**
  * Get the `newline_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_newline_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGNewlineStyle *xberg_conversion_options_newline_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_newline_style(XBERGAlefHandle handle);
 
 /**
  * Get the `code_block_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_code_block_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGCodeBlockStyle *xberg_conversion_options_code_block_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_code_block_style(XBERGAlefHandle handle);
 
 /**
  * Get the `keep_inline_images_in` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_keep_inline_images_in(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_keep_inline_images_in(XBERGAlefHandle handle);
 
 /**
  * Get the `preprocessing` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_preprocessing_options_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPreprocessingOptions *xberg_conversion_options_preprocessing(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_preprocessing(XBERGAlefHandle handle);
 
 /**
  * Get the `encoding` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_encoding(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_encoding(XBERGAlefHandle handle);
 
 /**
  * Get the `debug` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_debug(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_debug(XBERGAlefHandle handle);
 
 /**
  * Get the `strip_tags` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_strip_tags(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_strip_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `preserve_tags` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_preserve_tags(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_preserve_tags(XBERGAlefHandle handle);
 
 /**
  * Get the `skip_images` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_skip_images(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_skip_images(XBERGAlefHandle handle);
 
 /**
  * Get the `url_escape_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_url_escape_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGUrlEscapeStyle *xberg_conversion_options_url_escape_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_url_escape_style(XBERGAlefHandle handle);
 
 /**
  * Get the `link_style` field from a `ConversionOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_link_style_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGLinkStyle *xberg_conversion_options_link_style(const XBERGConversionOptions *ptr);
+XBERGAlefHandle xberg_conversion_options_link_style(XBERGAlefHandle handle);
 
 /**
  * Get the `max_image_size` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uint64_t xberg_conversion_options_max_image_size(const XBERGConversionOptions *ptr);
+uint64_t xberg_conversion_options_max_image_size(XBERGAlefHandle handle);
 
 /**
  * Get the `capture_svg` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_capture_svg(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_capture_svg(XBERGAlefHandle handle);
 
 /**
  * Get the `infer_dimensions` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_conversion_options_infer_dimensions(const XBERGConversionOptions *ptr);
+int32_t xberg_conversion_options_infer_dimensions(XBERGAlefHandle handle);
 
 /**
  * Get the `max_depth` field from a `ConversionOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-uintptr_t xberg_conversion_options_max_depth(const XBERGConversionOptions *ptr);
+uintptr_t xberg_conversion_options_max_depth(XBERGAlefHandle handle);
 
 /**
  * Get the `exclude_selectors` field from a `ConversionOptions`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-char *xberg_conversion_options_exclude_selectors(const XBERGConversionOptions *ptr);
+char *xberg_conversion_options_exclude_selectors(XBERGAlefHandle handle);
 
 /**
  * Create a `PreprocessingOptions` from a JSON string. Returns null on failure.
@@ -18821,50 +20160,52 @@ char *xberg_conversion_options_exclude_selectors(const XBERGConversionOptions *p
  * JSON string must be valid UTF-8 and null-terminated.
  * Returned handle must be freed with `xberg_preprocessing_options_free`.
  */
-XBERGPreprocessingOptions *xberg_preprocessing_options_from_json(const char *json);
+XBERGAlefHandle xberg_preprocessing_options_from_json(const char *json);
 
 /**
  * Serialize a `PreprocessingOptions` to a JSON string. Returns null on failure.
  * # Safety
- * `ptr` must be a valid, non-null pointer returned by a `xberg` function.
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
  * The returned string must be freed with `xberg_free_string`.
  */
-char *xberg_preprocessing_options_to_json(const XBERGPreprocessingOptions *ptr);
+char *xberg_preprocessing_options_to_json(XBERGAlefHandle handle);
 
 /**
  * Free a `PreprocessingOptions` handle.
  * # Safety
- * Pointer must have been returned by this library, or be null.
+ * Handle must have been returned by this library, or be zero.
  */
-void xberg_preprocessing_options_free(XBERGPreprocessingOptions *ptr);
+void xberg_preprocessing_options_free(XBERGAlefHandle handle);
 
 /**
  * Get the `enabled` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preprocessing_options_enabled(const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_enabled(XBERGAlefHandle handle);
 
 /**
  * Get the `preset` field from a `PreprocessingOptions`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_preprocessing_preset_free`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-XBERGPreprocessingPreset *xberg_preprocessing_options_preset(const XBERGPreprocessingOptions *ptr);
+XBERGAlefHandle xberg_preprocessing_options_preset(XBERGAlefHandle handle);
 
 /**
  * Get the `remove_navigation` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preprocessing_options_remove_navigation(const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_remove_navigation(XBERGAlefHandle handle);
 
 /**
  * Get the `remove_forms` field from a `PreprocessingOptions`.
  * # Safety
  * Pointer must be a valid handle returned by this library.
  */
-int32_t xberg_preprocessing_options_remove_forms(const XBERGPreprocessingOptions *ptr);
+int32_t xberg_preprocessing_options_remove_forms(XBERGAlefHandle handle);
 
 /**
  * Convert an integer to a `ExecutionProviderType` variant. Returns -1 on invalid input.
@@ -22024,16 +23365,16 @@ void xberg_url_escape_style_free(XBERGUrlEscapeStyle *ptr);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGExtractionResult *xberg_extract(const XBERGExtractInput *input,
-                                     const XBERGExtractionConfig *config);
+XBERGAlefHandle xberg_extract(XBERGAlefHandle input,
+                              XBERGAlefHandle config);
 
 /**
  * Extract content from multiple bytes or URI inputs.
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGExtractionResult *xberg_extract_batch(const char *inputs,
-                                           const XBERGExtractionConfig *config);
+XBERGAlefHandle xberg_extract_batch(const char *inputs,
+                                    XBERGAlefHandle config);
 
 /**
  * Discover all pages and sitemaps reachable from `uri` without extracting document content.
@@ -22049,8 +23390,8 @@ XBERGExtractionResult *xberg_extract_batch(const char *inputs,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGMapResult *xberg_map_url(const char *uri,
-                              const XBERGUrlExtractionConfig *config);
+XBERGAlefHandle xberg_map_url(const char *uri,
+                              XBERGAlefHandle config);
 
 /**
  * List all supported document formats.
@@ -22288,8 +23629,8 @@ uintptr_t xberg_list_validators_len(void);
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-int32_t xberg_classify_chunks(XBERGExtractedDocument *result,
-                              const XBERGChunkClassificationConfig *config);
+int32_t xberg_classify_chunks(XBERGAlefHandle result,
+                              XBERGAlefHandle config);
 
 /**
  * Find unmarked claims in markdown text.
@@ -22360,7 +23701,7 @@ int32_t xberg_verify_excerpt(const char *excerpt,
  * freed with the appropriate free function.
  */
 char *xberg_embed_sparse_async(const char *texts,
-                               const XBERGSparseEmbeddingConfig *config);
+                               XBERGAlefHandle config);
 
 /**
  * Return the byte length of the C string most recently returned by `xberg_embed_sparse_async` on this
@@ -22370,7 +23711,7 @@ char *xberg_embed_sparse_async(const char *texts,
  * with `xberg_embed_sparse_async`.
  */
 uintptr_t xberg_embed_sparse_async_len(const char *_texts,
-                                       const XBERGSparseEmbeddingConfig *_config);
+                                       XBERGAlefHandle _config);
 
 /**
  * Score a query against a document using ColBERT's MaxSim operator: for each
@@ -22388,8 +23729,8 @@ uintptr_t xberg_embed_sparse_async_len(const char *_texts,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
-                           const XBERGMultiVectorEmbedding *doc);
+double xberg_max_sim_score(XBERGAlefHandle query,
+                           XBERGAlefHandle doc);
 
 /**
  * Rank a set of documents against a query by MaxSim score, descending.
@@ -22403,7 +23744,7 @@ double xberg_max_sim_score(const XBERGMultiVectorEmbedding *query,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-char *xberg_max_sim_rank(const XBERGMultiVectorEmbedding *query,
+char *xberg_max_sim_rank(XBERGAlefHandle query,
                          const char *docs);
 
 /**
@@ -22413,7 +23754,7 @@ char *xberg_max_sim_rank(const XBERGMultiVectorEmbedding *query,
  * \note SAFETY: Pointer arguments are ignored and are present only to keep the companion ABI aligned
  * with `xberg_max_sim_rank`.
  */
-uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
+uintptr_t xberg_max_sim_rank_len(XBERGAlefHandle _query,
                                  const char *_docs);
 
 /**
@@ -22425,7 +23766,7 @@ uintptr_t xberg_max_sim_rank_len(const XBERGMultiVectorEmbedding *_query,
  * freed with the appropriate free function.
  */
 char *xberg_embed_multi_vector_async(const char *texts,
-                                     const XBERGLateInteractionConfig *config,
+                                     XBERGAlefHandle config,
                                      int32_t is_query);
 
 /**
@@ -22436,7 +23777,7 @@ char *xberg_embed_multi_vector_async(const char *texts,
  * with `xberg_embed_multi_vector_async`.
  */
 uintptr_t xberg_embed_multi_vector_async_len(const char *_texts,
-                                             const XBERGLateInteractionConfig *_config,
+                                             XBERGAlefHandle _config,
                                              int32_t _is_query);
 
 /**
@@ -22448,7 +23789,7 @@ uintptr_t xberg_embed_multi_vector_async_len(const char *_texts,
  * \note SAFETY: Caller must ensure all pointer arguments are valid or null. Returned pointers must be
  * freed with the appropriate free function.
  */
-XBERGDoctorReport *xberg_doctor(const XBERGExtractionConfig *config);
+XBERGAlefHandle xberg_doctor(XBERGAlefHandle config);
 
 /**
  * Install `PdfOxideWarningCapture` as the process-wide `log` backend,

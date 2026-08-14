@@ -261,7 +261,7 @@ impl ExtractionConfig {
             max_archive_depth: opts
                 .get("max_archive_depth")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_archive_depth()),
             tree_sitter: opts.get("tree_sitter").and_then(|t| t.decode().ok()),
             structured_extraction: opts.get("structured_extraction").and_then(|t| t.decode().ok()),
             ner: opts.get("ner").and_then(|t| t.decode().ok()),
@@ -572,7 +572,10 @@ pub struct TokenReductionOptions {
 impl TokenReductionOptions {
     pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
         Self {
-            mode: opts.get("mode").and_then(|t| t.decode().ok()).unwrap_or_default(),
+            mode: opts
+                .get("mode")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_reduction_mode()),
             preserve_important_words: opts
                 .get("preserve_important_words")
                 .and_then(|t| t.decode().ok())
@@ -619,7 +622,7 @@ impl HtmlOutputConfig {
             class_prefix: opts
                 .get("class_prefix")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_class_prefix()),
             embed_css: opts.get("embed_css").and_then(|t| t.decode().ok()).unwrap_or(true),
         }
     }
@@ -641,12 +644,18 @@ impl LateInteractionConfig {
     pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
         Self {
             model: opts.get("model").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            batch_size: opts.get("batch_size").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            max_length: opts.get("max_length").and_then(|t| t.decode().ok()).unwrap_or_default(),
+            batch_size: opts
+                .get("batch_size")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_batch_size()),
+            max_length: opts
+                .get("max_length")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_max_length()),
             query_max_length: opts
                 .get("query_max_length")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_query_max_length()),
             show_download_progress: opts
                 .get("show_download_progress")
                 .and_then(|t| t.decode().ok())
@@ -978,15 +987,15 @@ impl OcrQualityThresholds {
             min_undecodable_ratio: opts
                 .get("min_undecodable_ratio")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_min_undecodable_ratio()),
             enable_provenance_ocr_routing: opts
                 .get("enable_provenance_ocr_routing")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_enable_provenance_ocr_routing()),
             min_provenance_fallback_ratio: opts
                 .get("min_provenance_fallback_ratio")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_min_provenance_fallback_ratio()),
         }
     }
 }
@@ -1035,7 +1044,10 @@ impl OcrConfig {
     pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
         Self {
             enabled: opts.get("enabled").and_then(|t| t.decode().ok()).unwrap_or(true),
-            backend: opts.get("backend").and_then(|t| t.decode().ok()).unwrap_or_default(),
+            backend: opts
+                .get("backend")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_tesseract_backend()),
             language: opts.get("language").and_then(|t| t.decode().ok()).unwrap_or_default(),
             tesseract_config: opts.get("tesseract_config").and_then(|t| t.decode().ok()),
             output_format: opts.get("output_format").and_then(|t| t.decode().ok()),
@@ -1300,34 +1312,6 @@ pub struct RedactionPattern {
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifMap)]
-pub struct RerankerConfig {
-    pub model: RerankerModelType,
-    pub top_k: Option<usize>,
-    pub batch_size: usize,
-    pub show_download_progress: bool,
-    pub cache_dir: Option<String>,
-    pub acceleration: Option<AccelerationConfig>,
-    pub max_rerank_duration_secs: Option<u64>,
-}
-
-impl RerankerConfig {
-    pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
-        Self {
-            model: opts.get("model").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            top_k: opts.get("top_k").and_then(|t| t.decode().ok()),
-            batch_size: opts.get("batch_size").and_then(|t| t.decode().ok()).unwrap_or(32),
-            show_download_progress: opts
-                .get("show_download_progress")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(false),
-            cache_dir: opts.get("cache_dir").and_then(|t| t.decode().ok()),
-            acceleration: opts.get("acceleration").and_then(|t| t.decode().ok()),
-            max_rerank_duration_secs: opts.get("max_rerank_duration_secs").and_then(|t| t.decode().ok()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifMap)]
 pub struct SparseEmbeddingConfig {
     pub model: SparseEmbeddingModelType,
     pub batch_size: usize,
@@ -1342,8 +1326,14 @@ impl SparseEmbeddingConfig {
     pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
         Self {
             model: opts.get("model").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            batch_size: opts.get("batch_size").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            max_length: opts.get("max_length").and_then(|t| t.decode().ok()).unwrap_or_default(),
+            batch_size: opts
+                .get("batch_size")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_batch_size()),
+            max_length: opts
+                .get("max_length")
+                .and_then(|t| t.decode().ok())
+                .unwrap_or(default_max_length()),
             show_download_progress: opts
                 .get("show_download_progress")
                 .and_then(|t| t.decode().ok())
@@ -1489,8 +1479,8 @@ pub struct ServerConfig {
 impl ServerConfig {
     pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
         Self {
-            host: opts.get("host").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            port: opts.get("port").and_then(|t| t.decode().ok()).unwrap_or_default(),
+            host: opts.get("host").and_then(|t| t.decode().ok()).unwrap_or(default_host()),
+            port: opts.get("port").and_then(|t| t.decode().ok()).unwrap_or(default_port()),
             cors_origins: opts
                 .get("cors_origins")
                 .and_then(|t| t.decode().ok())
@@ -1498,11 +1488,11 @@ impl ServerConfig {
             max_request_body_bytes: opts
                 .get("max_request_body_bytes")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_max_request_body_bytes()),
             max_multipart_field_bytes: opts
                 .get("max_multipart_field_bytes")
                 .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
+                .unwrap_or(default_max_multipart_field_bytes()),
         }
     }
 }
@@ -1640,59 +1630,6 @@ impl SecurityLimits {
                 .get("max_table_cells")
                 .and_then(|t| t.decode().ok())
                 .unwrap_or(100000),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifMap)]
-pub struct TokenReductionConfig {
-    pub level: ReductionLevel,
-    pub language_hint: Option<String>,
-    pub preserve_markdown: bool,
-    pub preserve_code: bool,
-    pub semantic_threshold: f32,
-    pub enable_parallel: bool,
-    pub use_simd: bool,
-    pub custom_stopwords: Option<HashMap<String, Vec<String>>>,
-    pub preserve_patterns: Vec<String>,
-    pub target_reduction: Option<f32>,
-    pub enable_semantic_clustering: bool,
-    pub preserve_important_words: bool,
-}
-
-impl TokenReductionConfig {
-    pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
-        Self {
-            level: opts.get("level").and_then(|t| t.decode().ok()).unwrap_or_default(),
-            language_hint: opts.get("language_hint").and_then(|t| t.decode().ok()),
-            preserve_markdown: opts
-                .get("preserve_markdown")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(false),
-            preserve_code: opts.get("preserve_code").and_then(|t| t.decode().ok()).unwrap_or(true),
-            semantic_threshold: opts
-                .get("semantic_threshold")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(0.3),
-            enable_parallel: opts
-                .get("enable_parallel")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(true),
-            use_simd: opts.get("use_simd").and_then(|t| t.decode().ok()).unwrap_or(true),
-            custom_stopwords: opts.get("custom_stopwords").and_then(|t| t.decode().ok()),
-            preserve_patterns: opts
-                .get("preserve_patterns")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or_default(),
-            target_reduction: opts.get("target_reduction").and_then(|t| t.decode().ok()),
-            enable_semantic_clustering: opts
-                .get("enable_semantic_clustering")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(false),
-            preserve_important_words: opts
-                .get("preserve_important_words")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(true),
         }
     }
 }
@@ -3275,29 +3212,6 @@ pub struct ExtractedUri {
     pub kind: UriKind,
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifMap)]
-pub struct DiffOptions {
-    pub include_metadata: bool,
-    pub include_embedded: bool,
-    pub max_content_chars: Option<usize>,
-}
-
-impl DiffOptions {
-    pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
-        Self {
-            include_metadata: opts
-                .get("include_metadata")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(true),
-            include_embedded: opts
-                .get("include_embedded")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(true),
-            max_content_chars: opts.get("max_content_chars").and_then(|t| t.decode().ok()),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifStruct)]
 #[module = "Xberg.SparseEmbedding"]
 pub struct SparseEmbedding {
@@ -3474,27 +3388,6 @@ pub struct PageSignals {
     pub has_page_number_one_marker: bool,
     pub has_signature_block: bool,
     pub layout_text_density: f32,
-}
-
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, rustler::NifMap)]
-pub struct MultidocThresholds {
-    pub density_shift_threshold: f32,
-    pub bigram_overlap_min: f32,
-}
-
-impl MultidocThresholds {
-    pub fn new(opts: std::collections::HashMap<String, rustler::Term>) -> Self {
-        Self {
-            density_shift_threshold: opts
-                .get("density_shift_threshold")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(0.3),
-            bigram_overlap_min: opts
-                .get("bigram_overlap_min")
-                .and_then(|t| t.decode().ok())
-                .unwrap_or(0.1),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -9827,16 +9720,6 @@ pub fn fail_trait_call(reply_id: u64, error_reason: String) -> rustler::types::a
     rustler::types::atom::ok()
 }
 
-#[rustler::nif]
-pub fn contentfilterconfig_default() -> ContentFilterConfig {
-    xberg::ContentFilterConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn extractionconfig_default() -> ExtractionConfig {
-    xberg::ExtractionConfig::default().into()
-}
-
 /// Validate the configuration, returning an error if any settings are invalid.
 ///
 /// Checks:
@@ -9899,16 +9782,6 @@ pub fn extractionconfig_needs_image_processing(obj: ExtractionConfig) -> bool {
     xberg::ExtractionConfig::from(obj).needs_image_processing()
 }
 
-#[rustler::nif]
-pub fn svgoptions_default() -> SvgOptions {
-    xberg::core::config::extraction::SvgOptions::default().into()
-}
-
-#[rustler::nif]
-pub fn extractinput_default() -> ExtractInput {
-    xberg::ExtractInput::default().into()
-}
-
 /// Build a bytes input with a MIME type and optional filename hint.
 #[rustler::nif]
 pub fn extractinput_from_bytes(bytes: Vec<u8>, mime_type: String, filename: Option<String>) -> ExtractInput {
@@ -9929,41 +9802,6 @@ pub fn extractionresult_single(result: Option<String>) -> ExtractionResult {
     xberg::ExtractionResult::single(result_core.unwrap_or_default()).into()
 }
 
-#[rustler::nif]
-pub fn urlextractionconfig_default() -> UrlExtractionConfig {
-    xberg::UrlExtractionConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn imageextractionconfig_default() -> ImageExtractionConfig {
-    xberg::ImageExtractionConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn tokenreductionoptions_default() -> TokenReductionOptions {
-    xberg::TokenReductionOptions::default().into()
-}
-
-#[rustler::nif]
-pub fn languagedetectionconfig_default() -> LanguageDetectionConfig {
-    xberg::LanguageDetectionConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn htmloutputconfig_default() -> HtmlOutputConfig {
-    xberg::HtmlOutputConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn lateinteractionconfig_default() -> LateInteractionConfig {
-    xberg::LateInteractionConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn layoutdetectionconfig_default() -> LayoutDetectionConfig {
-    xberg::LayoutDetectionConfig::default().into()
-}
-
 /// Validate the request-time sampling parameters that have a documented range:
 /// `top_p` (`[0.0, 1.0]`), `presence_penalty`, and `frequency_penalty` (both
 /// `[-2.0, 2.0]`, matching liter-llm's/OpenAI's semantics). An unset field is
@@ -9976,51 +9814,6 @@ pub fn layoutdetectionconfig_default() -> LayoutDetectionConfig {
 pub fn llmconfig_validate(obj: LlmConfig) -> Result<(), String> {
     let result = xberg::LlmConfig::from(obj).validate().map_err(|e| e.to_string())?;
     Ok(result)
-}
-
-#[rustler::nif]
-pub fn ocrqualitythresholds_default() -> OcrQualityThresholds {
-    xberg::OcrQualityThresholds::default().into()
-}
-
-#[rustler::nif]
-pub fn ocrconfig_default() -> OcrConfig {
-    xberg::OcrConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn pageconfig_default() -> PageConfig {
-    xberg::PageConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn pdfconfig_default() -> PdfConfig {
-    xberg::PdfConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn hierarchyconfig_default() -> HierarchyConfig {
-    xberg::HierarchyConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn postprocessorconfig_default() -> PostProcessorConfig {
-    xberg::PostProcessorConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn chunkingconfig_default() -> ChunkingConfig {
-    xberg::ChunkingConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn embeddingconfig_default() -> EmbeddingConfig {
-    xberg::EmbeddingConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn redactionconfig_default() -> RedactionConfig {
-    xberg::RedactionConfig::default().into()
 }
 
 /// Validate user-supplied terms and patterns at config-construction time.
@@ -10054,36 +9847,6 @@ pub fn redactionterm_labeled(label: String, value: String) -> RedactionTerm {
 #[rustler::nif]
 pub fn redactionpattern_labeled(label: String, pattern: String) -> RedactionPattern {
     xberg::RedactionPattern::labeled(label, pattern).into()
-}
-
-#[rustler::nif]
-pub fn rerankerconfig_default() -> RerankerConfig {
-    xberg::RerankerConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn sparseembeddingconfig_default() -> SparseEmbeddingConfig {
-    xberg::SparseEmbeddingConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn transcriptionconfig_default() -> TranscriptionConfig {
-    xberg::TranscriptionConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn treesitterconfig_default() -> TreeSitterConfig {
-    xberg::TreeSitterConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn treesitterprocessconfig_default() -> TreeSitterProcessConfig {
-    xberg::TreeSitterProcessConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn serverconfig_default() -> ServerConfig {
-    xberg::ServerConfig::default().into()
 }
 
 /// Get the server listen address (host:port).
@@ -10179,27 +9942,12 @@ pub fn serverconfig_max_multipart_field_mb(obj: ServerConfig) -> usize {
     xberg::ServerConfig::from(obj).max_multipart_field_mb()
 }
 
-#[rustler::nif]
-pub fn securitylimits_default() -> SecurityLimits {
-    xberg::SecurityLimits::default().into()
-}
-
-#[rustler::nif]
-pub fn tokenreductionconfig_default() -> TokenReductionConfig {
-    xberg::TokenReductionConfig::default().into()
-}
-
 /// Create a fresh counter with no previous state.
 #[rustler::nif]
 pub fn tokencounter_new() -> ResourceArc<TokenCounter> {
     ResourceArc::new(TokenCounter {
         inner: Arc::new(std::sync::RwLock::new(xberg::TokenCounter::new())),
     })
-}
-
-#[rustler::nif]
-pub fn footnoteconfig_default() -> FootnoteConfig {
-    xberg::FootnoteConfig::default().into()
 }
 
 /// Set whether to parse the citation block.
@@ -10249,31 +9997,11 @@ pub fn documentstructure_is_empty(obj: DocumentStructure) -> bool {
     xberg::DocumentStructure::from(obj).is_empty()
 }
 
-#[rustler::nif]
-pub fn documentstructure_default() -> DocumentStructure {
-    xberg::DocumentStructure::default().into()
-}
-
-#[rustler::nif]
-pub fn imagepreprocessingconfig_default() -> ImagePreprocessingConfig {
-    xberg::ImagePreprocessingConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn tesseractconfig_default() -> TesseractConfig {
-    xberg::TesseractConfig::default().into()
-}
-
 /// Returns `true` when no metadata fields, format-specific metadata, or
 /// additional postprocessor fields are populated.
 #[rustler::nif]
 pub fn metadata_is_empty(obj: Metadata) -> bool {
     xberg::Metadata::from(obj).is_empty()
-}
-
-#[rustler::nif]
-pub fn diffoptions_default() -> DiffOptions {
-    xberg::DiffOptions::default().into()
 }
 
 /// Returns `true` if `data` holds exactly `num_tokens * dim` values — i.e.
@@ -10291,26 +10019,6 @@ pub fn diffoptions_default() -> DiffOptions {
 #[rustler::nif]
 pub fn multivectorembedding_is_well_formed(obj: MultiVectorEmbedding) -> bool {
     xberg::MultiVectorEmbedding::from(obj).is_well_formed()
-}
-
-#[rustler::nif]
-pub fn yakeparams_default() -> YakeParams {
-    xberg::YakeParams::default().into()
-}
-
-#[rustler::nif]
-pub fn rakeparams_default() -> RakeParams {
-    xberg::RakeParams::default().into()
-}
-
-#[rustler::nif]
-pub fn keywordconfig_default() -> KeywordConfig {
-    xberg::KeywordConfig::default().into()
-}
-
-#[rustler::nif]
-pub fn heuristicsconfig_default() -> HeuristicsConfig {
-    xberg::HeuristicsConfig::default().into()
 }
 
 /// Validate the configuration.
@@ -10356,11 +10064,6 @@ pub fn pagerange_page_count(obj: PageRange) -> u32 {
 #[rustler::nif]
 pub fn pagesignals_from_page_text(page_number: u32, text: String, layout_text_density: f32) -> PageSignals {
     xberg::PageSignals::from_page_text(page_number, &text, layout_text_density).into()
-}
-
-#[rustler::nif]
-pub fn multidocthresholds_default() -> MultidocThresholds {
-    xberg::MultidocThresholds::default().into()
 }
 
 /// Compile the given JSON text as a Draft 2020-12 meta-schema.
@@ -10668,12 +10371,6 @@ pub fn paddleocrconfig_with_model_tier(obj: PaddleOcrConfig, tier: String) -> Pa
 #[rustler::nif]
 pub fn paddleocrconfig_with_model_version(obj: PaddleOcrConfig, version: String) -> PaddleOcrConfig {
     xberg::PaddleOcrConfig::from(obj).with_model_version(version).into()
-}
-
-/// Creates a default configuration with English language support.
-#[rustler::nif]
-pub fn paddleocrconfig_default() -> PaddleOcrConfig {
-    xberg::PaddleOcrConfig::default().into()
 }
 
 #[allow(clippy::needless_update)]
@@ -12091,38 +11788,6 @@ impl From<xberg::RedactionPattern> for RedactionPattern {
 
 #[allow(clippy::needless_update)]
 #[allow(clippy::useless_conversion)]
-impl From<RerankerConfig> for xberg::RerankerConfig {
-    fn from(val: RerankerConfig) -> Self {
-        Self {
-            model: val.model.into(),
-            top_k: val.top_k,
-            batch_size: val.batch_size,
-            show_download_progress: val.show_download_progress,
-            cache_dir: val.cache_dir.map(Into::into),
-            acceleration: val.acceleration.map(Into::into),
-            max_rerank_duration_secs: val.max_rerank_duration_secs,
-            ..Default::default()
-        }
-    }
-}
-
-#[allow(clippy::redundant_closure, clippy::useless_conversion)]
-impl From<xberg::RerankerConfig> for RerankerConfig {
-    fn from(val: xberg::RerankerConfig) -> Self {
-        Self {
-            model: val.model.into(),
-            top_k: val.top_k,
-            batch_size: val.batch_size,
-            show_download_progress: val.show_download_progress,
-            cache_dir: val.cache_dir.map(|p| p.to_string_lossy().to_string()),
-            acceleration: val.acceleration.map(Into::into),
-            max_rerank_duration_secs: val.max_rerank_duration_secs,
-        }
-    }
-}
-
-#[allow(clippy::needless_update)]
-#[allow(clippy::useless_conversion)]
 impl From<SparseEmbeddingConfig> for xberg::SparseEmbeddingConfig {
     fn from(val: SparseEmbeddingConfig) -> Self {
         Self {
@@ -12475,48 +12140,6 @@ impl From<xberg::SecurityLimits> for SecurityLimits {
             max_iterations: val.max_iterations,
             max_xml_depth: val.max_xml_depth,
             max_table_cells: val.max_table_cells,
-        }
-    }
-}
-
-#[allow(clippy::needless_update)]
-#[allow(clippy::redundant_closure, clippy::useless_conversion)]
-impl From<TokenReductionConfig> for xberg::TokenReductionConfig {
-    fn from(val: TokenReductionConfig) -> Self {
-        Self {
-            level: val.level.into(),
-            language_hint: val.language_hint,
-            preserve_markdown: val.preserve_markdown,
-            preserve_code: val.preserve_code,
-            semantic_threshold: val.semantic_threshold,
-            enable_parallel: val.enable_parallel,
-            use_simd: val.use_simd,
-            custom_stopwords: val.custom_stopwords.map(|m| m.into_iter().collect()),
-            preserve_patterns: val.preserve_patterns.into_iter().collect(),
-            target_reduction: val.target_reduction,
-            enable_semantic_clustering: val.enable_semantic_clustering,
-            preserve_important_words: val.preserve_important_words,
-            ..Default::default()
-        }
-    }
-}
-
-#[allow(clippy::redundant_closure, clippy::useless_conversion)]
-impl From<xberg::TokenReductionConfig> for TokenReductionConfig {
-    fn from(val: xberg::TokenReductionConfig) -> Self {
-        Self {
-            level: val.level.into(),
-            language_hint: val.language_hint.map(|v| v.to_string()),
-            preserve_markdown: val.preserve_markdown,
-            preserve_code: val.preserve_code,
-            semantic_threshold: val.semantic_threshold,
-            enable_parallel: val.enable_parallel,
-            use_simd: val.use_simd,
-            custom_stopwords: val.custom_stopwords.map(|m| m.into_iter().collect()),
-            preserve_patterns: val.preserve_patterns.into_iter().collect(),
-            target_reduction: val.target_reduction,
-            enable_semantic_clustering: val.enable_semantic_clustering,
-            preserve_important_words: val.preserve_important_words,
         }
     }
 }
@@ -15059,28 +14682,6 @@ impl From<xberg::ExtractedUri> for ExtractedUri {
     }
 }
 
-#[allow(clippy::needless_update)]
-impl From<DiffOptions> for xberg::DiffOptions {
-    fn from(val: DiffOptions) -> Self {
-        Self {
-            include_metadata: val.include_metadata,
-            include_embedded: val.include_embedded,
-            max_content_chars: val.max_content_chars,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<xberg::DiffOptions> for DiffOptions {
-    fn from(val: xberg::DiffOptions) -> Self {
-        Self {
-            include_metadata: val.include_metadata,
-            include_embedded: val.include_embedded,
-            max_content_chars: val.max_content_chars,
-        }
-    }
-}
-
 impl From<SparseEmbedding> for xberg::SparseEmbedding {
     fn from(val: SparseEmbedding) -> Self {
         Self {
@@ -15331,26 +14932,6 @@ impl From<xberg::PageSignals> for PageSignals {
             has_page_number_one_marker: val.has_page_number_one_marker,
             has_signature_block: val.has_signature_block,
             layout_text_density: val.layout_text_density,
-        }
-    }
-}
-
-#[allow(clippy::needless_update)]
-impl From<MultidocThresholds> for xberg::MultidocThresholds {
-    fn from(val: MultidocThresholds) -> Self {
-        Self {
-            density_shift_threshold: val.density_shift_threshold,
-            bigram_overlap_min: val.bigram_overlap_min,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<xberg::MultidocThresholds> for MultidocThresholds {
-    fn from(val: xberg::MultidocThresholds) -> Self {
-        Self {
-            density_shift_threshold: val.density_shift_threshold,
-            bigram_overlap_min: val.bigram_overlap_min,
         }
     }
 }
@@ -16604,31 +16185,6 @@ impl From<xberg::RerankerHead> for RerankerHead {
     }
 }
 
-impl From<RerankerModelType> for xberg::RerankerModelType {
-    fn from(val: RerankerModelType) -> Self {
-        match val {
-            RerankerModelType::Preset { name } => Self::Preset { name: name },
-            RerankerModelType::Custom {
-                model_id,
-                model_file,
-                additional_files,
-                max_length,
-                head,
-            } => Self::Custom {
-                model_id: model_id,
-                model_file: model_file,
-                additional_files: additional_files.into_iter().collect(),
-                max_length: max_length,
-                head: head.into(),
-            },
-            RerankerModelType::Llm { llm } => Self::Llm {
-                llm: Box::new(llm.into()),
-            },
-            RerankerModelType::Plugin { name } => Self::Plugin { name: name },
-        }
-    }
-}
-
 impl From<xberg::RerankerModelType> for RerankerModelType {
     fn from(val: xberg::RerankerModelType) -> Self {
         match val {
@@ -16764,18 +16320,6 @@ impl From<xberg::ProcessingStage> for ProcessingStage {
             xberg::ProcessingStage::Early => Self::Early,
             xberg::ProcessingStage::Middle => Self::Middle,
             xberg::ProcessingStage::Late => Self::Late,
-        }
-    }
-}
-
-impl From<ReductionLevel> for xberg::ReductionLevel {
-    fn from(val: ReductionLevel) -> Self {
-        match val {
-            ReductionLevel::Off => Self::Off,
-            ReductionLevel::Light => Self::Light,
-            ReductionLevel::Moderate => Self::Moderate,
-            ReductionLevel::Aggressive => Self::Aggressive,
-            ReductionLevel::Maximum => Self::Maximum,
         }
     }
 }
@@ -18933,13 +18477,6 @@ pub fn redaction_pattern_from_json(json: String) -> Result<RedactionPattern, Str
 }
 
 #[rustler::nif]
-pub fn reranker_config_from_json(json: String) -> Result<RerankerConfig, String> {
-    serde_json::from_str::<xberg::RerankerConfig>(&json)
-        .map(RerankerConfig::from)
-        .map_err(|e| e.to_string())
-}
-
-#[rustler::nif]
 pub fn sparse_embedding_config_from_json(json: String) -> Result<SparseEmbeddingConfig, String> {
     serde_json::from_str::<xberg::SparseEmbeddingConfig>(&json)
         .map(SparseEmbeddingConfig::from)
@@ -19013,13 +18550,6 @@ pub fn core_properties_from_json(json: String) -> Result<CoreProperties, String>
 pub fn security_limits_from_json(json: String) -> Result<SecurityLimits, String> {
     serde_json::from_str::<xberg::SecurityLimits>(&json)
         .map(SecurityLimits::from)
-        .map_err(|e| e.to_string())
-}
-
-#[rustler::nif]
-pub fn token_reduction_config_from_json(json: String) -> Result<TokenReductionConfig, String> {
-    serde_json::from_str::<xberg::TokenReductionConfig>(&json)
-        .map(TokenReductionConfig::from)
         .map_err(|e| e.to_string())
 }
 
@@ -19668,13 +19198,6 @@ pub fn extracted_uri_from_json(json: String) -> Result<ExtractedUri, String> {
 }
 
 #[rustler::nif]
-pub fn diff_options_from_json(json: String) -> Result<DiffOptions, String> {
-    serde_json::from_str::<xberg::DiffOptions>(&json)
-        .map(DiffOptions::from)
-        .map_err(|e| e.to_string())
-}
-
-#[rustler::nif]
 pub fn sparse_embedding_from_json(json: String) -> Result<SparseEmbedding, String> {
     serde_json::from_str::<xberg::SparseEmbedding>(&json)
         .map(SparseEmbedding::from)
@@ -19748,13 +19271,6 @@ pub fn page_range_from_json(json: String) -> Result<PageRange, String> {
 pub fn page_signals_from_json(json: String) -> Result<PageSignals, String> {
     serde_json::from_str::<xberg::PageSignals>(&json)
         .map(PageSignals::from)
-        .map_err(|e| e.to_string())
-}
-
-#[rustler::nif]
-pub fn multidoc_thresholds_from_json(json: String) -> Result<MultidocThresholds, String> {
-    serde_json::from_str::<xberg::MultidocThresholds>(&json)
-        .map(MultidocThresholds::from)
         .map_err(|e| e.to_string())
 }
 

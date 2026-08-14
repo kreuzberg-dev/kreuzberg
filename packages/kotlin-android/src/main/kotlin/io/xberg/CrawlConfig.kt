@@ -186,7 +186,7 @@ data class CrawlConfig(
      * `deny_private = true`. Enforce egress restrictions at the network layer for that
      * deployment target; do not rely on this field. See `crawlberg.net.validate_url`.
      */
-    val ssrf: SsrfPolicy = SsrfPolicy(),
+    val ssrf: SsrfPolicy,
     /**
      * Pins `SsrfPolicy.deny_private` to a caller-chosen value, bypassing the
      * `CRAWLBERG_ALLOW_PRIVATE_NETWORK` operator override entirely for this config.

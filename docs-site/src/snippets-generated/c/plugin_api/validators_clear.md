@@ -18,7 +18,7 @@ Clear all validators and verify list is empty
 #include "xberg.h"
 
 int main(void) {
-    xberg_();
+    xberg_clear_validators();
     return EXIT_SUCCESS;
 }
 

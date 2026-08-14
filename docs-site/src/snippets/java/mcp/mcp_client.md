@@ -7,7 +7,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.Map;
 
-public class McpClient {
+public class McpClient implements AutoCloseable {
     private final Process mcpProcess;
     private final BufferedWriter stdin;
     private final BufferedReader stdout;

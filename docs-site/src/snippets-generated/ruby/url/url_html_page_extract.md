@@ -12,5 +12,6 @@ extract: website URL returns page content
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: 'https://example.com'), { 'url' => { 'mode' => 'document' } })
+puts result.inspect
 
 ```

@@ -21,9 +21,7 @@ var result = await XbergConverter.ExtractAsync(new ExtractInput { Bytes = System
 }
 catch (Exception error)
 {
-    Console.Error.WriteLine($"Call failed as expected: {error.Message}");
-    return;
+    Console.Error.WriteLine($"{error.GetType().Name}: {error.Message}");
 }
-throw new InvalidOperationException("expected call to fail");
 
 ```

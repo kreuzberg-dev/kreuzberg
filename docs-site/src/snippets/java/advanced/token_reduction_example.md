@@ -5,13 +5,13 @@ import io.xberg.ExtractionResult;
 import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
-import io.xberg.TokenReductionConfig;
+import io.xberg.TokenReductionOptions;
 import java.util.Map;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .tokenReduction(TokenReductionConfig.builder()
-        .mode("moderate")
-        .preserveMarkdown(true)
+    .withTokenReduction(TokenReductionOptions.builder()
+        .withMode("moderate")
+        .withPreserveImportantWords(true)
         .build())
     .build();
 ExtractionResult output = Xberg.extract(
@@ -19,7 +19,9 @@ ExtractionResult output = Xberg.extract(
     config
 );
 ExtractedDocument result = output.results().get(0);
-Map<String, Object> metadata = result.metadata() != null ? result.metadata() : Map.of();
+Map<String, Object> metadata = result.metadata() != null && result.metadata().additional() != null
+    ? result.metadata().additional()
+    : Map.of();
 int original = metadata.containsKey("original_token_count")
     ? ((Number) metadata.get("original_token_count")).intValue()
     : 0;

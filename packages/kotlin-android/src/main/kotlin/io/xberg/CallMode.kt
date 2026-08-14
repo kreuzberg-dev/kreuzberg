@@ -27,13 +27,13 @@
 package io.xberg
 
 /**
-* How a structured-extraction preset is dispatched to the model.
-*
-* This is the preset-facing call mode (the `preferred_call_mode` field of a
-* `Preset`). The structured pipeline has a richer
-* runtime-only decision enum with skip and fallback states; this 3-variant
-* type is the stable, serializable surface presets and bindings depend on.
-*/
+ * How a structured-extraction preset is dispatched to the model.
+ *
+ * This is the preset-facing call mode (the `preferred_call_mode` field of a
+ * `Preset`). The structured pipeline has a richer
+ * runtime-only decision enum with skip and fallback states; this 3-variant
+ * type is the stable, serializable surface presets and bindings depend on.
+ */
 enum class CallMode {
     /** Use the extracted text only. */
     @com.fasterxml.jackson.annotation.JsonProperty("text_only") TEXT_ONLY,
@@ -44,21 +44,21 @@ enum class CallMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TEXT_ONLY -> "text_only"
-        VISION_ONLY -> "vision_only"
-        TEXT_PLUS_VISION -> "text_plus_vision"
-    }
+        when (this) {
+            TEXT_ONLY -> "text_only"
+            VISION_ONLY -> "vision_only"
+            TEXT_PLUS_VISION -> "text_plus_vision"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): CallMode =
-        when (value) {
-            "text_only" -> TEXT_ONLY
-            "vision_only" -> VISION_ONLY
-            "text_plus_vision" -> TEXT_PLUS_VISION
-            else -> throw IllegalArgumentException("Unknown CallMode value: $value")
-        }
+            when (value) {
+                "text_only" -> TEXT_ONLY
+                "vision_only" -> VISION_ONLY
+                "text_plus_vision" -> TEXT_PLUS_VISION
+                else -> throw IllegalArgumentException("Unknown CallMode value: $value")
+            }
     }
 }

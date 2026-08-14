@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// An image manipulation operation (resize, decode, DPI conversion) failed.
 /// </summary>
-public class ImageProcessingException : XbergErrorException {
-  public ImageProcessingException(string message) : base(message) {}
+public class ImageProcessingException : XbergErrorException
+{
+    public ImageProcessingException(string message) : base(message) { }
 
-  public ImageProcessingException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ImageProcessingException(string message, Exception innerException) : base(message, innerException) { }
 }

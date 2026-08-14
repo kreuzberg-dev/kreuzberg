@@ -25,11 +25,9 @@ var input = JsonUtil.fromJson(inputJson, ExtractInput.class);
 var config = JsonUtil.fromJson(configJson, ExtractionConfig.class);
         var result = Xberg.extract(input, config);
         System.out.println(result.error());
-        } catch (Exception error) {
-            System.err.println("Call failed as expected: " + error.getMessage());
-            return;
+        } catch (XbergException error) {
+            System.err.println(error.getClass().getSimpleName() + ": " + error.getMessage());
         }
-        throw new AssertionError("expected call to fail");
     }
 }
 

@@ -12,5 +12,6 @@ Tests keyword extraction via YAKE algorithm
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: 'https://example.com/pdf/fake_memo.pdf'), { 'keywords' => { 'algorithm' => 'yake', 'max_keywords' => 10 } })
+puts result.inspect
 
 ```

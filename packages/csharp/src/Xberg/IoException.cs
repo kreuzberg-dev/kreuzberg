@@ -6,12 +6,11 @@ using System;
 namespace Xberg;
 
 /// <summary>
-/// A file system or I/O operation failed. These errors always bubble up
-/// unchanged.
+/// A file system or I/O operation failed. These errors always bubble up unchanged.
 /// </summary>
-public class IoException : XbergErrorException {
-  public IoException(string message) : base(message) {}
+public class IoException : XbergErrorException
+{
+    public IoException(string message) : base(message) { }
 
-  public IoException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public IoException(string message, Exception innerException) : base(message, innerException) { }
 }

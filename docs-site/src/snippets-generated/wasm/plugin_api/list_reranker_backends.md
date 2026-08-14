@@ -13,6 +13,7 @@ List all registered reranker backends
 import { listRerankerBackends } from "@xberg-io/xberg-wasm";
 function main() {
   const result = listRerankerBackends();
+  console.log(result);
 }
 
 void main();

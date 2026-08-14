@@ -14,6 +14,7 @@ import { ExtractInput, ExtractInputKind, extract } from "@xberg-io/xberg";
 async function main() {
   const input: ExtractInput = { kind: ExtractInputKind.Uri, mimeType: "text/x-source-code", uri: "https://example.com/code/script.sh" };
   const result = await extract(input, undefined);
+  console.log(result);
 }
 
 void main();

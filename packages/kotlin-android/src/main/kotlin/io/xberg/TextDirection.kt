@@ -37,21 +37,21 @@ enum class TextDirection {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        LEFT_TO_RIGHT -> "ltr"
-        RIGHT_TO_LEFT -> "rtl"
-        AUTO -> "auto"
-    }
+        when (this) {
+            LEFT_TO_RIGHT -> "ltr"
+            RIGHT_TO_LEFT -> "rtl"
+            AUTO -> "auto"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): TextDirection =
-        when (value) {
-            "ltr" -> LEFT_TO_RIGHT
-            "rtl" -> RIGHT_TO_LEFT
-            "auto" -> AUTO
-            else -> throw IllegalArgumentException("Unknown TextDirection value: $value")
-        }
+            when (value) {
+                "ltr" -> LEFT_TO_RIGHT
+                "rtl" -> RIGHT_TO_LEFT
+                "auto" -> AUTO
+                else -> throw IllegalArgumentException("Unknown TextDirection value: $value")
+            }
     }
 }

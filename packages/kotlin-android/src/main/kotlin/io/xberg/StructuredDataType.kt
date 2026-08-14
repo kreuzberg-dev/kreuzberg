@@ -37,21 +37,21 @@ enum class StructuredDataType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        JSON_LD -> "json-ld"
-        MICRODATA -> "microdata"
-        R_D_FA -> "rdfa"
-    }
+        when (this) {
+            JSON_LD -> "json-ld"
+            MICRODATA -> "microdata"
+            R_D_FA -> "rdfa"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): StructuredDataType =
-        when (value) {
-            "json-ld" -> JSON_LD
-            "microdata" -> MICRODATA
-            "rdfa" -> R_D_FA
-            else -> throw IllegalArgumentException("Unknown StructuredDataType value: $value")
-        }
+            when (value) {
+                "json-ld" -> JSON_LD
+                "microdata" -> MICRODATA
+                "rdfa" -> R_D_FA
+                else -> throw IllegalArgumentException("Unknown StructuredDataType value: $value")
+            }
     }
 }

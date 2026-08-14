@@ -6,14 +6,13 @@ import io.xberg.ExtractedDocument;
 import io.xberg.ExtractionConfig;
 import io.xberg.ExtractInput;
 import io.xberg.LanguageDetectionConfig;
-import java.math.BigDecimal;
 import java.util.List;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .languageDetection(LanguageDetectionConfig.builder()
-        .enabled(true)
-        .minConfidence(new BigDecimal("0.8"))
-        .detectMultiple(true)
+    .withLanguageDetection(LanguageDetectionConfig.builder()
+        .withEnabled(true)
+        .withMinConfidence(0.8)
+        .withDetectMultiple(true)
         .build())
     .build();
 try {

@@ -20,47 +20,47 @@ import kotlinx.coroutines.runBlocking
  */
 class DocumentExtractorJniDispatcher(private val impl: IDocumentExtractor) {
     private val mapper = jacksonObjectMapper()
-    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
 
     /** JSON array of the Rust-side names of the methods this host provides. */
     fun implementedMethods(): String =
-    mapper.writeValueAsString(
-        listOf(
-            "extract",
-            "supported_mime_types",
-            "priority",
-            "can_handle",
-            "name",
-            "version",
-            "initialize",
-            "shutdown",
-        ),
-    )
+        mapper.writeValueAsString(
+            listOf(
+                "extract",
+                "supported_mime_types",
+                "priority",
+                "can_handle",
+                "name",
+                "version",
+                "initialize",
+                "shutdown",
+            ),
+        )
 
     @Suppress("UNUSED_PARAMETER", "CyclomaticComplexMethod")
     fun dispatch(method: String, argsJson: String): String =
-    try {
-        val args = mapper.readTree(argsJson)
-        val result: Any? =
-        when (method) {
-            "extract" -> runBlocking { impl.extract(mapper.convertValue(args.get("input"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractInput>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {})) }
-            "supported_mime_types" -> impl.supportedMimeTypes()
-            "priority" -> impl.priority()
-            "can_handle" -> impl.canHandle(mapper.convertValue(args.get("_path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("_mime_type"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}))
-            "name" -> impl.name()
-            "version" -> impl.version()
-            "initialize" -> {
-                impl.initialize()
-                null
-            }
-            "shutdown" -> {
-                impl.shutdown()
-                null
-            }
-            else -> throw IllegalArgumentException("unknown trait method: $method")
+        try {
+            val args = mapper.readTree(argsJson)
+            val result: Any? =
+                when (method) {
+                    "extract" -> runBlocking { impl.extract(mapper.convertValue(args.get("input"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractInput>() {}), mapper.convertValue(args.get("config"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractionConfig>() {})) }
+                    "supported_mime_types" -> impl.supportedMimeTypes()
+                    "priority" -> impl.priority()
+                    "can_handle" -> impl.canHandle(mapper.convertValue(args.get("_path"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}), mapper.convertValue(args.get("_mime_type"), object : com.fasterxml.jackson.core.type.TypeReference<String>() {}))
+                    "name" -> impl.name()
+                    "version" -> impl.version()
+                    "initialize" -> {
+                        impl.initialize()
+                        null
+                    }
+                    "shutdown" -> {
+                        impl.shutdown()
+                        null
+                    }
+                    else -> throw IllegalArgumentException("unknown trait method: $method")
+                }
+            mapper.writeValueAsString(mapOf("ok" to result))
+        } catch (t: Throwable) {
+            mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
         }
-        mapper.writeValueAsString(mapOf("ok" to result))
-    } catch (t: Throwable) {
-        mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
-    }
 }

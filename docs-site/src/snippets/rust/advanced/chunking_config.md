@@ -6,6 +6,7 @@ let config = ExtractionConfig {
         max_characters: 1000,
         overlap: 200,
         embedding: None,
+        ..Default::default()
     }),
     ..Default::default()
 };

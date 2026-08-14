@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// An internal `Mutex` or `RwLock` was found in a poisoned state.
 /// </summary>
-public class LockPoisonedException : XbergErrorException {
-  public LockPoisonedException(string message) : base(message) {}
+public class LockPoisonedException : XbergErrorException
+{
+    public LockPoisonedException(string message) : base(message) { }
 
-  public LockPoisonedException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public LockPoisonedException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -139,6 +139,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      # `alef verify` hashes the same alef.toml [[crates.source_crates]] entries
+      # the e2e-freshness job below does, and those point at sibling polyrepo
+      # checkouts. Without them it dies on `failed to compute sources hash:
+      # failed to stat source ../html-to-markdown/...` before comparing anything,
+      # so its red said nothing about whether the bindings are current. The refs
+      # come from Cargo.lock for the same reason they do below: hashing newer
+      # sources than the code compiled against would go red for a change nobody
+      # made. ~keep
+      - name: Resolve sibling crate versions from Cargo.lock
+        id: siblings
+        run: |
+          set -euo pipefail
+          crawlberg="$(awk '/^name = "crawlberg"$/{getline; gsub(/[^0-9.]/,""); print; exit}' Cargo.lock)"
+          html_to_markdown="$(awk '/^name = "html-to-markdown-rs"$/{getline; gsub(/[^0-9.]/,""); print; exit}' Cargo.lock)"
+          if [ -z "$crawlberg" ] || [ -z "$html_to_markdown" ]; then
+            echo "::error::could not resolve sibling crate versions from Cargo.lock"
+            exit 1
+          fi
+          echo "crawlberg=v$crawlberg" >>"$GITHUB_OUTPUT"
+          echo "html_to_markdown=v$html_to_markdown" >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          repository: xberg-io/crawlberg
+          ref: ${{ steps.siblings.outputs.crawlberg }}
+          path: .polyrepo-siblings/crawlberg
+      - uses: actions/checkout@v6
+        with:
+          repository: xberg-io/html-to-markdown
+          ref: ${{ steps.siblings.outputs.html_to_markdown }}
+          path: .polyrepo-siblings/html-to-markdown
+      - name: Place sibling checkouts where alef.toml expects them
+        run: |
+          mv .polyrepo-siblings/crawlberg ../crawlberg
+          mv .polyrepo-siblings/html-to-markdown ../html-to-markdown
+          rmdir .polyrepo-siblings
       - name: Install Task
         uses: xberg-io/actions/install-task@v1
       # install-alef reads alef.toml's [workspace] alef_version and installs that
@@ -146,6 +181,10 @@ jobs:
       # release -- same hermeticity guarantee install-task gives the Task binary. ~keep
       - name: Install alef CLI
         uses: xberg-io/actions/install-alef@v1
+        # alef is a third-party tool. The job-wide `-D warnings` turns its own
+        # lint warnings into build errors, which has no bearing on this repo. ~keep
+        env:
+          RUSTFLAGS: ""
       # `alef verify` (aliased as `task alef:verify`) is a purpose-built freshness
       # check: it recomputes each generated file's expected hash from the current
       # Rust source and compares it to what's committed, without writing any files
@@ -212,6 +251,10 @@ jobs:
         uses: xberg-io/actions/install-task@v1
       - name: Install alef CLI
         uses: xberg-io/actions/install-alef@v1
+        # alef is a third-party tool. The job-wide `-D warnings` turns its own
+        # lint warnings into build errors, which has no bearing on this repo. ~keep
+        env:
+          RUSTFLAGS: ""
       # Unlike the alef-bindings-freshness job above, this one genuinely needs
       # poly: `alef e2e generate` shells out to poly to format the output it
       # just generated, and aborts with `ERROR poly not found on PATH;
@@ -239,6 +282,10 @@ jobs:
         uses: xberg-io/actions/install-task@v1
       - name: Install alef CLI
         uses: xberg-io/actions/install-alef@v1
+        # alef is a third-party tool. The job-wide `-D warnings` turns its own
+        # lint warnings into build errors, which has no bearing on this repo. ~keep
+        env:
+          RUSTFLAGS: ""
       # `task docs:snippets:all` (audit + gaps + syntax-validate) is described
       # as the "canonical docs:snippets gate" in .task/tools/docs.yml, but
       # nothing invoked it -- a broken or orphaned snippet could land
@@ -249,6 +296,12 @@ jobs:
   validate:
     uses: xberg-io/actions/.github/workflows/reusable-validate.yml@v1
     with:
+      # Left empty, the reusable workflow asks the GitHub API for the newest poly
+      # release on every run, and a rate-limited or failed request kills the job
+      # with `failed to resolve latest poly release from the GitHub API` before it
+      # lints anything. Pinning skips that request. It also stops a poly release
+      # from changing what this gate enforces without a commit here. ~keep
+      poly-version: "v0.21.0"
       setup-rust: true
       # poly's cargo-clippy hook builds the whole workspace, and
       # tools/benchmark-harness depends on xberg with `full`, which pulls

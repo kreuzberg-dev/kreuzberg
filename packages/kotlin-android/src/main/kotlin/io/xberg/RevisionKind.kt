@@ -39,23 +39,23 @@ enum class RevisionKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        INSERTION -> "insertion"
-        DELETION -> "deletion"
-        FORMAT_CHANGE -> "format_change"
-        COMMENT -> "comment"
-    }
+        when (this) {
+            INSERTION -> "insertion"
+            DELETION -> "deletion"
+            FORMAT_CHANGE -> "format_change"
+            COMMENT -> "comment"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): RevisionKind =
-        when (value) {
-            "insertion" -> INSERTION
-            "deletion" -> DELETION
-            "format_change" -> FORMAT_CHANGE
-            "comment" -> COMMENT
-            else -> throw IllegalArgumentException("Unknown RevisionKind value: $value")
-        }
+            when (value) {
+                "insertion" -> INSERTION
+                "deletion" -> DELETION
+                "format_change" -> FORMAT_CHANGE
+                "comment" -> COMMENT
+                else -> throw IllegalArgumentException("Unknown RevisionKind value: $value")
+            }
     }
 }

@@ -12,5 +12,6 @@ List all registered OCR backends
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.list_ocr_backends()
+puts result.inspect
 
 ```

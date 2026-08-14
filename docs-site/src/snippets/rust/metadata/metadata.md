@@ -1,30 +1,33 @@
 ```rust title="Rust"
-use xberg::{extract, ExtractionConfig, ExtractInput};
+use xberg::{extract, ExtractionConfig, ExtractInput, FormatMetadata};
 
 #[tokio::main]
 async fn main() -> xberg::Result<()> {
     let output = extract(ExtractInput::from_uri("document.pdf"), &ExtractionConfig::default()).await?;
     let result = &output.results[0];
 
-    if let Some(pdf_meta) = result.metadata.pdf {
+    // Common bibliographic fields live on `Metadata` directly.
+    if let Some(title) = &result.metadata.title {
+        println!("Title: {}", title);
+    }
+    if let Some(authors) = &result.metadata.authors {
+        println!("Author: {}", authors.join(", "));
+    }
+
+    // Format-specific fields are behind the `FormatMetadata` discriminated union.
+    if let Some(FormatMetadata::Pdf(pdf_meta)) = &result.metadata.format {
         if let Some(pages) = pdf_meta.page_count {
             println!("Pages: {}", pages);
-        }
-        if let Some(author) = pdf_meta.author {
-            println!("Author: {}", author);
-        }
-        if let Some(title) = pdf_meta.title {
-            println!("Title: {}", title);
         }
     }
 
     let html_output = extract(ExtractInput::from_uri("page.html"), &ExtractionConfig::default()).await?;
     let html_result = &html_output.results[0];
-    if let Some(html_meta) = html_result.metadata.html {
-        if let Some(title) = html_meta.title {
+    if let Some(FormatMetadata::Html(html_meta)) = &html_result.metadata.format {
+        if let Some(title) = &html_meta.title {
             println!("Title: {}", title);
         }
-        if let Some(desc) = html_meta.description {
+        if let Some(desc) = &html_meta.description {
             println!("Description: {}", desc);
         }
 
@@ -32,7 +35,7 @@ async fn main() -> xberg::Result<()> {
         println!("Keywords: {:?}", html_meta.keywords);
 
         // Access canonical URL (renamed from canonical)
-        if let Some(canonical) = html_meta.canonical_url {
+        if let Some(canonical) = &html_meta.canonical_url {
             println!("Canonical URL: {}", canonical);
         }
 
@@ -50,7 +53,7 @@ async fn main() -> xberg::Result<()> {
         }
 
         // Access new fields
-        if let Some(lang) = html_meta.language {
+        if let Some(lang) = &html_meta.language {
             println!("Language: {}", lang);
         }
 

@@ -12,5 +12,6 @@ Smoke test: JSON file extraction
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/json', uri: 'https://example.com/json/simple.json'), {  })
+puts result.inspect
 
 ```

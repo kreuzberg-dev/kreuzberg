@@ -1,8 +1,7 @@
 ```rust title="Rust"
 use xberg::plugins::{DocumentExtractor, Plugin};
-use xberg::{Result, ExtractedDocument, ExtractionConfig, Metadata};
+use xberg::{Result, ExtractedDocument, ExtractInput, ExtractionConfig};
 use async_trait::async_trait;
-use std::path::Path;
 
 struct CustomJsonExtractor;
 
@@ -17,22 +16,17 @@ impl Plugin for CustomJsonExtractor {
 impl DocumentExtractor for CustomJsonExtractor {
     async fn extract(
         &self,
-        content: &[u8],
-        _mime_type: &str,
+        input: ExtractInput,
         _config: &ExtractionConfig,
     ) -> Result<ExtractedDocument> {
-        let json: serde_json::Value = serde_json::from_slice(content)?;
+        let bytes = input.bytes.unwrap_or_default();
+        let json: serde_json::Value = serde_json::from_slice(&bytes)?;
         let text = extract_text_from_json(&json);
 
-        Ok(ExtractedDocument {
-            content: text,
-            mime_type: "application/json".to_string(),
-            metadata: Metadata::default(),
-            tables: vec![],
-            detected_languages: None,
-            chunks: None,
-            images: None,
-        })
+        let mut document = ExtractedDocument::default();
+        document.content = text;
+        document.mime_type = "application/json".into();
+        Ok(document)
     }
 
     fn supported_mime_types(&self) -> &[&str] {

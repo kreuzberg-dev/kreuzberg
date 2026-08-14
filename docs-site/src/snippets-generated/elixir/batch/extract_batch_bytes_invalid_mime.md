@@ -11,5 +11,6 @@ extract_batch with invalid bytes MIME type
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([%{"bytes" => [72, 101, 108, 108, 111], "kind" => "bytes", "mime_type" => "application/x-nonexistent"}])
+IO.inspect(result)
 
 ```

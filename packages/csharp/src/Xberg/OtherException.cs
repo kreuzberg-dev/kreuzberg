@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// A catch-all for uncommon errors that do not fit another variant.
 /// </summary>
-public class OtherException : XbergErrorException {
-  public OtherException(string message) : base(message) {}
+public class OtherException : XbergErrorException
+{
+    public OtherException(string message) : base(message) { }
 
-  public OtherException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public OtherException(string message, Exception innerException) : base(message, innerException) { }
 }

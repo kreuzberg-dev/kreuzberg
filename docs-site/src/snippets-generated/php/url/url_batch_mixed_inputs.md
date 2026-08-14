@@ -21,5 +21,6 @@ use Xberg\ExtractInput;
 use Xberg\ExtractionConfig;
 $config = \Xberg\ExtractionConfig::from_json(json_encode(["url" => ["mode" => "document"]]));
 $result = Xberg::extractBatch([ExtractInput::from_json('{"kind":"uri","uri":"https://example.com"}'), ExtractInput::from_json('{"bytes":[66,97,116,99,104,32,98,121,116,101,115,32,99,111,110,116,101,110,116],"filename":"inline.txt","kind":"bytes","mime_type":"text/plain"}')], $config);
+var_dump($result);
 
 ```

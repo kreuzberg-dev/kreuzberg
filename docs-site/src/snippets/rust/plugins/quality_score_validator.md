@@ -1,4 +1,17 @@
 ```rust title="Rust"
+use xberg::plugins::{Plugin, Validator};
+use xberg::{ExtractedDocument, ExtractionConfig, Result, XbergError};
+use async_trait::async_trait;
+
+struct QualityValidator;
+
+impl Plugin for QualityValidator {
+    fn name(&self) -> &str { "quality-validator" }
+    fn version(&self) -> String { "1.0.0".to_string() }
+    fn initialize(&self) -> Result<()> { Ok(()) }
+    fn shutdown(&self) -> Result<()> { Ok(()) }
+}
+
 #[async_trait]
 impl Validator for QualityValidator {
     async fn validate(

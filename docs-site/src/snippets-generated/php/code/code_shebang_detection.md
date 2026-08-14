@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "mimeType" => "text/x-source-code", "uri" => "https://example.com/code/script.sh"]));
 $result = Xberg::extract($input, null);
+var_dump($result);
 
 ```

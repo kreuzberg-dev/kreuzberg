@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The file is not valid JSON.
 /// </summary>
-public class ParseException : LoadErrorException {
-  public ParseException(string message) : base(message) {}
+public class ParseException : LoadErrorException
+{
+    public ParseException(string message) : base(message) { }
 
-  public ParseException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public ParseException(string message, Exception innerException) : base(message, innerException) { }
 }

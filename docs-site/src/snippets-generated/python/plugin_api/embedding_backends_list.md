@@ -13,7 +13,8 @@ List all registered embedding backends
 from xberg import list_embedding_backends
 
 def main() -> None:
-    _ = list_embedding_backends()
+    list_embedding_backends()
+    print(result)
 
 main()
 

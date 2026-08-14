@@ -53,48 +53,48 @@ enum class PSMMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        OSD_ONLY -> "OsdOnly"
-        AUTO_OSD -> "AutoOsd"
-        AUTO_ONLY -> "AutoOnly"
-        AUTO -> "Auto"
-        SINGLE_COLUMN -> "SingleColumn"
-        SINGLE_BLOCK_VERTICAL -> "SingleBlockVertical"
-        SINGLE_BLOCK -> "SingleBlock"
-        SINGLE_LINE -> "SingleLine"
-        SINGLE_WORD -> "SingleWord"
-        CIRCLE_WORD -> "CircleWord"
-        SINGLE_CHAR -> "SingleChar"
-    }
+        when (this) {
+            OSD_ONLY -> "OsdOnly"
+            AUTO_OSD -> "AutoOsd"
+            AUTO_ONLY -> "AutoOnly"
+            AUTO -> "Auto"
+            SINGLE_COLUMN -> "SingleColumn"
+            SINGLE_BLOCK_VERTICAL -> "SingleBlockVertical"
+            SINGLE_BLOCK -> "SingleBlock"
+            SINGLE_LINE -> "SingleLine"
+            SINGLE_WORD -> "SingleWord"
+            CIRCLE_WORD -> "CircleWord"
+            SINGLE_CHAR -> "SingleChar"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): PSMMode =
-        when (value) {
-            "OsdOnly",
-            "osdonly" -> OSD_ONLY
-            "AutoOsd",
-            "autoosd" -> AUTO_OSD
-            "AutoOnly",
-            "autoonly" -> AUTO_ONLY
-            "Auto",
-            "auto" -> AUTO
-            "SingleColumn",
-            "singlecolumn" -> SINGLE_COLUMN
-            "SingleBlockVertical",
-            "singleblockvertical" -> SINGLE_BLOCK_VERTICAL
-            "SingleBlock",
-            "singleblock" -> SINGLE_BLOCK
-            "SingleLine",
-            "singleline" -> SINGLE_LINE
-            "SingleWord",
-            "singleword" -> SINGLE_WORD
-            "CircleWord",
-            "circleword" -> CIRCLE_WORD
-            "SingleChar",
-            "singlechar" -> SINGLE_CHAR
-            else -> throw IllegalArgumentException("Unknown PSMMode value: $value")
-        }
+            when (value) {
+                "OsdOnly",
+                "osdonly" -> OSD_ONLY
+                "AutoOsd",
+                "autoosd" -> AUTO_OSD
+                "AutoOnly",
+                "autoonly" -> AUTO_ONLY
+                "Auto",
+                "auto" -> AUTO
+                "SingleColumn",
+                "singlecolumn" -> SINGLE_COLUMN
+                "SingleBlockVertical",
+                "singleblockvertical" -> SINGLE_BLOCK_VERTICAL
+                "SingleBlock",
+                "singleblock" -> SINGLE_BLOCK
+                "SingleLine",
+                "singleline" -> SINGLE_LINE
+                "SingleWord",
+                "singleword" -> SINGLE_WORD
+                "CircleWord",
+                "circleword" -> CIRCLE_WORD
+                "SingleChar",
+                "singlechar" -> SINGLE_CHAR
+                else -> throw IllegalArgumentException("Unknown PSMMode value: $value")
+            }
     }
 }

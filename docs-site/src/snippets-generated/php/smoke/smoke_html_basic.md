@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "mimeType" => "text/html", "uri" => "https://example.com/html/simple_table.html"]));
 $result = Xberg::extract($input, []);
+var_dump($result);
 
 ```

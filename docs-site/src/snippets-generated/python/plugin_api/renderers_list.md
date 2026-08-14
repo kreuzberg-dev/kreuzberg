@@ -13,7 +13,8 @@ List all registered renderers
 from xberg import list_renderers
 
 def main() -> None:
-    _ = list_renderers()
+    list_renderers()
+    print(result)
 
 main()
 

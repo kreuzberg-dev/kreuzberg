@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* ONNX Runtime execution provider type.
-*
-* Determines which hardware backend is used for model inference.
-* `Auto` (default) selects the best available provider per platform.
-*/
+ * ONNX Runtime execution provider type.
+ *
+ * Determines which hardware backend is used for model inference.
+ * `Auto` (default) selects the best available provider per platform.
+ */
 enum class ExecutionProviderType {
     /** Auto-select: CoreML on macOS, CUDA on Linux, CPU elsewhere. */
     @com.fasterxml.jackson.annotation.JsonProperty("auto") AUTO,
@@ -46,25 +46,25 @@ enum class ExecutionProviderType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        AUTO -> "auto"
-        CPU -> "cpu"
-        CORE_ML -> "coreml"
-        CUDA -> "cuda"
-        TENSOR_RT -> "tensorrt"
-    }
+        when (this) {
+            AUTO -> "auto"
+            CPU -> "cpu"
+            CORE_ML -> "coreml"
+            CUDA -> "cuda"
+            TENSOR_RT -> "tensorrt"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ExecutionProviderType =
-        when (value) {
-            "auto" -> AUTO
-            "cpu" -> CPU
-            "coreml" -> CORE_ML
-            "cuda" -> CUDA
-            "tensorrt" -> TENSOR_RT
-            else -> throw IllegalArgumentException("Unknown ExecutionProviderType value: $value")
-        }
+            when (value) {
+                "auto" -> AUTO
+                "cpu" -> CPU
+                "coreml" -> CORE_ML
+                "cuda" -> CUDA
+                "tensorrt" -> TENSOR_RT
+                else -> throw IllegalArgumentException("Unknown ExecutionProviderType value: $value")
+            }
     }
 }

@@ -27,21 +27,21 @@
 package io.xberg
 
 /**
-* Controls how markdown tables are handled when they exceed the chunk size limit.
-*
-* Only applies when `chunker_type` is `Markdown`.
-*
-* # Variants
-*
-* - `Split` - Default behavior: tables are split at row boundaries like any
-*   other block element. Continuation chunks contain only data rows without
-*   the header, which can break downstream consumers that need column context.
-*
-* - `RepeatHeader` - Prepend the table header (header row + separator row) to
-*   every continuation chunk that contains data rows from the same table.
-*   Adds a small amount of duplicate text but ensures each chunk is
-*   self-contained for extraction, search, and LLM consumption.
-*/
+ * Controls how markdown tables are handled when they exceed the chunk size limit.
+ *
+ * Only applies when `chunker_type` is `Markdown`.
+ *
+ * # Variants
+ *
+ * - `Split` - Default behavior: tables are split at row boundaries like any
+ *   other block element. Continuation chunks contain only data rows without
+ *   the header, which can break downstream consumers that need column context.
+ *
+ * - `RepeatHeader` - Prepend the table header (header row + separator row) to
+ *   every continuation chunk that contains data rows from the same table.
+ *   Adds a small amount of duplicate text but ensures each chunk is
+ *   self-contained for extraction, search, and LLM consumption.
+ */
 enum class TableChunkingMode {
     /** Split tables at row boundaries (default). Continuation chunks have no header. */
     @com.fasterxml.jackson.annotation.JsonProperty("split") SPLIT,
@@ -50,19 +50,19 @@ enum class TableChunkingMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        SPLIT -> "split"
-        REPEAT_HEADER -> "repeat_header"
-    }
+        when (this) {
+            SPLIT -> "split"
+            REPEAT_HEADER -> "repeat_header"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): TableChunkingMode =
-        when (value) {
-            "split" -> SPLIT
-            "repeat_header" -> REPEAT_HEADER
-            else -> throw IllegalArgumentException("Unknown TableChunkingMode value: $value")
-        }
+            when (value) {
+                "split" -> SPLIT
+                "repeat_header" -> REPEAT_HEADER
+                else -> throw IllegalArgumentException("Unknown TableChunkingMode value: $value")
+            }
     }
 }

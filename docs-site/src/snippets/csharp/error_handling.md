@@ -3,7 +3,7 @@ using Xberg;
 
 try
 {
-    var result = (await XbergConverter.ExtractAsync(ExtractInput.FromUri("missing.pdf"), ExtractionConfig.Default())).Results[0];
+    var result = (await XbergConverter.ExtractAsync(ExtractInput.FromUri("missing.pdf"), new ExtractionConfig())).Results[0];
     Console.WriteLine(result.Content);
 }
 catch (ValidationException ex)

@@ -5,14 +5,11 @@ import io.xberg.EmbeddingModelType;
 import io.xberg.ExtractionConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .chunking(ChunkingConfig.builder()
-        .maxChars(1500)
-        .maxOverlap(200)
-        .embedding(EmbeddingConfig.builder()
-            .model(EmbeddingModelType.builder()
-                .type("preset")
-                .name("text-embedding-all-minilm-l6-v2")
-                .build())
+    .withChunking(ChunkingConfig.builder()
+        .withMaxCharacters(1500L)
+        .withOverlap(200L)
+        .withEmbedding(EmbeddingConfig.builder()
+            .withModel(new EmbeddingModelType.Preset("text-embedding-all-minilm-l6-v2"))
             .build())
         .build())
     .build();

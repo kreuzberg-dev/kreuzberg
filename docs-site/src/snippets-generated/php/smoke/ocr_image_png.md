@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["bytes" => "test_documents/images/test_hello_world.png", "config" => [], "filename" => "test_hello_world.png", "kind" => "bytes", "mimeType" => "image/png"]));
 $result = Xberg::extract($input, []);
+var_dump($result);
 
 ```

@@ -13,6 +13,7 @@ extract_batch with invalid bytes MIME type
 import { extractBatch } from "@xberg-io/xberg";
 async function main() {
   const result = await extractBatch([{ bytes: [72, 101, 108, 108, 111], kind: "bytes", mimeType: "application/x-nonexistent" }], undefined);
+  console.log(result);
 }
 
 void main();

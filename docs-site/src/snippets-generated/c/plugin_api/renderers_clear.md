@@ -18,7 +18,7 @@ Clear all renderers and verify list is empty
 #include "xberg.h"
 
 int main(void) {
-    xberg_();
+    xberg_clear_renderers();
     return EXIT_SUCCESS;
 }
 

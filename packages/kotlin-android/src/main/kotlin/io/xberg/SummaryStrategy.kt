@@ -42,19 +42,19 @@ enum class SummaryStrategy {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        EXTRACTIVE -> "extractive"
-        ABSTRACTIVE -> "abstractive"
-    }
+        when (this) {
+            EXTRACTIVE -> "extractive"
+            ABSTRACTIVE -> "abstractive"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): SummaryStrategy =
-        when (value) {
-            "extractive" -> EXTRACTIVE
-            "abstractive" -> ABSTRACTIVE
-            else -> throw IllegalArgumentException("Unknown SummaryStrategy value: $value")
-        }
+            when (value) {
+                "extractive" -> EXTRACTIVE
+                "abstractive" -> ABSTRACTIVE
+                else -> throw IllegalArgumentException("Unknown SummaryStrategy value: $value")
+            }
     }
 }

@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["bytes" => "test_documents/pdf/fake_memo.pdf", "filename" => "fake_memo.pdf", "kind" => "bytes"]));
 $result = Xberg::extract($input, null);
+var_dump($result);
 
 ```

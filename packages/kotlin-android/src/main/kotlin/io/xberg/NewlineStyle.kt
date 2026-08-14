@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Line break syntax in Markdown output.
-*
-* Controls how soft line breaks (from `<br>` or line breaks in source) are rendered.
-*/
+ * Line break syntax in Markdown output.
+ *
+ * Controls how soft line breaks (from `<br>` or line breaks in source) are rendered.
+ */
 enum class NewlineStyle {
     /** Two trailing spaces at end of line. Default. Standard Markdown syntax. */
     @com.fasterxml.jackson.annotation.JsonProperty("Spaces") SPACES,
@@ -39,21 +39,21 @@ enum class NewlineStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        SPACES -> "Spaces"
-        BACKSLASH -> "Backslash"
-    }
+        when (this) {
+            SPACES -> "Spaces"
+            BACKSLASH -> "Backslash"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): NewlineStyle =
-        when (value) {
-            "Spaces",
-            "spaces" -> SPACES
-            "Backslash",
-            "backslash" -> BACKSLASH
-            else -> throw IllegalArgumentException("Unknown NewlineStyle value: $value")
-        }
+            when (value) {
+                "Spaces",
+                "spaces" -> SPACES
+                "Backslash",
+                "backslash" -> BACKSLASH
+                else -> throw IllegalArgumentException("Unknown NewlineStyle value: $value")
+            }
     }
 }

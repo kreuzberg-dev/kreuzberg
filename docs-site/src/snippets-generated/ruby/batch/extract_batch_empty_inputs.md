@@ -12,5 +12,6 @@ extract_batch: empty batch
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract_batch([])
+puts result.inspect
 
 ```

@@ -18,7 +18,7 @@ unregister_tokenizer_backend
 #include "xberg.h"
 
 int main(void) {
-    xberg_("test-tokenizer-backend");
+    xberg_unregister_tokenizer_backend("test-tokenizer-backend");
     return EXIT_SUCCESS;
 }
 

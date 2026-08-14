@@ -10,8 +10,10 @@ side_effect: safe
 List all registered reranker backends
 
 ```csharp title="C#"
+using System;
 using Xberg;
 
 var result = XbergConverter.ListRerankerBackends();
+Console.WriteLine(result);
 
 ```

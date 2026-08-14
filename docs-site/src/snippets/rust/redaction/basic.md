@@ -5,20 +5,24 @@ use xberg::{
     types::redaction::PiiCategory,
 };
 
-let mut categories = HashSet::new();
-categories.insert(PiiCategory::Email);
-categories.insert(PiiCategory::Phone);
-categories.insert(PiiCategory::Ssn);
-categories.insert(PiiCategory::CreditCard);
-categories.insert(PiiCategory::Iban);
+#[tokio::main]
+async fn main() -> xberg::Result<()> {
+    let mut categories = HashSet::new();
+    categories.insert(PiiCategory::Email);
+    categories.insert(PiiCategory::Phone);
+    categories.insert(PiiCategory::Ssn);
+    categories.insert(PiiCategory::CreditCard);
+    categories.insert(PiiCategory::Iban);
 
-let config = ExtractionConfig {
-    redaction: Some(RedactionConfig {
-        categories,
-        strategy: RedactionStrategy::Mask,
+    let config = ExtractionConfig {
+        redaction: Some(RedactionConfig {
+            categories,
+            strategy: RedactionStrategy::Mask,
+            ..Default::default()
+        }),
         ..Default::default()
-    }),
-    ..Default::default()
-};
-let _output = extract(ExtractInput::from_uri("contract.pdf"), &config).await?;
+    };
+    let _output = extract(ExtractInput::from_uri("contract.pdf"), &config).await?;
+    Ok(())
+}
 ```

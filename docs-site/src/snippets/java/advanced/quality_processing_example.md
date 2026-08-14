@@ -8,7 +8,7 @@ import io.xberg.ExtractInput;
 import java.util.Map;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .enableQualityProcessing(true)
+    .withEnableQualityProcessing(true)
     .build();
 ExtractionResult output = Xberg.extract(
     ExtractInput.builder().withKind(ExtractInputKind.Uri).withUri("scanned_document.pdf").build(),

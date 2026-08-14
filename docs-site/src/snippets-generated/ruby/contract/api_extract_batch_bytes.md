@@ -12,5 +12,6 @@ Tests batch bytes extraction API (extract_batch)
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract_batch([{ 'bytes' => 'test_documents/pdf/fake_memo.pdf', 'filename' => 'fake_memo.pdf', 'kind' => 'bytes' }])
+puts result.inspect
 
 ```

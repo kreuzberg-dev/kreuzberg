@@ -1,12 +1,15 @@
 ```dart title="Dart"
 import 'package:xberg/xberg.dart';
 
-final output = await Xberg.extract(
-  const ExtractInput(
-    kind: ExtractInputKind.uri,
-    uri: 'document.pdf',
-  ),
-);
+Future<void> main() async {
+  final output = await XbergBridge.extract(
+    const ExtractInput(
+      kind: ExtractInputKind.uri,
+      uri: 'document.pdf',
+    ),
+    await createExtractionConfigFromJson(json: '{}'),
+  );
 
-print(output.results.first.content);
+  print(output.results.first.content);
+}
 ```

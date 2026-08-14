@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* Discriminates the shape of a `CodeDataNode`.
-*
-* Purpose-built mirror of `tree_sitter_language_pack.DataNodeKind` — kept as an
-* xberg-owned type so binding generators never need to resolve the upstream crate's
-* types across FFI/language boundaries.
-*/
+ * Discriminates the shape of a `CodeDataNode`.
+ *
+ * Purpose-built mirror of `tree_sitter_language_pack.DataNodeKind` — kept as an
+ * xberg-owned type so binding generators never need to resolve the upstream crate's
+ * types across FFI/language boundaries.
+ */
 enum class CodeDataNodeKind {
     /**
      * A key/value pair or mapping (JSON/TOML/properties/YAML/HCL/CUE/KDL pair, or a
@@ -49,21 +49,21 @@ enum class CodeDataNodeKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        KEY_VALUE -> "key_value"
-        ELEMENT -> "element"
-        SEQUENCE -> "sequence"
-    }
+        when (this) {
+            KEY_VALUE -> "key_value"
+            ELEMENT -> "element"
+            SEQUENCE -> "sequence"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): CodeDataNodeKind =
-        when (value) {
-            "key_value" -> KEY_VALUE
-            "element" -> ELEMENT
-            "sequence" -> SEQUENCE
-            else -> throw IllegalArgumentException("Unknown CodeDataNodeKind value: $value")
-        }
+            when (value) {
+                "key_value" -> KEY_VALUE
+                "element" -> ELEMENT
+                "sequence" -> SEQUENCE
+                else -> throw IllegalArgumentException("Unknown CodeDataNodeKind value: $value")
+            }
     }
 }

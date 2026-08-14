@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The file parses as JSON but does not validate against the meta-schema.
 /// </summary>
-public class SchemaValidationException : LoadErrorException {
-  public SchemaValidationException(string message) : base(message) {}
+public class SchemaValidationException : LoadErrorException
+{
+    public SchemaValidationException(string message) : base(message) { }
 
-  public SchemaValidationException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public SchemaValidationException(string message, Exception innerException) : base(message, innerException) { }
 }

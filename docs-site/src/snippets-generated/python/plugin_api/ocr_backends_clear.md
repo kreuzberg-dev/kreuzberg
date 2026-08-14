@@ -13,7 +13,7 @@ Clear all OCR backends and verify list is empty
 from xberg import clear_ocr_backends
 
 def main() -> None:
-    _ = clear_ocr_backends()
+    clear_ocr_backends()
 
 main()
 

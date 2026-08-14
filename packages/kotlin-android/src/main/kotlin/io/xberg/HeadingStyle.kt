@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Heading style options for Markdown output.
-*
-* Controls how headings (h1-h6) are rendered in the output Markdown.
-*/
+ * Heading style options for Markdown output.
+ *
+ * Controls how headings (h1-h6) are rendered in the output Markdown.
+ */
 enum class HeadingStyle {
     /** Underlined style (=== for h1, --- for h2). */
     @com.fasterxml.jackson.annotation.JsonProperty("Underlined") UNDERLINED,
@@ -41,24 +41,24 @@ enum class HeadingStyle {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        UNDERLINED -> "Underlined"
-        ATX -> "Atx"
-        ATX_CLOSED -> "AtxClosed"
-    }
+        when (this) {
+            UNDERLINED -> "Underlined"
+            ATX -> "Atx"
+            ATX_CLOSED -> "AtxClosed"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): HeadingStyle =
-        when (value) {
-            "Underlined",
-            "underlined" -> UNDERLINED
-            "Atx",
-            "atx" -> ATX
-            "AtxClosed",
-            "atxclosed" -> ATX_CLOSED
-            else -> throw IllegalArgumentException("Unknown HeadingStyle value: $value")
-        }
+            when (value) {
+                "Underlined",
+                "underlined" -> UNDERLINED
+                "Atx",
+                "atx" -> ATX
+                "AtxClosed",
+                "atxclosed" -> ATX_CLOSED
+                else -> throw IllegalArgumentException("Unknown HeadingStyle value: $value")
+            }
     }
 }

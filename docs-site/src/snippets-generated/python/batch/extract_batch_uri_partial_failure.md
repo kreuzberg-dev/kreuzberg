@@ -15,7 +15,8 @@ from xberg import extract_batch, ExtractInput, ExtractionConfig
 
 async def main() -> None:
     inputs = [ExtractInput(kind="uri", uri="text/plain.txt"), ExtractInput(kind="uri", uri="/nonexistent/missing.pdf")]
-    _ = await extract_batch(inputs, None)
+    await extract_batch(inputs, None)
+    print(result)
 
 asyncio.run(main())
 

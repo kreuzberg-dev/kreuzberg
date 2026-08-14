@@ -7,7 +7,7 @@ async fn main() -> xberg::Result<()> {
         force_ocr: true,
         ocr: Some(OcrConfig {
             backend: "tesseract".to_string(),
-            language: "eng".to_string(),
+            language: vec!["eng".to_string()],
             ..Default::default()
         }),
         ..Default::default()

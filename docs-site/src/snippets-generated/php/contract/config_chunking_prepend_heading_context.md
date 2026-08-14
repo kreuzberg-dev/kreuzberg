@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "uri" => "document.md"]));
 $result = Xberg::extract($input, ["chunking" => ["chunker_type" => "markdown", "max_characters" => 500, "overlap" => 50, "prepend_heading_context" => true]]);
+var_dump($result);
 
 ```

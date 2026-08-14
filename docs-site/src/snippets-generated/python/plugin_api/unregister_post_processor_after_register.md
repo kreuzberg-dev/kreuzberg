@@ -14,7 +14,7 @@ from xberg import unregister_post_processor, ExtractionConfig
 
 def main() -> None:
     name = "test-processor"
-    _ = unregister_post_processor(name)
+    unregister_post_processor(name)
 
 main()
 

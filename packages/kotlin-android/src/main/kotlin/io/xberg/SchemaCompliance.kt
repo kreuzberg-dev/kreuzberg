@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Schema-validation outcome surfaced as one of three buckets.
-*
-* Fold into the combined confidence score without leaking internal validation
-* error types.
-*/
+ * Schema-validation outcome surfaced as one of three buckets.
+ *
+ * Fold into the combined confidence score without leaking internal validation
+ * error types.
+ */
 enum class SchemaCompliance {
     /** Every batch validated against the schema. */
     @com.fasterxml.jackson.annotation.JsonProperty("all_valid") ALL_VALID,
@@ -42,21 +42,21 @@ enum class SchemaCompliance {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ALL_VALID -> "all_valid"
-        PARTIAL_VALID -> "partial_valid"
-        ALL_INVALID -> "all_invalid"
-    }
+        when (this) {
+            ALL_VALID -> "all_valid"
+            PARTIAL_VALID -> "partial_valid"
+            ALL_INVALID -> "all_invalid"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): SchemaCompliance =
-        when (value) {
-            "all_valid" -> ALL_VALID
-            "partial_valid" -> PARTIAL_VALID
-            "all_invalid" -> ALL_INVALID
-            else -> throw IllegalArgumentException("Unknown SchemaCompliance value: $value")
-        }
+            when (value) {
+                "all_valid" -> ALL_VALID
+                "partial_valid" -> PARTIAL_VALID
+                "all_invalid" -> ALL_INVALID
+                else -> throw IllegalArgumentException("Unknown SchemaCompliance value: $value")
+            }
     }
 }

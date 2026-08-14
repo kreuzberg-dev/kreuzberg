@@ -13,16 +13,15 @@ extract force+disable OCR
 import asyncio
 from pathlib import Path
 from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
+from xberg import XbergError
 
 async def main() -> None:
     try:
         input = ExtractInput(bytes=Path("test_documents/text/fake_text.txt").read_bytes(), config={"disable_ocr": True, "force_ocr": True}, filename="fake_text.txt", kind=ExtractInputKind("bytes"), mime_type="text/plain")
         config = ExtractionConfig(disable_ocr=True, force_ocr=True)
-        _ = await extract(input, config)
-    except Exception as error:
-        print(f"Call failed as expected: {error}")
-    else:
-        raise AssertionError("expected call to fail")
+        await extract(input, config)
+    except XbergError as error:
+        print(f"{type(error).__name__}: {error}")
 
 asyncio.run(main())
 

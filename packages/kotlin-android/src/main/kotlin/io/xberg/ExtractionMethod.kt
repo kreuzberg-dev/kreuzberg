@@ -37,21 +37,21 @@ enum class ExtractionMethod {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        NATIVE -> "native"
-        OCR -> "ocr"
-        MIXED -> "mixed"
-    }
+        when (this) {
+            NATIVE -> "native"
+            OCR -> "ocr"
+            MIXED -> "mixed"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ExtractionMethod =
-        when (value) {
-            "native" -> NATIVE
-            "ocr" -> OCR
-            "mixed" -> MIXED
-            else -> throw IllegalArgumentException("Unknown ExtractionMethod value: $value")
-        }
+            when (value) {
+                "native" -> NATIVE
+                "ocr" -> OCR
+                "mixed" -> MIXED
+                else -> throw IllegalArgumentException("Unknown ExtractionMethod value: $value")
+            }
     }
 }

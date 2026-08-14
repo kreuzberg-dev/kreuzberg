@@ -11,5 +11,6 @@ Tests batch URI extraction with per-input config (extract_batch)
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([%{"config" => %{"output_format" => "markdown"}, "kind" => "uri", "uri" => "https://example.com/pdf/fake_memo.pdf"}])
+IO.inspect(result)
 
 ```

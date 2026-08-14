@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* Supported Whisper model sizes.
-*
-* These map to published ONNX exports on Hugging Face (onnx-community or
-* similar orgs). The actual filenames and repos are resolved inside the
-* transcription engine.
-*/
+ * Supported Whisper model sizes.
+ *
+ * These map to published ONNX exports on Hugging Face (onnx-community or
+ * similar orgs). The actual filenames and repos are resolved inside the
+ * transcription engine.
+ */
 enum class WhisperModel {
     /** Smallest, fastest, lowest quality. Good default for development and CI. */
     @com.fasterxml.jackson.annotation.JsonProperty("tiny") TINY,
@@ -47,25 +47,25 @@ enum class WhisperModel {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TINY -> "tiny"
-        BASE -> "base"
-        SMALL -> "small"
-        MEDIUM -> "medium"
-        LARGE_V3 -> "large_v3"
-    }
+        when (this) {
+            TINY -> "tiny"
+            BASE -> "base"
+            SMALL -> "small"
+            MEDIUM -> "medium"
+            LARGE_V3 -> "large_v3"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): WhisperModel =
-        when (value) {
-            "tiny" -> TINY
-            "base" -> BASE
-            "small" -> SMALL
-            "medium" -> MEDIUM
-            "large_v3" -> LARGE_V3
-            else -> throw IllegalArgumentException("Unknown WhisperModel value: $value")
-        }
+            when (value) {
+                "tiny" -> TINY
+                "base" -> BASE
+                "small" -> SMALL
+                "medium" -> MEDIUM
+                "large_v3" -> LARGE_V3
+                else -> throw IllegalArgumentException("Unknown WhisperModel value: $value")
+            }
     }
 }

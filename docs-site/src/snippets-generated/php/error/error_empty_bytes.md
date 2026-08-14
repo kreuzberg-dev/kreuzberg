@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["bytes" => [], "config" => [], "filename" => "empty.txt", "kind" => "bytes", "mimeType" => "text/plain"]));
 $result = Xberg::extract($input, []);
+var_dump($result);
 
 ```

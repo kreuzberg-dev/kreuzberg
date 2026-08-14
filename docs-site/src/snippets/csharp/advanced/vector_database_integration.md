@@ -5,14 +5,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+var integration = new VectorDatabaseIntegration();
+var records = await integration.ExtractAndVectorize("research_paper.pdf", "doc-1");
+Console.WriteLine($"Vectorized {records.Count} chunks");
+
 public class VectorDatabaseIntegration
 {
     public class VectorRecord
     {
-        public string Id { get; set; }
-        public float[] Embedding { get; set; }
-        public string Content { get; set; }
-        public Dictionary<string, string> Metadata { get; set; }
+        public string Id { get; set; } = string.Empty;
+        public float[] Embedding { get; set; } = Array.Empty<float>();
+        public string Content { get; set; } = string.Empty;
+        public Dictionary<string, string> Metadata { get; set; } = new();
     }
 
     public async Task<List<VectorRecord>> ExtractAndVectorize(

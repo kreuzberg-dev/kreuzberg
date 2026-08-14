@@ -27,12 +27,12 @@
 package io.xberg
 
 /**
-* Which table structure recognition model to use.
-*
-* Controls the model used for table cell detection within layout-detected
-* table regions. Wire format is snake_case in all serializers (JSON, TOML,
-* YAML).
-*/
+ * Which table structure recognition model to use.
+ *
+ * Controls the model used for table cell detection within layout-detected
+ * table regions. Wire format is snake_case in all serializers (JSON, TOML,
+ * YAML).
+ */
 enum class TableModel {
     /** TATR (Table Transformer) -- default, 30MB, DETR-based row/column detection. */
     @com.fasterxml.jackson.annotation.JsonProperty("tatr") TATR,
@@ -52,27 +52,27 @@ enum class TableModel {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        TATR -> "tatr"
-        SLANET_WIRED -> "slanet_wired"
-        SLANET_WIRELESS -> "slanet_wireless"
-        SLANET_PLUS -> "slanet_plus"
-        SLANET_AUTO -> "slanet_auto"
-        DISABLED -> "disabled"
-    }
+        when (this) {
+            TATR -> "tatr"
+            SLANET_WIRED -> "slanet_wired"
+            SLANET_WIRELESS -> "slanet_wireless"
+            SLANET_PLUS -> "slanet_plus"
+            SLANET_AUTO -> "slanet_auto"
+            DISABLED -> "disabled"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): TableModel =
-        when (value) {
-            "tatr" -> TATR
-            "slanet_wired" -> SLANET_WIRED
-            "slanet_wireless" -> SLANET_WIRELESS
-            "slanet_plus" -> SLANET_PLUS
-            "slanet_auto" -> SLANET_AUTO
-            "disabled" -> DISABLED
-            else -> throw IllegalArgumentException("Unknown TableModel value: $value")
-        }
+            when (value) {
+                "tatr" -> TATR
+                "slanet_wired" -> SLANET_WIRED
+                "slanet_wireless" -> SLANET_WIRELESS
+                "slanet_plus" -> SLANET_PLUS
+                "slanet_auto" -> SLANET_AUTO
+                "disabled" -> DISABLED
+                else -> throw IllegalArgumentException("Unknown TableModel value: $value")
+            }
     }
 }

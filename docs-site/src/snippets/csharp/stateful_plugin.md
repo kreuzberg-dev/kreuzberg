@@ -4,6 +4,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Text.Json;
 
+var processor = new StatefulPostProcessor();
+PostProcessorRegistry.RegisterPostProcessor(processor);
+Console.WriteLine("Post-processor registered");
+
 public class StatefulPostProcessor : IPostProcessor
 {
     private readonly object _lock = new();

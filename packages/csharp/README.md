@@ -1,4 +1,4 @@
-# C
+# C#
 
 <div align="center" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 20px 0;">
   <a href="https://github.com/xberg-io/alef">
@@ -102,12 +102,11 @@ dotnet add package XbergIo.Xberg
 
 Or via NuGet Package Manager:
 
-```text
+```
 Install-Package XbergIo.Xberg
 ```
 
 ### System Requirements
-
 - **.NET 10.0+** required
 - Optional: [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) version 1.24+ for ORT-dependent inference features
 - Optional: [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) for OCR functionality

@@ -11,5 +11,6 @@ List post-processors
 
 ```elixir title="Elixir"
 result = Xberg.list_post_processors()
+IO.inspect(result)
 
 ```

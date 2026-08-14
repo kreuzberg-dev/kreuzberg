@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The document's MIME type is not supported by any registered extractor.
 /// </summary>
-public class UnsupportedFormatException : XbergErrorException {
-  public UnsupportedFormatException(string message) : base(message) {}
+public class UnsupportedFormatException : XbergErrorException
+{
+    public UnsupportedFormatException(string message) : base(message) { }
 
-  public UnsupportedFormatException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public UnsupportedFormatException(string message, Exception innerException) : base(message, innerException) { }
 }

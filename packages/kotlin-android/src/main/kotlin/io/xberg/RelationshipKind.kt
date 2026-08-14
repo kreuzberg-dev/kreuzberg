@@ -45,29 +45,29 @@ enum class RelationshipKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        FOOTNOTE_REFERENCE -> "footnote_reference"
-        CITATION_REFERENCE -> "citation_reference"
-        INTERNAL_LINK -> "internal_link"
-        CAPTION -> "caption"
-        LABEL -> "label"
-        TOC_ENTRY -> "toc_entry"
-        CROSS_REFERENCE -> "cross_reference"
-    }
+        when (this) {
+            FOOTNOTE_REFERENCE -> "footnote_reference"
+            CITATION_REFERENCE -> "citation_reference"
+            INTERNAL_LINK -> "internal_link"
+            CAPTION -> "caption"
+            LABEL -> "label"
+            TOC_ENTRY -> "toc_entry"
+            CROSS_REFERENCE -> "cross_reference"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): RelationshipKind =
-        when (value) {
-            "footnote_reference" -> FOOTNOTE_REFERENCE
-            "citation_reference" -> CITATION_REFERENCE
-            "internal_link" -> INTERNAL_LINK
-            "caption" -> CAPTION
-            "label" -> LABEL
-            "toc_entry" -> TOC_ENTRY
-            "cross_reference" -> CROSS_REFERENCE
-            else -> throw IllegalArgumentException("Unknown RelationshipKind value: $value")
-        }
+            when (value) {
+                "footnote_reference" -> FOOTNOTE_REFERENCE
+                "citation_reference" -> CITATION_REFERENCE
+                "internal_link" -> INTERNAL_LINK
+                "caption" -> CAPTION
+                "label" -> LABEL
+                "toc_entry" -> TOC_ENTRY
+                "cross_reference" -> CROSS_REFERENCE
+                else -> throw IllegalArgumentException("Unknown RelationshipKind value: $value")
+            }
     }
 }

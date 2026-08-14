@@ -11,5 +11,6 @@ List all registered reranker backends
 
 ```elixir title="Elixir"
 result = Xberg.list_reranker_backends()
+IO.inspect(result)
 
 ```

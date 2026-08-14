@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* List indentation character type.
-*
-* Controls whether list items are indented with spaces or tabs.
-*/
+ * List indentation character type.
+ *
+ * Controls whether list items are indented with spaces or tabs.
+ */
 enum class ListIndentType {
     /** Use spaces for indentation. Default. Width controlled by `list_indent_width`. */
     @com.fasterxml.jackson.annotation.JsonProperty("Spaces") SPACES,
@@ -39,21 +39,21 @@ enum class ListIndentType {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        SPACES -> "Spaces"
-        TABS -> "Tabs"
-    }
+        when (this) {
+            SPACES -> "Spaces"
+            TABS -> "Tabs"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): ListIndentType =
-        when (value) {
-            "Spaces",
-            "spaces" -> SPACES
-            "Tabs",
-            "tabs" -> TABS
-            else -> throw IllegalArgumentException("Unknown ListIndentType value: $value")
-        }
+            when (value) {
+                "Spaces",
+                "spaces" -> SPACES
+                "Tabs",
+                "tabs" -> TABS
+                else -> throw IllegalArgumentException("Unknown ListIndentType value: $value")
+            }
     }
 }

@@ -12,10 +12,11 @@ namespace Xberg;
  */
 interface EmbeddingBackend
 {
+
     /**
      * Embedding vector dimension. Must be `> 0` and must match the length of
      *
-     *
+
      * @return int Return value from the plugin method
      */
     public function dimensions(): int;
@@ -23,9 +24,10 @@ interface EmbeddingBackend
     /**
      * Embed a batch of texts, returning one vector per input in order.
      *
-     *
+
      * @param mixed $texts
      * @return mixed Return value from the plugin method
      */
     public function embed(mixed $texts): mixed;
+
 }

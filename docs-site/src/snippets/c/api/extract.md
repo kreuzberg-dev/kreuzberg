@@ -3,12 +3,12 @@
 #include <stdio.h>
 
 int main(void) {
-    XBERGExtractionConfig *config = xberg_extraction_config_default();
-    XBERGExtractInput *input =
+    XBERGAlefHandle config = xberg_extraction_config_from_json("{}");
+    XBERGAlefHandle input =
         xberg_extract_input_from_json("{\"kind\":\"uri\",\"uri\":\"document.pdf\"}");
 
-    XBERGExtractionResult *output = xberg_extract(input, config);
-    if (!output) {
+    XBERGAlefHandle output = xberg_extract(input, config);
+    if (output == 0) {
         fprintf(stderr, "extraction failed: %s\n", xberg_last_error_context());
         xberg_extract_input_free(input);
         xberg_extraction_config_free(config);

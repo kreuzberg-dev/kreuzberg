@@ -27,11 +27,11 @@
 package io.xberg
 
 /**
-* Hierarchical level of an OCR element.
-*
-* Maps to Tesseract's page segmentation hierarchy and provides
-* equivalent semantics for PaddleOCR.
-*/
+ * Hierarchical level of an OCR element.
+ *
+ * Maps to Tesseract's page segmentation hierarchy and provides
+ * equivalent semantics for PaddleOCR.
+ */
 enum class OcrElementLevel {
     /** Individual word */
     @com.fasterxml.jackson.annotation.JsonProperty("word") WORD,
@@ -44,23 +44,23 @@ enum class OcrElementLevel {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        WORD -> "word"
-        LINE -> "line"
-        BLOCK -> "block"
-        PAGE -> "page"
-    }
+        when (this) {
+            WORD -> "word"
+            LINE -> "line"
+            BLOCK -> "block"
+            PAGE -> "page"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): OcrElementLevel =
-        when (value) {
-            "word" -> WORD
-            "line" -> LINE
-            "block" -> BLOCK
-            "page" -> PAGE
-            else -> throw IllegalArgumentException("Unknown OcrElementLevel value: $value")
-        }
+            when (value) {
+                "word" -> WORD
+                "line" -> LINE
+                "block" -> BLOCK
+                "page" -> PAGE
+                else -> throw IllegalArgumentException("Unknown OcrElementLevel value: $value")
+            }
     }
 }

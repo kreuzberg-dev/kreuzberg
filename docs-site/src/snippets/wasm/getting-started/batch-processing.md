@@ -1,3 +1,4 @@
+```typescript title="Wasm"
 import { extractBatch, initWasm } from "@xberg-io/xberg-wasm";
 
 interface DocumentJob {
@@ -28,3 +29,4 @@ async function _processBatch(documents: DocumentJob[], concurrency: number = 3) 
   }
   return results;
 }
+```

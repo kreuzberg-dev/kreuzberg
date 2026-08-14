@@ -35,19 +35,19 @@ enum class BrowserBackend {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        CHROMIUMOXIDE -> "chromiumoxide"
-        NATIVE -> "native"
-    }
+        when (this) {
+            CHROMIUMOXIDE -> "chromiumoxide"
+            NATIVE -> "native"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BrowserBackend =
-        when (value) {
-            "chromiumoxide" -> CHROMIUMOXIDE
-            "native" -> NATIVE
-            else -> throw IllegalArgumentException("Unknown BrowserBackend value: $value")
-        }
+            when (value) {
+                "chromiumoxide" -> CHROMIUMOXIDE
+                "native" -> NATIVE
+                else -> throw IllegalArgumentException("Unknown BrowserBackend value: $value")
+            }
     }
 }

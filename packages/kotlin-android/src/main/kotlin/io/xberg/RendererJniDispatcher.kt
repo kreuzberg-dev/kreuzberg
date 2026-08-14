@@ -19,41 +19,41 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
  */
 class RendererJniDispatcher(private val impl: IRenderer) {
     private val mapper = jacksonObjectMapper()
-    .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)
 
     /** JSON array of the Rust-side names of the methods this host provides. */
     fun implementedMethods(): String =
-    mapper.writeValueAsString(
-        listOf(
-            "render_result",
-            "name",
-            "version",
-            "initialize",
-            "shutdown",
-        ),
-    )
+        mapper.writeValueAsString(
+            listOf(
+                "render_result",
+                "name",
+                "version",
+                "initialize",
+                "shutdown",
+            ),
+        )
 
     @Suppress("UNUSED_PARAMETER", "CyclomaticComplexMethod")
     fun dispatch(method: String, argsJson: String): String =
-    try {
-        val args = mapper.readTree(argsJson)
-        val result: Any? =
-        when (method) {
-            "render_result" -> impl.renderResult(mapper.convertValue(args.get("result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}))
-            "name" -> impl.name()
-            "version" -> impl.version()
-            "initialize" -> {
-                impl.initialize()
-                null
-            }
-            "shutdown" -> {
-                impl.shutdown()
-                null
-            }
-            else -> throw IllegalArgumentException("unknown trait method: $method")
+        try {
+            val args = mapper.readTree(argsJson)
+            val result: Any? =
+                when (method) {
+                    "render_result" -> impl.renderResult(mapper.convertValue(args.get("result"), object : com.fasterxml.jackson.core.type.TypeReference<ExtractedDocument>() {}))
+                    "name" -> impl.name()
+                    "version" -> impl.version()
+                    "initialize" -> {
+                        impl.initialize()
+                        null
+                    }
+                    "shutdown" -> {
+                        impl.shutdown()
+                        null
+                    }
+                    else -> throw IllegalArgumentException("unknown trait method: $method")
+                }
+            mapper.writeValueAsString(mapOf("ok" to result))
+        } catch (t: Throwable) {
+            mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
         }
-        mapper.writeValueAsString(mapOf("ok" to result))
-    } catch (t: Throwable) {
-        mapper.writeValueAsString(mapOf("err" to (t.message ?: t.toString())))
-    }
 }

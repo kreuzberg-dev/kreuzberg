@@ -8,10 +8,10 @@ import io.xberg.ExtractInput;
 import io.xberg.OcrConfig;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .ocr(OcrConfig.builder()
-        .backend("tesseract")
+    .withOcr(OcrConfig.builder()
+        .withBackend("tesseract")
         .build())
-    .forceOcr(true)
+    .withForceOcr(true)
     .build();
 ExtractionResult output = Xberg.extract(
     ExtractInput.builder().withKind(ExtractInputKind.Uri).withUri("document.pdf").build(),

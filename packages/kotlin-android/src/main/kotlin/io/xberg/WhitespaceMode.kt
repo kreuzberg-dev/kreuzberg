@@ -27,10 +27,10 @@
 package io.xberg
 
 /**
-* Whitespace handling strategy during conversion.
-*
-* Determines how sequences of whitespace characters (spaces, tabs, newlines) are processed.
-*/
+ * Whitespace handling strategy during conversion.
+ *
+ * Determines how sequences of whitespace characters (spaces, tabs, newlines) are processed.
+ */
 enum class WhitespaceMode {
     /**
      * Collapse multiple whitespace characters to single spaces. Default. Matches browser behavior.
@@ -41,21 +41,21 @@ enum class WhitespaceMode {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        NORMALIZED -> "Normalized"
-        STRICT -> "Strict"
-    }
+        when (this) {
+            NORMALIZED -> "Normalized"
+            STRICT -> "Strict"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): WhitespaceMode =
-        when (value) {
-            "Normalized",
-            "normalized" -> NORMALIZED
-            "Strict",
-            "strict" -> STRICT
-            else -> throw IllegalArgumentException("Unknown WhitespaceMode value: $value")
-        }
+            when (value) {
+                "Normalized",
+                "normalized" -> NORMALIZED
+                "Strict",
+                "strict" -> STRICT
+                else -> throw IllegalArgumentException("Unknown WhitespaceMode value: $value")
+            }
     }
 }

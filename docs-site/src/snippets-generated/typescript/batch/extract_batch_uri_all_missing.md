@@ -13,6 +13,7 @@ extract_batch with missing URI inputs
 import { extractBatch } from "@xberg-io/xberg";
 async function main() {
   const result = await extractBatch([{ kind: "uri", uri: "/nonexistent/a.pdf" }, { kind: "uri", uri: "/nonexistent/b.txt" }], undefined);
+  console.log(result);
 }
 
 void main();

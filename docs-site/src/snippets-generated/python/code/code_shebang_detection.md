@@ -15,7 +15,8 @@ from xberg import extract, ExtractInput, ExtractInputKind, ExtractionConfig
 
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), mime_type="text/x-source-code", uri="https://example.com/code/script.sh")
-    _ = await extract(input, None)
+    await extract(input, None)
+    print(result)
 
 asyncio.run(main())
 

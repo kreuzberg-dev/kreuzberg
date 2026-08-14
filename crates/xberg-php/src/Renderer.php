@@ -12,6 +12,7 @@ namespace Xberg;
  */
 interface Renderer
 {
+
     // Optional methods the bridge calls when the class defines them (the
     // trait's Rust default behavior applies otherwise): render_result.
     // The lifecycle hooks initialize()/shutdown() are likewise optional.

@@ -12,5 +12,6 @@ PPTX presentation extraction using extract
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', uri: 'https://example.com/pptx/simple.pptx'))
+puts result.inspect
 
 ```

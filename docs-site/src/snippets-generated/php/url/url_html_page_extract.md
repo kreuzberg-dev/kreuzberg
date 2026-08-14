@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["kind" => "uri", "uri" => "https://example.com"]));
 $result = Xberg::extract($input, ["url" => ["mode" => "document"]]);
+var_dump($result);
 
 ```

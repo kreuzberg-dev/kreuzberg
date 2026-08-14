@@ -12,5 +12,6 @@ List all registered renderers
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.list_renderers()
+puts result.inspect
 
 ```

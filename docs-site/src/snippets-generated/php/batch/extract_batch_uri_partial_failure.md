@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 use Xberg\ExtractionConfig;
 $result = Xberg::extractBatch([ExtractInput::from_json('{"kind":"uri","uri":"text/plain.txt"}'), ExtractInput::from_json('{"kind":"uri","uri":"/nonexistent/missing.pdf"}')], \Xberg\ExtractionConfig::from_json('{}'));
+var_dump($result);
 
 ```

@@ -41,25 +41,25 @@ enum class BoundaryReason {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        START -> "start"
-        PAGE_ONE_MARKER -> "page_one_marker"
-        LETTERHEAD_RESET -> "letterhead_reset"
-        DENSITY_SHIFT -> "density_shift"
-        END -> "end"
-    }
+        when (this) {
+            START -> "start"
+            PAGE_ONE_MARKER -> "page_one_marker"
+            LETTERHEAD_RESET -> "letterhead_reset"
+            DENSITY_SHIFT -> "density_shift"
+            END -> "end"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): BoundaryReason =
-        when (value) {
-            "start" -> START
-            "page_one_marker" -> PAGE_ONE_MARKER
-            "letterhead_reset" -> LETTERHEAD_RESET
-            "density_shift" -> DENSITY_SHIFT
-            "end" -> END
-            else -> throw IllegalArgumentException("Unknown BoundaryReason value: $value")
-        }
+            when (value) {
+                "start" -> START
+                "page_one_marker" -> PAGE_ONE_MARKER
+                "letterhead_reset" -> LETTERHEAD_RESET
+                "density_shift" -> DENSITY_SHIFT
+                "end" -> END
+                else -> throw IllegalArgumentException("Unknown BoundaryReason value: $value")
+            }
     }
 }

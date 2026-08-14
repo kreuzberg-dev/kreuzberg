@@ -12,5 +12,6 @@ Smoke test: PDF with simple text extraction
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/pdf', uri: 'https://example.com/pdf/fake_memo.pdf'), {  })
+puts result.inspect
 
 ```

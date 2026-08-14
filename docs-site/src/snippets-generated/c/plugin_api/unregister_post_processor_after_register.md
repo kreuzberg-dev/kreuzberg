@@ -18,7 +18,7 @@ unregister_post_processor
 #include "xberg.h"
 
 int main(void) {
-    xberg_("test-processor");
+    xberg_unregister_post_processor("test-processor");
     return EXIT_SUCCESS;
 }
 

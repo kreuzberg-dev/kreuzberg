@@ -11,5 +11,6 @@ List all registered tokenizer backends
 
 ```elixir title="Elixir"
 result = Xberg.list_tokenizer_backends()
+IO.inspect(result)
 
 ```

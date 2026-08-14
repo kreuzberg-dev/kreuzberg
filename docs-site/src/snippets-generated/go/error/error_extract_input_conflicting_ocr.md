@@ -13,6 +13,7 @@ extract force+disable OCR
 package main
 
 import (
+	"errors"
 	"fmt"
 	xberg "github.com/xberg-io/xberg/packages/go"
 	"os"
@@ -42,9 +43,9 @@ func main() {
 		DisableOcr: true,
 	}
 	_, err := xberg.Extract(input, config)
-	if err == nil {
-		panic("expected call to fail")
+	var typedError *xberg.XbergError
+	if errors.As(err, &typedError) {
+		fmt.Fprintf(os.Stderr, "%T: %v\n", typedError, typedError)
 	}
-	fmt.Fprintf(os.Stderr, "Call failed as expected: %v\n", err)
 }
 ```

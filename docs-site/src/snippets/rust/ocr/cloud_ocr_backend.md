@@ -1,8 +1,7 @@
 ```rust title="Rust"
 use xberg::plugins::{Plugin, OcrBackend, OcrBackendType};
-use xberg::{Result, ExtractedDocument, OcrConfig, Metadata};
+use xberg::{Result, ExtractedDocument, OcrConfig};
 use async_trait::async_trait;
-use std::path::Path;
 
 struct CloudOcrBackend {
     api_key: String,
@@ -23,17 +22,16 @@ impl OcrBackend for CloudOcrBackend {
         image_bytes: &[u8],
         config: &OcrConfig,
     ) -> Result<ExtractedDocument> {
-        let text = self.call_cloud_api(image_bytes, &config.language).await?;
+        let language = config.language.first().map(String::as_str).unwrap_or("eng");
+        let text = self.call_cloud_api(image_bytes, language).await?;
 
-        Ok(ExtractedDocument {
-            content: text,
-            mime_type: "text/plain".to_string(),
-            metadata: Metadata::default(),
-            tables: vec![],
-            detected_languages: None,
-            chunks: None,
-            images: None,
-        })
+        // `ExtractedDocument` has private internal fields, so a struct literal with
+        // `..Default::default()` does not compile outside the crate. Build a default
+        // and assign the public fields instead.
+        let mut document = ExtractedDocument::default();
+        document.content = text;
+        document.mime_type = "text/plain".into();
+        Ok(document)
     }
 
     fn supports_language(&self, lang: &str) -> bool {

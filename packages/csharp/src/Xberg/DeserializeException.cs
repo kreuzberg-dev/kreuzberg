@@ -8,9 +8,9 @@ namespace Xberg;
 /// <summary>
 /// The file validates but cannot be deserialized into `Preset`.
 /// </summary>
-public class DeserializeException : LoadErrorException {
-  public DeserializeException(string message) : base(message) {}
+public class DeserializeException : LoadErrorException
+{
+    public DeserializeException(string message) : base(message) { }
 
-  public DeserializeException(string message, Exception innerException)
-      : base(message, innerException) {}
+    public DeserializeException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -20,5 +20,6 @@ use Xberg\Xberg;
 use Xberg\ExtractInput;
 $input = \Xberg\ExtractInput::from_json(json_encode(["bytes" => "test_documents/pdf/fake_memo.pdf", "config" => ["outputFormat" => "markdown"], "filename" => "fake_memo.pdf", "kind" => "bytes", "mimeType" => "application/pdf"]));
 $result = Xberg::extract($input, ["output_format" => "markdown"]);
+var_dump($result);
 
 ```

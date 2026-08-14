@@ -12,5 +12,6 @@ TextRank extractive summary over a multi-paragraph plain text document. Pure-Rus
 ```elixir title="Elixir"
 input_value = %Xberg.ExtractInput{kind: "uri", uri: "https://example.com/text/book_war_and_peace_1p.txt"}
 result = Xberg.extract_async(input_value, "{\"summarization\":{\"max_tokens\":80,\"strategy\":\"extractive\"}}")
+IO.inspect(result)
 
 ```

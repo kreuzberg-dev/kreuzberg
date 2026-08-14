@@ -11,5 +11,6 @@ extract_batch over URI inputs
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([%{"kind" => "uri", "uri" => "pdf/fake_memo.pdf"}, %{"kind" => "uri", "uri" => "text/fake_text.txt"}])
+IO.inspect(result)
 
 ```

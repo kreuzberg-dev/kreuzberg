@@ -24,7 +24,7 @@ def main() -> None:
             return 1
         async def embed(self, _p0):
             return []
-    _ = register_embedding_backend(_TestStub_register_embedding_backend_trait_bridge())
+    register_embedding_backend(_TestStub_register_embedding_backend_trait_bridge())
     unregister_embedding_backend("test-embedding-backend")
 
 main()

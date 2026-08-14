@@ -12,6 +12,10 @@ register_reranker_backend: trait bridge
 ```php title="PHP"
 <?php
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 use Xberg\Xberg;
 use Xberg\RerankerBackend;
 $stub = new class implements \Xberg\RerankerBackend {

@@ -18,12 +18,14 @@ async fn main() -> xberg::Result<()> {
                 "required": ["title", "authors", "date"],
                 "additionalProperties": false
             }),
+            schema_name: "extraction".to_string(),
+            schema_description: None,
+            prompt: None,
+            strict: true,
             llm: LlmConfig {
                 model: "openai/gpt-4o-mini".to_string(),
                 ..Default::default()
             },
-            strict: true,
-            ..Default::default()
         }),
         ..Default::default()
     };

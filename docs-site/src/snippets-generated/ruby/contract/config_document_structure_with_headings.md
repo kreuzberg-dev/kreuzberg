@@ -12,5 +12,6 @@ Tests document structure with DOCX heading-driven nesting
 ```ruby title="Ruby"
 require "xberg"
 result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: 'https://example.com/docx/fake.docx'), { 'include_document_structure' => true })
+puts result.inspect
 
 ```

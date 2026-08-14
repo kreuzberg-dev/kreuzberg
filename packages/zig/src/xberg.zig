@@ -22,28 +22,57 @@ pub fn _last_error() ?[]const u8 {
 }
 
 /// Map the last FFI error to a typed error from the given error set.
-/// Coarse fallback: returns the first declared variant. Per-code dispatch
-/// will replace this once the IR exposes per-variant numeric codes.
+/// Generic-code fallback returns the first declared variant.
 inline fn _first_error(comptime E: type) E {
     const fields = @typeInfo(E).error_set orelse unreachable;
     if (fields.len == 0) unreachable;
     return @field(E, fields[0].name);
 }
 
-/// Map the last FFI error to a typed error, logging the error message.
-/// Reads the FFI error context from `_last_error()` and dispatches to a
-/// per-error-set message-prefix matcher emitted alongside each declared error.
-/// Falls back to the first declared variant when no prefix matches or the
-/// FFI layer did not set a context string.
+/// Map the last FFI error to a typed error.
+/// Dispatches exclusively on the stable numeric FFI taxonomy code.
 inline fn _error_with_message(comptime E: type) E {
-    const msg_opt = _last_error();
-    if (msg_opt) |msg| {
-        std.debug.print("FFI error: {s}\n", .{msg});
-    }
-    if (E == XbergError) return _from_ffi_msg_XbergError(msg_opt);
-    if (E == HeuristicsError) return _from_ffi_msg_HeuristicsError(msg_opt);
-    if (E == LoadError) return _from_ffi_msg_LoadError(msg_opt);
-    if (E == ResolveError) return _from_ffi_msg_ResolveError(msg_opt);
+    _ = _last_error();
+    const code = @as(i32, @intCast(c.xberg_last_error_code()));
+    if (E == XbergError) return switch (code) {
+        2080723056 => error.Io,
+        191686562 => error.Parsing,
+        1744734248 => error.Ocr,
+        2093146707 => error.Validation,
+        1740547354 => error.Cache,
+        1703658036 => error.ImageProcessing,
+        486450251 => error.Serialization,
+        1024192803 => error.MissingDependency,
+        1609738224 => error.Plugin,
+        1092832257 => error.LockPoisoned,
+        299497109 => error.UnsupportedFormat,
+        1958776963 => error.Embedding,
+        1326275648 => error.Reranking,
+        552614954 => error.Transcription,
+        1036077712 => error.Timeout,
+        524666238 => error.Cancelled,
+        670246576 => error.Security,
+        1318675240 => error.Other,
+        else => _first_error(E),
+    };
+    if (E == HeuristicsError) return switch (code) {
+        91451556 => error.ConfigError,
+        1713417319 => error.PdfAnalysisError,
+        else => _first_error(E),
+    };
+    if (E == LoadError) return switch (code) {
+        949858217 => error.Parse,
+        380113526 => error.SchemaValidation,
+        2093946153 => error.Deserialize,
+        2137750517 => error.IdMismatch,
+        1285484759 => error.BadMetaSchema,
+        973217713 => error.Io,
+        else => _first_error(E),
+    };
+    if (E == ResolveError) return switch (code) {
+        1772672798 => error.SchemaNotObject,
+        else => _first_error(E),
+    };
     return _first_error(E);
 }
 
@@ -87,31 +116,6 @@ pub const XbergError = error{
     Other,
     OutOfMemory,
 };
-/// Map an FFI error message string to a `XbergError` variant by prefix-matching
-/// against the upstream `#[error("...")]` templates. Falls back to the
-/// first declared variant when no prefix matches.
-inline fn _from_ffi_msg_XbergError(msg_opt: ?[]const u8) XbergError {
-    if (msg_opt) |msg| {
-        if (std.mem.startsWith(u8, msg, "IO error:")) return error.Io;
-        if (std.mem.startsWith(u8, msg, "Parsing error:")) return error.Parsing;
-        if (std.mem.startsWith(u8, msg, "OCR error:")) return error.Ocr;
-        if (std.mem.startsWith(u8, msg, "Validation error:")) return error.Validation;
-        if (std.mem.startsWith(u8, msg, "Cache error:")) return error.Cache;
-        if (std.mem.startsWith(u8, msg, "Image processing error:")) return error.ImageProcessing;
-        if (std.mem.startsWith(u8, msg, "Serialization error:")) return error.Serialization;
-        if (std.mem.startsWith(u8, msg, "Missing dependency:")) return error.MissingDependency;
-        if (std.mem.startsWith(u8, msg, "Plugin error in '")) return error.Plugin;
-        if (std.mem.startsWith(u8, msg, "Lock poisoned:")) return error.LockPoisoned;
-        if (std.mem.startsWith(u8, msg, "Unsupported format:")) return error.UnsupportedFormat;
-        if (std.mem.startsWith(u8, msg, "Embedding error:")) return error.Embedding;
-        if (std.mem.startsWith(u8, msg, "Reranking error:")) return error.Reranking;
-        if (std.mem.startsWith(u8, msg, "Transcription error:")) return error.Transcription;
-        if (std.mem.startsWith(u8, msg, "Extraction timed out after")) return error.Timeout;
-        if (std.mem.startsWith(u8, msg, "Extraction cancelled")) return error.Cancelled;
-        if (std.mem.startsWith(u8, msg, "Security violation:")) return error.Security;
-    }
-    return _first_error(XbergError);
-}
 
 /// Errors that can occur during heuristics analysis.
 pub const HeuristicsError = error{
@@ -119,16 +123,6 @@ pub const HeuristicsError = error{
     PdfAnalysisError,
     OutOfMemory,
 };
-/// Map an FFI error message string to a `HeuristicsError` variant by prefix-matching
-/// against the upstream `#[error("...")]` templates. Falls back to the
-/// first declared variant when no prefix matches.
-inline fn _from_ffi_msg_HeuristicsError(msg_opt: ?[]const u8) HeuristicsError {
-    if (msg_opt) |msg| {
-        if (std.mem.startsWith(u8, msg, "Invalid heuristics configuration:")) return error.ConfigError;
-        if (std.mem.startsWith(u8, msg, "PDF analysis failed:")) return error.PdfAnalysisError;
-    }
-    return _first_error(HeuristicsError);
-}
 
 /// Errors produced while loading or validating a preset file.
 pub const LoadError = error{
@@ -140,35 +134,12 @@ pub const LoadError = error{
     Io,
     OutOfMemory,
 };
-/// Map an FFI error message string to a `LoadError` variant by prefix-matching
-/// against the upstream `#[error("...")]` templates. Falls back to the
-/// first declared variant when no prefix matches.
-inline fn _from_ffi_msg_LoadError(msg_opt: ?[]const u8) LoadError {
-    if (msg_opt) |msg| {
-        if (std.mem.startsWith(u8, msg, "preset")) return error.Parse;
-        if (std.mem.startsWith(u8, msg, "preset")) return error.SchemaValidation;
-        if (std.mem.startsWith(u8, msg, "preset")) return error.Deserialize;
-        if (std.mem.startsWith(u8, msg, "preset")) return error.IdMismatch;
-        if (std.mem.startsWith(u8, msg, "meta-schema is invalid:")) return error.BadMetaSchema;
-        if (std.mem.startsWith(u8, msg, "I/O error reading preset directory:")) return error.Io;
-    }
-    return _first_error(LoadError);
-}
 
 /// Errors produced while resolving a preset against caller overrides.
 pub const ResolveError = error{
     SchemaNotObject,
     OutOfMemory,
 };
-/// Map an FFI error message string to a `ResolveError` variant by prefix-matching
-/// against the upstream `#[error("...")]` templates. Falls back to the
-/// first declared variant when no prefix matches.
-inline fn _from_ffi_msg_ResolveError(msg_opt: ?[]const u8) ResolveError {
-    if (msg_opt) |msg| {
-        if (std.mem.startsWith(u8, msg, "custom schema must be a JSON object")) return error.SchemaNotObject;
-    }
-    return _first_error(ResolveError);
-}
 
 /// Aggregate statistics for a xberg cache directory.
 pub const CacheStats = struct {
@@ -6164,7 +6135,7 @@ pub const LateInteractionModelType = union(enum) {
     preset: []const u8,
     /// Use a custom ColBERT ONNX model from HuggingFace.
     custom: struct {
-    model_id: []const u8,
+        model_id: []const u8,
         model_file: ?[]const u8,
         additional_files: []const []const u8,
         max_length: ?i64,
@@ -6252,7 +6223,7 @@ pub const LayoutStrategy = enum {
 pub const CredentialProviderConfig = union(enum) {
     /// Azure AD OAuth2 client-credentials flow (Azure OpenAI / Azure Cognitive Services).
     azure_ad: struct {
-    tenant_id: []const u8,
+        tenant_id: []const u8,
         client_id: []const u8,
         client_secret: []const u8,
         scope: ?[]const u8,
@@ -6264,7 +6235,7 @@ pub const CredentialProviderConfig = union(enum) {
     /// carry that directly, matching the credential-handling policy the rest of this module
     /// follows.
     vertex_oauth2: struct {
-    service_account_key_file: []const u8,
+        service_account_key_file: []const u8,
         scope: ?[]const u8,
     },
     /// Google Vertex AI Application Default Credentials, resolved from the GCE/GKE/Cloud Run
@@ -6272,7 +6243,7 @@ pub const CredentialProviderConfig = union(enum) {
     vertex_adc: ?[]const u8,
     /// AWS STS `AssumeRoleWithWebIdentity` (EKS IRSA / OIDC federation) for Bedrock.
     bedrock_web_identity: struct {
-    role_arn: []const u8,
+        role_arn: []const u8,
         token_file: []const u8,
         session_name: ?[]const u8,
         region: ?[]const u8,
@@ -6437,7 +6408,7 @@ pub const ChunkSizing = union(enum) {
     /// Size measured in tokens from a HuggingFace tokenizer or a registered
     /// tokenizer backend.
     tokenizer: struct {
-    model: []const u8,
+        model: []const u8,
         cache_dir: ?[]const u8,
     },
 };
@@ -6448,7 +6419,7 @@ pub const EmbeddingModelType = union(enum) {
     preset: []const u8,
     /// Use a custom ONNX model from HuggingFace
     custom: struct {
-    model_id: []const u8,
+        model_id: []const u8,
         dimensions: u64,
     },
     /// Provider-hosted embedding model via liter-llm.
@@ -6506,7 +6477,7 @@ pub const RerankerModelType = union(enum) {
     preset: []const u8,
     /// Use a custom ONNX cross-encoder from HuggingFace.
     custom: struct {
-    model_id: []const u8,
+        model_id: []const u8,
         model_file: ?[]const u8,
         additional_files: []const []const u8,
         max_length: ?i64,
@@ -6541,7 +6512,7 @@ pub const SparseEmbeddingModelType = union(enum) {
     preset: []const u8,
     /// Use a custom SPLADE (`BertForMaskedLM`) ONNX model from HuggingFace.
     custom: struct {
-    model_id: []const u8,
+        model_id: []const u8,
         model_file: ?[]const u8,
         additional_files: []const []const u8,
         max_length: ?i64,
@@ -6806,7 +6777,7 @@ pub const NodeContent = union(enum) {
     title: []const u8,
     /// Section heading with level (1-6).
     heading: struct {
-    level: u8,
+        level: u8,
         text: []const u8,
     },
     /// Body text paragraph.
@@ -6819,13 +6790,13 @@ pub const NodeContent = union(enum) {
     table: TableGrid,
     /// Image reference.
     image: struct {
-    description: ?[]const u8,
+        description: ?[]const u8,
         image_index: ?u32,
         src: ?[]const u8,
     },
     /// Code block.
     code: struct {
-    text: []const u8,
+        text: []const u8,
         language: ?[]const u8,
     },
     /// Block quote — container, children carry the quoted content.
@@ -6845,7 +6816,7 @@ pub const NodeContent = union(enum) {
     /// `heading_level` + `heading_text` capture the section heading directly
     /// rather than relying on a first-child positional convention.
     group: struct {
-    label: ?[]const u8,
+        label: ?[]const u8,
         heading_level: ?u8,
         heading_text: ?[]const u8,
     },
@@ -6853,26 +6824,26 @@ pub const NodeContent = union(enum) {
     page_break: void,
     /// Presentation slide container — children are the slide's content nodes.
     slide: struct {
-    number: u32,
+        number: u32,
         title: ?[]const u8,
     },
     /// Definition list container — children are `DefinitionItem` nodes.
     definition_list: void,
     /// Individual definition list entry with term and definition.
     definition_item: struct {
-    term: []const u8,
+        term: []const u8,
         definition: []const u8,
     },
     /// Citation or bibliographic reference.
     citation: struct {
-    key: []const u8,
+        key: []const u8,
         text: []const u8,
     },
     /// Admonition / callout container (note, warning, tip, etc.).
     ///
     /// Children carry the admonition body content.
     admonition: struct {
-    kind: []const u8,
+        kind: []const u8,
         title: ?[]const u8,
     },
     /// Raw block preserved verbatim from the source format.
@@ -6880,7 +6851,7 @@ pub const NodeContent = union(enum) {
     /// Used for content that cannot be mapped to a semantic node type
     /// (e.g. JSX in MDX, raw LaTeX in markdown, embedded HTML).
     raw_block: struct {
-    format: []const u8,
+        format: []const u8,
         content: []const u8,
     },
     /// Structured metadata block (email headers, YAML frontmatter, etc.).
@@ -6905,7 +6876,7 @@ pub const AnnotationKind = union(enum) {
     superscript: void,
     /// Hyperlink annotation.
     link: struct {
-    url: []const u8,
+        url: []const u8,
         title: ?[]const u8,
     },
     /// Highlighted text (PDF highlights, HTML `<mark>`).
@@ -6916,7 +6887,7 @@ pub const AnnotationKind = union(enum) {
     font_size: []const u8,
     /// Extensible annotation for format-specific styling.
     custom: struct {
-    name: []const u8,
+        name: []const u8,
         value: ?[]const u8,
     },
 };
@@ -7222,7 +7193,7 @@ pub const StructuredDataType = enum {
 pub const OcrBoundingGeometry = union(enum) {
     /// Axis-aligned bounding box (typical for Tesseract output).
     rectangle: struct {
-    left: u32,
+        left: u32,
         top: u32,
         width: u32,
         height: u32,
@@ -7345,7 +7316,7 @@ pub const RevisionAnchor = union(enum) {
     paragraph: u64,
     /// Cell inside a table.
     table_cell: struct {
-    row: u64,
+        row: u64,
         col: u64,
         table_index: u64,
     },
@@ -7355,7 +7326,7 @@ pub const RevisionAnchor = union(enum) {
     slide: u64,
     /// Spreadsheet cell or range, identified by sheet index and optional name.
     sheet: struct {
-    index: u64,
+        index: u64,
         name: ?[]const u8,
     },
 };
@@ -7458,17 +7429,17 @@ pub const SchemaCompliance = enum {
 pub const NoChunkingReason = union(enum) {
     /// File is below size threshold.
     small_file: struct {
-    size_bytes: u64,
+        size_bytes: u64,
         threshold_bytes: u64,
     },
     /// Document has fewer pages than threshold.
     few_pages: struct {
-    page_count: u32,
+        page_count: u32,
         threshold: u32,
     },
     /// PDF has substantial text layer (OCR not needed).
     text_layer_detected: struct {
-    text_coverage: f32,
+        text_coverage: f32,
         avg_chars_per_page: u32,
     },
     /// Document format does not support chunking.
@@ -7483,22 +7454,22 @@ pub const NoChunkingReason = union(enum) {
 pub const ChunkingReason = union(enum) {
     /// File exceeds size threshold.
     large_file: struct {
-    size_bytes: u64,
+        size_bytes: u64,
         threshold_bytes: u64,
     },
     /// Document has many pages.
     many_pages: struct {
-    page_count: u32,
+        page_count: u32,
         threshold: u32,
     },
     /// PDF requires OCR and is large.
     ocr_required: struct {
-    page_count: u32,
+        page_count: u32,
         force_ocr: bool,
     },
     /// Both size and page count exceed thresholds.
     large_and_many_pages: struct {
-    size_bytes: u64,
+        size_bytes: u64,
         page_count: u32,
     },
 };
@@ -7729,14 +7700,14 @@ pub const DocumentContentEncoding = enum {
 pub const AuthConfig = union(enum) {
     /// HTTP Basic authentication.
     basic: struct {
-    username: []const u8,
+        username: []const u8,
         password: []const u8,
     },
     /// Bearer token authentication.
     bearer: []const u8,
     /// Custom authentication header.
     header: struct {
-    name: []const u8,
+        name: []const u8,
         value: []const u8,
     },
 };
@@ -7905,31 +7876,30 @@ pub fn extract(input: []const u8, config: []const u8) XbergError![]u8 {
         std.heap.c_allocator, "{s}", .{input}, 0);
     defer std.heap.c_allocator.free(input_z);
     const input_handle = c.xberg_extract_input_from_json(input_z);
-    if (input_handle == null) return _error_with_message(XbergError);
+    if (input_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_extract_input_free(input_handle);
     const config_z = try std.fmt.allocPrintSentinel(
         std.heap.c_allocator, "{s}", .{config}, 0);
     defer std.heap.c_allocator.free(config_z);
     const config_handle = c.xberg_extraction_config_from_json(config_z);
-    if (config_handle == null) return _error_with_message(XbergError);
+    if (config_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_extraction_config_free(config_handle);
     const _result = c.xberg_extract(input_handle, config_handle);
     if (c.xberg_last_error_code() != 0) {
         return _error_with_message(XbergError);
     }
-    if (_result == null) {
-        return _error_with_message(XbergError);
-    }
     return blk: {
-        const _json_ptr = c.xberg_extraction_result_to_json(_result.?);
-        c.xberg_extraction_result_free(_result.?);
-        if (_json_ptr == null) return _first_error(XbergError); // FFI to_json returned NULL — surface first declared variant rather than crashing on null-slice
+        if (_result == 0) return _first_error(XbergError);
+        const value = _result;
+        defer c.xberg_extraction_result_free(value);
+        const _json_ptr = c.xberg_extraction_result_to_json(value);
+        if (_json_ptr == null) return _first_error(XbergError);
         defer _free_string(_json_ptr);
         const slice = std.mem.sliceTo(_json_ptr, 0);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Extract content from multiple bytes or URI inputs.
@@ -7942,25 +7912,24 @@ pub fn extract_batch(inputs: []const u8, config: []const u8) XbergError![]u8 {
         std.heap.c_allocator, "{s}", .{config}, 0);
     defer std.heap.c_allocator.free(config_z);
     const config_handle = c.xberg_extraction_config_from_json(config_z);
-    if (config_handle == null) return _error_with_message(XbergError);
+    if (config_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_extraction_config_free(config_handle);
     const _result = c.xberg_extract_batch(inputs_z, config_handle);
     if (c.xberg_last_error_code() != 0) {
         return _error_with_message(XbergError);
     }
-    if (_result == null) {
-        return _error_with_message(XbergError);
-    }
     return blk: {
-        const _json_ptr = c.xberg_extraction_result_to_json(_result.?);
-        c.xberg_extraction_result_free(_result.?);
-        if (_json_ptr == null) return _first_error(XbergError); // FFI to_json returned NULL — surface first declared variant rather than crashing on null-slice
+        if (_result == 0) return _first_error(XbergError);
+        const value = _result;
+        defer c.xberg_extraction_result_free(value);
+        const _json_ptr = c.xberg_extraction_result_to_json(value);
+        if (_json_ptr == null) return _first_error(XbergError);
         defer _free_string(_json_ptr);
         const slice = std.mem.sliceTo(_json_ptr, 0);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Discover all pages and sitemaps reachable from `uri` without extracting document content.
@@ -7984,25 +7953,24 @@ pub fn map_url(uri: []const u8, config: []const u8) XbergError![]u8 {
         std.heap.c_allocator, "{s}", .{config}, 0);
     defer std.heap.c_allocator.free(config_z);
     const config_handle = c.xberg_url_extraction_config_from_json(config_z);
-    if (config_handle == null) return _error_with_message(XbergError);
+    if (config_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_url_extraction_config_free(config_handle);
     const _result = c.xberg_map_url(uri_z, config_handle);
     if (c.xberg_last_error_code() != 0) {
         return _error_with_message(XbergError);
     }
-    if (_result == null) {
-        return _error_with_message(XbergError);
-    }
     return blk: {
-        const _json_ptr = c.xberg_map_result_to_json(_result.?);
-        c.xberg_map_result_free(_result.?);
-        if (_json_ptr == null) return _first_error(XbergError); // FFI to_json returned NULL — surface first declared variant rather than crashing on null-slice
+        if (_result == 0) return _first_error(XbergError);
+        const value = _result;
+        defer c.xberg_map_result_free(value);
+        const _json_ptr = c.xberg_map_result_to_json(value);
+        if (_json_ptr == null) return _first_error(XbergError);
         defer _free_string(_json_ptr);
         const slice = std.mem.sliceTo(_json_ptr, 0);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List all supported document formats.
@@ -8032,11 +8000,11 @@ pub fn list_supported_formats() error{OutOfMemory}![]u8 {
     const _result_len = c.xberg_list_supported_formats_len();
     return blk: {
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Ensure built-in extractors are registered.
@@ -8072,11 +8040,11 @@ pub fn list_embedding_backends() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List names of all registered document extractors.
@@ -8092,11 +8060,11 @@ pub fn list_document_extractors() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List all registered OCR backends.
@@ -8118,11 +8086,11 @@ pub fn list_ocr_backends() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List all registered post-processor names.
@@ -8146,11 +8114,11 @@ pub fn list_post_processors() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List names of all registered renderers.
@@ -8170,11 +8138,11 @@ pub fn list_renderers() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List the names of all registered reranker backends.
@@ -8195,11 +8163,11 @@ pub fn list_reranker_backends() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List the names of all registered tokenizer backends.
@@ -8218,11 +8186,11 @@ pub fn list_tokenizer_backends() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// List names of all registered validators.
@@ -8238,11 +8206,11 @@ pub fn list_validators() XbergError![]u8 {
     return blk: {
         if (_result == null) return _first_error(XbergError);
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Run chunk classification against an extraction result.
@@ -8266,13 +8234,13 @@ pub fn classify_chunks(result: []const u8, config: []const u8) XbergError!void {
         std.heap.c_allocator, "{s}", .{result}, 0);
     defer std.heap.c_allocator.free(result_z);
     const result_handle = c.xberg_extracted_document_from_json(result_z);
-    if (result_handle == null) return _error_with_message(XbergError);
+    if (result_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_extracted_document_free(result_handle);
     const config_z = try std.fmt.allocPrintSentinel(
         std.heap.c_allocator, "{s}", .{config}, 0);
     defer std.heap.c_allocator.free(config_z);
     const config_handle = c.xberg_chunk_classification_config_from_json(config_z);
-    if (config_handle == null) return _error_with_message(XbergError);
+    if (config_handle == 0) return _error_with_message(XbergError);
     defer c.xberg_chunk_classification_config_free(config_handle);
     _ = c.xberg_classify_chunks(result_handle, config_handle);
     if (c.xberg_last_error_code() != 0) {
@@ -8301,11 +8269,11 @@ pub fn find_unmarked_claims(markdown: []const u8) error{OutOfMemory}![]u8 {
     const _result_len = c.xberg_find_unmarked_claims_len(markdown_z);
     return blk: {
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Verify that an excerpt appears verbatim in source text.
@@ -8345,13 +8313,13 @@ pub fn max_sim_score(query: []const u8, doc: []const u8) error{OutOfMemory,Inval
         std.heap.c_allocator, "{s}", .{query}, 0);
     defer std.heap.c_allocator.free(query_z);
     const query_handle = c.xberg_multi_vector_embedding_from_json(query_z);
-    if (query_handle == null) return error.InvalidJson;
+    if (query_handle == 0) return error.InvalidJson;
     defer c.xberg_multi_vector_embedding_free(query_handle);
     const doc_z = try std.fmt.allocPrintSentinel(
         std.heap.c_allocator, "{s}", .{doc}, 0);
     defer std.heap.c_allocator.free(doc_z);
     const doc_handle = c.xberg_multi_vector_embedding_from_json(doc_z);
-    if (doc_handle == null) return error.InvalidJson;
+    if (doc_handle == 0) return error.InvalidJson;
     defer c.xberg_multi_vector_embedding_free(doc_handle);
     const _result = c.xberg_max_sim_score(query_handle, doc_handle);
     return _result;
@@ -8370,7 +8338,7 @@ pub fn max_sim_rank(query: []const u8, docs: []const u8) error{OutOfMemory,Inval
         std.heap.c_allocator, "{s}", .{query}, 0);
     defer std.heap.c_allocator.free(query_z);
     const query_handle = c.xberg_multi_vector_embedding_from_json(query_z);
-    if (query_handle == null) return error.InvalidJson;
+    if (query_handle == 0) return error.InvalidJson;
     defer c.xberg_multi_vector_embedding_free(query_handle);
     // Vec/Map parameters are passed as JSON strings across the FFI boundary.
     const docs_z = try std.fmt.allocPrintSentinel(
@@ -8380,11 +8348,11 @@ pub fn max_sim_rank(query: []const u8, docs: []const u8) error{OutOfMemory,Inval
     const _result_len = c.xberg_max_sim_rank_len(query_handle, docs_z);
     return blk: {
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Probe the backends and settings in `config` and report what will actually
@@ -8397,18 +8365,21 @@ pub fn doctor(config: []const u8) error{OutOfMemory,InvalidJson}![]u8 {
         std.heap.c_allocator, "{s}", .{config}, 0);
     defer std.heap.c_allocator.free(config_z);
     const config_handle = c.xberg_extraction_config_from_json(config_z);
-    if (config_handle == null) return error.InvalidJson;
+    if (config_handle == 0) return error.InvalidJson;
     defer c.xberg_extraction_config_free(config_handle);
     const _result = c.xberg_doctor(config_handle);
     return blk: {
-        const _json_ptr = c.xberg_doctor_report_to_json(_result.?);
-        c.xberg_doctor_report_free(_result.?);
+        if (_result == 0) return error.OutOfMemory;
+        const value = _result;
+        defer c.xberg_doctor_report_free(value);
+        const _json_ptr = c.xberg_doctor_report_to_json(value);
+        if (_json_ptr == null) return error.OutOfMemory;
         defer _free_string(_json_ptr);
         const slice = std.mem.sliceTo(_json_ptr, 0);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Install `PdfOxideWarningCapture` as the process-wide `log` backend,
@@ -8477,11 +8448,11 @@ pub fn take_pdf_oxide_render_warnings() error{OutOfMemory}![]u8 {
     const _result_len = c.xberg_take_pdf_oxide_render_warnings_len();
     return blk: {
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Build the four (or three) token Whisper decoder prompt.
@@ -8496,11 +8467,11 @@ pub fn build_decoder_prompt_tokens(start_of_transcript: u32, lang_id: u32, trans
     const _result_len = c.xberg_build_decoder_prompt_tokens_len(start_of_transcript, lang_id, transcribe, no_timestamps, timestamps);
     return blk: {
         const slice = _result[0.._result_len];
+        defer _free_string(_result);
         const owned = try std.heap.c_allocator.dupe(u8, slice);
-        _free_string(_result);
         break :blk owned;
     }
-    ;
+;
 }
 
 /// Convert a raw Whisper timestamp token ID to a millisecond offset from the
@@ -8833,19 +8804,19 @@ pub fn make_ocr_backend_vtable(comptime T: type, instance: *T) IOcrBackend {
             fn thunk(ud: ?*anyopaque, out_result: ?*?[*c]u8) callconv(.c) i32 {
                 const self: *T = @ptrCast(@alignCast(ud));
                 const value = self.backend_type();
-                if (value == null) {
-                    if (out_result) |ptr| ptr.* = null;
+                    if (value == null) {
+                        if (out_result) |ptr| ptr.* = null;
+                        return 0;
+                    }
+                    const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
+                        return 1;
+                    };
+                    if (out_result) |ptr| {
+                        ptr.* = @ptrCast(_owned_result.ptr);
+                    } else {
+                        std.heap.c_allocator.free(_owned_result);
+                    }
                     return 0;
-                }
-                const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
-                    return 1;
-                };
-                if (out_result) |ptr| {
-                    ptr.* = @ptrCast(_owned_result.ptr);
-                } else {
-                    std.heap.c_allocator.free(_owned_result);
-                }
-                return 0;
             }
         }.thunk,
 
@@ -8853,19 +8824,19 @@ pub fn make_ocr_backend_vtable(comptime T: type, instance: *T) IOcrBackend {
             fn thunk(ud: ?*anyopaque, out_result: ?*?[*c]u8) callconv(.c) i32 {
                 const self: *T = @ptrCast(@alignCast(ud));
                 const value = self.supported_languages();
-                if (value == null) {
-                    if (out_result) |ptr| ptr.* = null;
+                    if (value == null) {
+                        if (out_result) |ptr| ptr.* = null;
+                        return 0;
+                    }
+                    const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
+                        return 1;
+                    };
+                    if (out_result) |ptr| {
+                        ptr.* = @ptrCast(_owned_result.ptr);
+                    } else {
+                        std.heap.c_allocator.free(_owned_result);
+                    }
                     return 0;
-                }
-                const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
-                    return 1;
-                };
-                if (out_result) |ptr| {
-                    ptr.* = @ptrCast(_owned_result.ptr);
-                } else {
-                    std.heap.c_allocator.free(_owned_result);
-                }
-                return 0;
             }
         }.thunk,
 
@@ -9191,19 +9162,19 @@ pub fn make_post_processor_vtable(comptime T: type, instance: *T) IPostProcessor
             fn thunk(ud: ?*anyopaque, out_result: ?*?[*c]u8) callconv(.c) i32 {
                 const self: *T = @ptrCast(@alignCast(ud));
                 const value = self.processing_stage();
-                if (value == null) {
-                    if (out_result) |ptr| ptr.* = null;
+                    if (value == null) {
+                        if (out_result) |ptr| ptr.* = null;
+                        return 0;
+                    }
+                    const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
+                        return 1;
+                    };
+                    if (out_result) |ptr| {
+                        ptr.* = @ptrCast(_owned_result.ptr);
+                    } else {
+                        std.heap.c_allocator.free(_owned_result);
+                    }
                     return 0;
-                }
-                const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
-                    return 1;
-                };
-                if (out_result) |ptr| {
-                    ptr.* = @ptrCast(_owned_result.ptr);
-                } else {
-                    std.heap.c_allocator.free(_owned_result);
-                }
-                return 0;
             }
         }.thunk,
 
@@ -9732,19 +9703,19 @@ pub fn make_document_extractor_vtable(comptime T: type, instance: *T) IDocumentE
             fn thunk(ud: ?*anyopaque, out_result: ?*?[*c]u8) callconv(.c) i32 {
                 const self: *T = @ptrCast(@alignCast(ud));
                 const value = self.supported_mime_types();
-                if (value == null) {
-                    if (out_result) |ptr| ptr.* = null;
+                    if (value == null) {
+                        if (out_result) |ptr| ptr.* = null;
+                        return 0;
+                    }
+                    const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
+                        return 1;
+                    };
+                    if (out_result) |ptr| {
+                        ptr.* = @ptrCast(_owned_result.ptr);
+                    } else {
+                        std.heap.c_allocator.free(_owned_result);
+                    }
                     return 0;
-                }
-                const _owned_result = std.heap.c_allocator.dupeZ(u8, std.mem.span(value)) catch {
-                    return 1;
-                };
-                if (out_result) |ptr| {
-                    ptr.* = @ptrCast(_owned_result.ptr);
-                } else {
-                    std.heap.c_allocator.free(_owned_result);
-                }
-                return 0;
             }
         }.thunk,
 
@@ -10431,19 +10402,20 @@ pub fn make_tokenizer_backend_vtable(comptime T: type, instance: *T) ITokenizerB
 /// Create a fresh counter with no previous state.
 pub fn new_token_counter() TokenCounter {
     const _handle = c.xberg_token_counter_new();
-    if (_handle == null) return _first_error(anyerror);
-    return .{ ._handle = @as(*c.XBERGTokenCounter, @ptrCast(_handle.?)) };
+    if (_handle == 0) return _first_error(anyerror);
+    return .{ ._handle = _handle };
 }
 
 /// Per-category running counter for `RedactionStrategy.TokenReplace`.
 pub const TokenCounter = struct {
-    _handle: ?*anyopaque,
+    _handle: u64,
 
     /// Release the underlying FFI handle. Safe to call more than once.
     pub fn free(self: *TokenCounter) void {
-    const handle = self._handle orelse return;
-        self._handle = null;
-        c.xberg_token_counter_free(@as(*c.XBERGTokenCounter, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return;
+        self._handle = 0;
+        c.xberg_token_counter_free(handle);
     }
 };
 
@@ -10452,39 +10424,43 @@ pub fn compile_meta_schema(meta_schema_json: []const u8) error{OutOfMemory}!Meta
     const meta_schema_json_z = try std.heap.c_allocator.dupeZ(u8, meta_schema_json);
     defer std.heap.c_allocator.free(meta_schema_json_z);
     const _handle = c.xberg_meta_schema_compile(meta_schema_json_z.ptr);
-    if (_handle == null) return _first_error(anyerror);
-    return .{ ._handle = @as(*c.XBERGMetaSchema, @ptrCast(_handle.?)) };
+    if (_handle == 0) return _first_error(anyerror);
+    return .{ ._handle = _handle };
 }
 
 /// Compiled meta-schema validator over `preset.schema.json`.
 pub const MetaSchema = struct {
-    _handle: ?*anyopaque,
+    _handle: u64,
 
     /// Validate `raw` against the meta-schema and deserialize into a `Preset`,
     /// stamping the fingerprint over the canonical file bytes.
     pub fn parse_preset(self: *MetaSchema, path: []const u8, raw: []const u8) (LoadError||error{OutOfMemory,HandleClosed})![]u8 {
-    const handle = self._handle orelse return error.HandleClosed;
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
         const path_z = try std.heap.c_allocator.dupeZ(u8, path);
         defer std.heap.c_allocator.free(path_z);
-        const _result = c.xberg_meta_schema_parse_preset(@as(*c.XBERGMetaSchema, @ptrCast(handle)), path_z, raw.ptr, raw.len);
-        if (_result == null) {
-            return _first_error(LoadError);
+        const _result = c.xberg_meta_schema_parse_preset(handle, path_z, raw.ptr, raw.len);
+        if (c.xberg_last_error_code() != 0) {
+            return _error_with_message(LoadError);
         }
         return blk: {
-            const _json_ptr = c.xberg_preset_to_json(_result);
+            if (_result == 0) return error.OutOfMemory;
+            const value = _result;
+            defer c.xberg_preset_free(value);
+            const _json_ptr = c.xberg_preset_to_json(value) orelse return error.OutOfMemory;
+            defer c.xberg_free_string(_json_ptr);
             const _json_slice = std.mem.span(_json_ptr);
             const owned = try std.heap.c_allocator.dupe(u8, _json_slice);
-            c.xberg_free_string(_json_ptr);
-            c.xberg_preset_free(_result);
             break :blk owned;
         };
     }
 
     /// Release the underlying FFI handle. Safe to call more than once.
     pub fn free(self: *MetaSchema) void {
-    const handle = self._handle orelse return;
-        self._handle = null;
-        c.xberg_meta_schema_free(@as(*c.XBERGMetaSchema, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return;
+        self._handle = 0;
+        c.xberg_meta_schema_free(handle);
     }
 };
 
@@ -10492,58 +10468,64 @@ pub const MetaSchema = struct {
 /// `src/presets/library/`. Validates every file against the meta-schema.
 pub fn load_embedded_registry() Registry {
     const _handle = c.xberg_registry_load_embedded();
-    if (_handle == null) return _first_error(anyerror);
-    return .{ ._handle = @as(*c.XBERGRegistry, @ptrCast(_handle.?)) };
+    if (_handle == 0) return _first_error(anyerror);
+    return .{ ._handle = _handle };
 }
 
 /// Sorted map of preset id → `Preset`.
 pub const Registry = struct {
-    _handle: ?*anyopaque,
+    _handle: u64,
 
     /// Look up a preset by its identifier.
     pub fn get(self: *Registry, id: []const u8) error{OutOfMemory,HandleClosed}!?[]u8 {
-    const handle = self._handle orelse return error.HandleClosed;
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
         const id_z = try std.heap.c_allocator.dupeZ(u8, id);
         defer std.heap.c_allocator.free(id_z);
-        const _result = c.xberg_registry_get(@as(*c.XBERGRegistry, @ptrCast(handle)), id_z);
+        const _result = c.xberg_registry_get(handle, id_z);
         return _result;
     }
 
     /// Materialize a `PresetSummary` list for the public registry endpoint.
     pub fn summaries(self: *Registry) error{OutOfMemory,HandleClosed}![]u8 {
-    const handle = self._handle orelse return error.HandleClosed;
-        const _result = c.xberg_registry_summaries(@as(*c.XBERGRegistry, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
+        const _result = c.xberg_registry_summaries(handle);
         return blk: {
-            const slice = std.mem.span(_result);
+            const value = _result orelse return error.OutOfMemory;
+            defer c.xberg_free_string(value);
+            const slice = std.mem.span(value);
             const owned = try std.heap.c_allocator.dupe(u8, slice);
-            c.xberg_free_string(_result);
             break :blk owned;
         };
     }
 
     /// Number of presets currently loaded.
     pub fn len(self: *Registry) error{HandleClosed}!u64 {
-    const handle = self._handle orelse return error.HandleClosed;
-        const _result = c.xberg_registry_len(@as(*c.XBERGRegistry, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
+        const _result = c.xberg_registry_len(handle);
         return _result;
     }
 
     /// Whether the registry contains zero presets.
     pub fn is_empty(self: *Registry) error{HandleClosed}!bool {
-    const handle = self._handle orelse return error.HandleClosed;
-        const _result = c.xberg_registry_is_empty(@as(*c.XBERGRegistry, @ptrCast(handle)));
-        return _result;
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
+        const _result = c.xberg_registry_is_empty(handle);
+        return _result != 0;
     }
 
     /// Read raw sample bytes for `<preset_id>` from
     /// `library/<id>/samples/<name>`. Returns `null` when the file is absent.
     pub fn sample_bytes(self: *Registry, preset_id: []const u8, name: []const u8) error{OutOfMemory,HandleClosed}!?[]const u8 {
-    const handle = self._handle orelse return error.HandleClosed;
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
         const preset_id_z = try std.heap.c_allocator.dupeZ(u8, preset_id);
         defer std.heap.c_allocator.free(preset_id_z);
         const name_z = try std.heap.c_allocator.dupeZ(u8, name);
         defer std.heap.c_allocator.free(name_z);
-        const _result = c.xberg_registry_sample_bytes(@as(*c.XBERGRegistry, @ptrCast(handle)), preset_id_z, name_z);
+        const _result = c.xberg_registry_sample_bytes(handle, preset_id_z, name_z);
         return _result;
     }
 
@@ -10563,21 +10545,23 @@ pub const Registry = struct {
     /// This is the injection point for downstream catalogs that add curated
     /// presets on top of the single embedded OSS preset.
     pub fn extend_from_dir(self: *Registry, dir: []const u8) (LoadError||error{OutOfMemory,HandleClosed})!u64 {
-    const handle = self._handle orelse return error.HandleClosed;
+        const handle = self._handle;
+        if (handle == 0) return error.HandleClosed;
         const dir_z = try std.heap.c_allocator.dupeZ(u8, dir);
         defer std.heap.c_allocator.free(dir_z);
-        const _result = c.xberg_registry_extend_from_dir(@as(*c.XBERGRegistry, @ptrCast(handle)), dir_z);
-        if (_result == null) {
-            return _first_error(LoadError);
+        const _result = c.xberg_registry_extend_from_dir(handle, dir_z);
+        if (c.xberg_last_error_code() != 0) {
+            return _error_with_message(LoadError);
         }
         return _result;
     }
 
     /// Release the underlying FFI handle. Safe to call more than once.
     pub fn free(self: *Registry) void {
-    const handle = self._handle orelse return;
-        self._handle = null;
-        c.xberg_registry_free(@as(*c.XBERGRegistry, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return;
+        self._handle = 0;
+        c.xberg_registry_free(handle);
     }
 };
 
@@ -10587,12 +10571,13 @@ pub const Registry = struct {
 /// already produced chunks (e.g. via `ExtractionConfig.chunking`) for this
 /// stage to have any effect; a document with no chunks is a no-op.
 pub const ChunkClassificationEnrichmentConfig = struct {
-    _handle: ?*anyopaque,
+    _handle: u64,
 
     /// Release the underlying FFI handle. Safe to call more than once.
     pub fn free(self: *ChunkClassificationEnrichmentConfig) void {
-    const handle = self._handle orelse return;
-        self._handle = null;
-        c.xberg_chunk_classification_enrichment_config_free(@as(*c.XBERGChunkClassificationEnrichmentConfig, @ptrCast(handle)));
+        const handle = self._handle;
+        if (handle == 0) return;
+        self._handle = 0;
+        c.xberg_chunk_classification_enrichment_config_free(handle);
     }
 };

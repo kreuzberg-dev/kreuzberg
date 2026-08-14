@@ -11,5 +11,6 @@ extract_batch: empty batch
 
 ```elixir title="Elixir"
 result = Xberg.extract_batch_async([])
+IO.inspect(result)
 
 ```

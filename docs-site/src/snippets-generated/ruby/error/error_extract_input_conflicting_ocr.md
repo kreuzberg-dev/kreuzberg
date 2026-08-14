@@ -14,9 +14,7 @@ require "xberg"
 begin
   result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/fake_text.txt').bytes, config: { 'disable_ocr' => true, 'force_ocr' => true }, filename: 'fake_text.txt', kind: 'bytes', mime_type: 'text/plain'), { 'disable_ocr' => true, 'force_ocr' => true })
 rescue StandardError => error
-  warn "Call failed as expected: #{error.message}"
-else
-  raise "expected call to fail"
+  warn "#{error.class}: #{error.message}"
 end
 
 ```

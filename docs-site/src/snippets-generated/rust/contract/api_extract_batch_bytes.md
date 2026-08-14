@@ -15,7 +15,7 @@ use xberg::ExtractInput;
 
 #[tokio::main]
 async fn main() {
-    let inputs_json: serde_json::Value = serde_json::from_str(r#"[{"bytes":"test_documents/pdf/fake_memo.pdf","filename":"fake_memo.pdf","kind":"bytes"}]"#).unwrap();
+    let mut inputs_json: serde_json::Value = serde_json::from_str(r#"[{"bytes":"test_documents/pdf/fake_memo.pdf","filename":"fake_memo.pdf","kind":"bytes"}]"#).unwrap();
     let inputs_file_0 = std::fs::read(r#"test_documents/pdf/fake_memo.pdf"#).expect("file read failed");
     *inputs_json.pointer_mut(r#"/0/bytes"#).expect("docs file field missing") = serde_json::json!(inputs_file_0);
     let inputs = serde_json::from_value::<Vec<ExtractInput>>(inputs_json).unwrap();

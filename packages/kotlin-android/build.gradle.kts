@@ -67,9 +67,16 @@ dependencies {
 // Set alef.skipHostJni=true to disable this (e.g., in publish-only builds).
 tasks.register("buildHostJni", Exec::class) {
     if (project.properties["alef.skipHostJni"] != "true") {
-        val jniCargoPath = "../../crates/xberg-jni/Cargo.toml"
-        description = "Build host-platform JNI library from ../../crates/xberg-jni"
-        commandLine("cargo", "build", "--release", "--manifest-path", jniCargoPath)
+        val configuredManifest = project.findProperty("alef.jniManifestPath") as String?
+        val jniManifest = configuredManifest?.let(::file) ?: generateSequence(projectDir) { it.parentFile }
+            .map { it.resolve("crates/xberg-jni/Cargo.toml") }
+            .firstOrNull { it.isFile }
+            ?: throw GradleException(
+                "Cannot locate crates/xberg-jni/Cargo.toml from $projectDir; " +
+                    "set -Palef.jniManifestPath=/absolute/path/to/Cargo.toml"
+            )
+        description = "Build host-platform JNI library from $jniManifest"
+        commandLine("cargo", "build", "--release", "--manifest-path", jniManifest.absolutePath)
         errorOutput = System.err
     } else {
         description = "Build host JNI (disabled via alef.skipHostJni=true)"
@@ -87,8 +94,14 @@ tasks.register("copyHostJni", Copy::class) {
             System.getProperty("os.name").lowercase().contains("win") -> "windows"
             else -> "linux"
         }
-        val jniCratePath = file("../../crates/xberg-jni")
-        val buildDir = jniCratePath.resolve("target/release")
+        val configuredManifest = project.findProperty("alef.jniManifestPath") as String?
+        val jniManifest = configuredManifest?.let(::file) ?: generateSequence(projectDir) { it.parentFile }
+            .map { it.resolve("crates/xberg-jni/Cargo.toml") }
+            .firstOrNull { it.isFile }
+            ?: throw GradleException("Cannot locate crates/xberg-jni/Cargo.toml from $projectDir")
+        val workspaceRoot = jniManifest.parentFile.parentFile.parentFile
+        val buildDir = (project.findProperty("native.lib.path") as String?)?.let(::file)
+            ?: workspaceRoot.resolve("target/release")
 
         // Map host platform to library filename
         val libName = when (hostPlatform) {
@@ -161,7 +174,7 @@ tasks.register("validateJniLibsForRelease") {
             // System.loadLibrary("xberg_jni") needs the JNI entry points.
             val expectedJniLib = "libxberg_jni.so"
             val abisMissingJniLib = (jniLibsDir.listFiles()?.filter { it.isDirectory } ?: emptyList())
-            .filter { abiDir -> !abiDir.resolve(expectedJniLib).exists() }
+                .filter { abiDir -> !abiDir.resolve(expectedJniLib).exists() }
             if (abisMissingJniLib.isNotEmpty()) {
                 throw GradleException(
                     "FATAL: " + expectedJniLib + " is missing from jniLibs ABI dir(s): " +

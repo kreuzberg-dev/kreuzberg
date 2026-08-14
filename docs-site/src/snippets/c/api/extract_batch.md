@@ -10,9 +10,9 @@ int main(void) {
         "\"mime_type\":\"text/plain\",\"filename\":\"note.txt\"}"
         "]";
 
-    XBERGExtractionConfig *config = xberg_extraction_config_default();
-    XBERGExtractionResult *output = xberg_extract_batch(inputs_json, config);
-    if (!output) {
+    XBERGAlefHandle config = xberg_extraction_config_from_json("{}");
+    XBERGAlefHandle output = xberg_extract_batch(inputs_json, config);
+    if (output == 0) {
         fprintf(stderr, "batch extraction failed: %s\n", xberg_last_error_context());
         xberg_extraction_config_free(config);
         return 1;

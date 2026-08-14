@@ -41,19 +41,19 @@ enum class NerBackendKind {
 
     @com.fasterxml.jackson.annotation.JsonValue
     fun toWire(): String =
-    when (this) {
-        ONNX -> "onnx"
-        LLM -> "llm"
-    }
+        when (this) {
+            ONNX -> "onnx"
+            LLM -> "llm"
+        }
 
     companion object {
         @com.fasterxml.jackson.annotation.JsonCreator
         @JvmStatic
         fun fromWire(value: String): NerBackendKind =
-        when (value) {
-            "onnx" -> ONNX
-            "llm" -> LLM
-            else -> throw IllegalArgumentException("Unknown NerBackendKind value: $value")
-        }
+            when (value) {
+                "onnx" -> ONNX
+                "llm" -> LLM
+                else -> throw IllegalArgumentException("Unknown NerBackendKind value: $value")
+            }
     }
 }

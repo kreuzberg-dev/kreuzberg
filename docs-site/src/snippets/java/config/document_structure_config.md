@@ -5,7 +5,7 @@ import io.xberg.ExtractionConfig;
 import io.xberg.ExtractedDocument;
 
 ExtractionConfig config = ExtractionConfig.builder()
-    .includeDocumentStructure(true)
+    .withIncludeDocumentStructure(true)
     .build();
 var resultOutput = Xberg.extract(
     io.xberg.ExtractInput.builder()
@@ -15,10 +15,10 @@ var resultOutput = Xberg.extract(
     config
 );
 ExtractedDocument result = resultOutput.results().get(0);
-if (result.getDocumentStructure().isPresent()) {
-    var document = result.getDocumentStructure().get();
+if (result.document() != null) {
+    var document = result.document();
     for (var node : document.nodes()) {
-        System.out.println("[" + node.content().nodeType() + "]");
+        System.out.println("[" + node.content().getClass().getSimpleName() + "]");
     }
 }
 ```
