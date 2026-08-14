@@ -24,121 +24,121 @@ test "url_batch_mixed_inputs" {
     const inputs_json = try std.mem.replaceOwned(u8, allocator, "[{\"kind\":\"uri\",\"uri\":\"$mock_url\"},{\"bytes\":[66,97,116,99,104,32,98,121,116,101,115,32,99,111,110,116,101,110,116],\"filename\":\"inline.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}]", "$mock_url", inputs_mock_base_url);
     defer allocator.free(inputs_json);
     const _result_json = try xberg.extract_batch(inputs_json, "{\"url\":{\"mode\":\"document\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 2));
-    {
-        const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "Batch URL document content") != null);
+        defer std.heap.c_allocator.free(_result_json);
+        var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+        defer _parsed.deinit();
+        const result = &_parsed.value;
+        try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 2));
+        {
+            const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
+            const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+            defer if (_jv != .string) std.heap.c_allocator.free(_js);
+            try testing.expect(std.mem.indexOf(u8, _js, "Batch URL document content") != null);
+        }
+        {
+            const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
+            const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+            defer if (_jv != .string) std.heap.c_allocator.free(_js);
+            try testing.expect(std.mem.indexOf(u8, _js, "Batch bytes content") != null);
+        }
     }
-    {
-        const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "Batch bytes content") != null);
-    }
-}
 
-test "url_crawl_linked_pages" {
-    // extract: crawl mode follows linked pages
-    allow_private_network();
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    test "url_crawl_linked_pages" {
+        // extract: crawl mode follows linked pages
+        allow_private_network();
+        var gpa: std.heap.DebugAllocator(.{}) = .init;
+        defer _ = gpa.deinit();
+        const allocator = gpa.allocator();
 
-    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_CRAWL_LINKED_PAGES")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_crawl_linked_pages", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
-    defer allocator.free(input_mock_base_url);
-    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
-    defer allocator.free(input_json);
-    const _result_json = try xberg.extract(input_json, "{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_robots_txt\":false},\"mode\":\"crawl\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    try testing.expect(result.object.get("summary").?.object.get("pages_crawled").?.integer >= @as(i64, 2));
-    {
-        const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "About crawl target") != null);
-    }
-}
+        const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_CRAWL_LINKED_PAGES")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_crawl_linked_pages", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
+        defer allocator.free(input_mock_base_url);
+        const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
+        defer allocator.free(input_json);
+        const _result_json = try xberg.extract(input_json, "{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_robots_txt\":false},\"mode\":\"crawl\"}}");
+            defer std.heap.c_allocator.free(_result_json);
+            var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+            defer _parsed.deinit();
+            const result = &_parsed.value;
+            try testing.expect(result.object.get("summary").?.object.get("pages_crawled").?.integer >= @as(i64, 2));
+            {
+                const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
+                const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+                defer if (_jv != .string) std.heap.c_allocator.free(_js);
+                try testing.expect(std.mem.indexOf(u8, _js, "About crawl target") != null);
+            }
+        }
 
-test "url_html_page_extract" {
-    // extract: website URL returns page content
-    allow_private_network();
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+        test "url_html_page_extract" {
+            // extract: website URL returns page content
+            allow_private_network();
+            var gpa: std.heap.DebugAllocator(.{}) = .init;
+            defer _ = gpa.deinit();
+            const allocator = gpa.allocator();
 
-    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_HTML_PAGE_EXTRACT")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_html_page_extract", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
-    defer allocator.free(input_mock_base_url);
-    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
-    defer allocator.free(input_json);
-    const _result_json = try xberg.extract(input_json, "{\"url\":{\"mode\":\"document\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    {
-        const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "Xberg URL Page") != null);
-    }
-    try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 1));
-}
+            const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_HTML_PAGE_EXTRACT")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_html_page_extract", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
+            defer allocator.free(input_mock_base_url);
+            const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
+            defer allocator.free(input_json);
+            const _result_json = try xberg.extract(input_json, "{\"url\":{\"mode\":\"document\"}}");
+                defer std.heap.c_allocator.free(_result_json);
+                var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+                defer _parsed.deinit();
+                const result = &_parsed.value;
+                {
+                    const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
+                    const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+                    defer if (_jv != .string) std.heap.c_allocator.free(_js);
+                    try testing.expect(std.mem.indexOf(u8, _js, "Xberg URL Page") != null);
+                }
+                try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 1));
+            }
 
-test "url_recursive_document_urls" {
-    // extract: recursive URL extraction follows document links discovered in results
-    allow_private_network();
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+            test "url_recursive_document_urls" {
+                // extract: recursive URL extraction follows document links discovered in results
+                allow_private_network();
+                var gpa: std.heap.DebugAllocator(.{}) = .init;
+                defer _ = gpa.deinit();
+                const allocator = gpa.allocator();
 
-    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_recursive_document_urls", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
-    defer allocator.free(input_mock_base_url);
-    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
-    defer allocator.free(input_json);
-    const _result_json = try xberg.extract(input_json, "{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 2));
-    {
-        const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "Recursive document target") != null);
-    }
-}
+                const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_recursive_document_urls", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
+                defer allocator.free(input_mock_base_url);
+                const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
+                defer allocator.free(input_json);
+                const _result_json = try xberg.extract(input_json, "{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}}");
+                    defer std.heap.c_allocator.free(_result_json);
+                    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+                    defer _parsed.deinit();
+                    const result = &_parsed.value;
+                    try testing.expect(result.object.get("results").?.array.items.len >= @as(usize, 2));
+                    {
+                        const _jv = result.object.get("results").?.array.items[1].object.get("content").?;
+                        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+                        defer if (_jv != .string) std.heap.c_allocator.free(_js);
+                        try testing.expect(std.mem.indexOf(u8, _js, "Recursive document target") != null);
+                    }
+                }
 
-test "url_remote_text_document" {
-    // extract: remote text document URL
-    allow_private_network();
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+                test "url_remote_text_document" {
+                    // extract: remote text document URL
+                    allow_private_network();
+                    var gpa: std.heap.DebugAllocator(.{}) = .init;
+                    defer _ = gpa.deinit();
+                    const allocator = gpa.allocator();
 
-    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_remote_text_document", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
-    defer allocator.free(input_mock_base_url);
-    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
-    defer allocator.free(input_json);
-    const _result_json = try xberg.extract(input_json, "{\"url\":{\"mode\":\"document\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    {
-        const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
-        const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
-        defer if (_jv != .string) std.heap.c_allocator.free(_js);
-        try testing.expect(std.mem.indexOf(u8, _js, "Remote document hello") != null);
-    }
-    try testing.expectEqual(@as(i64, 1), result.object.get("summary").?.object.get("remote_urls").?.integer);
-}
+                    const input_mock_base_url = if (std.c.getenv("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT")) |_pf| try std.fmt.allocPrint(allocator, "{s}", .{std.mem.span(_pf)}) else try std.fmt.allocPrint(allocator, "{s}/fixtures/url_remote_text_document", .{if (std.c.getenv("MOCK_SERVER_URL")) |url| std.mem.span(url) else "http://localhost:8080"});
+                    defer allocator.free(input_mock_base_url);
+                    const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}", "$mock_url", input_mock_base_url);
+                    defer allocator.free(input_json);
+                    const _result_json = try xberg.extract(input_json, "{\"url\":{\"mode\":\"document\"}}");
+                        defer std.heap.c_allocator.free(_result_json);
+                        var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+                        defer _parsed.deinit();
+                        const result = &_parsed.value;
+                        {
+                            const _jv = result.object.get("results").?.array.items[0].object.get("content").?;
+                            const _js = if (_jv == .string) _jv.string else try std.json.Stringify.valueAlloc(std.heap.c_allocator, _jv, .{});
+                            defer if (_jv != .string) std.heap.c_allocator.free(_js);
+                            try testing.expect(std.mem.indexOf(u8, _js, "Remote document hello") != null);
+                        }
+                        try testing.expectEqual(@as(i64, 1), result.object.get("summary").?.object.get("remote_urls").?.integer);
+                    }

@@ -5,7 +5,20 @@
 """E2e tests for category: plugin_api."""
 
 import pytest  # noqa: F401
-from xberg import register_embedding_backend, register_ocr_backend, register_post_processor, register_reranker_backend, register_tokenizer_backend, register_validator, unregister_embedding_backend, unregister_post_processor, unregister_reranker_backend, unregister_tokenizer_backend, unregister_validator, unregister_ocr_backend, ExtractionConfig
+from xberg import (
+    register_embedding_backend,
+    register_ocr_backend,
+    register_post_processor,
+    register_reranker_backend,
+    register_tokenizer_backend,
+    register_validator,
+    unregister_embedding_backend,
+    unregister_ocr_backend,
+    unregister_post_processor,
+    unregister_reranker_backend,
+    unregister_tokenizer_backend,
+    unregister_validator,
+)
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -29,111 +42,133 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_register_embedding_backend_trait_bridge() -> None:
     """register_embedding_backend: trait bridge."""
+
     class _TestStub_register_embedding_backend_trait_bridge:
         def name(self):
             return "test-embedding-backend"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         def dimensions(self):
             return 1
+
         async def embed(self, _p0):
             return []
 
-
-    register_embedding_backend(_TestStub_register_embedding_backend_trait_bridge())
+    _ = register_embedding_backend(_TestStub_register_embedding_backend_trait_bridge())
     unregister_embedding_backend("test-embedding-backend")
 
 
 def test_register_ocr_backend_trait_bridge() -> None:
     """register_ocr_backend: trait bridge."""
+
     class _TestStub_register_ocr_backend_trait_bridge:
         def name(self):
             return "test-backend"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         async def process_image(self, _p0, _p1):
             return {}
+
         def supports_language(self, _p0):
             return False
+
         def backend_type(self):
             return {}
 
-
-    register_ocr_backend(_TestStub_register_ocr_backend_trait_bridge())
+    _ = register_ocr_backend(_TestStub_register_ocr_backend_trait_bridge())
     unregister_ocr_backend("test-backend")
 
 
 def test_register_post_processor_trait_bridge() -> None:
     """register_post_processor: trait bridge."""
+
     class _TestStub_register_post_processor_trait_bridge:
         def name(self):
             return "test-processor"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         async def process(self, _p0, _p1):
             return None
+
         def processing_stage(self):
             return {}
 
-
-    register_post_processor(_TestStub_register_post_processor_trait_bridge())
+    _ = register_post_processor(_TestStub_register_post_processor_trait_bridge())
     unregister_post_processor("test-processor")
 
 
 def test_register_reranker_backend_trait_bridge() -> None:
     """register_reranker_backend: trait bridge."""
+
     class _TestStub_register_reranker_backend_trait_bridge:
         def name(self):
             return "test-reranker-backend"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         async def rerank(self, _p0, _p1):
             return []
 
-
-    register_reranker_backend(_TestStub_register_reranker_backend_trait_bridge())
+    _ = register_reranker_backend(_TestStub_register_reranker_backend_trait_bridge())
     unregister_reranker_backend("test-reranker-backend")
 
 
 def test_register_tokenizer_backend_trait_bridge() -> None:
     """register_tokenizer_backend: trait bridge."""
+
     class _TestStub_register_tokenizer_backend_trait_bridge:
         def name(self):
             return "test-tokenizer-backend"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         def count_tokens(self, _p0):
             return 1
 
-
-    register_tokenizer_backend(_TestStub_register_tokenizer_backend_trait_bridge())
+    _ = register_tokenizer_backend(_TestStub_register_tokenizer_backend_trait_bridge())
     unregister_tokenizer_backend("test-tokenizer-backend")
 
 
 def test_register_validator_trait_bridge() -> None:
     """register_validator: trait bridge."""
+
     class _TestStub_register_validator_trait_bridge:
         def name(self):
             return "test-validator"
+
         def initialize(self):
             pass
+
         def shutdown(self):
             pass
+
         async def validate(self, _p0, _p1):
             return None
 
-
-    register_validator(_TestStub_register_validator_trait_bridge())
+    _ = register_validator(_TestStub_register_validator_trait_bridge())
     unregister_validator("test-validator")
 
 
@@ -141,32 +176,32 @@ def test_unregister_embedding_backend_after_register() -> None:
     """unregister_embedding_backend."""
     name = "test-embedding-backend"
 
-    unregister_embedding_backend(name)
+    _ = unregister_embedding_backend(name)
 
 
 def test_unregister_post_processor_after_register() -> None:
     """unregister_post_processor."""
     name = "test-processor"
 
-    unregister_post_processor(name)
+    _ = unregister_post_processor(name)
 
 
 def test_unregister_reranker_backend() -> None:
     """unregister_reranker_backend."""
     name = "test-reranker-backend"
 
-    unregister_reranker_backend(name)
+    _ = unregister_reranker_backend(name)
 
 
 def test_unregister_tokenizer_backend_after_register() -> None:
     """unregister_tokenizer_backend."""
     name = "test-tokenizer-backend"
 
-    unregister_tokenizer_backend(name)
+    _ = unregister_tokenizer_backend(name)
 
 
 def test_unregister_validator_after_register() -> None:
     """unregister_validator."""
     name = "test-validator"
 
-    unregister_validator(name)
+    _ = unregister_validator(name)

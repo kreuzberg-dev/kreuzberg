@@ -14,53 +14,42 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: registry.</summary>
-    public class RegistryTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: registry.</summary>
+public class RegistryTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_ListEmbeddingBackends()
-        {
-            // List embedding backends
-            var result = XbergConverter.ListEmbeddingBackends();
+  [Fact]
+  public void Test_ListEmbeddingBackends() {
+    // List embedding backends
+    var result = XbergConverter.ListEmbeddingBackends();
+  }
 
-        }
+  [Fact]
+  public void Test_ListOcrBackends() {
+    // List OCR backends
+    var result = XbergConverter.ListOcrBackends();
+  }
 
-        [Fact]
-        public void Test_ListOcrBackends()
-        {
-            // List OCR backends
-            var result = XbergConverter.ListOcrBackends();
+  [Fact]
+  public void Test_ListPostProcessors() {
+    // List post-processors
+    var result = XbergConverter.ListPostProcessors();
+  }
 
-        }
+  [Fact]
+  public void Test_ListRenderers() {
+    // List renderers
+    var result = XbergConverter.ListRenderers();
+  }
 
-        [Fact]
-        public void Test_ListPostProcessors()
-        {
-            // List post-processors
-            var result = XbergConverter.ListPostProcessors();
-
-        }
-
-        [Fact]
-        public void Test_ListRenderers()
-        {
-            // List renderers
-            var result = XbergConverter.ListRenderers();
-
-        }
-
-        [Fact]
-        public void Test_ListValidators()
-        {
-            // List validators
-            var result = XbergConverter.ListValidators();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_ListValidators() {
+    // List validators
+    var result = XbergConverter.ListValidators();
+  }
+}
 }

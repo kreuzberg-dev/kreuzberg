@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'reranker_backend_management' do
-  it 'clear_reranker_backends: Clear all reranker backends and verify list is empty' do
-    Xberg.clear_reranker_backends()
-
+RSpec.describe "reranker_backend_management" do
+  it "clear_reranker_backends: Clear all reranker backends and verify list is empty" do
+    Xberg.clear_reranker_backends
   end
 
-  it 'list_reranker_backends: List all registered reranker backends' do
-    result = Xberg.list_reranker_backends()
+  it "list_reranker_backends: List all registered reranker backends" do
+    result = Xberg.list_reranker_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

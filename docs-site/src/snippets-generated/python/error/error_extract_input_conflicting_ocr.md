@@ -19,7 +19,7 @@ async def main() -> None:
     try:
         input = ExtractInput(bytes=Path("test_documents/text/fake_text.txt").read_bytes(), config={"disable_ocr": True, "force_ocr": True}, filename="fake_text.txt", kind=ExtractInputKind("bytes"), mime_type="text/plain")
         config = ExtractionConfig(disable_ocr=True, force_ocr=True)
-        await extract(input, config)
+        _ = await extract(input, config)
     except XbergError as error:
         print(f"{type(error).__name__}: {error}")
 

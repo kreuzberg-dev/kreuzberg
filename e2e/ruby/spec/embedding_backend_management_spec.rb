@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'embedding_backend_management' do
-  it 'embedding_backends_clear: Clear all embedding backends and verify list is empty' do
-    Xberg.clear_embedding_backends()
-
+RSpec.describe "embedding_backend_management" do
+  it "embedding_backends_clear: Clear all embedding backends and verify list is empty" do
+    Xberg.clear_embedding_backends
   end
 
-  it 'embedding_backends_list: List all registered embedding backends' do
-    result = Xberg.list_embedding_backends()
+  it "embedding_backends_list: List all registered embedding backends" do
+    result = Xberg.list_embedding_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

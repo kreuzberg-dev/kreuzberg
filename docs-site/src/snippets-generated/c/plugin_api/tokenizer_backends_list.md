@@ -18,8 +18,8 @@ List all registered tokenizer backends
 #include "xberg.h"
 
 int main(void) {
-    char* result = xberg_list_tokenizer_backends();
-    xberg_free_string(result);
+    XBERGListTokenizerBackends* result = xberg_list_tokenizer_backends(NULL);
+    xberg_list_tokenizer_backends_free(result);
     return EXIT_SUCCESS;
 }
 

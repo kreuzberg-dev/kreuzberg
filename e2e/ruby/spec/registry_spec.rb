@@ -3,38 +3,38 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'registry' do
-  it 'list_embedding_backends: List embedding backends' do
-    result = Xberg.list_embedding_backends()
+RSpec.describe "registry" do
+  it "list_embedding_backends: List embedding backends" do
+    result = Xberg.list_embedding_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'list_ocr_backends: List OCR backends' do
-    result = Xberg.list_ocr_backends()
+  it "list_ocr_backends: List OCR backends" do
+    result = Xberg.list_ocr_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'list_post_processors: List post-processors' do
-    result = Xberg.list_post_processors()
+  it "list_post_processors: List post-processors" do
+    result = Xberg.list_post_processors
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'list_renderers: List renderers' do
-    result = Xberg.list_renderers()
+  it "list_renderers: List renderers" do
+    result = Xberg.list_renderers
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'list_validators: List validators' do
-    result = Xberg.list_validators()
+  it "list_validators: List validators" do
+    result = Xberg.list_validators
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

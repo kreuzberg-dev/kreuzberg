@@ -19,7 +19,6 @@ defmodule Xberg.ElementType do
           | :image
           | :page_break
           | :code_block
-          | :formula
           | :block_quote
           | :footer
           | :header
@@ -32,7 +31,6 @@ defmodule Xberg.ElementType do
   @image :image
   @page_break :page_break
   @code_block :code_block
-  @formula :formula
   @block_quote :block_quote
   @footer :footer
   @header :header
@@ -61,9 +59,6 @@ defmodule Xberg.ElementType do
   @doc "Code block"
   @spec code_block() :: t()
   def code_block, do: @code_block
-  @doc "Mathematical formula (LaTeX source in `text`)"
-  @spec formula() :: t()
-  def formula, do: @formula
   @doc "Block quote"
   @spec block_quote() :: t()
   def block_quote, do: @block_quote

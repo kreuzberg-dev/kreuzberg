@@ -3,24 +3,22 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'ocr_backend_management' do
-  it 'ocr_backends_clear: Clear all OCR backends and verify list is empty' do
-    Xberg.clear_ocr_backends()
-
+RSpec.describe "ocr_backend_management" do
+  it "ocr_backends_clear: Clear all OCR backends and verify list is empty" do
+    Xberg.clear_ocr_backends
   end
 
-  it 'ocr_backends_list: List all registered OCR backends' do
-    result = Xberg.list_ocr_backends()
+  it "ocr_backends_list: List all registered OCR backends" do
+    result = Xberg.list_ocr_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'ocr_backends_unregister: Unregister nonexistent OCR backend gracefully' do
-    Xberg.unregister_ocr_backend('nonexistent-backend-xyz')
-
+  it "ocr_backends_unregister: Unregister nonexistent OCR backend gracefully" do
+    Xberg.unregister_ocr_backend("nonexistent-backend-xyz")
   end
 end

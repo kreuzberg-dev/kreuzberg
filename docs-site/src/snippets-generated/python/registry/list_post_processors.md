@@ -13,7 +13,7 @@ List post-processors
 from xberg import list_post_processors, ExtractionConfig
 
 def main() -> None:
-    list_post_processors()
+    _ = list_post_processors()
     print(result)
 
 main()

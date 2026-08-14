@@ -49,8 +49,6 @@ enum class ElementType {
     @com.fasterxml.jackson.annotation.JsonProperty("page_break") PAGE_BREAK,
     /** Code block */
     @com.fasterxml.jackson.annotation.JsonProperty("code_block") CODE_BLOCK,
-    /** Mathematical formula (LaTeX source in `text`) */
-    @com.fasterxml.jackson.annotation.JsonProperty("formula") FORMULA,
     /** Block quote */
     @com.fasterxml.jackson.annotation.JsonProperty("block_quote") BLOCK_QUOTE,
     /** Footer text */
@@ -69,7 +67,6 @@ enum class ElementType {
             IMAGE -> "image"
             PAGE_BREAK -> "page_break"
             CODE_BLOCK -> "code_block"
-            FORMULA -> "formula"
             BLOCK_QUOTE -> "block_quote"
             FOOTER -> "footer"
             HEADER -> "header"
@@ -88,7 +85,6 @@ enum class ElementType {
                 "image" -> IMAGE
                 "page_break" -> PAGE_BREAK
                 "code_block" -> CODE_BLOCK
-                "formula" -> FORMULA
                 "block_quote" -> BLOCK_QUOTE
                 "footer" -> FOOTER
                 "header" -> HEADER

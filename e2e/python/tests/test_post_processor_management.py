@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_post_processors_clear() -> None:
     """Clear all post-processors and verify list is empty."""
-    clear_post_processors()
+    _ = clear_post_processors()
 
 
 def test_post_processors_list() -> None:
     """List all registered post-processors."""
-    list_post_processors()
+    _ = list_post_processors()

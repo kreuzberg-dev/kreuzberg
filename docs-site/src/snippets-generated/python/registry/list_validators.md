@@ -13,7 +13,7 @@ List validators
 from xberg import list_validators, ExtractionConfig
 
 def main() -> None:
-    list_validators()
+    _ = list_validators()
     print(result)
 
 main()

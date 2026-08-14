@@ -3,143 +3,285 @@
 // To verify freshness: alef verify
 
 import { describe, expect, it } from "vitest";
-import { extract, registerEmbeddingBackend, registerOcrBackend, registerPostProcessor, registerRerankerBackend, registerTokenizerBackend, registerValidator, unregisterEmbeddingBackend, unregisterPostProcessor, unregisterRerankerBackend, unregisterTokenizerBackend, unregisterValidator, WasmAccelerationConfig, WasmBedrockConfig, WasmBrowserConfig, WasmCaptioningConfig, WasmChunkClassificationConfig, WasmChunkClassificationDefinition, WasmChunkingConfig, WasmContentConfig, WasmContentFilterConfig, WasmConversionOptions, WasmCrawlConfig, WasmCsvConfig, WasmEmailConfig, WasmEmbeddingConfig, WasmHierarchyConfig, WasmHtmlOutputConfig, WasmImageExtractionConfig, WasmImagePreprocessingConfig, WasmKeywordConfig, WasmLanguageDetectionConfig, WasmLateInteractionConfig, WasmLayoutDetectionConfig, WasmLlmBudgetConfig, WasmLlmCacheConfig, WasmLlmConfig, WasmLlmProviderConfig, WasmLlmRateLimitConfig, WasmNerConfig, WasmOcrConfig, WasmOcrElementConfig, WasmOcrPipelineConfig, WasmOcrPipelineStage, WasmOcrQualityThresholds, WasmPageClassificationConfig, WasmPageConfig, WasmPdfConfig, WasmPostProcessorConfig, WasmPreprocessingOptions, WasmProxyConfig, WasmRakeParams, WasmRedactionConfig, WasmRedactionPattern, WasmRedactionTerm, WasmSecurityLimits, WasmSparseEmbeddingConfig, WasmSsrfPolicy, WasmStructuredExtractionConfig, WasmSummarizationConfig, WasmSvgOptions, WasmTesseractConfig, WasmTokenReductionOptions, WasmTranscriptionConfig, WasmTranslationConfig, WasmTreeSitterConfig, WasmTreeSitterProcessConfig, WasmUrlExtractionConfig, WasmYakeParams } from "@xberg-io/xberg-wasm";
+import {
+  extract,
+  registerEmbeddingBackend,
+  registerOcrBackend,
+  registerPostProcessor,
+  registerRerankerBackend,
+  registerTokenizerBackend,
+  registerValidator,
+  unregisterEmbeddingBackend,
+  unregisterPostProcessor,
+  unregisterRerankerBackend,
+  unregisterTokenizerBackend,
+  unregisterValidator,
+  WasmAccelerationConfig,
+  WasmBedrockConfig,
+  WasmBrowserConfig,
+  WasmCaptioningConfig,
+  WasmChunkClassificationConfig,
+  WasmChunkClassificationDefinition,
+  WasmChunkingConfig,
+  WasmContentConfig,
+  WasmContentFilterConfig,
+  WasmConversionOptions,
+  WasmCrawlConfig,
+  WasmCsvConfig,
+  WasmEmailConfig,
+  WasmEmbeddingConfig,
+  WasmHierarchyConfig,
+  WasmHtmlOutputConfig,
+  WasmImageExtractionConfig,
+  WasmImagePreprocessingConfig,
+  WasmKeywordConfig,
+  WasmLanguageDetectionConfig,
+  WasmLateInteractionConfig,
+  WasmLayoutDetectionConfig,
+  WasmLlmBudgetConfig,
+  WasmLlmCacheConfig,
+  WasmLlmConfig,
+  WasmLlmProviderConfig,
+  WasmLlmRateLimitConfig,
+  WasmNerConfig,
+  WasmOcrConfig,
+  WasmOcrElementConfig,
+  WasmOcrPipelineConfig,
+  WasmOcrPipelineStage,
+  WasmOcrQualityThresholds,
+  WasmPageClassificationConfig,
+  WasmPageConfig,
+  WasmPdfConfig,
+  WasmPostProcessorConfig,
+  WasmPreprocessingOptions,
+  WasmProxyConfig,
+  WasmRakeParams,
+  WasmRedactionConfig,
+  WasmRedactionPattern,
+  WasmRedactionTerm,
+  WasmSecurityLimits,
+  WasmSparseEmbeddingConfig,
+  WasmSsrfPolicy,
+  WasmStructuredExtractionConfig,
+  WasmSummarizationConfig,
+  WasmSvgOptions,
+  WasmTesseractConfig,
+  WasmTokenReductionOptions,
+  WasmTranscriptionConfig,
+  WasmTranslationConfig,
+  WasmTreeSitterConfig,
+  WasmTreeSitterProcessConfig,
+  WasmUrlExtractionConfig,
+  WasmYakeParams,
+} from "@xberg-io/xberg-wasm";
 
 process.env.CRAWLBERG_ALLOW_PRIVATE_NETWORK ??= "true";
 
-
 async function _alefE2eDecompressAndParseJson(response: Response): Promise<unknown> {
-	const contentEncoding = response.headers.get("content-encoding");
-	let buffer = await response.arrayBuffer();
+  const contentEncoding = response.headers.get("content-encoding");
+  let buffer = await response.arrayBuffer();
 
-	if (contentEncoding === "gzip") {
-		const { gunzipSync } = await import("zlib");
-		buffer = gunzipSync(new Uint8Array(buffer)).buffer;
-	} else if (contentEncoding === "br") {
-		const { brotliDecompressSync } = await import("zlib");
-		buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
-	}
+  if (contentEncoding === "gzip") {
+    const { gunzipSync } = await import("zlib");
+    buffer = gunzipSync(new Uint8Array(buffer)).buffer;
+  } else if (contentEncoding === "br") {
+    const { brotliDecompressSync } = await import("zlib");
+    buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
+  }
 
-	const text = new TextDecoder().decode(buffer);
-	return JSON.parse(text);
+  const text = new TextDecoder().decode(buffer);
+  return JSON.parse(text);
 }
 
 function _alefE2eText(value: unknown): string {
-	return value == null ? "" : String(value);
+  return value == null ? "" : String(value);
 }
 
 function _alefE2eItemTexts(item: unknown): string[] {
-	if (item == null || typeof item !== "object") {
-		return [_alefE2eText(item)];
-	}
-	const record = item as Record<string, unknown>;
-	const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
-	return [_alefE2eText(item), _alefE2eText(record.kind), _alefE2eText(record.name), _alefE2eText(record.source), _alefE2eText(record.alias), _alefE2eText(record.text), _alefE2eText(record.signature), itemsText];
+  if (item == null || typeof item !== "object") {
+    return [_alefE2eText(item)];
+  }
+  const record = item as Record<string, unknown>;
+  const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
+  return [
+    _alefE2eText(item),
+    _alefE2eText(record.kind),
+    _alefE2eText(record.name),
+    _alefE2eText(record.source),
+    _alefE2eText(record.alias),
+    _alefE2eText(record.text),
+    _alefE2eText(record.signature),
+    itemsText,
+  ];
 }
 
 function _alefE2eFormatMetadataDisplay(fm: unknown): string {
-	if (fm == null) return "";
-	if (typeof fm !== "object") return String(fm);
-	const record = fm as Record<string, unknown>;
-	const formatType = record.format_type;
+  if (fm == null) return "";
+  if (typeof fm !== "object") return String(fm);
+  const record = fm as Record<string, unknown>;
+  const formatType = record.format_type;
 
-	// FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
-	// Extract the display string based on the variant type
-	if (formatType === "image" && typeof record.image === "object") {
-		const imageData = record.image as Record<string, unknown>;
-		if (typeof imageData.format === "string") return imageData.format;
-	}
+  // FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
+  // Extract the display string based on the variant type
+  if (formatType === "image" && typeof record.image === "object") {
+    const imageData = record.image as Record<string, unknown>;
+    if (typeof imageData.format === "string") return imageData.format;
+  }
 
-	// Fallback: return format_type variant name
-	if (typeof record.format_type === "string") return record.format_type;
-	return "";
+  // Fallback: return format_type variant name
+  if (typeof record.format_type === "string") return record.format_type;
+  return "";
 }
-
 
 describe("plugin_api", () => {
+  it("register_embedding_backend_trait_bridge: register_embedding_backend: trait bridge", async () => {
+    class _TestStub_register_embedding_backend_trait_bridge {
+      name(): string {
+        return "test-embedding-backend";
+      }
+      dimensions(): number {
+        return 768;
+      }
+      async embed(_p0?: any): Promise<string> {
+        return [];
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-	it("register_embedding_backend_trait_bridge: register_embedding_backend: trait bridge", async () => {
-		class _TestStub_register_embedding_backend_trait_bridge {
-  name(): string { return "test-embedding-backend"; }
-  dimensions(): number { return 768; }
-  async embed(_p0?: any): Promise<string> { return []; }
-  async dispose(): Promise<void> { return undefined; }
-}
+    await registerEmbeddingBackend(new _TestStub_register_embedding_backend_trait_bridge());
+  }, 30000);
+  it("register_ocr_backend_trait_bridge: register_ocr_backend: trait bridge", async () => {
+    class _TestStub_register_ocr_backend_trait_bridge {
+      name(): string {
+        return "test-backend";
+      }
+      async processImage(_p0?: any, _p1?: any): Promise<string> {
+        return "{}";
+      }
+      async processImageFile(_p0?: any, _p1?: any): Promise<string> {
+        return "{}";
+      }
+      supportsLanguage(_p0?: any): boolean {
+        return false;
+      }
+      backendType(): string {
+        return "{}";
+      }
+      supportedLanguages(): string {
+        return [];
+      }
+      supportsTableDetection(): boolean {
+        return false;
+      }
+      supportsDocumentProcessing(): boolean {
+        return false;
+      }
+      emitsStructuredMarkdown(): boolean {
+        return false;
+      }
+      async processDocument(_p0?: any, _p1?: any): Promise<string> {
+        return "{}";
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-		await registerEmbeddingBackend(new _TestStub_register_embedding_backend_trait_bridge());
-	}, 30000);
-	it("register_ocr_backend_trait_bridge: register_ocr_backend: trait bridge", async () => {
-		class _TestStub_register_ocr_backend_trait_bridge {
-  name(): string { return "test-backend"; }
-  async processImage(_p0?: any, _p1?: any): Promise<string> { return "{}"; }
-  async processImageFile(_p0?: any, _p1?: any): Promise<string> { return "{}"; }
-  supportsLanguage(_p0?: any): boolean { return false; }
-  backendType(): string { return "{}"; }
-  supportedLanguages(): string { return []; }
-  supportsTableDetection(): boolean { return false; }
-  supportsDocumentProcessing(): boolean { return false; }
-  emitsStructuredMarkdown(): boolean { return false; }
-  async processDocument(_p0?: any, _p1?: any): Promise<string> { return "{}"; }
-  async dispose(): Promise<void> { return undefined; }
-}
+    await registerOcrBackend(new _TestStub_register_ocr_backend_trait_bridge());
+  }, 30000);
+  it("register_post_processor_trait_bridge: register_post_processor: trait bridge", async () => {
+    class _TestStub_register_post_processor_trait_bridge {
+      name(): string {
+        return "test-processor";
+      }
+      async process(_p0?: any, _p1?: any): Promise<void> {
+        return undefined;
+      }
+      processingStage(): string {
+        return "{}";
+      }
+      shouldProcess(_p0?: any, _p1?: any): boolean {
+        return false;
+      }
+      estimatedDurationMs(_p0?: any): number {
+        return 1;
+      }
+      priority(): number {
+        return 1;
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-		await registerOcrBackend(new _TestStub_register_ocr_backend_trait_bridge());
-	}, 30000);
-	it("register_post_processor_trait_bridge: register_post_processor: trait bridge", async () => {
-		class _TestStub_register_post_processor_trait_bridge {
-  name(): string { return "test-processor"; }
-  async process(_p0?: any, _p1?: any): Promise<void> { return undefined; }
-  processingStage(): string { return "{}"; }
-  shouldProcess(_p0?: any, _p1?: any): boolean { return false; }
-  estimatedDurationMs(_p0?: any): number { return 1; }
-  priority(): number { return 1; }
-  async dispose(): Promise<void> { return undefined; }
-}
+    await registerPostProcessor(new _TestStub_register_post_processor_trait_bridge());
+  }, 30000);
+  it("register_reranker_backend_trait_bridge: register_reranker_backend: trait bridge", async () => {
+    class _TestStub_register_reranker_backend_trait_bridge {
+      name(): string {
+        return "test-reranker-backend";
+      }
+      async rerank(_p0?: any, _p1?: any): Promise<string> {
+        return [];
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-		await registerPostProcessor(new _TestStub_register_post_processor_trait_bridge());
-	}, 30000);
-	it("register_reranker_backend_trait_bridge: register_reranker_backend: trait bridge", async () => {
-		class _TestStub_register_reranker_backend_trait_bridge {
-  name(): string { return "test-reranker-backend"; }
-  async rerank(_p0?: any, _p1?: any): Promise<string> { return []; }
-  async dispose(): Promise<void> { return undefined; }
-}
+    await registerRerankerBackend(new _TestStub_register_reranker_backend_trait_bridge());
+  }, 30000);
+  it("register_tokenizer_backend_trait_bridge: register_tokenizer_backend: trait bridge", async () => {
+    class _TestStub_register_tokenizer_backend_trait_bridge {
+      name(): string {
+        return "test-tokenizer-backend";
+      }
+      countTokens(_p0?: any): number {
+        return 3;
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-		await registerRerankerBackend(new _TestStub_register_reranker_backend_trait_bridge());
-	}, 30000);
-	it("register_tokenizer_backend_trait_bridge: register_tokenizer_backend: trait bridge", async () => {
-		class _TestStub_register_tokenizer_backend_trait_bridge {
-  name(): string { return "test-tokenizer-backend"; }
-  countTokens(_p0?: any): number { return 3; }
-  async dispose(): Promise<void> { return undefined; }
-}
+    await registerTokenizerBackend(new _TestStub_register_tokenizer_backend_trait_bridge());
+  }, 30000);
+  it("register_validator_trait_bridge: register_validator: trait bridge", async () => {
+    class _TestStub_register_validator_trait_bridge {
+      name(): string {
+        return "test-validator";
+      }
+      async validate(_p0?: any, _p1?: any): Promise<void> {
+        return undefined;
+      }
+      shouldValidate(_p0?: any, _p1?: any): boolean {
+        return false;
+      }
+      priority(): number {
+        return 1;
+      }
+      async dispose(): Promise<void> {
+        return undefined;
+      }
+    }
 
-		await registerTokenizerBackend(new _TestStub_register_tokenizer_backend_trait_bridge());
-	}, 30000);
-	it("register_validator_trait_bridge: register_validator: trait bridge", async () => {
-		class _TestStub_register_validator_trait_bridge {
-  name(): string { return "test-validator"; }
-  async validate(_p0?: any, _p1?: any): Promise<void> { return undefined; }
-  shouldValidate(_p0?: any, _p1?: any): boolean { return false; }
-  priority(): number { return 1; }
-  async dispose(): Promise<void> { return undefined; }
-}
-
-		await registerValidator(new _TestStub_register_validator_trait_bridge());
-	}, 30000);
-	it("unregister_embedding_backend_after_register: unregister_embedding_backend", () => {
-		unregisterEmbeddingBackend("test-embedding-backend");
-	}, 30000);
-	it("unregister_post_processor_after_register: unregister_post_processor", () => {
-		unregisterPostProcessor("test-processor");
-	}, 30000);
-	it("unregister_reranker_backend: unregister_reranker_backend", () => {
-		unregisterRerankerBackend("test-reranker-backend");
-	}, 30000);
-	it("unregister_tokenizer_backend_after_register: unregister_tokenizer_backend", () => {
-		unregisterTokenizerBackend("test-tokenizer-backend");
-	}, 30000);
-	it("unregister_validator_after_register: unregister_validator", () => {
-		unregisterValidator("test-validator");
-	}, 30000);
+    await registerValidator(new _TestStub_register_validator_trait_bridge());
+  }, 30000);
+  it("unregister_embedding_backend_after_register: unregister_embedding_backend", () => {
+    unregisterEmbeddingBackend("test-embedding-backend");
+  }, 30000);
+  it("unregister_post_processor_after_register: unregister_post_processor", () => {
+    unregisterPostProcessor("test-processor");
+  }, 30000);
+  it("unregister_reranker_backend: unregister_reranker_backend", () => {
+    unregisterRerankerBackend("test-reranker-backend");
+  }, 30000);
+  it("unregister_tokenizer_backend_after_register: unregister_tokenizer_backend", () => {
+    unregisterTokenizerBackend("test-tokenizer-backend");
+  }, 30000);
+  it("unregister_validator_after_register: unregister_validator", () => {
+    unregisterValidator("test-validator");
+  }, 30000);
 });

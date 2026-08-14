@@ -19,15 +19,12 @@ test "ocr_image_png" {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var input_file_0_threaded = std.Io.Threaded.init(allocator, .{});
-defer input_file_0_threaded.deinit();
-const input_file_0_io = input_file_0_threaded.io();
-const input_file_0 = try std.Io.Dir.cwd().readFileAlloc(input_file_0_io, "test_documents/images/test_hello_world.png", allocator, .unlimited);
-defer allocator.free(input_file_0);
+    const input_file_0 = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "test_documents/images/test_hello_world.png", allocator, .unlimited);
+    defer allocator.free(input_file_0);
     const input_file_0_json = try std.json.Stringify.valueAlloc(allocator, input_file_0, .{ .emit_strings_as_arrays = true });
-defer allocator.free(input_file_0_json);
+    defer allocator.free(input_file_0_json);
     const input_json_0 = try std.mem.replaceOwned(u8, allocator, "{\"bytes\":\"__ALEF_DOC_FILE_0__\",\"config\":{},\"filename\":\"test_hello_world.png\",\"kind\":\"bytes\",\"mime_type\":\"image/png\"}", "\"__ALEF_DOC_FILE_0__\"", input_file_0_json);
-defer allocator.free(input_json_0);
+    defer allocator.free(input_json_0);
     const _result_json = try xberg.extract(input_json_0, "{}");
     defer std.heap.c_allocator.free(_result_json);
     var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});

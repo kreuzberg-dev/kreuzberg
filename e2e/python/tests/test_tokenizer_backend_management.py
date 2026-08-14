@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_tokenizer_backends_clear() -> None:
     """Clear all tokenizer backends and verify list is empty."""
-    clear_tokenizer_backends()
+    _ = clear_tokenizer_backends()
 
 
 def test_tokenizer_backends_list() -> None:
     """List all registered tokenizer backends."""
-    list_tokenizer_backends()
+    _ = list_tokenizer_backends()

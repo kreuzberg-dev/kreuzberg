@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_renderers_clear() -> None:
     """Clear all renderers and verify list is empty."""
-    clear_renderers()
+    _ = clear_renderers()
 
 
 def test_renderers_list() -> None:
     """List all registered renderers."""
-    list_renderers()
+    _ = list_renderers()

@@ -13,7 +13,7 @@ List all registered validators
 from xberg import list_validators
 
 def main() -> None:
-    list_validators()
+    _ = list_validators()
     print(result)
 
 main()

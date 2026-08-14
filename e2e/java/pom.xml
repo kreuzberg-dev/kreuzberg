@@ -1,197 +1,206 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project
+  xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+>
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.xberg</groupId>
-    <artifactId>xberg-e2e-java</artifactId>
-    <version>0.1.0</version>
+  <groupId>io.xberg</groupId>
+  <artifactId>xberg-e2e-java</artifactId>
+  <version>0.1.0</version>
 
-    <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <junit.version>6.1.3</junit.version>
-    </properties>
+  <properties>
+    <maven.compiler.source>25</maven.compiler.source>
+    <maven.compiler.target>25</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>6.1.3</junit.version>
+  </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>${junit.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
+  <dependencyManagement>
     <dependencies>
-        <dependency>
-            <groupId>io.xberg</groupId>
-            <artifactId>xberg</artifactId>
-            <version>1.1.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/../../packages/java/target/xberg-1.1.0.jar</systemPath>
-        </dependency>
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.19.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jdk8</artifactId>
-            <version>2.19.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains</groupId>
-            <artifactId>annotations</artifactId>
-            <version>26.1.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-launcher</artifactId>
-            <scope>test</scope>
-        </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
+  </dependencyManagement>
 
-    <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <includes>
-                    <include>natives/**/*</include>
-                </includes>
-            </resource>
-        </resources>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.2.0</version>
-                <executions>
-                    <execution>
-                        <id>copy-native-lib</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <!-- Use Java system properties (os.name, os.arch) which are more reliable than antrun's <os> conditions -->
-                                <!-- Detect OS: check os.name -->
-                                <condition property="os.name.detected" value="macos">
-                                    <or>
-                                        <matches string="${os.name}" pattern="(?i).*mac.*" />
-                                        <matches string="${os.name}" pattern="(?i).*darwin.*" />
-                                    </or>
-                                </condition>
-                                <condition property="os.name.detected" value="windows">
-                                    <matches string="${os.name}" pattern="(?i).*win.*" />
-                                </condition>
-                                <condition property="os.name.detected" value="linux">
-                                    <or>
-                                        <matches string="${os.name}" pattern="(?i).*linux.*" />
-                                        <matches string="${os.name}" pattern="(?i).*nux.*" />
-                                    </or>
-                                </condition>
-                                <!-- Detect architecture -->
-                                <condition property="arch.detected" value="arm64">
-                                    <or>
-                                        <matches string="${os.arch}" pattern="(?i)(aarch64|arm64)" />
-                                    </or>
-                                </condition>
-                                <condition property="arch.detected" value="x86_64">
-                                    <or>
-                                        <matches string="${os.arch}" pattern="(?i)(x86_64|amd64)" />
-                                    </or>
-                                </condition>
-                                <!-- Fallback to default arch if not matched -->
-                                <condition property="arch.detected" value="${os.arch}">
-                                    <equals arg1="${arch.detected}" arg2="" />
-                                </condition>
-                                <!-- Build natives RID and library filename -->
-                                <property name="natives.rid" value="${os.name.detected}-${arch.detected}" />
-                                <condition property="native.lib.name" value="libxberg_ffi.dylib">
-                                    <matches string="${os.name.detected}" pattern="(?i)macos" />
-                                </condition>
-                                <condition property="native.lib.name" value="libxberg_ffi.so">
-                                    <matches string="${os.name.detected}" pattern="(?i)linux" />
-                                </condition>
-                                <condition property="native.lib.name" value="xberg_ffi.dll">
-                                    <matches string="${os.name.detected}" pattern="(?i)windows" />
-                                </condition>
-                                <!-- Define source and destination paths -->
-                                <!-- Use basedir to resolve workspace root more robustly -->
-                                <property name="workspace.root" value="${project.basedir}/../.." />
-                                <!-- Try ffi/lib (pre-built distribution) first, then workspace/target/release (local build) -->
-                                <available file="${project.basedir}/ffi/lib/${native.lib.name}" property="ffi.lib.path" value="${project.basedir}/ffi/lib" />
-                                <condition property="native.source.dir" value="${ffi.lib.path}" else="${workspace.root}/target/release">
-                                    <isset property="ffi.lib.path" />
-                                </condition>
-                                <property name="native.source" value="${native.source.dir}/${native.lib.name}" />
-                                <property name="native.dest.dir" value="${project.basedir}/src/main/resources/natives/${natives.rid}" />
-                                <!-- Copy native library if it exists -->
-                                <available file="${native.source}" property="native.lib.exists" />
-                                <echo message="Copying native library from ${native.source} to ${native.dest.dir} (RID: ${natives.rid})" />
-                                <echo message="Native library exists: ${native.lib.exists}" />
-                                <mkdir dir="${native.dest.dir}" />
-                                <copy file="${native.source}" todir="${native.dest.dir}" failonerror="false" verbose="true" />
-                                <!-- Verify copy succeeded and library is in correct location -->
-                                <condition property="copy.failed">
-                                    <and>
-                                        <isset property="native.lib.exists" />
-                                        <not>
-                                            <available file="${native.dest.dir}/${native.lib.name}" />
-                                        </not>
-                                    </and>
-                                </condition>
-                                <fail if="copy.failed" message="Failed to copy native library from ${native.source} to ${native.dest.dir}/${native.lib.name}" />
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.6.1</version>
-                <executions>
-                    <execution>
-                        <id>add-test-source</id>
-                        <phase>generate-test-sources</phase>
-                        <goals>
-                            <goal>add-test-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>src/test/java</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.2</version>
-                <configuration>
-                    <argLine>--enable-preview --enable-native-access=ALL-UNNAMED -Djava.library.path=${project.basedir}/../../target/release</argLine>
-                    <workingDirectory>${project.basedir}/../../test_documents</workingDirectory>
-                    <environmentVariables>
-                        <CRAWLBERG_ALLOW_PRIVATE_NETWORK>true</CRAWLBERG_ALLOW_PRIVATE_NETWORK>
-                    </environmentVariables>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+  <dependencies>
+    <dependency>
+      <groupId>io.xberg</groupId>
+      <artifactId>xberg</artifactId>
+      <version>1.1.0</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/../../packages/java/target/xberg-1.1.0.jar</systemPath>
+    </dependency>
+
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.19.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jdk8</artifactId>
+      <version>2.19.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+      <version>26.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <includes>
+          <include>natives/**/*</include>
+        </includes>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <id>copy-native-lib</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <!-- Use Java system properties (os.name, os.arch) which are more reliable than antrun's <os> conditions -->
+                <!-- Detect OS: check os.name -->
+                <condition property="os.name.detected" value="macos">
+                  <or>
+                    <matches string="${os.name}" pattern="(?i).*mac.*" />
+                    <matches string="${os.name}" pattern="(?i).*darwin.*" />
+                  </or>
+                </condition>
+                <condition property="os.name.detected" value="windows">
+                  <matches string="${os.name}" pattern="(?i).*win.*" />
+                </condition>
+                <condition property="os.name.detected" value="linux">
+                  <or>
+                    <matches string="${os.name}" pattern="(?i).*linux.*" />
+                    <matches string="${os.name}" pattern="(?i).*nux.*" />
+                  </or>
+                </condition>
+                <!-- Detect architecture -->
+                <condition property="arch.detected" value="arm64">
+                  <or>
+                    <matches string="${os.arch}" pattern="(?i)(aarch64|arm64)" />
+                  </or>
+                </condition>
+                <condition property="arch.detected" value="x86_64">
+                  <or>
+                    <matches string="${os.arch}" pattern="(?i)(x86_64|amd64)" />
+                  </or>
+                </condition>
+                <!-- Fallback to default arch if not matched -->
+                <condition property="arch.detected" value="${os.arch}">
+                  <equals arg1="${arch.detected}" arg2="" />
+                </condition>
+                <!-- Build natives RID and library filename -->
+                <property name="natives.rid" value="${os.name.detected}-${arch.detected}" />
+                <condition property="native.lib.name" value="libxberg_ffi.dylib">
+                  <matches string="${os.name.detected}" pattern="(?i)macos" />
+                </condition>
+                <condition property="native.lib.name" value="libxberg_ffi.so">
+                  <matches string="${os.name.detected}" pattern="(?i)linux" />
+                </condition>
+                <condition property="native.lib.name" value="xberg_ffi.dll">
+                  <matches string="${os.name.detected}" pattern="(?i)windows" />
+                </condition>
+                <!-- Define source and destination paths -->
+                <!-- Use basedir to resolve workspace root more robustly -->
+                <property name="workspace.root" value="${project.basedir}/../.." />
+                <!-- Try ffi/lib (pre-built distribution) first, then workspace/target/release (local build) -->
+                <available
+                  file="${project.basedir}/ffi/lib/${native.lib.name}"
+                  property="ffi.lib.path"
+                  value="${project.basedir}/ffi/lib"
+                />
+                <condition property="native.source.dir" value="${ffi.lib.path}" else="${workspace.root}/target/release">
+                  <isset property="ffi.lib.path" />
+                </condition>
+                <property name="native.source" value="${native.source.dir}/${native.lib.name}" />
+                <property name="native.dest.dir" value="${project.basedir}/src/main/resources/natives/${natives.rid}" />
+                <!-- Copy native library if it exists -->
+                <available file="${native.source}" property="native.lib.exists" />
+                <echo message="Copying native library from ${native.source} to ${native.dest.dir} (RID: ${natives.rid})" />
+                <echo message="Native library exists: ${native.lib.exists}" />
+                <mkdir dir="${native.dest.dir}" />
+                <copy file="${native.source}" todir="${native.dest.dir}" failonerror="false" verbose="true" />
+                <!-- Verify copy succeeded and library is in correct location -->
+                <condition property="copy.failed">
+                  <and>
+                    <isset property="native.lib.exists" />
+                    <not>
+                      <available file="${native.dest.dir}/${native.lib.name}" />
+                    </not>
+                  </and>
+                </condition>
+                <fail
+                  if="copy.failed"
+                  message="Failed to copy native library from ${native.source} to ${native.dest.dir}/${native.lib.name}"
+                />
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>add-test-source</id>
+            <phase>generate-test-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>src/test/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <argLine>--enable-preview --enable-native-access=ALL-UNNAMED -Djava.library.path=${project.basedir}/../../target/release</argLine>
+          <workingDirectory>${project.basedir}/../../test_documents</workingDirectory>
+          <environmentVariables>
+            <CRAWLBERG_ALLOW_PRIVATE_NETWORK>true</CRAWLBERG_ALLOW_PRIVATE_NETWORK>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

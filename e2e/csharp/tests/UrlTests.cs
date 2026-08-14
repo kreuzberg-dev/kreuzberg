@@ -14,74 +14,116 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: url.</summary>
-    public class UrlTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: url.</summary>
+public class UrlTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public async Task Test_UrlBatchMixedInputs()
-        {
-            // extract_batch: mixed bytes and URL inputs share one output envelope
-            var Inputs_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_URL_BATCH_MIXED_INPUTS") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/url_batch_mixed_inputs";
-            var Inputs_Json = "[{\"kind\":\"uri\",\"uri\":\"$mock_url\"},{\"bytes\":[66,97,116,99,104,32,98,121,116,101,115,32,99,111,110,116,101,110,116],\"filename\":\"inline.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}]".Replace("$mock_url", Inputs_MockBaseUrl);
-            var result = await XbergConverter.ExtractBatchAsync(JsonSerializer.Deserialize<List<ExtractInput>>(Inputs_Json, ConfigOptions)!, new ExtractionConfig { Url = new UrlExtractionConfig { Mode = JsonSerializer.Deserialize<UrlExtractionMode>("\"document\"", ConfigOptions)! } });
+  [Fact]
+  public async Task Test_UrlBatchMixedInputs() {
+    // extract_batch: mixed bytes and URL inputs share one output envelope
+    var Inputs_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_URL_BATCH_MIXED_INPUTS") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/url_batch_mixed_inputs";
+    var Inputs_Json =
+        ("[{\"kind\":\"uri\",\"uri\":\"$mock_url\"},{\"bytes\":[66,97,116,99," +
+         "104,32,98,121,116,101,115,32,99,111,110,116,101,110,116]," +
+         "\"filename\":\"inline.txt\",\"kind\":\"bytes\",\"mime_type\":" +
+         "\"text/plain\"}]")
+            .Replace("$mock_url", Inputs_MockBaseUrl);
+    var result = await XbergConverter.ExtractBatchAsync(
+        JsonSerializer.Deserialize<List<ExtractInput>>(Inputs_Json,
+                                                       ConfigOptions)!,
+        new ExtractionConfig { Url = new UrlExtractionConfig {
+          Mode = JsonSerializer.Deserialize<UrlExtractionMode>("\"document\"",
+                                                               ConfigOptions)!
+        } });
     Assert.True(result.Results.Count >= 2, "expected at least 2 elements");
-    Assert.Contains("Batch URL document content", result.Results[0].Content.ToString());
-    Assert.Contains("Batch bytes content", result.Results[1].Content.ToString());
+    Assert.Contains("Batch URL document content",
+                    result.Results[0].Content.ToString());
+    Assert.Contains("Batch bytes content",
+                    result.Results[1].Content.ToString());
+  }
 
-        }
-
-        [Fact]
-        public async Task Test_UrlCrawlLinkedPages()
-        {
-            // extract: crawl mode follows linked pages
-            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_URL_CRAWL_LINKED_PAGES") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/url_crawl_linked_pages";
-            var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace("$mock_url", Input_MockBaseUrl);
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_robots_txt\":false},\"mode\":\"crawl\"}}"));
+  [Fact]
+  public async Task Test_UrlCrawlLinkedPages() {
+    // extract: crawl mode follows linked pages
+    var Input_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_URL_CRAWL_LINKED_PAGES") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/url_crawl_linked_pages";
+    var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace(
+        "$mock_url", Input_MockBaseUrl);
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(Input_Json),
+        ExtractionConfig.FromJson(
+            "{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_" +
+            "robots_txt\":false},\"mode\":\"crawl\"}}"));
     Assert.True(result.Summary.PagesCrawled >= 2, "expected >= 2");
     Assert.Contains("About crawl target", result.Results[1].Content.ToString());
+  }
 
-        }
-
-        [Fact]
-        public async Task Test_UrlHtmlPageExtract()
-        {
-            // extract: website URL returns page content
-            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_URL_HTML_PAGE_EXTRACT") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/url_html_page_extract";
-            var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace("$mock_url", Input_MockBaseUrl);
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{\"url\":{\"mode\":\"document\"}}"));
+  [Fact]
+  public async Task Test_UrlHtmlPageExtract() {
+    // extract: website URL returns page content
+    var Input_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_URL_HTML_PAGE_EXTRACT") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/url_html_page_extract";
+    var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace(
+        "$mock_url", Input_MockBaseUrl);
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(Input_Json),
+        ExtractionConfig.FromJson("{\"url\":{\"mode\":\"document\"}}"));
     Assert.Contains("Xberg URL Page", result.Results[0].Content.ToString());
     Assert.True(result.Results.Count >= 1, "expected at least 1 elements");
+  }
 
-        }
-
-        [Fact]
-        public async Task Test_UrlRecursiveDocumentUrls()
-        {
-            // extract: recursive URL extraction follows document links discovered in results
-            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/url_recursive_document_urls";
-            var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace("$mock_url", Input_MockBaseUrl);
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}}"));
+  [Fact]
+  public async Task Test_UrlRecursiveDocumentUrls() {
+    // extract: recursive URL extraction follows document links discovered in
+    // results
+    var Input_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/url_recursive_document_urls";
+    var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace(
+        "$mock_url", Input_MockBaseUrl);
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(Input_Json),
+        ExtractionConfig.FromJson(
+            "{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_" +
+            "urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}" +
+            "}"));
     Assert.True(result.Results.Count >= 2, "expected at least 2 elements");
-    Assert.Contains("Recursive document target", result.Results[1].Content.ToString());
+    Assert.Contains("Recursive document target",
+                    result.Results[1].Content.ToString());
+  }
 
-        }
-
-        [Fact]
-        public async Task Test_UrlRemoteTextDocument()
-        {
-            // extract: remote text document URL
-            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/url_remote_text_document";
-            var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace("$mock_url", Input_MockBaseUrl);
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{\"url\":{\"mode\":\"document\"}}"));
-    Assert.Contains("Remote document hello", result.Results[0].Content.ToString());
+  [Fact]
+  public async Task Test_UrlRemoteTextDocument() {
+    // extract: remote text document URL
+    var Input_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/url_remote_text_document";
+    var Input_Json = "{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".Replace(
+        "$mock_url", Input_MockBaseUrl);
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(Input_Json),
+        ExtractionConfig.FromJson("{\"url\":{\"mode\":\"document\"}}"));
+    Assert.Contains("Remote document hello",
+                    result.Results[0].Content.ToString());
     Assert.True(result.Summary.RemoteUrls == 1);
-
-        }
-
-
-    }
+  }
+}
 }

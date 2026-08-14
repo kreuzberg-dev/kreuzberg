@@ -7,8 +7,21 @@ defmodule E2e.UrlTest do
 
   describe "url_batch_mixed_inputs" do
     test "url_batch_mixed_inputs" do
-      inputs_mock_base_url = System.get_env("MOCK_SERVER_URL_BATCH_MIXED_INPUTS") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_batch_mixed_inputs"
-      inputs_json = Jason.encode!([%{"kind" => "uri", "uri" => "$mock_url"}, %{"bytes" => [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116], "filename" => "inline.txt", "kind" => "bytes", "mime_type" => "text/plain"}]) |> String.replace("$mock_url", inputs_mock_base_url)
+      inputs_mock_base_url =
+        System.get_env("MOCK_SERVER_URL_BATCH_MIXED_INPUTS") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_batch_mixed_inputs"
+
+      inputs_json =
+        Jason.encode!([
+          %{"kind" => "uri", "uri" => "$mock_url"},
+          %{
+            "bytes" => [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116],
+            "filename" => "inline.txt",
+            "kind" => "bytes",
+            "mime_type" => "text/plain"
+          }
+        ])
+        |> String.replace("$mock_url", inputs_mock_base_url)
+
       inputs_value = Jason.decode!(inputs_json)
       {:ok, result} = Xberg.extract_batch(inputs: inputs_value, config: "{\"url\":{\"mode\":\"document\"}}")
       assert length(result.results) >= 2
@@ -19,9 +32,17 @@ defmodule E2e.UrlTest do
 
   describe "url_crawl_linked_pages" do
     test "url_crawl_linked_pages" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_URL_CRAWL_LINKED_PAGES") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_crawl_linked_pages"
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_URL_CRAWL_LINKED_PAGES") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_crawl_linked_pages"
+
       input_value = %Xberg.ExtractInput{kind: "uri", uri: String.replace("$mock_url", "$mock_url", input_mock_base_url)}
-      {:ok, result} = Xberg.extract(input: input_value, config: "{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_robots_txt\":false},\"mode\":\"crawl\"}}")
+
+      {:ok, result} =
+        Xberg.extract(
+          input: input_value,
+          config: "{\"url\":{\"crawl\":{\"max_depth\":1,\"max_pages\":4,\"respect_robots_txt\":false},\"mode\":\"crawl\"}}"
+        )
+
       assert result.summary.pages_crawled >= 2
       assert String.contains?(to_string(Enum.at(result.results, 1).content), "About crawl target")
     end
@@ -29,7 +50,9 @@ defmodule E2e.UrlTest do
 
   describe "url_html_page_extract" do
     test "url_html_page_extract" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_URL_HTML_PAGE_EXTRACT") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_html_page_extract"
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_URL_HTML_PAGE_EXTRACT") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_html_page_extract"
+
       input_value = %Xberg.ExtractInput{kind: "uri", uri: String.replace("$mock_url", "$mock_url", input_mock_base_url)}
       {:ok, result} = Xberg.extract(input: input_value, config: "{\"url\":{\"mode\":\"document\"}}")
       assert String.contains?(to_string(Enum.at(result.results, 0).content), "Xberg URL Page")
@@ -39,9 +62,19 @@ defmodule E2e.UrlTest do
 
   describe "url_recursive_document_urls" do
     test "url_recursive_document_urls" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_recursive_document_urls"
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS") ||
+          "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_recursive_document_urls"
+
       input_value = %Xberg.ExtractInput{kind: "uri", uri: String.replace("$mock_url", "$mock_url", input_mock_base_url)}
-      {:ok, result} = Xberg.extract(input: input_value, config: "{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}}")
+
+      {:ok, result} =
+        Xberg.extract(
+          input: input_value,
+          config:
+            "{\"url\":{\"crawl\":{\"document_url_depth\":1,\"follow_document_urls\":true,\"respect_robots_txt\":false},\"mode\":\"document\"}}"
+        )
+
       assert length(result.results) >= 2
       assert String.contains?(to_string(Enum.at(result.results, 1).content), "Recursive document target")
     end
@@ -49,7 +82,9 @@ defmodule E2e.UrlTest do
 
   describe "url_remote_text_document" do
     test "url_remote_text_document" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_remote_text_document"
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/url_remote_text_document"
+
       input_value = %Xberg.ExtractInput{kind: "uri", uri: String.replace("$mock_url", "$mock_url", input_mock_base_url)}
       {:ok, result} = Xberg.extract(input: input_value, config: "{\"url\":{\"mode\":\"document\"}}")
       assert String.contains?(to_string(Enum.at(result.results, 0).content), "Remote document hello")

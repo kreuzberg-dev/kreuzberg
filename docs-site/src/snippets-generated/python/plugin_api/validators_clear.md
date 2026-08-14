@@ -13,7 +13,7 @@ Clear all validators and verify list is empty
 from xberg import clear_validators
 
 def main() -> None:
-    clear_validators()
+    _ = clear_validators()
 
 main()
 

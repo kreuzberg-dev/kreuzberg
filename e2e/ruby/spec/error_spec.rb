@@ -3,38 +3,81 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'error' do
-  it 'error_empty_bytes: Graceful handling of empty bytes (should not error)' do
-    result = Xberg.extract(ExtractInput.new(bytes: [], config: {  }, filename: 'empty.txt', kind: 'bytes', mime_type: 'text/plain'), Xberg::ExtractionConfig.new())
+RSpec.describe "error" do
+  it "error_empty_bytes: Graceful handling of empty bytes (should not error)" do
+    result = Xberg.extract(
+      ExtractInput.new(bytes: [], config: {}, filename: "empty.txt", kind: "bytes", mime_type: "text/plain"),
+      Xberg::ExtractionConfig.new
+    )
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 
-  it 'error_empty_mime: Error when extracting with empty MIME type' do
+  it "error_empty_mime: Error when extracting with empty MIME type" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: ''), Xberg::ExtractionConfig.new())
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/plain.txt").bytes,
+          config: {},
+          filename: "plain.txt",
+          kind: "bytes",
+          mime_type: ""
+        ),
+        Xberg::ExtractionConfig.new
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 
-  it 'error_extract_input_conflicting_ocr: extract force+disable OCR' do
+  it "error_extract_input_conflicting_ocr: extract force+disable OCR" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/fake_text.txt').bytes, config: { 'disable_ocr' => true, 'force_ocr' => true }, filename: 'fake_text.txt', kind: 'bytes', mime_type: 'text/plain'), Xberg::ExtractionConfig.new(disable_ocr: true, force_ocr: true))
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/fake_text.txt").bytes,
+          config: {"disable_ocr" => true, "force_ocr" => true},
+          filename: "fake_text.txt",
+          kind: "bytes",
+          mime_type: "text/plain"
+        ),
+        Xberg::ExtractionConfig.new(disable_ocr: true, force_ocr: true)
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 
-  it 'error_invalid_mime_format: Error when extracting with invalid MIME type format' do
+  it "error_invalid_mime_format: Error when extracting with invalid MIME type format" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: 'not-a-mime'), Xberg::ExtractionConfig.new())
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/plain.txt").bytes,
+          config: {},
+          filename: "plain.txt",
+          kind: "bytes",
+          mime_type: "not-a-mime"
+        ),
+        Xberg::ExtractionConfig.new
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 
-  it 'error_unsupported_mime: Error when extracting with unsupported MIME type' do
+  it "error_unsupported_mime: Error when extracting with unsupported MIME type" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: 'application/x-nonexistent'), Xberg::ExtractionConfig.new())
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/plain.txt").bytes,
+          config: {},
+          filename: "plain.txt",
+          kind: "bytes",
+          mime_type: "application/x-nonexistent"
+        ),
+        Xberg::ExtractionConfig.new
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 end

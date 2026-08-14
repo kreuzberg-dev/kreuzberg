@@ -14,264 +14,235 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: plugin_api.</summary>
-    public class PluginApiTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: plugin_api.</summary>
+public class PluginApiTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_RegisterEmbeddingBackendTraitBridge()
-        {
-            // register_embedding_backend: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                EmbeddingBackendBridge.Register(new TestStub_RegisterEmbeddingBackendTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterEmbeddingBackend("register_embedding_backend_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_RegisterOcrBackendTraitBridge()
-        {
-            // register_ocr_backend: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                OcrBackendBridge.Register(new TestStub_RegisterOcrBackendTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterOcrBackend("register_ocr_backend_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_RegisterPostProcessorTraitBridge()
-        {
-            // register_post_processor: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                PostProcessorBridge.Register(new TestStub_RegisterPostProcessorTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterPostProcessor("register_post_processor_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_RegisterRerankerBackendTraitBridge()
-        {
-            // register_reranker_backend: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                RerankerBackendBridge.Register(new TestStub_RegisterRerankerBackendTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterRerankerBackend("register_reranker_backend_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_RegisterTokenizerBackendTraitBridge()
-        {
-            // register_tokenizer_backend: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                TokenizerBackendBridge.Register(new TestStub_RegisterTokenizerBackendTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterTokenizerBackend("register_tokenizer_backend_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_RegisterValidatorTraitBridge()
-        {
-            // register_validator: trait bridge
-            // Trait bridge registration: Bridge.Register() is self-contained and already
-            // performs native registration internally — invoke it directly, discard the result.
-            // Wrap in try/finally so the bridge unregister always runs and the per-test
-            // registration does not leak into subsequent tests (e.g. displacing the host's
-            // default backend impl in suites that depend on it).
-            try
-            {
-                ValidatorBridge.Register(new TestStub_RegisterValidatorTraitBridge());
-            }
-            finally
-            {
-                XbergConverter.UnregisterValidator("register_validator_trait_bridge");
-            }
-        }
-
-        [Fact]
-        public void Test_UnregisterEmbeddingBackendAfterRegister()
-        {
-            // unregister_embedding_backend
-            XbergConverter.UnregisterEmbeddingBackend("test-embedding-backend");
-        }
-
-        [Fact]
-        public void Test_UnregisterPostProcessorAfterRegister()
-        {
-            // unregister_post_processor
-            XbergConverter.UnregisterPostProcessor("test-processor");
-        }
-
-        [Fact]
-        public void Test_UnregisterRerankerBackend()
-        {
-            // unregister_reranker_backend
-            XbergConverter.UnregisterRerankerBackend("test-reranker-backend");
-        }
-
-        [Fact]
-        public void Test_UnregisterTokenizerBackendAfterRegister()
-        {
-            // unregister_tokenizer_backend
-            XbergConverter.UnregisterTokenizerBackend("test-tokenizer-backend");
-        }
-
-        [Fact]
-        public void Test_UnregisterValidatorAfterRegister()
-        {
-            // unregister_validator
-            XbergConverter.UnregisterValidator("test-validator");
-        }
-
-
-        private class TestStub_RegisterEmbeddingBackendTraitBridge : IEmbeddingBackend
-        {
-            public string Name => "register_embedding_backend_trait_bridge";
-            public string Version => "1.0.0";
-
-            public ulong Dimensions { get; } = 768;
-            public List<List<float>> Embed(List<string> texts)
-                => [];
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
-
-        private class TestStub_RegisterOcrBackendTraitBridge : IOcrBackend
-        {
-            public string Name => "register_ocr_backend_trait_bridge";
-            public string Version => "1.0.0";
-
-            public ExtractedDocument ProcessImage(byte[] imageBytes, OcrConfig config)
-                => default(ExtractedDocument);
-            public ExtractedDocument ProcessImageFile(string path, OcrConfig config)
-                => default(ExtractedDocument);
-            public bool SupportsLanguage(string lang)
-                => false;
-            public OcrBackendType BackendType { get; } = default(OcrBackendType);
-            public List<string> SupportedLanguages { get; } = [];
-            public bool SupportsTableDetection { get; } = false;
-            public bool SupportsDocumentProcessing { get; } = false;
-            public bool EmitsStructuredMarkdown { get; } = false;
-            public ExtractedDocument ProcessDocument(string path, OcrConfig config)
-                => default(ExtractedDocument);
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
-
-        private class TestStub_RegisterPostProcessorTraitBridge : IPostProcessor
-        {
-            public string Name => "register_post_processor_trait_bridge";
-            public string Version => "1.0.0";
-
-            public void Process(ExtractedDocument result, ExtractionConfig config) { }
-            public ProcessingStage ProcessingStage { get; } = default(ProcessingStage);
-            public bool ShouldProcess(ExtractedDocument result, ExtractionConfig config)
-                => false;
-            public ulong EstimatedDurationMs(ExtractedDocument result)
-                => 0;
-            public int Priority { get; } = 0;
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
-
-        private class TestStub_RegisterRerankerBackendTraitBridge : IRerankerBackend
-        {
-            public string Name => "register_reranker_backend_trait_bridge";
-            public string Version => "1.0.0";
-
-            public List<float> Rerank(string query, List<string> documents)
-                => [];
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
-
-        private class TestStub_RegisterTokenizerBackendTraitBridge : ITokenizerBackend
-        {
-            public string Name => "register_tokenizer_backend_trait_bridge";
-            public string Version => "1.0.0";
-
-            public ulong CountTokens(string text)
-                => 3;
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
-
-        private class TestStub_RegisterValidatorTraitBridge : IValidator
-        {
-            public string Name => "register_validator_trait_bridge";
-            public string Version => "1.0.0";
-
-            public void Validate(ExtractedDocument result, ExtractionConfig config) { }
-            public bool ShouldValidate(ExtractedDocument result, ExtractionConfig config)
-                => false;
-            public int Priority { get; } = 0;
-            public void Initialize() { }
-            public void Shutdown() { }
-            public string Description { get; } = "";
-            public string Author { get; } = "";
-        }
-
+  [Fact]
+  public void Test_RegisterEmbeddingBackendTraitBridge() {
+    // register_embedding_backend: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      EmbeddingBackendBridge.Register(
+          new TestStub_RegisterEmbeddingBackendTraitBridge());
+    } finally {
+      XbergConverter.UnregisterEmbeddingBackend(
+          "register_embedding_backend_trait_bridge");
     }
+  }
+
+  [Fact]
+  public void Test_RegisterOcrBackendTraitBridge() {
+    // register_ocr_backend: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      OcrBackendBridge.Register(new TestStub_RegisterOcrBackendTraitBridge());
+    } finally {
+      XbergConverter.UnregisterOcrBackend("register_ocr_backend_trait_bridge");
+    }
+  }
+
+  [Fact]
+  public void Test_RegisterPostProcessorTraitBridge() {
+    // register_post_processor: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      PostProcessorBridge.Register(
+          new TestStub_RegisterPostProcessorTraitBridge());
+    } finally {
+      XbergConverter.UnregisterPostProcessor(
+          "register_post_processor_trait_bridge");
+    }
+  }
+
+  [Fact]
+  public void Test_RegisterRerankerBackendTraitBridge() {
+    // register_reranker_backend: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      RerankerBackendBridge.Register(
+          new TestStub_RegisterRerankerBackendTraitBridge());
+    } finally {
+      XbergConverter.UnregisterRerankerBackend(
+          "register_reranker_backend_trait_bridge");
+    }
+  }
+
+  [Fact]
+  public void Test_RegisterTokenizerBackendTraitBridge() {
+    // register_tokenizer_backend: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      TokenizerBackendBridge.Register(
+          new TestStub_RegisterTokenizerBackendTraitBridge());
+    } finally {
+      XbergConverter.UnregisterTokenizerBackend(
+          "register_tokenizer_backend_trait_bridge");
+    }
+  }
+
+  [Fact]
+  public void Test_RegisterValidatorTraitBridge() {
+    // register_validator: trait bridge
+    // Trait bridge registration: Bridge.Register() is self-contained and
+    // already performs native registration internally — invoke it directly,
+    // discard the result. Wrap in try/finally so the bridge unregister always
+    // runs and the per-test registration does not leak into subsequent tests
+    // (e.g. displacing the host's default backend impl in suites that depend on
+    // it).
+    try {
+      ValidatorBridge.Register(new TestStub_RegisterValidatorTraitBridge());
+    } finally {
+      XbergConverter.UnregisterValidator("register_validator_trait_bridge");
+    }
+  }
+
+  [Fact]
+  public void Test_UnregisterEmbeddingBackendAfterRegister() {
+    // unregister_embedding_backend
+    XbergConverter.UnregisterEmbeddingBackend("test-embedding-backend");
+  }
+
+  [Fact]
+  public void Test_UnregisterPostProcessorAfterRegister() {
+    // unregister_post_processor
+    XbergConverter.UnregisterPostProcessor("test-processor");
+  }
+
+  [Fact]
+  public void Test_UnregisterRerankerBackend() {
+    // unregister_reranker_backend
+    XbergConverter.UnregisterRerankerBackend("test-reranker-backend");
+  }
+
+  [Fact]
+  public void Test_UnregisterTokenizerBackendAfterRegister() {
+    // unregister_tokenizer_backend
+    XbergConverter.UnregisterTokenizerBackend("test-tokenizer-backend");
+  }
+
+  [Fact]
+  public void Test_UnregisterValidatorAfterRegister() {
+    // unregister_validator
+    XbergConverter.UnregisterValidator("test-validator");
+  }
+
+  private class TestStub_RegisterEmbeddingBackendTraitBridge
+      : IEmbeddingBackend {
+    public string Name => "register_embedding_backend_trait_bridge";
+    public string Version => "1.0.0";
+
+    public ulong Dimensions { get; } = 768;
+    public List<List<float>> Embed(List<string> texts) => [];
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+
+  private class TestStub_RegisterOcrBackendTraitBridge : IOcrBackend {
+    public string Name => "register_ocr_backend_trait_bridge";
+    public string Version => "1.0.0";
+
+    public ExtractedDocument
+    ProcessImage(byte[] imageBytes,
+                 OcrConfig config) => default(ExtractedDocument);
+    public ExtractedDocument ProcessImageFile(string path, OcrConfig config) =>
+        default(ExtractedDocument);
+    public bool SupportsLanguage(string lang) => false;
+    public OcrBackendType BackendType { get; } = default(OcrBackendType);
+    public List<string> SupportedLanguages { get; } = [];
+    public bool SupportsTableDetection { get; } = false;
+    public bool SupportsDocumentProcessing { get; } = false;
+    public bool EmitsStructuredMarkdown { get; } = false;
+    public ExtractedDocument ProcessDocument(string path, OcrConfig config) =>
+        default(ExtractedDocument);
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+
+  private class TestStub_RegisterPostProcessorTraitBridge : IPostProcessor {
+    public string Name => "register_post_processor_trait_bridge";
+    public string Version => "1.0.0";
+
+    public void Process(ExtractedDocument result, ExtractionConfig config) {}
+    public ProcessingStage ProcessingStage { get; } = default(ProcessingStage);
+    public bool ShouldProcess(ExtractedDocument result,
+                              ExtractionConfig config) => false;
+    public ulong EstimatedDurationMs(ExtractedDocument result) => 0;
+    public int Priority { get; } = 0;
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+
+  private class TestStub_RegisterRerankerBackendTraitBridge : IRerankerBackend {
+    public string Name => "register_reranker_backend_trait_bridge";
+    public string Version => "1.0.0";
+
+    public List<float> Rerank(string query, List<string> documents) => [];
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+
+  private class TestStub_RegisterTokenizerBackendTraitBridge
+      : ITokenizerBackend {
+    public string Name => "register_tokenizer_backend_trait_bridge";
+    public string Version => "1.0.0";
+
+    public ulong CountTokens(string text) => 3;
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+
+  private class TestStub_RegisterValidatorTraitBridge : IValidator {
+    public string Name => "register_validator_trait_bridge";
+    public string Version => "1.0.0";
+
+    public void Validate(ExtractedDocument result, ExtractionConfig config) {}
+    public bool ShouldValidate(ExtractedDocument result,
+                               ExtractionConfig config) => false;
+    public int Priority { get; } = 0;
+    public void Initialize() {}
+    public void Shutdown() {}
+    public string Description { get; } = "";
+    public string Author { get; } = "";
+  }
+}
 }

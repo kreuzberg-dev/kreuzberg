@@ -26,7 +26,7 @@ def main() -> None:
             return False
         def backend_type(self):
             return {}
-    register_ocr_backend(_TestStub_register_ocr_backend_trait_bridge())
+    _ = register_ocr_backend(_TestStub_register_ocr_backend_trait_bridge())
     unregister_ocr_backend("test-backend")
 
 main()

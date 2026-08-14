@@ -3,100 +3,255 @@
 // To verify freshness: alef verify
 
 import { describe, expect, it } from "vitest";
-import { extract, extractBatch, WasmExtractInput, WasmExtractionConfig, WasmAccelerationConfig, WasmBedrockConfig, WasmBrowserConfig, WasmCaptioningConfig, WasmChunkClassificationConfig, WasmChunkClassificationDefinition, WasmChunkingConfig, WasmContentConfig, WasmContentFilterConfig, WasmConversionOptions, WasmCrawlConfig, WasmCsvConfig, WasmEmailConfig, WasmEmbeddingConfig, WasmFileExtractionConfig, WasmHierarchyConfig, WasmHtmlOutputConfig, WasmImageExtractionConfig, WasmImagePreprocessingConfig, WasmKeywordConfig, WasmLanguageDetectionConfig, WasmLateInteractionConfig, WasmLayoutDetectionConfig, WasmLlmBudgetConfig, WasmLlmCacheConfig, WasmLlmConfig, WasmLlmProviderConfig, WasmLlmRateLimitConfig, WasmNerConfig, WasmOcrConfig, WasmOcrElementConfig, WasmOcrPipelineConfig, WasmOcrPipelineStage, WasmOcrQualityThresholds, WasmPageClassificationConfig, WasmPageConfig, WasmPdfConfig, WasmPostProcessorConfig, WasmPreprocessingOptions, WasmProxyConfig, WasmRakeParams, WasmRedactionConfig, WasmRedactionPattern, WasmRedactionTerm, WasmSecurityLimits, WasmSparseEmbeddingConfig, WasmSsrfPolicy, WasmStructuredExtractionConfig, WasmSummarizationConfig, WasmSvgOptions, WasmTesseractConfig, WasmTokenReductionOptions, WasmTranscriptionConfig, WasmTranslationConfig, WasmTreeSitterConfig, WasmTreeSitterProcessConfig, WasmUrlExtractionConfig, WasmYakeParams } from "@xberg-io/xberg-wasm";
+import {
+  extract,
+  extractBatch,
+  WasmExtractInput,
+  WasmExtractionConfig,
+  WasmAccelerationConfig,
+  WasmBedrockConfig,
+  WasmBrowserConfig,
+  WasmCaptioningConfig,
+  WasmChunkClassificationConfig,
+  WasmChunkClassificationDefinition,
+  WasmChunkingConfig,
+  WasmContentConfig,
+  WasmContentFilterConfig,
+  WasmConversionOptions,
+  WasmCrawlConfig,
+  WasmCsvConfig,
+  WasmEmailConfig,
+  WasmEmbeddingConfig,
+  WasmFileExtractionConfig,
+  WasmHierarchyConfig,
+  WasmHtmlOutputConfig,
+  WasmImageExtractionConfig,
+  WasmImagePreprocessingConfig,
+  WasmKeywordConfig,
+  WasmLanguageDetectionConfig,
+  WasmLateInteractionConfig,
+  WasmLayoutDetectionConfig,
+  WasmLlmBudgetConfig,
+  WasmLlmCacheConfig,
+  WasmLlmConfig,
+  WasmLlmProviderConfig,
+  WasmLlmRateLimitConfig,
+  WasmNerConfig,
+  WasmOcrConfig,
+  WasmOcrElementConfig,
+  WasmOcrPipelineConfig,
+  WasmOcrPipelineStage,
+  WasmOcrQualityThresholds,
+  WasmPageClassificationConfig,
+  WasmPageConfig,
+  WasmPdfConfig,
+  WasmPostProcessorConfig,
+  WasmPreprocessingOptions,
+  WasmProxyConfig,
+  WasmRakeParams,
+  WasmRedactionConfig,
+  WasmRedactionPattern,
+  WasmRedactionTerm,
+  WasmSecurityLimits,
+  WasmSparseEmbeddingConfig,
+  WasmSsrfPolicy,
+  WasmStructuredExtractionConfig,
+  WasmSummarizationConfig,
+  WasmSvgOptions,
+  WasmTesseractConfig,
+  WasmTokenReductionOptions,
+  WasmTranscriptionConfig,
+  WasmTranslationConfig,
+  WasmTreeSitterConfig,
+  WasmTreeSitterProcessConfig,
+  WasmUrlExtractionConfig,
+  WasmYakeParams,
+} from "@xberg-io/xberg-wasm";
 
 process.env.CRAWLBERG_ALLOW_PRIVATE_NETWORK ??= "true";
 
-
 async function _alefE2eDecompressAndParseJson(response: Response): Promise<unknown> {
-	const contentEncoding = response.headers.get("content-encoding");
-	let buffer = await response.arrayBuffer();
+  const contentEncoding = response.headers.get("content-encoding");
+  let buffer = await response.arrayBuffer();
 
-	if (contentEncoding === "gzip") {
-		const { gunzipSync } = await import("zlib");
-		buffer = gunzipSync(new Uint8Array(buffer)).buffer;
-	} else if (contentEncoding === "br") {
-		const { brotliDecompressSync } = await import("zlib");
-		buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
-	}
+  if (contentEncoding === "gzip") {
+    const { gunzipSync } = await import("zlib");
+    buffer = gunzipSync(new Uint8Array(buffer)).buffer;
+  } else if (contentEncoding === "br") {
+    const { brotliDecompressSync } = await import("zlib");
+    buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
+  }
 
-	const text = new TextDecoder().decode(buffer);
-	return JSON.parse(text);
+  const text = new TextDecoder().decode(buffer);
+  return JSON.parse(text);
 }
 
 function _alefE2eText(value: unknown): string {
-	return value == null ? "" : String(value);
+  return value == null ? "" : String(value);
 }
 
 function _alefE2eItemTexts(item: unknown): string[] {
-	if (item == null || typeof item !== "object") {
-		return [_alefE2eText(item)];
-	}
-	const record = item as Record<string, unknown>;
-	const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
-	return [_alefE2eText(item), _alefE2eText(record.kind), _alefE2eText(record.name), _alefE2eText(record.source), _alefE2eText(record.alias), _alefE2eText(record.text), _alefE2eText(record.signature), itemsText];
+  if (item == null || typeof item !== "object") {
+    return [_alefE2eText(item)];
+  }
+  const record = item as Record<string, unknown>;
+  const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
+  return [
+    _alefE2eText(item),
+    _alefE2eText(record.kind),
+    _alefE2eText(record.name),
+    _alefE2eText(record.source),
+    _alefE2eText(record.alias),
+    _alefE2eText(record.text),
+    _alefE2eText(record.signature),
+    itemsText,
+  ];
 }
 
 function _alefE2eFormatMetadataDisplay(fm: unknown): string {
-	if (fm == null) return "";
-	if (typeof fm !== "object") return String(fm);
-	const record = fm as Record<string, unknown>;
-	const formatType = record.format_type;
+  if (fm == null) return "";
+  if (typeof fm !== "object") return String(fm);
+  const record = fm as Record<string, unknown>;
+  const formatType = record.format_type;
 
-	// FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
-	// Extract the display string based on the variant type
-	if (formatType === "image" && typeof record.image === "object") {
-		const imageData = record.image as Record<string, unknown>;
-		if (typeof imageData.format === "string") return imageData.format;
-	}
+  // FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
+  // Extract the display string based on the variant type
+  if (formatType === "image" && typeof record.image === "object") {
+    const imageData = record.image as Record<string, unknown>;
+    if (typeof imageData.format === "string") return imageData.format;
+  }
 
-	// Fallback: return format_type variant name
-	if (typeof record.format_type === "string") return record.format_type;
-	return "";
+  // Fallback: return format_type variant name
+  if (typeof record.format_type === "string") return record.format_type;
+  return "";
 }
 
-
 describe("url", () => {
-
-	it("url_batch_mixed_inputs: extract_batch: mixed bytes and URL inputs share one output envelope", async () => {
-		const inputsMockBaseUrl = process.env.MOCK_SERVER_URL_BATCH_MIXED_INPUTS ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_batch_mixed_inputs`;
-		const inputsJson = JSON.stringify([{ kind: "uri", uri: "$mock_url" }, { bytes: [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116], filename: "inline.txt", kind: "bytes", mimeType: "text/plain" }]).replaceAll("$mock_url", inputsMockBaseUrl);
-		const inputs = JSON.parse(inputsJson) as ExtractInput[];
-		const result = await extractBatch(inputs, (() => { const _u0 = WasmExtractionConfig.default(); _u0.url = (() => { const _u1 = WasmUrlExtractionConfig.default(); _u1.mode = WasmUrlExtractionMode.Document; return _u1; })(); return _u0; })());
+  it("url_batch_mixed_inputs: extract_batch: mixed bytes and URL inputs share one output envelope", async () => {
+    const inputsMockBaseUrl =
+      process.env.MOCK_SERVER_URL_BATCH_MIXED_INPUTS ??
+      `${process.env.MOCK_SERVER_URL}/fixtures/url_batch_mixed_inputs`;
+    const inputsJson = JSON.stringify([
+      { kind: "uri", uri: "$mock_url" },
+      {
+        bytes: [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116],
+        filename: "inline.txt",
+        kind: "bytes",
+        mimeType: "text/plain",
+      },
+    ]).replaceAll("$mock_url", inputsMockBaseUrl);
+    const inputs = JSON.parse(inputsJson) as ExtractInput[];
+    const result = await extractBatch(
+      inputs,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.url = (() => {
+          const _u1 = WasmUrlExtractionConfig.default();
+          _u1.mode = "document";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(result.results.length).toBeGreaterThanOrEqual(2);
     expect(result.results[0].content).toContain("Batch URL document content");
     expect(result.results[1].content).toContain("Batch bytes content");
-	}, 30000);
-	it("url_crawl_linked_pages: extract: crawl mode follows linked pages", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_URL_CRAWL_LINKED_PAGES ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_crawl_linked_pages`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.url = (() => { const _u1 = WasmUrlExtractionConfig.default(); _u1.crawl = (() => { const _u2 = WasmCrawlConfig.default(); _u2.maxDepth = 1; _u2.maxPages = 4; _u2.respectRobotsTxt = false; return _u2; })(); _u1.mode = WasmUrlExtractionMode.Crawl; return _u1; })(); return _u0; })());
+  }, 30000);
+  it("url_crawl_linked_pages: extract: crawl mode follows linked pages", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_URL_CRAWL_LINKED_PAGES ??
+      `${process.env.MOCK_SERVER_URL}/fixtures/url_crawl_linked_pages`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.url = (() => {
+          const _u1 = WasmUrlExtractionConfig.default();
+          _u1.crawl = (() => {
+            const _u2 = WasmCrawlConfig.default();
+            _u2.maxDepth = 1;
+            _u2.maxPages = 4;
+            _u2.respectRobotsTxt = false;
+            return _u2;
+          })();
+          _u1.mode = "crawl";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(Number(result.summary.pagesCrawled)).toBeGreaterThanOrEqual(2);
     expect(result.results[1].content).toContain("About crawl target");
-	}, 30000);
-	it("url_html_page_extract: extract: website URL returns page content", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_URL_HTML_PAGE_EXTRACT ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_html_page_extract`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.url = (() => { const _u1 = WasmUrlExtractionConfig.default(); _u1.mode = WasmUrlExtractionMode.Document; return _u1; })(); return _u0; })());
+  }, 30000);
+  it("url_html_page_extract: extract: website URL returns page content", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_URL_HTML_PAGE_EXTRACT ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_html_page_extract`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.url = (() => {
+          const _u1 = WasmUrlExtractionConfig.default();
+          _u1.mode = "document";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(result.results[0].content).toContain("Xberg URL Page");
     expect(result.results.length).toBeGreaterThanOrEqual(1);
-	}, 30000);
-	it("url_recursive_document_urls: extract: recursive URL extraction follows document links discovered in results", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_recursive_document_urls`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.url = (() => { const _u1 = WasmUrlExtractionConfig.default(); _u1.crawl = (() => { const _u2 = WasmCrawlConfig.default(); _u2.documentUrlDepth = 1; _u2.followDocumentUrls = true; _u2.respectRobotsTxt = false; return _u2; })(); _u1.mode = WasmUrlExtractionMode.Document; return _u1; })(); return _u0; })());
+  }, 30000);
+  it("url_recursive_document_urls: extract: recursive URL extraction follows document links discovered in results", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS ??
+      `${process.env.MOCK_SERVER_URL}/fixtures/url_recursive_document_urls`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.url = (() => {
+          const _u1 = WasmUrlExtractionConfig.default();
+          _u1.crawl = (() => {
+            const _u2 = WasmCrawlConfig.default();
+            _u2.documentUrlDepth = 1;
+            _u2.followDocumentUrls = true;
+            _u2.respectRobotsTxt = false;
+            return _u2;
+          })();
+          _u1.mode = "document";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(result.results.length).toBeGreaterThanOrEqual(2);
     expect(result.results[1].content).toContain("Recursive document target");
-	}, 30000);
-	it("url_remote_text_document: extract: remote text document URL", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT ?? `${process.env.MOCK_SERVER_URL}/fixtures/url_remote_text_document`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.url = (() => { const _u1 = WasmUrlExtractionConfig.default(); _u1.mode = WasmUrlExtractionMode.Document; return _u1; })(); return _u0; })());
+  }, 30000);
+  it("url_remote_text_document: extract: remote text document URL", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT ??
+      `${process.env.MOCK_SERVER_URL}/fixtures/url_remote_text_document`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url" }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.url = (() => {
+          const _u1 = WasmUrlExtractionConfig.default();
+          _u1.mode = "document";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(result.results[0].content).toContain("Remote document hello");
     expect(Number(result.summary.remoteUrls)).toBe(1);
-	}, 30000);
+  }, 30000);
 });

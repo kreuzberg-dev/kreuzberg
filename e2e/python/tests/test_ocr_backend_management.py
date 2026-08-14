@@ -5,7 +5,7 @@
 """E2e tests for category: ocr_backend_management."""
 
 import pytest  # noqa: F401
-from xberg import clear_ocr_backends, list_ocr_backends, unregister_ocr_backend, ExtractionConfig
+from xberg import clear_ocr_backends, list_ocr_backends, unregister_ocr_backend
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -29,16 +29,16 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_ocr_backends_clear() -> None:
     """Clear all OCR backends and verify list is empty."""
-    clear_ocr_backends()
+    _ = clear_ocr_backends()
 
 
 def test_ocr_backends_list() -> None:
     """List all registered OCR backends."""
-    list_ocr_backends()
+    _ = list_ocr_backends()
 
 
 def test_ocr_backends_unregister() -> None:
     """Unregister nonexistent OCR backend gracefully."""
     name = "nonexistent-backend-xyz"
 
-    unregister_ocr_backend(name)
+    _ = unregister_ocr_backend(name)

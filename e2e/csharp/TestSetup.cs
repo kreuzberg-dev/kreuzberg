@@ -8,200 +8,200 @@ using System.Runtime.CompilerServices;
 
 namespace Xberg;
 
-internal static class TestSetup
-{
-    private static Process? _mockServer;
+internal static class TestSetup {
+  private static Process? _mockServer;
 
-    // libc setenv — Environment.SetEnvironmentVariable does not reliably propagate to the
-    // native getenv the underlying library reads, so set it through the C runtime directly.
-    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
-    private static extern int setenv(string name, string value, int overwrite);
+  // libc setenv — Environment.SetEnvironmentVariable does not reliably
+  // propagate to the native getenv the underlying library reads, so set it
+  // through the C runtime directly.
+  [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+  private static extern int setenv(string name, string value, int overwrite);
 
-    private static void SetNativeEnv(string name, string value)
-    {
-        Environment.SetEnvironmentVariable(name, value);
-        if (!OperatingSystem.IsWindows())
-        {
-            try { setenv(name, value, 1); } catch { }
-        }
+  private static void SetNativeEnv(string name, string value) {
+    Environment.SetEnvironmentVariable(name, value);
+    if (!OperatingSystem.IsWindows()) {
+      try {
+        setenv(name, value, 1);
+      } catch {
+      }
+    }
+  }
+
+  [ModuleInitializer]
+  internal static void Init() {
+    if (Environment.GetEnvironmentVariable("CRAWLBERG_ALLOW_PRIVATE_NETWORK") ==
+        null) {
+      SetNativeEnv("CRAWLBERG_ALLOW_PRIVATE_NETWORK", "true");
     }
 
-    [ModuleInitializer]
-    internal static void Init()
-    {
-        if (Environment.GetEnvironmentVariable("CRAWLBERG_ALLOW_PRIVATE_NETWORK") == null) {
-            SetNativeEnv("CRAWLBERG_ALLOW_PRIVATE_NETWORK", "true");
-        }
-
-        // Walk up from the assembly directory until we find the repo root.
-        // Prefer a sibling test_documents/ directory (chdir into it so that
-        // fixture paths like "docx/fake.docx" resolve relative to it). If that
-        // is absent (projects with no document fixtures), fall
-        // back to a sibling alef.toml or fixtures/ marker as the repo root.
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        DirectoryInfo? repoRoot = null;
-        while (dir != null)
-        {
-            var documentsCandidate = Path.Combine(dir.FullName, "test_documents");
-            if (Directory.Exists(documentsCandidate))
-            {
-                repoRoot = dir;
-                Directory.SetCurrentDirectory(documentsCandidate);
-                break;
-            }
-            if (File.Exists(Path.Combine(dir.FullName, "alef.toml"))
-                || Directory.Exists(Path.Combine(dir.FullName, "fixtures")))
-            {
-                repoRoot = dir;
-                break;
-            }
-            dir = dir.Parent;
-        }
-
-
-        // Spawn the mock-server binary before any test loads, mirroring the
-        // Ruby spec_helper / Python conftest pattern. Honors a pre-set
-        // MOCK_SERVER_URL (e.g. set by `task` or CI) only if reachable.
-        // If preset URL fails TCP connect within 100ms, treat it as stale
-        // (e.g., .mock-server.env from previous run) and spawn fresh.
-        var preset = Environment.GetEnvironmentVariable("MOCK_SERVER_URL");
-        if (!string.IsNullOrEmpty(preset))
-        {
-            // TCP probe: short timeout (100ms) to detect stale presets.
-            try
-            {
-                var presetUri = new System.Uri(preset);
-                using var probe = new System.Net.Sockets.TcpClient();
-                var task = probe.ConnectAsync(presetUri.Host, presetUri.Port);
-                if (task.Wait(100) && probe.Connected)
-                {
-                    // Preset URL is reachable; expand MOCK_SERVERS into per-fixture env vars
-                    // and return. Without this, tests reading MOCK_SERVER_<FIXTURE_ID> fall back
-                    // to the shared-server namespaced URL where origin-relative asset paths 404.
-                    var mockServersJson = Environment.GetEnvironmentVariable("MOCK_SERVERS");
-                    if (!string.IsNullOrEmpty(mockServersJson))
-                    {
-                        var matches = System.Text.RegularExpressions.Regex.Matches(
-                            mockServersJson, "\\\"([^\\\"]+)\\\":\\\"([^\\\"]+)\\\"");
-                        foreach (System.Text.RegularExpressions.Match m in matches)
-                        {
-                            Environment.SetEnvironmentVariable(
-                                "MOCK_SERVER_" + m.Groups[1].Value.ToUpperInvariant(),
-                                m.Groups[2].Value);
-                        }
-                    }
-                    return;
-                }
-            }
-            catch (System.Exception) { }
-            // Preset is unreachable or invalid; spawn fresh server.
-        }
-        if (repoRoot == null)
-        {
-            throw new InvalidOperationException("TestSetup: could not locate repo root (test_documents/, alef.toml, or fixtures/ not found in any ancestor of " + AppContext.BaseDirectory + ")");
-        }
-        var bin = Path.Combine(
-            repoRoot.FullName,
-            "e2e", "rust", "target", "release", "mock-server");
-        if (OperatingSystem.IsWindows())
-        {
-            bin += ".exe";
-        }
-        var fixturesDir = Path.Combine(repoRoot.FullName, "fixtures");
-        if (!File.Exists(bin))
-        {
-            throw new InvalidOperationException(
-                $"TestSetup: mock-server binary not found at {bin} — run: cargo build --manifest-path e2e/rust/Cargo.toml --bin mock-server --release");
-        }
-        var psi = new ProcessStartInfo
-        {
-            FileName = bin,
-            Arguments = $"\"{fixturesDir}\"",
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        _mockServer = Process.Start(psi)
-            ?? throw new InvalidOperationException("TestSetup: failed to start mock-server");
-        // The mock-server prints MOCK_SERVER_URL=<url>, then optionally
-        // MOCK_SERVERS={...} for host-root fixtures. Read up to 16 lines.
-        string? url = null;
-        for (int i = 0; i < 16; i++)
-        {
-            var line = _mockServer.StandardOutput.ReadLine();
-            if (line == null)
-            {
-                break;
-            }
-            const string urlPrefix = "MOCK_SERVER_URL=";
-            const string serversPrefix = "MOCK_SERVERS=";
-            if (line.StartsWith(urlPrefix, StringComparison.Ordinal))
-            {
-                url = line.Substring(urlPrefix.Length).Trim();
-            }
-            else if (line.StartsWith(serversPrefix, StringComparison.Ordinal))
-            {
-                var jsonVal = line.Substring(serversPrefix.Length).Trim();
-                Environment.SetEnvironmentVariable("MOCK_SERVERS", jsonVal);
-                // Parse JSON map and set per-fixture env vars (MOCK_SERVER_<FIXTURE_ID>).
-                var matches = System.Text.RegularExpressions.Regex.Matches(
-                    jsonVal, "\"([^\"]+)\":\"([^\"]+)\"");
-                foreach (System.Text.RegularExpressions.Match m in matches)
-                {
-                    Environment.SetEnvironmentVariable(
-                        "MOCK_SERVER_" + m.Groups[1].Value.ToUpperInvariant(),
-                        m.Groups[2].Value);
-                }
-                break;
-            }
-            else if (url != null)
-            {
-                break;
-            }
-        }
-        if (string.IsNullOrEmpty(url))
-        {
-            try { _mockServer.Kill(true); } catch { }
-            throw new InvalidOperationException("TestSetup: mock-server did not emit MOCK_SERVER_URL");
-        }
-        Environment.SetEnvironmentVariable("MOCK_SERVER_URL", url);
-        // TCP-readiness probe: ensure axum::serve is accepting before tests start.
-        // The mock-server binds the TcpListener synchronously then prints the URL
-        // before tokio::spawn(axum::serve(...)) is polled, so under xUnit
-        // class-parallel default tests can race startup. Poll-connect (max 5s,
-        // 50ms backoff) until success.
-        var healthUri = new System.Uri(url);
-        var deadline = System.Diagnostics.Stopwatch.StartNew();
-        while (deadline.ElapsedMilliseconds < 5000)
-        {
-            try
-            {
-                using var probe = new System.Net.Sockets.TcpClient();
-                var task = probe.ConnectAsync(healthUri.Host, healthUri.Port);
-                if (task.Wait(100) && probe.Connected) { break; }
-            }
-            catch (System.Exception) { }
-            System.Threading.Thread.Sleep(50);
-        }
-        // Drain stdout/stderr so the child does not block on a full pipe.
-        var server = _mockServer;
-        var stdoutThread = new System.Threading.Thread(() =>
-        {
-            try { server.StandardOutput.ReadToEnd(); } catch { }
-        }) { IsBackground = true };
-        stdoutThread.Start();
-        var stderrThread = new System.Threading.Thread(() =>
-        {
-            try { server.StandardError.ReadToEnd(); } catch { }
-        }) { IsBackground = true };
-        stderrThread.Start();
-        // Tear the child down on assembly unload / process exit by closing
-        // its stdin (the mock-server treats stdin EOF as a shutdown signal).
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-        {
-            try { _mockServer.StandardInput.Close(); } catch { }
-            try { if (!_mockServer.WaitForExit(2000)) { _mockServer.Kill(true); } } catch { }
-        };
+    // Walk up from the assembly directory until we find the repo root.
+    // Prefer a sibling test_documents/ directory (chdir into it so that
+    // fixture paths like "docx/fake.docx" resolve relative to it). If that
+    // is absent (projects with no document fixtures), fall
+    // back to a sibling alef.toml or fixtures/ marker as the repo root.
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    DirectoryInfo? repoRoot = null;
+    while (dir != null) {
+      var documentsCandidate = Path.Combine(dir.FullName, "test_documents");
+      if (Directory.Exists(documentsCandidate)) {
+        repoRoot = dir;
+        Directory.SetCurrentDirectory(documentsCandidate);
+        break;
+      }
+      if (File.Exists(Path.Combine(dir.FullName, "alef.toml")) ||
+          Directory.Exists(Path.Combine(dir.FullName, "fixtures"))) {
+        repoRoot = dir;
+        break;
+      }
+      dir = dir.Parent;
     }
+
+    // Spawn the mock-server binary before any test loads, mirroring the
+    // Ruby spec_helper / Python conftest pattern. Honors a pre-set
+    // MOCK_SERVER_URL (e.g. set by `task` or CI) only if reachable.
+    // If preset URL fails TCP connect within 100ms, treat it as stale
+    // (e.g., .mock-server.env from previous run) and spawn fresh.
+    var preset = Environment.GetEnvironmentVariable("MOCK_SERVER_URL");
+    if (!string.IsNullOrEmpty(preset)) {
+      // TCP probe: short timeout (100ms) to detect stale presets.
+      try {
+        var presetUri = new System.Uri(preset);
+        using var probe = new System.Net.Sockets.TcpClient();
+        var task = probe.ConnectAsync(presetUri.Host, presetUri.Port);
+        if (task.Wait(100) && probe.Connected) {
+          // Preset URL is reachable; expand MOCK_SERVERS into per-fixture env
+          // vars and return. Without this, tests reading
+          // MOCK_SERVER_<FIXTURE_ID> fall back to the shared-server namespaced
+          // URL where origin-relative asset paths 404.
+          var mockServersJson =
+              Environment.GetEnvironmentVariable("MOCK_SERVERS");
+          if (!string.IsNullOrEmpty(mockServersJson)) {
+            var matches = System.Text.RegularExpressions.Regex.Matches(
+                mockServersJson, "\\\"([^\\\"]+)\\\":\\\"([^\\\"]+)\\\"");
+            foreach (System.Text.RegularExpressions.Match m in matches) {
+              Environment.SetEnvironmentVariable(
+                  "MOCK_SERVER_" + m.Groups[1].Value.ToUpperInvariant(),
+                  m.Groups[2].Value);
+            }
+          }
+          return;
+        }
+      } catch (System.Exception) {
+      }
+      // Preset is unreachable or invalid; spawn fresh server.
+    }
+    if (repoRoot == null) {
+      throw new InvalidOperationException(
+          "TestSetup: could not locate repo root (test_documents/, " +
+          "alef.toml, or fixtures/ not found in any ancestor of " +
+          AppContext.BaseDirectory + ")");
+    }
+    var bin = Path.Combine(repoRoot.FullName, "e2e", "rust", "target",
+                           "release", "mock-server");
+    if (OperatingSystem.IsWindows()) {
+      bin += ".exe";
+    }
+    var fixturesDir = Path.Combine(repoRoot.FullName, "fixtures");
+    if (!File.Exists(bin)) {
+      throw new InvalidOperationException(
+          $"TestSetup: mock-server binary not found at {bin} — run: cargo build --manifest-path e2e/rust/Cargo.toml --bin mock-server --release");
+    }
+    var psi = new ProcessStartInfo {
+      FileName = bin,
+      Arguments = $"\"{fixturesDir}\"",
+      RedirectStandardInput = true,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+      UseShellExecute = false,
+    };
+    _mockServer =
+        Process.Start(psi) ?? throw new InvalidOperationException(
+                                  "TestSetup: failed to start mock-server");
+    // The mock-server prints MOCK_SERVER_URL=<url>, then optionally
+    // MOCK_SERVERS={...} for host-root fixtures. Read up to 16 lines.
+    string? url = null;
+    for (int i = 0; i < 16; i++) {
+      var line = _mockServer.StandardOutput.ReadLine();
+      if (line == null) {
+        break;
+      }
+      const string urlPrefix = "MOCK_SERVER_URL=";
+      const string serversPrefix = "MOCK_SERVERS=";
+      if (line.StartsWith(urlPrefix, StringComparison.Ordinal)) {
+        url = line.Substring(urlPrefix.Length).Trim();
+      } else if (line.StartsWith(serversPrefix, StringComparison.Ordinal)) {
+        var jsonVal = line.Substring(serversPrefix.Length).Trim();
+        Environment.SetEnvironmentVariable("MOCK_SERVERS", jsonVal);
+        // Parse JSON map and set per-fixture env vars
+        // (MOCK_SERVER_<FIXTURE_ID>).
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            jsonVal, "\"([^\"]+)\":\"([^\"]+)\"");
+        foreach (System.Text.RegularExpressions.Match m in matches) {
+          Environment.SetEnvironmentVariable(
+              "MOCK_SERVER_" + m.Groups[1].Value.ToUpperInvariant(),
+              m.Groups[2].Value);
+        }
+        break;
+      } else if (url != null) {
+        break;
+      }
+    }
+    if (string.IsNullOrEmpty(url)) {
+      try {
+        _mockServer.Kill(true);
+      } catch {
+      }
+      throw new InvalidOperationException(
+          "TestSetup: mock-server did not emit MOCK_SERVER_URL");
+    }
+    Environment.SetEnvironmentVariable("MOCK_SERVER_URL", url);
+    // TCP-readiness probe: ensure axum::serve is accepting before tests start.
+    // The mock-server binds the TcpListener synchronously then prints the URL
+    // before tokio::spawn(axum::serve(...)) is polled, so under xUnit
+    // class-parallel default tests can race startup. Poll-connect (max 5s,
+    // 50ms backoff) until success.
+    var healthUri = new System.Uri(url);
+    var deadline = System.Diagnostics.Stopwatch.StartNew();
+    while (deadline.ElapsedMilliseconds < 5000) {
+      try {
+        using var probe = new System.Net.Sockets.TcpClient();
+        var task = probe.ConnectAsync(healthUri.Host, healthUri.Port);
+        if (task.Wait(100) && probe.Connected) {
+          break;
+        }
+      } catch (System.Exception) {
+      }
+      System.Threading.Thread.Sleep(50);
+    }
+    // Drain stdout/stderr so the child does not block on a full pipe.
+    var server = _mockServer;
+    var stdoutThread = new System.Threading.Thread(() => {
+      try {
+        server.StandardOutput.ReadToEnd();
+      } catch {
+      }
+    }) { IsBackground = true };
+    stdoutThread.Start();
+    var stderrThread = new System.Threading.Thread(() => {
+      try {
+        server.StandardError.ReadToEnd();
+      } catch {
+      }
+    }) { IsBackground = true };
+    stderrThread.Start();
+    // Tear the child down on assembly unload / process exit by closing
+    // its stdin (the mock-server treats stdin EOF as a shutdown signal).
+    AppDomain.CurrentDomain.ProcessExit += (_, _) => {
+      try {
+        _mockServer.StandardInput.Close();
+      } catch {
+      }
+      try {
+        if (!_mockServer.WaitForExit(2000)) {
+          _mockServer.Kill(true);
+        }
+      } catch {
+      }
+    };
+  }
 }

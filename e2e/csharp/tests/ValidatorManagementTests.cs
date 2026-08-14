@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: validator_management.</summary>
-    public class ValidatorManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: validator_management.</summary>
+public class ValidatorManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_ValidatorsClear()
-        {
-            // Clear all validators and verify list is empty
-            XbergConverter.ClearValidators();
-        }
+  [Fact]
+  public void Test_ValidatorsClear() {
+    // Clear all validators and verify list is empty
+    XbergConverter.ClearValidators();
+  }
 
-        [Fact]
-        public void Test_ValidatorsList()
-        {
-            // List all registered validators
-            var result = XbergConverter.ListValidators();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_ValidatorsList() {
+    // List all registered validators
+    var result = XbergConverter.ListValidators();
+  }
+}
 }

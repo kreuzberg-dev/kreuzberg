@@ -3,76 +3,161 @@
 // To verify freshness: alef verify
 
 import { describe, expect, it } from "vitest";
-import { extract, WasmExtractInput, WasmExtractionConfig, WasmAccelerationConfig, WasmBedrockConfig, WasmBrowserConfig, WasmCaptioningConfig, WasmChunkClassificationConfig, WasmChunkClassificationDefinition, WasmChunkingConfig, WasmContentConfig, WasmContentFilterConfig, WasmConversionOptions, WasmCrawlConfig, WasmCsvConfig, WasmEmailConfig, WasmEmbeddingConfig, WasmFileExtractionConfig, WasmHierarchyConfig, WasmHtmlOutputConfig, WasmImageExtractionConfig, WasmImagePreprocessingConfig, WasmKeywordConfig, WasmLanguageDetectionConfig, WasmLateInteractionConfig, WasmLayoutDetectionConfig, WasmLlmBudgetConfig, WasmLlmCacheConfig, WasmLlmConfig, WasmLlmProviderConfig, WasmLlmRateLimitConfig, WasmNerConfig, WasmOcrConfig, WasmOcrElementConfig, WasmOcrPipelineConfig, WasmOcrPipelineStage, WasmOcrQualityThresholds, WasmPageClassificationConfig, WasmPageConfig, WasmPdfConfig, WasmPostProcessorConfig, WasmPreprocessingOptions, WasmProxyConfig, WasmRakeParams, WasmRedactionConfig, WasmRedactionPattern, WasmRedactionTerm, WasmSecurityLimits, WasmSparseEmbeddingConfig, WasmSsrfPolicy, WasmStructuredExtractionConfig, WasmSummarizationConfig, WasmSvgOptions, WasmTesseractConfig, WasmTokenReductionOptions, WasmTranscriptionConfig, WasmTranslationConfig, WasmTreeSitterConfig, WasmTreeSitterProcessConfig, WasmUrlExtractionConfig, WasmYakeParams } from "@xberg-io/xberg-wasm";
+import {
+  extract,
+  WasmExtractInput,
+  WasmExtractionConfig,
+  WasmAccelerationConfig,
+  WasmBedrockConfig,
+  WasmBrowserConfig,
+  WasmCaptioningConfig,
+  WasmChunkClassificationConfig,
+  WasmChunkClassificationDefinition,
+  WasmChunkingConfig,
+  WasmContentConfig,
+  WasmContentFilterConfig,
+  WasmConversionOptions,
+  WasmCrawlConfig,
+  WasmCsvConfig,
+  WasmEmailConfig,
+  WasmEmbeddingConfig,
+  WasmFileExtractionConfig,
+  WasmHierarchyConfig,
+  WasmHtmlOutputConfig,
+  WasmImageExtractionConfig,
+  WasmImagePreprocessingConfig,
+  WasmKeywordConfig,
+  WasmLanguageDetectionConfig,
+  WasmLateInteractionConfig,
+  WasmLayoutDetectionConfig,
+  WasmLlmBudgetConfig,
+  WasmLlmCacheConfig,
+  WasmLlmConfig,
+  WasmLlmProviderConfig,
+  WasmLlmRateLimitConfig,
+  WasmNerConfig,
+  WasmOcrConfig,
+  WasmOcrElementConfig,
+  WasmOcrPipelineConfig,
+  WasmOcrPipelineStage,
+  WasmOcrQualityThresholds,
+  WasmPageClassificationConfig,
+  WasmPageConfig,
+  WasmPdfConfig,
+  WasmPostProcessorConfig,
+  WasmPreprocessingOptions,
+  WasmProxyConfig,
+  WasmRakeParams,
+  WasmRedactionConfig,
+  WasmRedactionPattern,
+  WasmRedactionTerm,
+  WasmSecurityLimits,
+  WasmSparseEmbeddingConfig,
+  WasmSsrfPolicy,
+  WasmStructuredExtractionConfig,
+  WasmSummarizationConfig,
+  WasmSvgOptions,
+  WasmTesseractConfig,
+  WasmTokenReductionOptions,
+  WasmTranscriptionConfig,
+  WasmTranslationConfig,
+  WasmTreeSitterConfig,
+  WasmTreeSitterProcessConfig,
+  WasmUrlExtractionConfig,
+  WasmYakeParams,
+} from "@xberg-io/xberg-wasm";
 
 process.env.CRAWLBERG_ALLOW_PRIVATE_NETWORK ??= "true";
 
-
 async function _alefE2eDecompressAndParseJson(response: Response): Promise<unknown> {
-	const contentEncoding = response.headers.get("content-encoding");
-	let buffer = await response.arrayBuffer();
+  const contentEncoding = response.headers.get("content-encoding");
+  let buffer = await response.arrayBuffer();
 
-	if (contentEncoding === "gzip") {
-		const { gunzipSync } = await import("zlib");
-		buffer = gunzipSync(new Uint8Array(buffer)).buffer;
-	} else if (contentEncoding === "br") {
-		const { brotliDecompressSync } = await import("zlib");
-		buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
-	}
+  if (contentEncoding === "gzip") {
+    const { gunzipSync } = await import("zlib");
+    buffer = gunzipSync(new Uint8Array(buffer)).buffer;
+  } else if (contentEncoding === "br") {
+    const { brotliDecompressSync } = await import("zlib");
+    buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
+  }
 
-	const text = new TextDecoder().decode(buffer);
-	return JSON.parse(text);
+  const text = new TextDecoder().decode(buffer);
+  return JSON.parse(text);
 }
 
 function _alefE2eText(value: unknown): string {
-	return value == null ? "" : String(value);
+  return value == null ? "" : String(value);
 }
 
 function _alefE2eItemTexts(item: unknown): string[] {
-	if (item == null || typeof item !== "object") {
-		return [_alefE2eText(item)];
-	}
-	const record = item as Record<string, unknown>;
-	const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
-	return [_alefE2eText(item), _alefE2eText(record.kind), _alefE2eText(record.name), _alefE2eText(record.source), _alefE2eText(record.alias), _alefE2eText(record.text), _alefE2eText(record.signature), itemsText];
+  if (item == null || typeof item !== "object") {
+    return [_alefE2eText(item)];
+  }
+  const record = item as Record<string, unknown>;
+  const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
+  return [
+    _alefE2eText(item),
+    _alefE2eText(record.kind),
+    _alefE2eText(record.name),
+    _alefE2eText(record.source),
+    _alefE2eText(record.alias),
+    _alefE2eText(record.text),
+    _alefE2eText(record.signature),
+    itemsText,
+  ];
 }
 
 function _alefE2eFormatMetadataDisplay(fm: unknown): string {
-	if (fm == null) return "";
-	if (typeof fm !== "object") return String(fm);
-	const record = fm as Record<string, unknown>;
-	const formatType = record.format_type;
+  if (fm == null) return "";
+  if (typeof fm !== "object") return String(fm);
+  const record = fm as Record<string, unknown>;
+  const formatType = record.format_type;
 
-	// FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
-	// Extract the display string based on the variant type
-	if (formatType === "image" && typeof record.image === "object") {
-		const imageData = record.image as Record<string, unknown>;
-		if (typeof imageData.format === "string") return imageData.format;
-	}
+  // FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
+  // Extract the display string based on the variant type
+  if (formatType === "image" && typeof record.image === "object") {
+    const imageData = record.image as Record<string, unknown>;
+    if (typeof imageData.format === "string") return imageData.format;
+  }
 
-	// Fallback: return format_type variant name
-	if (typeof record.format_type === "string") return record.format_type;
-	return "";
+  // Fallback: return format_type variant name
+  if (typeof record.format_type === "string") return record.format_type;
+  return "";
 }
 
-
 describe("summarization", () => {
-
-	it("summarization_extractive_smoke: TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE ?? `${process.env.MOCK_SERVER_URL}/fixtures/summarization_extractive_smoke`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url/text/book_war_and_peace_1p.txt" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.summarization = (() => { const _u1 = WasmSummarizationConfig.default(); _u1.maxTokens = 80; _u1.strategy = WasmSummaryStrategy.Extractive; return _u1; })(); return _u0; })());
+  it("summarization_extractive_smoke: TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE ??
+      `${process.env.MOCK_SERVER_URL}/fixtures/summarization_extractive_smoke`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url/text/book_war_and_peace_1p.txt" }).replaceAll(
+      "$mock_url",
+      inputMockBaseUrl,
+    );
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.summarization = (() => {
+          const _u1 = WasmSummarizationConfig.default();
+          _u1.maxTokens = 80;
+          _u1.strategy = "extractive";
+          return _u1;
+        })();
+        return _u0;
+      })(),
+    );
     expect(result.results[0].mimeType.trim()).toBe("text/plain");
     {
-        const _v = result.results[0].summary.text;
-        if (typeof _v === "string" || Array.isArray(_v)) {
-            expect(_v.length).toBeGreaterThan(0);
-        } else {
-            expect(_v).toBeDefined();
-            expect(_v).not.toBeNull();
-        }
+      const _v = result.results[0].summary.text;
+      if (typeof _v === "string" || Array.isArray(_v)) {
+        expect(_v.length).toBeGreaterThan(0);
+      } else {
+        expect(_v).toBeDefined();
+        expect(_v).not.toBeNull();
+      }
     }
     expect(result.results[0].summary.strategy.trim()).toBe("extractive");
-	}, 30000);
+  }, 30000);
 });

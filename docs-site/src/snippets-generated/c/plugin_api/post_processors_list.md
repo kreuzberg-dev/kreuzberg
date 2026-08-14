@@ -18,8 +18,8 @@ List all registered post-processors
 #include "xberg.h"
 
 int main(void) {
-    char* result = xberg_list_post_processors();
-    xberg_free_string(result);
+    XBERGListPostProcessors* result = xberg_list_post_processors(NULL);
+    xberg_list_post_processors_free(result);
     return EXIT_SUCCESS;
 }
 

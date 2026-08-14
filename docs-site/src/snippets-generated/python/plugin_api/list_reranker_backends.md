@@ -13,7 +13,7 @@ List all registered reranker backends
 from xberg import list_reranker_backends
 
 def main() -> None:
-    list_reranker_backends()
+    _ = list_reranker_backends()
     print(result)
 
 main()

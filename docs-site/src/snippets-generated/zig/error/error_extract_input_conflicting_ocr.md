@@ -18,10 +18,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var input_file_0_threaded = std.Io.Threaded.init(allocator, .{});
-defer input_file_0_threaded.deinit();
-const input_file_0_io = input_file_0_threaded.io();
-const input_file_0 = try std.Io.Dir.cwd().readFileAlloc(input_file_0_io, "test_documents/text/fake_text.txt", allocator, .unlimited);
+    const input_file_0 = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, "test_documents/text/fake_text.txt", allocator, .unlimited);
 defer allocator.free(input_file_0);
     const input_file_0_json = try std.json.Stringify.valueAlloc(allocator, input_file_0, .{ .emit_strings_as_arrays = true });
 defer allocator.free(input_file_0_json);

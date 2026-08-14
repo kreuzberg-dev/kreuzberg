@@ -15,7 +15,7 @@ from xberg import extract, ExtractInput, ExtractInputKind, ExtractionConfig
 
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", uri="https://example.com/xlsx/stanley_cups.xlsx")
-    await extract(input, None)
+    _ = await extract(input, None)
     print(result)
 
 asyncio.run(main())

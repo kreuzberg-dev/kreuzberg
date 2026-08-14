@@ -5,8 +5,8 @@
 
 ENV["CRAWLBERG_ALLOW_PRIVATE_NETWORK"] ||= "true"
 
-require 'json'
-require 'open3'
+require "json"
+require "open3"
 
 # Spawn the mock-server binary and set MOCK_SERVER_URL for all tests.
 #
@@ -19,7 +19,7 @@ require 'open3'
 #    tear it down on exit.
 RSpec.configure do |config|
   config.before(:suite) do
-    existing_url = ENV['MOCK_SERVER_URL']
+    existing_url = ENV["MOCK_SERVER_URL"]
     if existing_url && !existing_url.empty?
       # Expand the parent-set MOCK_SERVERS JSON into per-fixture
       # MOCK_SERVER_<FIXTURE_ID> env vars so tests reading
@@ -27,46 +27,54 @@ RSpec.configure do |config|
       # (without this, tests fall back to the shared-server namespaced
       # URL where origin-relative asset paths 404).
       begin
-        mock_servers_json = ENV['MOCK_SERVERS']
+        mock_servers_json = ENV["MOCK_SERVERS"]
         if mock_servers_json && !mock_servers_json.empty?
           JSON.parse(mock_servers_json).each do |fid, furl|
             ENV["MOCK_SERVER_#{fid.upcase}"] = furl
           end
         end
+
       rescue JSON::ParserError
         # Silently ignore JSON parse errors — MOCK_SERVERS may be malformed.
       end
+
       next
     end
 
-    bin = File.expand_path('../../rust/target/release/mock-server', __dir__)
-    fixtures_dir = File.expand_path('../../../fixtures', __dir__)
+    bin = File.expand_path("../../rust/target/release/mock-server", __dir__)
+    fixtures_dir = File.expand_path("../../../fixtures", __dir__)
     unless File.exist?(bin)
       # Build the mock-server from the e2e/rust/ crate that alef generated.
-      manifest = File.expand_path('../../rust/Cargo.toml', __dir__)
+      manifest = File.expand_path("../../rust/Cargo.toml", __dir__)
       raise "mock-server Cargo.toml not found at #{manifest}" unless File.exist?(manifest)
       system(
-        'cargo', 'build', '--release',
-        '--manifest-path', manifest,
-        '--bin', 'mock-server',
+        "cargo",
+        "build",
+        "--release",
+        "--manifest-path",
+        manifest,
+        "--bin",
+        "mock-server",
         exception: true
       )
       raise "mock-server binary still missing after build: #{bin}" unless File.exist?(bin)
     end
+
     stdin, stdout, _stderr, _wait = Open3.popen3(bin, fixtures_dir)
     # Read startup lines: MOCK_SERVER_URL= then optional MOCK_SERVERS=.
     url = nil
     8.times do
       line = stdout.readline.strip rescue break
-      if line.start_with?('MOCK_SERVER_URL=')
-        url = line.split('=', 2).last
-        ENV['MOCK_SERVER_URL'] = url
-      elsif line.start_with?('MOCK_SERVERS=')
-        json_val = line.split('=', 2).last
-        ENV['MOCK_SERVERS'] = json_val
+      if line.start_with?("MOCK_SERVER_URL=")
+        url = line.split("=", 2).last
+        ENV["MOCK_SERVER_URL"] = url
+      elsif line.start_with?("MOCK_SERVERS=")
+        json_val = line.split("=", 2).last
+        ENV["MOCK_SERVERS"] = json_val
         JSON.parse(json_val).each do |fid, furl|
           ENV["MOCK_SERVER_#{fid.upcase}"] = furl
         end
+
         break
       elsif url
         break

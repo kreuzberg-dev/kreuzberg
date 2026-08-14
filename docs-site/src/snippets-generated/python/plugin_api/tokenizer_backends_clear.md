@@ -13,7 +13,7 @@ Clear all tokenizer backends and verify list is empty
 from xberg import clear_tokenizer_backends
 
 def main() -> None:
-    clear_tokenizer_backends()
+    _ = clear_tokenizer_backends()
 
 main()
 

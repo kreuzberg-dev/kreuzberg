@@ -15,7 +15,7 @@ import asyncio
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/pdf/fake_memo.pdf")
     config = ExtractionConfig(chunking={"embedding": {"max_embed_duration_secs": 30, "model": {"name": "test-plugin-backend", "type": "plugin"}, "normalize": True}, "max_chars": 500, "max_overlap": 50})
-    await extract(input, config)
+    _ = await extract(input, config)
     print(result)
 
 asyncio.run(main())

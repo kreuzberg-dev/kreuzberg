@@ -16,8 +16,7 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind, Out
 async def main() -> None:
     input = ExtractInput(filename="equations.docx", kind=ExtractInputKind("uri"), mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", uri="https://example.com/docx/equations.docx")
     config = ExtractionConfig(output_format=OutputFormat("markdown"))
-    await extract(input, config)
-    print(result)
+    _ = await extract(input, config)
 
 asyncio.run(main())
 

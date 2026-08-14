@@ -22,7 +22,7 @@ def main() -> None:
             pass
         async def validate(self, _p0, _p1):
             return None
-    register_validator(_TestStub_register_validator_trait_bridge())
+    _ = register_validator(_TestStub_register_validator_trait_bridge())
     unregister_validator("test-validator")
 
 main()

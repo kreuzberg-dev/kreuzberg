@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: embedding_backend_management.</summary>
-    public class EmbeddingBackendManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: embedding_backend_management.</summary>
+public class EmbeddingBackendManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_EmbeddingBackendsClear()
-        {
-            // Clear all embedding backends and verify list is empty
-            XbergConverter.ClearEmbeddingBackends();
-        }
+  [Fact]
+  public void Test_EmbeddingBackendsClear() {
+    // Clear all embedding backends and verify list is empty
+    XbergConverter.ClearEmbeddingBackends();
+  }
 
-        [Fact]
-        public void Test_EmbeddingBackendsList()
-        {
-            // List all registered embedding backends
-            var result = XbergConverter.ListEmbeddingBackends();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_EmbeddingBackendsList() {
+    // List all registered embedding backends
+    var result = XbergConverter.ListEmbeddingBackends();
+  }
+}
 }

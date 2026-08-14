@@ -24,7 +24,7 @@ def main() -> None:
             return None
         def processing_stage(self):
             return {}
-    register_post_processor(_TestStub_register_post_processor_trait_bridge())
+    _ = register_post_processor(_TestStub_register_post_processor_trait_bridge())
     unregister_post_processor("test-processor")
 
 main()

@@ -14,7 +14,7 @@ from xberg import unregister_validator, ExtractionConfig
 
 def main() -> None:
     name = "test-validator"
-    unregister_validator(name)
+    _ = unregister_validator(name)
 
 main()
 

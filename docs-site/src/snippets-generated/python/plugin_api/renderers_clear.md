@@ -13,7 +13,7 @@ Clear all renderers and verify list is empty
 from xberg import clear_renderers
 
 def main() -> None:
-    clear_renderers()
+    _ = clear_renderers()
 
 main()
 

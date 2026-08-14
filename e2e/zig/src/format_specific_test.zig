@@ -14,6 +14,7 @@ fn allow_private_network() void {
 
 test "format_docx_equations" {
     // DOCX equations extract to LaTeX math in markdown output
+    suppress_abort();
     allow_private_network();
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();

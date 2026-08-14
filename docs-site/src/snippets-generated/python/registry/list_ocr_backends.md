@@ -13,7 +13,7 @@ List OCR backends
 from xberg import list_ocr_backends, ExtractionConfig
 
 def main() -> None:
-    list_ocr_backends()
+    _ = list_ocr_backends()
     print(result)
 
 main()

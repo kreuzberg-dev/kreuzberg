@@ -15,7 +15,6 @@ async function main() {
   const input: ExtractInput = { filename: "equations.docx", kind: ExtractInputKind.Uri, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", uri: "https://example.com/docx/equations.docx" };
   const config: ExtractionConfig = { outputFormat: OutputFormat.Markdown };
   const result = await extract(input, config);
-  console.log(result);
 }
 
 void main();

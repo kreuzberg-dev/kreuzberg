@@ -7,8 +7,15 @@ defmodule E2e.SummarizationTest do
 
   describe "summarization_extractive_smoke" do
     test "summarization_extractive_smoke" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/summarization_extractive_smoke"
-      input_value = %Xberg.ExtractInput{kind: "uri", uri: String.replace("$mock_url/text/book_war_and_peace_1p.txt", "$mock_url", input_mock_base_url)}
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE") ||
+          "#{System.get_env("MOCK_SERVER_URL")}/fixtures/summarization_extractive_smoke"
+
+      input_value = %Xberg.ExtractInput{
+        kind: "uri",
+        uri: String.replace("$mock_url/text/book_war_and_peace_1p.txt", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value, config: "{\"summarization\":{\"max_tokens\":80,\"strategy\":\"extractive\"}}")
       assert String.trim(Enum.at(result.results, 0).mime_type) == "text/plain"
       assert Enum.at(result.results, 0).summary.text != ""

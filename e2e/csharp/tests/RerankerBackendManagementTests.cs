@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: reranker_backend_management.</summary>
-    public class RerankerBackendManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: reranker_backend_management.</summary>
+public class RerankerBackendManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_ClearRerankerBackends()
-        {
-            // Clear all reranker backends and verify list is empty
-            XbergConverter.ClearRerankerBackends();
-        }
+  [Fact]
+  public void Test_ClearRerankerBackends() {
+    // Clear all reranker backends and verify list is empty
+    XbergConverter.ClearRerankerBackends();
+  }
 
-        [Fact]
-        public void Test_ListRerankerBackends()
-        {
-            // List all registered reranker backends
-            var result = XbergConverter.ListRerankerBackends();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_ListRerankerBackends() {
+    // List all registered reranker backends
+    var result = XbergConverter.ListRerankerBackends();
+  }
+}
 }

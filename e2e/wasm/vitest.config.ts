@@ -4,12 +4,12 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	test: {
-		include: ["tests/**/*.test.ts"],
-		testTimeout: 30000,
-		hookTimeout: 120000,
-		teardownTimeout: 30000,
-		globalSetup: "./globalSetup.ts",
-		setupFiles: ["./setup.ts"],
-	},
+  test: {
+    include: ["tests/**/*.test.ts"],
+    testTimeout: 30000,
+    hookTimeout: 120000,
+    teardownTimeout: 30000,
+    globalSetup: "./globalSetup.ts",
+    setupFiles: ["./setup.ts"],
+  },
 });

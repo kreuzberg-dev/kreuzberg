@@ -16,7 +16,7 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com/images/sample.png")
     config = ExtractionConfig(disable_ocr=True)
-    await extract(input, config)
+    _ = await extract(input, config)
     print(result)
 
 asyncio.run(main())

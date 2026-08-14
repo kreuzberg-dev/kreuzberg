@@ -14,27 +14,32 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: code.</summary>
-    public class CodeTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: code.</summary>
+public class CodeTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public async Task Test_CodeShebangDetection()
-        {
-            // Test language detection from shebang line via bytes input
-            var Input_MockBaseUrl = Environment.GetEnvironmentVariable("MOCK_SERVER_CODE_SHEBANG_DETECTION") ?? Environment.GetEnvironmentVariable("MOCK_SERVER_URL") + "/fixtures/code_shebang_detection";
-            var Input_Json = "{\"kind\":\"uri\",\"mime_type\":\"text/x-source-code\",\"uri\":\"$mock_url/code/script.sh\"}".Replace("$mock_url", Input_MockBaseUrl);
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{}"));
+  [Fact]
+  public async Task Test_CodeShebangDetection() {
+    // Test language detection from shebang line via bytes input
+    var Input_MockBaseUrl =
+        Environment.GetEnvironmentVariable(
+            "MOCK_SERVER_CODE_SHEBANG_DETECTION") ??
+        Environment.GetEnvironmentVariable("MOCK_SERVER_URL") +
+            "/fixtures/code_shebang_detection";
+    var Input_Json = ("{\"kind\":\"uri\",\"mime_type\":\"text/" +
+                      "x-source-code\",\"uri\":\"$mock_url/code/script.sh\"}")
+                         .Replace("$mock_url", Input_MockBaseUrl);
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(Input_Json), ExtractionConfig.FromJson("{}"));
     Assert.Equal("text/x-source-code", result.Results[0].MimeType);
-    Assert.True(result.Results[0].Content.Length >= 10, "expected length >= 10");
+    Assert.True(result.Results[0].Content.Length >= 10,
+                "expected length >= 10");
     Assert.Contains("build", result.Results[0].Content.ToString());
     Assert.Contains("clean", result.Results[0].Content.ToString());
-
-        }
-
-
-    }
+  }
+}
 }

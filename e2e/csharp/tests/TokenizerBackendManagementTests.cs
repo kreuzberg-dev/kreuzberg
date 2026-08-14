@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: tokenizer_backend_management.</summary>
-    public class TokenizerBackendManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: tokenizer_backend_management.</summary>
+public class TokenizerBackendManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_TokenizerBackendsClear()
-        {
-            // Clear all tokenizer backends and verify list is empty
-            XbergConverter.ClearTokenizerBackends();
-        }
+  [Fact]
+  public void Test_TokenizerBackendsClear() {
+    // Clear all tokenizer backends and verify list is empty
+    XbergConverter.ClearTokenizerBackends();
+  }
 
-        [Fact]
-        public void Test_TokenizerBackendsList()
-        {
-            // List all registered tokenizer backends
-            var result = XbergConverter.ListTokenizerBackends();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_TokenizerBackendsList() {
+    // List all registered tokenizer backends
+    var result = XbergConverter.ListTokenizerBackends();
+  }
+}
 }

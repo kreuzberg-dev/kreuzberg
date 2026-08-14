@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: post_processor_management.</summary>
-    public class PostProcessorManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: post_processor_management.</summary>
+public class PostProcessorManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_PostProcessorsClear()
-        {
-            // Clear all post-processors and verify list is empty
-            XbergConverter.ClearPostProcessors();
-        }
+  [Fact]
+  public void Test_PostProcessorsClear() {
+    // Clear all post-processors and verify list is empty
+    XbergConverter.ClearPostProcessors();
+  }
 
-        [Fact]
-        public void Test_PostProcessorsList()
-        {
-            // List all registered post-processors
-            var result = XbergConverter.ListPostProcessors();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_PostProcessorsList() {
+    // List all registered post-processors
+    var result = XbergConverter.ListPostProcessors();
+  }
+}
 }

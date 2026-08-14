@@ -3,27 +3,53 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'extract' do
-  it 'extract_bytes_input: extract bytes input from PDF document' do
-    result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/pdf/fake_memo.pdf').bytes, filename: 'fake_memo.pdf', kind: 'bytes', mime_type: 'application/pdf'))
-    expect(result.results[0].mime_type.to_s.strip).to eq('application/pdf'.strip)
-    expect(result.results[0].content.length).to be >= 50
-
+RSpec.describe "extract" do
+  it "extract_bytes_input: extract bytes input from PDF document" do
+    result = Xberg.extract(
+      ExtractInput.new(
+        bytes: File.binread("test_documents/pdf/fake_memo.pdf").bytes,
+        filename: "fake_memo.pdf",
+        kind: "bytes",
+        mime_type: "application/pdf"
+      )
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("application/pdf".strip))
+    expect(result.results[0].content.length).to(be >= 50)
   end
 
-  it 'extract_bytes_input_empty_mime: extract bytes input with empty MIME type' do
+  it "extract_bytes_input_empty_mime: extract bytes input with empty MIME type" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: ''), Xberg::ExtractionConfig.new())
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/plain.txt").bytes,
+          config: {},
+          filename: "plain.txt",
+          kind: "bytes",
+          mime_type: ""
+        ),
+        Xberg::ExtractionConfig.new
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 
-  it 'extract_bytes_input_invalid_mime: extract bytes input with unsupported MIME type' do
+  it "extract_bytes_input_invalid_mime: extract bytes input with unsupported MIME type" do
     expect {
-      Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/text/plain.txt').bytes, config: {  }, filename: 'plain.txt', kind: 'bytes', mime_type: 'application/x-nonexistent'), Xberg::ExtractionConfig.new())
-    }.to raise_error(RuntimeError)
+      Xberg.extract(
+        ExtractInput.new(
+          bytes: File.binread("test_documents/text/plain.txt").bytes,
+          config: {},
+          filename: "plain.txt",
+          kind: "bytes",
+          mime_type: "application/x-nonexistent"
+        ),
+        Xberg::ExtractionConfig.new
+      )
+    }
+      .to(raise_error(RuntimeError))
   end
 end

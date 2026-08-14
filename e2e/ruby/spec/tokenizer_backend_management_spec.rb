@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'tokenizer_backend_management' do
-  it 'tokenizer_backends_clear: Clear all tokenizer backends and verify list is empty' do
-    Xberg.clear_tokenizer_backends()
-
+RSpec.describe "tokenizer_backend_management" do
+  it "tokenizer_backends_clear: Clear all tokenizer backends and verify list is empty" do
+    Xberg.clear_tokenizer_backends
   end
 
-  it 'tokenizer_backends_list: List all registered tokenizer backends' do
-    result = Xberg.list_tokenizer_backends()
+  it "tokenizer_backends_list: List all registered tokenizer backends" do
+    result = Xberg.list_tokenizer_backends
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

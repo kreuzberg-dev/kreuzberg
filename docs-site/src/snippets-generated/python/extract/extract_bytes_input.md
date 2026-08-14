@@ -16,7 +16,7 @@ from xberg import extract, ExtractInput, ExtractInputKind, ExtractionConfig
 
 async def main() -> None:
     input = ExtractInput(bytes=Path("test_documents/pdf/fake_memo.pdf").read_bytes(), filename="fake_memo.pdf", kind=ExtractInputKind("bytes"), mime_type="application/pdf")
-    await extract(input, None)
+    _ = await extract(input, None)
     print(result)
 
 asyncio.run(main())

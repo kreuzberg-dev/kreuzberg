@@ -3,49 +3,79 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'url' do
-  it 'url_batch_mixed_inputs: extract_batch: mixed bytes and URL inputs share one output envelope' do
-    inputs_mock_base_url = ENV.fetch('MOCK_SERVER_URL_BATCH_MIXED_INPUTS', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/url_batch_mixed_inputs"
-    result = Xberg.extract_batch([JSON.parse('{"kind":"uri","uri":"$mock_url"}'.gsub('$mock_url', inputs_mock_base_url)), { 'bytes' => [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116], 'filename' => 'inline.txt', 'kind' => 'bytes', 'mime_type' => 'text/plain' }], Xberg::ExtractionConfig.new(url: { 'mode' => 'document' }))
-    expect(result.results.length).to be >= 2
-    expect(result.results[0].content.to_s).to include('Batch URL document content')
-    expect(result.results[1].content.to_s).to include('Batch bytes content')
-
+RSpec.describe "url" do
+  it "url_batch_mixed_inputs: extract_batch: mixed bytes and URL inputs share one output envelope" do
+    inputs_mock_base_url = ENV.fetch("MOCK_SERVER_URL_BATCH_MIXED_INPUTS", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/url_batch_mixed_inputs"
+    result = Xberg.extract_batch(
+      [
+        JSON.parse("{\"kind\":\"uri\",\"uri\":\"$mock_url\"}".gsub("$mock_url", inputs_mock_base_url)),
+        {
+          "bytes" => [66, 97, 116, 99, 104, 32, 98, 121, 116, 101, 115, 32, 99, 111, 110, 116, 101, 110, 116],
+          "filename" => "inline.txt",
+          "kind" => "bytes",
+          "mime_type" => "text/plain"
+        }
+      ],
+      Xberg::ExtractionConfig.new(url: {"mode" => "document"})
+    )
+    expect(result.results.length).to(be >= 2)
+    expect(result.results[0].content.to_s).to(include("Batch URL document content"))
+    expect(result.results[1].content.to_s).to(include("Batch bytes content"))
   end
 
-  it 'url_crawl_linked_pages: extract: crawl mode follows linked pages' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_URL_CRAWL_LINKED_PAGES', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/url_crawl_linked_pages"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(url: { 'crawl' => { 'max_depth' => 1, 'max_pages' => 4, 'respect_robots_txt' => false }, 'mode' => 'crawl' }))
-    expect(result.summary.pages_crawled).to be >= 2
-    expect(result.results[1].content.to_s).to include('About crawl target')
-
+  it "url_crawl_linked_pages: extract: crawl mode follows linked pages" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_URL_CRAWL_LINKED_PAGES", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/url_crawl_linked_pages"
+    result = Xberg.extract(
+      ExtractInput.new(kind: "uri", uri: "$mock_url".gsub("$mock_url", input_mock_base_url)),
+      Xberg::ExtractionConfig.new(
+        url: {"crawl" => {"max_depth" => 1, "max_pages" => 4, "respect_robots_txt" => false}, "mode" => "crawl"}
+      )
+    )
+    expect(result.summary.pages_crawled).to(be >= 2)
+    expect(result.results[1].content.to_s).to(include("About crawl target"))
   end
 
-  it 'url_html_page_extract: extract: website URL returns page content' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_URL_HTML_PAGE_EXTRACT', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/url_html_page_extract"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(url: { 'mode' => 'document' }))
-    expect(result.results[0].content.to_s).to include('Xberg URL Page')
-    expect(result.results.length).to be >= 1
-
+  it "url_html_page_extract: extract: website URL returns page content" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_URL_HTML_PAGE_EXTRACT", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/url_html_page_extract"
+    result = Xberg.extract(
+      ExtractInput.new(kind: "uri", uri: "$mock_url".gsub("$mock_url", input_mock_base_url)),
+      Xberg::ExtractionConfig.new(url: {"mode" => "document"})
+    )
+    expect(result.results[0].content.to_s).to(include("Xberg URL Page"))
+    expect(result.results.length).to(be >= 1)
   end
 
-  it 'url_recursive_document_urls: extract: recursive URL extraction follows document links discovered in results' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/url_recursive_document_urls"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(url: { 'crawl' => { 'document_url_depth' => 1, 'follow_document_urls' => true, 'respect_robots_txt' => false }, 'mode' => 'document' }))
-    expect(result.results.length).to be >= 2
-    expect(result.results[1].content.to_s).to include('Recursive document target')
-
+  it "url_recursive_document_urls: extract: recursive URL extraction follows document links discovered in results" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_URL_RECURSIVE_DOCUMENT_URLS", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/url_recursive_document_urls"
+    result = Xberg.extract(
+      ExtractInput.new(kind: "uri", uri: "$mock_url".gsub("$mock_url", input_mock_base_url)),
+      Xberg::ExtractionConfig.new(
+        url: {
+          "crawl" => {"document_url_depth" => 1, "follow_document_urls" => true, "respect_robots_txt" => false},
+          "mode" => "document"
+        }
+      )
+    )
+    expect(result.results.length).to(be >= 2)
+    expect(result.results[1].content.to_s).to(include("Recursive document target"))
   end
 
-  it 'url_remote_text_document: extract: remote text document URL' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/url_remote_text_document"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(url: { 'mode' => 'document' }))
-    expect(result.results[0].content.to_s).to include('Remote document hello')
-    expect(result.summary.remote_urls).to eq(1)
-
+  it "url_remote_text_document: extract: remote text document URL" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_URL_REMOTE_TEXT_DOCUMENT", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/url_remote_text_document"
+    result = Xberg.extract(
+      ExtractInput.new(kind: "uri", uri: "$mock_url".gsub("$mock_url", input_mock_base_url)),
+      Xberg::ExtractionConfig.new(url: {"mode" => "document"})
+    )
+    expect(result.results[0].content.to_s).to(include("Remote document hello"))
+    expect(result.summary.remote_urls).to(eq(1))
   end
 end

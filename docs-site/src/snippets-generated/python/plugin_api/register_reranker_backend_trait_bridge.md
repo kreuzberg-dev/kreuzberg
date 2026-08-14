@@ -22,7 +22,7 @@ def main() -> None:
             pass
         async def rerank(self, _p0, _p1):
             return []
-    register_reranker_backend(_TestStub_register_reranker_backend_trait_bridge())
+    _ = register_reranker_backend(_TestStub_register_reranker_backend_trait_bridge())
     unregister_reranker_backend("test-reranker-backend")
 
 main()

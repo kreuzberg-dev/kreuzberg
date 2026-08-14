@@ -13,7 +13,7 @@ List renderers
 from xberg import list_renderers, ExtractionConfig
 
 def main() -> None:
-    list_renderers()
+    _ = list_renderers()
     print(result)
 
 main()

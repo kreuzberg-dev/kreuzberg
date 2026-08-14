@@ -111,8 +111,12 @@ func Test_FormatPdfText(t *testing.T) {
 	if len(result.Results) > 0 {
 		{
 			found := false
-			if strings.Contains(string(result.Results[0].Content), `Mallori`) { found = true }
-			if strings.Contains(string(result.Results[0].Content), `May`) { found = true }
+			if strings.Contains(string(result.Results[0].Content), `Mallori`) {
+				found = true
+			}
+			if strings.Contains(string(result.Results[0].Content), `May`) {
+				found = true
+			}
 			if !found {
 				t.Errorf("expected to contain at least one of the specified values")
 			}

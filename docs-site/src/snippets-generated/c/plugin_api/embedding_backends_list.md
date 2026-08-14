@@ -18,8 +18,8 @@ List all registered embedding backends
 #include "xberg.h"
 
 int main(void) {
-    char* result = xberg_list_embedding_backends();
-    xberg_free_string(result);
+    XBERGListEmbeddingBackends* result = xberg_list_embedding_backends(NULL);
+    xberg_list_embedding_backends_free(result);
     return EXIT_SUCCESS;
 }
 

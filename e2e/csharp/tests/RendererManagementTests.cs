@@ -14,28 +14,24 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: renderer_management.</summary>
-    public class RendererManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: renderer_management.</summary>
+public class RendererManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_RenderersClear()
-        {
-            // Clear all renderers and verify list is empty
-            XbergConverter.ClearRenderers();
-        }
+  [Fact]
+  public void Test_RenderersClear() {
+    // Clear all renderers and verify list is empty
+    XbergConverter.ClearRenderers();
+  }
 
-        [Fact]
-        public void Test_RenderersList()
-        {
-            // List all registered renderers
-            var result = XbergConverter.ListRenderers();
-
-        }
-
-
-    }
+  [Fact]
+  public void Test_RenderersList() {
+    // List all registered renderers
+    var result = XbergConverter.ListRenderers();
+  }
+}
 }

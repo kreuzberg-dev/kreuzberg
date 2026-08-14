@@ -14,61 +14,89 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: error.</summary>
-    public class ErrorTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: error.</summary>
+public class ErrorTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public async Task Test_ErrorEmptyBytes()
-        {
-            // Graceful handling of empty bytes (should not error)
-            var result = await XbergConverter.ExtractAsync(ExtractInput.FromJson("{\"bytes\":[],\"config\":{},\"filename\":\"empty.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}"), ExtractionConfig.FromJson("{}"));
+  [Fact]
+  public async Task Test_ErrorEmptyBytes() {
+    // Graceful handling of empty bytes (should not error)
+    var result = await XbergConverter.ExtractAsync(
+        ExtractInput.FromJson(
+            "{\"bytes\":[],\"config\":{},\"filename\":\"empty.txt\",\"kind\":" +
+            "\"bytes\",\"mime_type\":\"text/plain\"}"),
+        ExtractionConfig.FromJson("{}"));
+  }
 
-        }
+  [Fact]
+  public async Task Test_ErrorEmptyMime() {
+    // Error when extracting with empty MIME type
+    await Assert.ThrowsAnyAsync<XbergException>(async () => {
+      await XbergConverter.ExtractAsync(
+          ExtractInput.FromJson(
+              "{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105," +
+              "110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32," +
+              "116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":" +
+              "\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"\"}"),
+          ExtractionConfig.FromJson("{}"));
+    });
+  }
 
-        [Fact]
-        public async Task Test_ErrorEmptyMime()
-        {
-            // Error when extracting with empty MIME type
-            await Assert.ThrowsAnyAsync<XbergException>(async () =>
-            {
-                await XbergConverter.ExtractAsync(ExtractInput.FromJson("{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105,110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32,116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"\"}"), ExtractionConfig.FromJson("{}"));
-            });
-        }
+  [Fact]
+  public async Task Test_ErrorExtractInputConflictingOcr() {
+    // extract force+disable OCR
+    await Assert.ThrowsAnyAsync<XbergException>(async () => {
+      await XbergConverter.ExtractAsync(
+          ExtractInput.FromJson(
+              "{\"bytes\":[84,104,105,115,32,105,115,32,97,32,116,101,115," +
+              "116,32,100,111,99,117,109,101,110,116,32,116,111,32,117,115," +
+              "101,32,102,111,114,32,117,110,105,116,32,116,101,115,116,115," +
+              "46,10,10,68,111,121,108,101,115,116,111,119,110,44,32,80,65," +
+              "32,49,56,57,48,49,10,10,73,109,112,111,114,116,97,110,116,32," +
+              "112,111,105,110,116,115,58,10,10,32,32,32,45,32,72,97,109,98," +
+              "117,114,103,101,114,115,32,97,114,101,32,100,101,108,105,99," +
+              "105,111,117,115,10,32,32,32,45,32,68,111,103,115,32,97,114," +
+              "101,32,116,104,101,32,98,101,115,116,10,32,32,32,45,32,73,32," +
+              "108,111,118,101,32,102,117,122,122,121,32,98,108,97,110,107," +
+              "101,116,115,10],\"config\":{\"disable_ocr\":true,\"force_" +
+              "ocr\":true},\"filename\":\"fake_text.txt\",\"kind\":\"bytes\"," +
+              "\"mime_type\":\"text/plain\"}"),
+          ExtractionConfig.FromJson(
+              "{\"disable_ocr\":true,\"force_ocr\":true}"));
+    });
+  }
 
-        [Fact]
-        public async Task Test_ErrorExtractInputConflictingOcr()
-        {
-            // extract force+disable OCR
-            await Assert.ThrowsAnyAsync<XbergException>(async () =>
-            {
-                await XbergConverter.ExtractAsync(ExtractInput.FromJson("{\"bytes\":[84,104,105,115,32,105,115,32,97,32,116,101,115,116,32,100,111,99,117,109,101,110,116,32,116,111,32,117,115,101,32,102,111,114,32,117,110,105,116,32,116,101,115,116,115,46,10,10,68,111,121,108,101,115,116,111,119,110,44,32,80,65,32,49,56,57,48,49,10,10,73,109,112,111,114,116,97,110,116,32,112,111,105,110,116,115,58,10,10,32,32,32,45,32,72,97,109,98,117,114,103,101,114,115,32,97,114,101,32,100,101,108,105,99,105,111,117,115,10,32,32,32,45,32,68,111,103,115,32,97,114,101,32,116,104,101,32,98,101,115,116,10,32,32,32,45,32,73,32,108,111,118,101,32,102,117,122,122,121,32,98,108,97,110,107,101,116,115,10],\"config\":{\"disable_ocr\":true,\"force_ocr\":true},\"filename\":\"fake_text.txt\",\"kind\":\"bytes\",\"mime_type\":\"text/plain\"}"), ExtractionConfig.FromJson("{\"disable_ocr\":true,\"force_ocr\":true}"));
-            });
-        }
+  [Fact]
+  public async Task Test_ErrorInvalidMimeFormat() {
+    // Error when extracting with invalid MIME type format
+    await Assert.ThrowsAnyAsync<XbergException>(async () => {
+      await XbergConverter.ExtractAsync(
+          ExtractInput.FromJson(
+              "{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105," +
+              "110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32," +
+              "116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":" +
+              "\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"not-a-mime\"}"),
+          ExtractionConfig.FromJson("{}"));
+    });
+  }
 
-        [Fact]
-        public async Task Test_ErrorInvalidMimeFormat()
-        {
-            // Error when extracting with invalid MIME type format
-            await Assert.ThrowsAnyAsync<XbergException>(async () =>
-            {
-                await XbergConverter.ExtractAsync(ExtractInput.FromJson("{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105,110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32,116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"not-a-mime\"}"), ExtractionConfig.FromJson("{}"));
-            });
-        }
-
-        [Fact]
-        public async Task Test_ErrorUnsupportedMime()
-        {
-            // Error when extracting with unsupported MIME type
-            await Assert.ThrowsAnyAsync<XbergException>(async () =>
-            {
-                await XbergConverter.ExtractAsync(ExtractInput.FromJson("{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105,110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32,116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"application/x-nonexistent\"}"), ExtractionConfig.FromJson("{}"));
-            });
-        }
-
-
-    }
+  [Fact]
+  public async Task Test_ErrorUnsupportedMime() {
+    // Error when extracting with unsupported MIME type
+    await Assert.ThrowsAnyAsync<XbergException>(async () => {
+      await XbergConverter.ExtractAsync(
+          ExtractInput.FromJson(
+              "{\"bytes\":[84,104,105,115,32,105,115,32,97,32,112,108,97,105," +
+              "110,32,116,101,120,116,32,102,105,108,101,32,102,111,114,32," +
+              "116,101,115,116,105,110,103,46,10],\"config\":{},\"filename\":" +
+              "\"plain.txt\",\"kind\":\"bytes\",\"mime_type\":\"application/" +
+              "x-nonexistent\"}"),
+          ExtractionConfig.FromJson("{}"));
+    });
+  }
+}
 }

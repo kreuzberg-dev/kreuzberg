@@ -3,122 +3,249 @@
 // To verify freshness: alef verify
 
 import { describe, expect, it } from "vitest";
-import { extract, WasmExtractInput, WasmExtractionConfig, WasmAccelerationConfig, WasmBedrockConfig, WasmBrowserConfig, WasmCaptioningConfig, WasmChunkClassificationConfig, WasmChunkClassificationDefinition, WasmChunkingConfig, WasmContentConfig, WasmContentFilterConfig, WasmConversionOptions, WasmCrawlConfig, WasmCsvConfig, WasmEmailConfig, WasmEmbeddingConfig, WasmFileExtractionConfig, WasmHierarchyConfig, WasmHtmlOutputConfig, WasmImageExtractionConfig, WasmImagePreprocessingConfig, WasmKeywordConfig, WasmLanguageDetectionConfig, WasmLateInteractionConfig, WasmLayoutDetectionConfig, WasmLlmBudgetConfig, WasmLlmCacheConfig, WasmLlmConfig, WasmLlmProviderConfig, WasmLlmRateLimitConfig, WasmNerConfig, WasmOcrConfig, WasmOcrElementConfig, WasmOcrPipelineConfig, WasmOcrPipelineStage, WasmOcrQualityThresholds, WasmPageClassificationConfig, WasmPageConfig, WasmPdfConfig, WasmPostProcessorConfig, WasmPreprocessingOptions, WasmProxyConfig, WasmRakeParams, WasmRedactionConfig, WasmRedactionPattern, WasmRedactionTerm, WasmSecurityLimits, WasmSparseEmbeddingConfig, WasmSsrfPolicy, WasmStructuredExtractionConfig, WasmSummarizationConfig, WasmSvgOptions, WasmTesseractConfig, WasmTokenReductionOptions, WasmTranscriptionConfig, WasmTranslationConfig, WasmTreeSitterConfig, WasmTreeSitterProcessConfig, WasmUrlExtractionConfig, WasmYakeParams } from "@xberg-io/xberg-wasm";
+import {
+  extract,
+  WasmExtractInput,
+  WasmExtractionConfig,
+  WasmAccelerationConfig,
+  WasmBedrockConfig,
+  WasmBrowserConfig,
+  WasmCaptioningConfig,
+  WasmChunkClassificationConfig,
+  WasmChunkClassificationDefinition,
+  WasmChunkingConfig,
+  WasmContentConfig,
+  WasmContentFilterConfig,
+  WasmConversionOptions,
+  WasmCrawlConfig,
+  WasmCsvConfig,
+  WasmEmailConfig,
+  WasmEmbeddingConfig,
+  WasmFileExtractionConfig,
+  WasmHierarchyConfig,
+  WasmHtmlOutputConfig,
+  WasmImageExtractionConfig,
+  WasmImagePreprocessingConfig,
+  WasmKeywordConfig,
+  WasmLanguageDetectionConfig,
+  WasmLateInteractionConfig,
+  WasmLayoutDetectionConfig,
+  WasmLlmBudgetConfig,
+  WasmLlmCacheConfig,
+  WasmLlmConfig,
+  WasmLlmProviderConfig,
+  WasmLlmRateLimitConfig,
+  WasmNerConfig,
+  WasmOcrConfig,
+  WasmOcrElementConfig,
+  WasmOcrPipelineConfig,
+  WasmOcrPipelineStage,
+  WasmOcrQualityThresholds,
+  WasmPageClassificationConfig,
+  WasmPageConfig,
+  WasmPdfConfig,
+  WasmPostProcessorConfig,
+  WasmPreprocessingOptions,
+  WasmProxyConfig,
+  WasmRakeParams,
+  WasmRedactionConfig,
+  WasmRedactionPattern,
+  WasmRedactionTerm,
+  WasmSecurityLimits,
+  WasmSparseEmbeddingConfig,
+  WasmSsrfPolicy,
+  WasmStructuredExtractionConfig,
+  WasmSummarizationConfig,
+  WasmSvgOptions,
+  WasmTesseractConfig,
+  WasmTokenReductionOptions,
+  WasmTranscriptionConfig,
+  WasmTranslationConfig,
+  WasmTreeSitterConfig,
+  WasmTreeSitterProcessConfig,
+  WasmUrlExtractionConfig,
+  WasmYakeParams,
+} from "@xberg-io/xberg-wasm";
 
 process.env.CRAWLBERG_ALLOW_PRIVATE_NETWORK ??= "true";
 
-
 async function _alefE2eDecompressAndParseJson(response: Response): Promise<unknown> {
-	const contentEncoding = response.headers.get("content-encoding");
-	let buffer = await response.arrayBuffer();
+  const contentEncoding = response.headers.get("content-encoding");
+  let buffer = await response.arrayBuffer();
 
-	if (contentEncoding === "gzip") {
-		const { gunzipSync } = await import("zlib");
-		buffer = gunzipSync(new Uint8Array(buffer)).buffer;
-	} else if (contentEncoding === "br") {
-		const { brotliDecompressSync } = await import("zlib");
-		buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
-	}
+  if (contentEncoding === "gzip") {
+    const { gunzipSync } = await import("zlib");
+    buffer = gunzipSync(new Uint8Array(buffer)).buffer;
+  } else if (contentEncoding === "br") {
+    const { brotliDecompressSync } = await import("zlib");
+    buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
+  }
 
-	const text = new TextDecoder().decode(buffer);
-	return JSON.parse(text);
+  const text = new TextDecoder().decode(buffer);
+  return JSON.parse(text);
 }
 
 function _alefE2eText(value: unknown): string {
-	return value == null ? "" : String(value);
+  return value == null ? "" : String(value);
 }
 
 function _alefE2eItemTexts(item: unknown): string[] {
-	if (item == null || typeof item !== "object") {
-		return [_alefE2eText(item)];
-	}
-	const record = item as Record<string, unknown>;
-	const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
-	return [_alefE2eText(item), _alefE2eText(record.kind), _alefE2eText(record.name), _alefE2eText(record.source), _alefE2eText(record.alias), _alefE2eText(record.text), _alefE2eText(record.signature), itemsText];
+  if (item == null || typeof item !== "object") {
+    return [_alefE2eText(item)];
+  }
+  const record = item as Record<string, unknown>;
+  const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
+  return [
+    _alefE2eText(item),
+    _alefE2eText(record.kind),
+    _alefE2eText(record.name),
+    _alefE2eText(record.source),
+    _alefE2eText(record.alias),
+    _alefE2eText(record.text),
+    _alefE2eText(record.signature),
+    itemsText,
+  ];
 }
 
 function _alefE2eFormatMetadataDisplay(fm: unknown): string {
-	if (fm == null) return "";
-	if (typeof fm !== "object") return String(fm);
-	const record = fm as Record<string, unknown>;
-	const formatType = record.format_type;
+  if (fm == null) return "";
+  if (typeof fm !== "object") return String(fm);
+  const record = fm as Record<string, unknown>;
+  const formatType = record.format_type;
 
-	// FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
-	// Extract the display string based on the variant type
-	if (formatType === "image" && typeof record.image === "object") {
-		const imageData = record.image as Record<string, unknown>;
-		if (typeof imageData.format === "string") return imageData.format;
-	}
+  // FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
+  // Extract the display string based on the variant type
+  if (formatType === "image" && typeof record.image === "object") {
+    const imageData = record.image as Record<string, unknown>;
+    if (typeof imageData.format === "string") return imageData.format;
+  }
 
-	// Fallback: return format_type variant name
-	if (typeof record.format_type === "string") return record.format_type;
-	return "";
+  // Fallback: return format_type variant name
+  if (typeof record.format_type === "string") return record.format_type;
+  return "";
 }
 
-
 describe("smoke", () => {
-
-	it("ocr_image_png: OCR: PNG image extraction with OCR enabled. In WASM this exercises the Uint8Array bridge parameter and Promise await in the generated OcrBackend bridge.", async () => {
-		const result = await extract(await (async () => { const _u0 = WasmExtractInput.default(); _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/images/test_hello_world.png"); _u0.config = await (async () => { const _u1 = WasmFileExtractionConfig.default(); return _u1; })(); _u0.filename = "test_hello_world.png"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = "image/png"; return _u0; })(), undefined);
+  it("ocr_image_png: OCR: PNG image extraction with OCR enabled. In WASM this exercises the Uint8Array bridge parameter and Promise await in the generated OcrBackend bridge.", async () => {
+    const result = await extract(
+      await (async () => {
+        const _u0 = WasmExtractInput.default();
+        _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/images/test_hello_world.png");
+        _u0.config = await (async () => {
+          const _u1 = WasmFileExtractionConfig.default();
+          return _u1;
+        })();
+        _u0.filename = "test_hello_world.png";
+        _u0.kind = "bytes";
+        _u0.mimeType = "image/png";
+        return _u0;
+      })(),
+      undefined,
+    );
     expect(result.results[0].mimeType.trim()).toBe("image/png");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(1);
     expect(["Hello", "World", "hello", "world"].some((v) => result.results[0].content.includes(v))).toBe(true);
-	}, 30000);
-	it("smoke_docx_basic: Smoke test: DOCX with formatted text", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_DOCX_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_docx_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", uri: "$mock_url/docx/fake.docx" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
-    expect(result.results[0].mimeType.trim()).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  }, 30000);
+  it("smoke_docx_basic: Smoke test: DOCX with formatted text", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_DOCX_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_docx_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      uri: "$mock_url/docx/fake.docx",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
+    expect(result.results[0].mimeType.trim()).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(20);
     expect(["Lorem", "ipsum", "document", "text"].some((v) => result.results[0].content.includes(v))).toBe(true);
-	}, 30000);
-	it("smoke_html_basic: Smoke test: HTML table extraction", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_HTML_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_html_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "text/html", uri: "$mock_url/html/simple_table.html" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
+  }, 30000);
+  it("smoke_html_basic: Smoke test: HTML table extraction", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_HTML_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_html_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "text/html",
+      uri: "$mock_url/html/simple_table.html",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
     expect(result.results[0].mimeType.trim()).toBe("text/html");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(10);
-    expect(["Sample Data Table", "Laptop", "Electronics", "Product"].some((v) => result.results[0].content.includes(v))).toBe(true);
-	}, 30000);
-	it("smoke_image_png: Smoke test: PNG image (without OCR, metadata only)", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_IMAGE_PNG ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_image_png`;
-		const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url/images/sample.png" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, (() => { const _u0 = WasmExtractionConfig.default(); _u0.disableOcr = true; return _u0; })());
+    expect(
+      ["Sample Data Table", "Laptop", "Electronics", "Product"].some((v) => result.results[0].content.includes(v)),
+    ).toBe(true);
+  }, 30000);
+  it("smoke_image_png: Smoke test: PNG image (without OCR, metadata only)", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_IMAGE_PNG ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_image_png`;
+    const inputJson = JSON.stringify({ kind: "uri", uri: "$mock_url/images/sample.png" }).replaceAll(
+      "$mock_url",
+      inputMockBaseUrl,
+    );
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(
+      input,
+      (() => {
+        const _u0 = WasmExtractionConfig.default();
+        _u0.disableOcr = true;
+        return _u0;
+      })(),
+    );
     expect(result.results[0].mimeType.trim()).toBe("image/png");
-	}, 30000);
-	it("smoke_json_basic: Smoke test: JSON file extraction", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_JSON_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_json_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "application/json", uri: "$mock_url/json/simple.json" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
+  }, 30000);
+  it("smoke_json_basic: Smoke test: JSON file extraction", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_JSON_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_json_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "application/json",
+      uri: "$mock_url/json/simple.json",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
     expect(result.results[0].mimeType.trim()).toBe("application/json");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(5);
-	}, 30000);
-	it("smoke_pdf_basic: Smoke test: PDF with simple text extraction", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_PDF_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_pdf_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "application/pdf", uri: "$mock_url/pdf/fake_memo.pdf" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
+  }, 30000);
+  it("smoke_pdf_basic: Smoke test: PDF with simple text extraction", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_PDF_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_pdf_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "application/pdf",
+      uri: "$mock_url/pdf/fake_memo.pdf",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
     expect(result.results[0].mimeType.trim()).toBe("application/pdf");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(50);
     expect(["May 5, 2023", "To Whom it May Concern"].some((v) => result.results[0].content.includes(v))).toBe(true);
-	}, 30000);
-	it("smoke_txt_basic: Smoke test: Plain text file", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_TXT_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_txt_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "text/plain", uri: "$mock_url/text/report.txt" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
+  }, 30000);
+  it("smoke_txt_basic: Smoke test: Plain text file", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_TXT_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_txt_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "text/plain",
+      uri: "$mock_url/text/report.txt",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
     expect(result.results[0].mimeType.trim()).toBe("text/plain");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(5);
-	}, 30000);
-	it("smoke_xlsx_basic: Smoke test: XLSX with basic spreadsheet data including tables", async () => {
-		const inputMockBaseUrl = process.env.MOCK_SERVER_SMOKE_XLSX_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_xlsx_basic`;
-		const inputJson = JSON.stringify({ kind: "uri", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", uri: "$mock_url/xlsx/stanley_cups.xlsx" }).replaceAll("$mock_url", inputMockBaseUrl);
-		const input = JSON.parse(inputJson) as WasmExtractInput;
-		const result = await extract(input, undefined);
+  }, 30000);
+  it("smoke_xlsx_basic: Smoke test: XLSX with basic spreadsheet data including tables", async () => {
+    const inputMockBaseUrl =
+      process.env.MOCK_SERVER_SMOKE_XLSX_BASIC ?? `${process.env.MOCK_SERVER_URL}/fixtures/smoke_xlsx_basic`;
+    const inputJson = JSON.stringify({
+      kind: "uri",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      uri: "$mock_url/xlsx/stanley_cups.xlsx",
+    }).replaceAll("$mock_url", inputMockBaseUrl);
+    const input = JSON.parse(inputJson) as WasmExtractInput;
+    const result = await extract(input, undefined);
     expect(result.results[0].mimeType.trim()).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(result.results[0].content.length).toBeGreaterThanOrEqual(100);
     expect(result.results[0].content).toContain("Team");
@@ -133,5 +260,5 @@ describe("smoke", () => {
     expect(result.results[0].tables.length).toBeGreaterThanOrEqual(1);
     expect(Number(result.results[0].metadata.format.excel.sheetCount)).toBeGreaterThanOrEqual(2);
     expect(result.results[0].metadata.format.excel.sheetNames).toContain("Stanley Cups");
-	}, 30000);
+  }, 30000);
 });

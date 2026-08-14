@@ -3,84 +3,149 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'smoke' do
-  it 'ocr_image_png: OCR: PNG image extraction with OCR enabled. In WASM this exercises the Uint8Array bridge parameter and Promise await in the generated OcrBackend bridge.' do
-    result = Xberg.extract(ExtractInput.new(bytes: File.binread('test_documents/images/test_hello_world.png').bytes, config: {  }, filename: 'test_hello_world.png', kind: 'bytes', mime_type: 'image/png'), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('image/png'.strip)
-    expect(result.results[0].content.length).to be >= 1
-    expect(['Hello', 'World', 'hello', 'world'].any? { |v| result.results[0].content.to_s.include?(v) }).to be(true)
-
+RSpec.describe "smoke" do
+  it(
+    "ocr_image_png: OCR: PNG image extraction with OCR enabled. In WASM this exercises the Uint8Array bridge parameter and Promise await in the generated OcrBackend bridge."
+  ) do
+    result = Xberg.extract(
+      ExtractInput.new(
+        bytes: File.binread("test_documents/images/test_hello_world.png").bytes,
+        config: {},
+        filename: "test_hello_world.png",
+        kind: "bytes",
+        mime_type: "image/png"
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("image/png".strip))
+    expect(result.results[0].content.length).to(be >= 1)
+    expect(["Hello", "World", "hello", "world"].any? { |v| result.results[0].content.to_s.include?(v) }).to(be(true))
   end
 
-  it 'smoke_docx_basic: Smoke test: DOCX with formatted text' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_DOCX_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_docx_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', uri: '$mock_url/docx/fake.docx'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('application/vnd.openxmlformats-officedocument.wordprocessingml.document'.strip)
-    expect(result.results[0].content.length).to be >= 20
-    expect(['Lorem', 'ipsum', 'document', 'text'].any? { |v| result.results[0].content.to_s.include?(v) }).to be(true)
-
+  it "smoke_docx_basic: Smoke test: DOCX with formatted text" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_DOCX_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_docx_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        uri: "$mock_url/docx/fake.docx".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(
+      eq("application/vnd.openxmlformats-officedocument.wordprocessingml.document".strip)
+    )
+    expect(result.results[0].content.length).to(be >= 20)
+    expect(["Lorem", "ipsum", "document", "text"].any? { |v| result.results[0].content.to_s.include?(v) }).to(be(true))
   end
 
-  it 'smoke_html_basic: Smoke test: HTML table extraction' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_HTML_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_html_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'text/html', uri: '$mock_url/html/simple_table.html'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('text/html'.strip)
-    expect(result.results[0].content.length).to be >= 10
-    expect(['Sample Data Table', 'Laptop', 'Electronics', 'Product'].any? { |v| result.results[0].content.to_s.include?(v) }).to be(true)
-
+  it "smoke_html_basic: Smoke test: HTML table extraction" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_HTML_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_html_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "text/html",
+        uri: "$mock_url/html/simple_table.html".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("text/html".strip))
+    expect(result.results[0].content.length).to(be >= 10)
+    expect(
+      ["Sample Data Table", "Laptop", "Electronics", "Product"].any? { |v| result.results[0].content.to_s.include?(v) }
+    )
+      .to(be(true))
   end
 
-  it 'smoke_image_png: Smoke test: PNG image (without OCR, metadata only)' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_IMAGE_PNG', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_image_png"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url/images/sample.png'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(disable_ocr: true))
-    expect(result.results[0].mime_type.to_s.strip).to eq('image/png'.strip)
-
+  it "smoke_image_png: Smoke test: PNG image (without OCR, metadata only)" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_IMAGE_PNG", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_image_png"
+    result = Xberg.extract(
+      ExtractInput.new(kind: "uri", uri: "$mock_url/images/sample.png".gsub("$mock_url", input_mock_base_url)),
+      Xberg::ExtractionConfig.new(disable_ocr: true)
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("image/png".strip))
   end
 
-  it 'smoke_json_basic: Smoke test: JSON file extraction' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_JSON_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_json_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/json', uri: '$mock_url/json/simple.json'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('application/json'.strip)
-    expect(result.results[0].content.length).to be >= 5
-
+  it "smoke_json_basic: Smoke test: JSON file extraction" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_JSON_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_json_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "application/json",
+        uri: "$mock_url/json/simple.json".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("application/json".strip))
+    expect(result.results[0].content.length).to(be >= 5)
   end
 
-  it 'smoke_pdf_basic: Smoke test: PDF with simple text extraction' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_PDF_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_pdf_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/pdf', uri: '$mock_url/pdf/fake_memo.pdf'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('application/pdf'.strip)
-    expect(result.results[0].content.length).to be >= 50
-    expect(['May 5, 2023', 'To Whom it May Concern'].any? { |v| result.results[0].content.to_s.include?(v) }).to be(true)
-
+  it "smoke_pdf_basic: Smoke test: PDF with simple text extraction" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_PDF_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_pdf_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "application/pdf",
+        uri: "$mock_url/pdf/fake_memo.pdf".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("application/pdf".strip))
+    expect(result.results[0].content.length).to(be >= 50)
+    expect(["May 5, 2023", "To Whom it May Concern"].any? { |v| result.results[0].content.to_s.include?(v) }).to(
+      be(true)
+    )
   end
 
-  it 'smoke_txt_basic: Smoke test: Plain text file' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_TXT_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_txt_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'text/plain', uri: '$mock_url/text/report.txt'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('text/plain'.strip)
-    expect(result.results[0].content.length).to be >= 5
-
+  it "smoke_txt_basic: Smoke test: Plain text file" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_TXT_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_txt_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "text/plain",
+        uri: "$mock_url/text/report.txt".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("text/plain".strip))
+    expect(result.results[0].content.length).to(be >= 5)
   end
 
-  it 'smoke_xlsx_basic: Smoke test: XLSX with basic spreadsheet data including tables' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SMOKE_XLSX_BASIC', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/smoke_xlsx_basic"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', uri: '$mock_url/xlsx/stanley_cups.xlsx'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new())
-    expect(result.results[0].mime_type.to_s.strip).to eq('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'.strip)
-    expect(result.results[0].content.length).to be >= 100
-    expect(result.results[0].content.to_s).to include('Team')
-    expect(result.results[0].content.to_s).to include('Location')
-    expect(result.results[0].content.to_s).to include('Stanley Cups')
-    expect(result.results[0].content.to_s).to include('Blues')
-    expect(result.results[0].content.to_s).to include('Flyers')
-    expect(result.results[0].content.to_s).to include('Maple Leafs')
-    expect(result.results[0].content.to_s).to include('STL')
-    expect(result.results[0].content.to_s).to include('PHI')
-    expect(result.results[0].content.to_s).to include('TOR')
-    expect(result.results[0].tables.length).to be >= 1
+  it "smoke_xlsx_basic: Smoke test: XLSX with basic spreadsheet data including tables" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SMOKE_XLSX_BASIC", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/smoke_xlsx_basic"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        uri: "$mock_url/xlsx/stanley_cups.xlsx".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(
+      eq("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".strip)
+    )
+    expect(result.results[0].content.length).to(be >= 100)
+    expect(result.results[0].content.to_s).to(include("Team"))
+    expect(result.results[0].content.to_s).to(include("Location"))
+    expect(result.results[0].content.to_s).to(include("Stanley Cups"))
+    expect(result.results[0].content.to_s).to(include("Blues"))
+    expect(result.results[0].content.to_s).to(include("Flyers"))
+    expect(result.results[0].content.to_s).to(include("Maple Leafs"))
+    expect(result.results[0].content.to_s).to(include("STL"))
+    expect(result.results[0].content.to_s).to(include("PHI"))
+    expect(result.results[0].content.to_s).to(include("TOR"))
+    expect(result.results[0].tables.length).to(be >= 1)
     # skipped: enum variant accessor 'results[0].metadata.format.excel.sheet_count' not available on Ruby (serialized to Hash)
     # skipped: enum variant accessor 'results[0].metadata.format.excel.sheet_names' not available on Ruby (serialized to Hash)
 

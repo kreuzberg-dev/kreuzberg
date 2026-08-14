@@ -7,29 +7,61 @@ defmodule E2e.FormatSpecificTest do
 
   describe "format_docx_equations" do
     test "format_docx_equations" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_DOCX_EQUATIONS") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_docx_equations"
-      input_value = %Xberg.ExtractInput{filename: "equations.docx", kind: "uri", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", uri: String.replace("$mock_url/docx/equations.docx", "$mock_url", input_mock_base_url)}
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_FORMAT_DOCX_EQUATIONS") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_docx_equations"
+
+      input_value = %Xberg.ExtractInput{
+        filename: "equations.docx",
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        uri: String.replace("$mock_url/docx/equations.docx", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value, config: "{\"output_format\":\"markdown\"}")
-      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) || (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
+
+      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) ||
+               (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
+
       assert String.contains?(to_string(Enum.at(result.results, 0).content), "$")
     end
   end
 
   describe "format_docx_standalone" do
     test "format_docx_standalone" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_DOCX_STANDALONE") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_docx_standalone"
-      input_value = %Xberg.ExtractInput{filename: "fake.docx", kind: "uri", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", uri: String.replace("$mock_url/docx/fake.docx", "$mock_url", input_mock_base_url)}
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_FORMAT_DOCX_STANDALONE") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_docx_standalone"
+
+      input_value = %Xberg.ExtractInput{
+        filename: "fake.docx",
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        uri: String.replace("$mock_url/docx/fake.docx", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value)
-      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) || (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
+
+      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) ||
+               (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
     end
   end
 
   describe "format_hwpx_standalone" do
     test "format_hwpx_standalone" do
-      input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_HWPX_STANDALONE") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_hwpx_standalone"
-      input_value = %Xberg.ExtractInput{filename: "simple.hwpx", kind: "uri", mime_type: "application/haansofthwpx", uri: String.replace("$mock_url/hwpx/simple.hwpx", "$mock_url", input_mock_base_url)}
+      input_mock_base_url =
+        System.get_env("MOCK_SERVER_FORMAT_HWPX_STANDALONE") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_hwpx_standalone"
+
+      input_value = %Xberg.ExtractInput{
+        filename: "simple.hwpx",
+        kind: "uri",
+        mime_type: "application/haansofthwpx",
+        uri: String.replace("$mock_url/hwpx/simple.hwpx", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value)
-      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) || (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
+
+      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 20) ||
+               (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 20)
+
       assert String.contains?(to_string(Enum.at(result.results, 0).content), "Hello from HWPX")
     end
   end
@@ -37,9 +69,19 @@ defmodule E2e.FormatSpecificTest do
   describe "format_pdf_text" do
     test "format_pdf_text" do
       input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_PDF_TEXT") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_pdf_text"
-      input_value = %Xberg.ExtractInput{filename: "fake_memo.pdf", kind: "uri", mime_type: "application/pdf", uri: String.replace("$mock_url/pdf/fake_memo.pdf", "$mock_url", input_mock_base_url)}
+
+      input_value = %Xberg.ExtractInput{
+        filename: "fake_memo.pdf",
+        kind: "uri",
+        mime_type: "application/pdf",
+        uri: String.replace("$mock_url/pdf/fake_memo.pdf", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value)
-      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 50) || (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 50)
+
+      assert (is_binary(Enum.at(result.results, 0).content) && byte_size(Enum.at(result.results, 0).content) >= 50) ||
+               (is_list(Enum.at(result.results, 0).content) && length(Enum.at(result.results, 0).content) >= 50)
+
       assert Enum.any?(["Mallori", "May"], fn v -> String.contains?(to_string(Enum.at(result.results, 0).content), v) end)
     end
   end
@@ -47,7 +89,13 @@ defmodule E2e.FormatSpecificTest do
   describe "format_pptx" do
     test "format_pptx" do
       input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_PPTX") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_pptx"
-      input_value = %Xberg.ExtractInput{kind: "uri", mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation", uri: String.replace("$mock_url/pptx/simple.pptx", "$mock_url", input_mock_base_url)}
+
+      input_value = %Xberg.ExtractInput{
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        uri: String.replace("$mock_url/pptx/simple.pptx", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value)
     end
   end
@@ -55,7 +103,13 @@ defmodule E2e.FormatSpecificTest do
   describe "format_xlsx" do
     test "format_xlsx" do
       input_mock_base_url = System.get_env("MOCK_SERVER_FORMAT_XLSX") || "#{System.get_env("MOCK_SERVER_URL")}/fixtures/format_xlsx"
-      input_value = %Xberg.ExtractInput{kind: "uri", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", uri: String.replace("$mock_url/xlsx/stanley_cups.xlsx", "$mock_url", input_mock_base_url)}
+
+      input_value = %Xberg.ExtractInput{
+        kind: "uri",
+        mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        uri: String.replace("$mock_url/xlsx/stanley_cups.xlsx", "$mock_url", input_mock_base_url)
+      }
+
       {:ok, result} = Xberg.extract(input: input_value)
     end
   end

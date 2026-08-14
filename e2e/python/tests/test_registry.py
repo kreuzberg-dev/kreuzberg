@@ -5,7 +5,13 @@
 """E2e tests for category: registry."""
 
 import pytest  # noqa: F401
-from xberg import list_embedding_backends, list_ocr_backends, list_post_processors, list_renderers, list_validators, ExtractionConfig
+from xberg import (
+    list_embedding_backends,
+    list_ocr_backends,
+    list_post_processors,
+    list_renderers,
+    list_validators,
+)
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -29,24 +35,24 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_list_embedding_backends() -> None:
     """List embedding backends."""
-    list_embedding_backends()
+    _ = list_embedding_backends()
 
 
 def test_list_ocr_backends() -> None:
     """List OCR backends."""
-    list_ocr_backends()
+    _ = list_ocr_backends()
 
 
 def test_list_post_processors() -> None:
     """List post-processors."""
-    list_post_processors()
+    _ = list_post_processors()
 
 
 def test_list_renderers() -> None:
     """List renderers."""
-    list_renderers()
+    _ = list_renderers()
 
 
 def test_list_validators() -> None:
     """List validators."""
-    list_validators()
+    _ = list_validators()

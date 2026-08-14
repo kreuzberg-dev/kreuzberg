@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'post_processor_management' do
-  it 'post_processors_clear: Clear all post-processors and verify list is empty' do
-    Xberg.clear_post_processors()
-
+RSpec.describe "post_processor_management" do
+  it "post_processors_clear: Clear all post-processors and verify list is empty" do
+    Xberg.clear_post_processors
   end
 
-  it 'post_processors_list: List all registered post-processors' do
-    result = Xberg.list_post_processors()
+  it "post_processors_list: List all registered post-processors" do
+    result = Xberg.list_post_processors
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

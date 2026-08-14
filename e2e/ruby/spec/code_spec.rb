@@ -3,18 +3,24 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'code' do
-  it 'code_shebang_detection: Test language detection from shebang line via bytes input' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_CODE_SHEBANG_DETECTION', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/code_shebang_detection"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', mime_type: 'text/x-source-code', uri: '$mock_url/code/script.sh'.gsub('$mock_url', input_mock_base_url)))
-    expect(result.results[0].mime_type.to_s.strip).to eq('text/x-source-code'.strip)
-    expect(result.results[0].content.length).to be >= 10
-    expect(result.results[0].content.to_s).to include('build')
-    expect(result.results[0].content.to_s).to include('clean')
-
+RSpec.describe "code" do
+  it "code_shebang_detection: Test language detection from shebang line via bytes input" do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_CODE_SHEBANG_DETECTION", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/code_shebang_detection"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        mime_type: "text/x-source-code",
+        uri: "$mock_url/code/script.sh".gsub("$mock_url", input_mock_base_url)
+      )
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("text/x-source-code".strip))
+    expect(result.results[0].content.length).to(be >= 10)
+    expect(result.results[0].content.to_s).to(include("build"))
+    expect(result.results[0].content.to_s).to(include("clean"))
   end
 end

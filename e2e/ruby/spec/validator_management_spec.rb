@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'validator_management' do
-  it 'validators_clear: Clear all validators and verify list is empty' do
-    Xberg.clear_validators()
-
+RSpec.describe "validator_management" do
+  it "validators_clear: Clear all validators and verify list is empty" do
+    Xberg.clear_validators
   end
 
-  it 'validators_list: List all registered validators' do
-    result = Xberg.list_validators()
+  it "validators_list: List all registered validators" do
+    result = Xberg.list_validators
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

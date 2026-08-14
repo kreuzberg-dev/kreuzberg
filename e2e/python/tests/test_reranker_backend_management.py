@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_clear_reranker_backends() -> None:
     """Clear all reranker backends and verify list is empty."""
-    clear_reranker_backends()
+    _ = clear_reranker_backends()
 
 
 def test_list_reranker_backends() -> None:
     """List all registered reranker backends."""
-    list_reranker_backends()
+    _ = list_reranker_backends()

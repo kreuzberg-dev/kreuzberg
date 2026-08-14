@@ -3,19 +3,18 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'renderer_management' do
-  it 'renderers_clear: Clear all renderers and verify list is empty' do
-    Xberg.clear_renderers()
-
+RSpec.describe "renderer_management" do
+  it "renderers_clear: Clear all renderers and verify list is empty" do
+    Xberg.clear_renderers
   end
 
-  it 'renderers_list: List all registered renderers' do
-    result = Xberg.list_renderers()
+  it "renderers_list: List all registered renderers" do
+    result = Xberg.list_renderers
 
-    expect(result).not_to be_nil
+    expect(result).not_to(be_nil)
   end
 end

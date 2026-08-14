@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_validators_clear() -> None:
     """Clear all validators and verify list is empty."""
-    clear_validators()
+    _ = clear_validators()
 
 
 def test_validators_list() -> None:
     """List all registered validators."""
-    list_validators()
+    _ = list_validators()

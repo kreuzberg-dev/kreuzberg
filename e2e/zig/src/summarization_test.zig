@@ -24,11 +24,11 @@ test "summarization_extractive_smoke" {
     const input_json = try std.mem.replaceOwned(u8, allocator, "{\"kind\":\"uri\",\"uri\":\"$mock_url/text/book_war_and_peace_1p.txt\"}", "$mock_url", input_mock_base_url);
     defer allocator.free(input_json);
     const _result_json = try xberg.extract(input_json, "{\"summarization\":{\"max_tokens\":80,\"strategy\":\"extractive\"}}");
-    defer std.heap.c_allocator.free(_result_json);
-    var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
-    defer _parsed.deinit();
-    const result = &_parsed.value;
-    try testing.expectEqualStrings("text/plain", std.mem.trim(u8, result.object.get("results").?.array.items[0].object.get("mime_type").?.string, " \n\r\t"));
-    try testing.expect(result.object.get("results").?.array.items[0].object.get("summary").?.object.get("text").? != .null);
-    try testing.expectEqualStrings("extractive", std.mem.trim(u8, result.object.get("results").?.array.items[0].object.get("summary").?.object.get("strategy").?.string, " \n\r\t"));
-}
+        defer std.heap.c_allocator.free(_result_json);
+        var _parsed = try std.json.parseFromSlice(std.json.Value, allocator, _result_json, .{});
+        defer _parsed.deinit();
+        const result = &_parsed.value;
+        try testing.expectEqualStrings("text/plain", std.mem.trim(u8, result.object.get("results").?.array.items[0].object.get("mime_type").?.string, " \n\r\t"));
+        try testing.expect(result.object.get("results").?.array.items[0].object.get("summary").?.object.get("text").? != .null);
+        try testing.expectEqualStrings("extractive", std.mem.trim(u8, result.object.get("results").?.array.items[0].object.get("summary").?.object.get("strategy").?.string, " \n\r\t"));
+    }

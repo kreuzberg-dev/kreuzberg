@@ -6,8 +6,9 @@
 
 import json
 import os
-import pytest  # noqa: F401
-from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind, OutputFormat
+
+import pytest
+from xberg import ExtractInput, ExtractionConfig, OutputFormat, extract
 
 
 def _alef_e2e_text(value: object) -> str:
@@ -30,74 +31,80 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 
 @pytest.mark.asyncio
-
 async def test_format_docx_equations() -> None:
     """DOCX equations extract to LaTeX math in markdown output."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_docx_equations'
-    input_json = "{\"filename\":\"equations.docx\",\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"uri\":\"$mock_url/docx/equations.docx\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_docx_equations"
+    input_json = '{"filename":"equations.docx","kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","uri":"$mock_url/docx/equations.docx"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
     config = ExtractionConfig(output_format=OutputFormat("markdown"))
 
     result = await extract(input, config)
-    assert len(result.results[0].content) >= 20  # noqa: S101
-    assert "$".lower() in str(result.results[0].content).lower()  # noqa: S101
+    assert len(result.results[0].content) >= 20
+    assert "$".lower() in str(result.results[0].content).lower()
 
 
 @pytest.mark.asyncio
-
 async def test_format_docx_standalone() -> None:
     """Standalone DOCX extraction using extract."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_docx_standalone'
-    input_json = "{\"filename\":\"fake.docx\",\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"uri\":\"$mock_url/docx/fake.docx\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_docx_standalone"
+    input_json = '{"filename":"fake.docx","kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","uri":"$mock_url/docx/fake.docx"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
     result = await extract(input, None)
-    assert len(result.results[0].content) >= 20  # noqa: S101
+    assert len(result.results[0].content) >= 20
 
 
 @pytest.mark.asyncio
-
 async def test_format_hwpx_standalone() -> None:
     """Standalone HWPX extraction using extract."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_hwpx_standalone'
-    input_json = "{\"filename\":\"simple.hwpx\",\"kind\":\"uri\",\"mime_type\":\"application/haansofthwpx\",\"uri\":\"$mock_url/hwpx/simple.hwpx\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_hwpx_standalone"
+    input_json = '{"filename":"simple.hwpx","kind":"uri","mime_type":"application/haansofthwpx","uri":"$mock_url/hwpx/simple.hwpx"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
     result = await extract(input, None)
-    assert len(result.results[0].content) >= 20  # noqa: S101
-    assert "Hello from HWPX".lower() in str(result.results[0].content).lower()  # noqa: S101
+    assert len(result.results[0].content) >= 20
+    assert "Hello from HWPX".lower() in str(result.results[0].content).lower()
 
 
 @pytest.mark.asyncio
-
 async def test_format_pdf_text() -> None:
     """Standalone PDF text extraction using extract."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_pdf_text'
-    input_json = "{\"filename\":\"fake_memo.pdf\",\"kind\":\"uri\",\"mime_type\":\"application/pdf\",\"uri\":\"$mock_url/pdf/fake_memo.pdf\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_pdf_text"
+    input_json = '{"filename":"fake_memo.pdf","kind":"uri","mime_type":"application/pdf","uri":"$mock_url/pdf/fake_memo.pdf"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
     result = await extract(input, None)
-    assert len(result.results[0].content) >= 50  # noqa: S101
-    assert any(v.lower() in str(result.results[0].content).lower() for v in ["Mallori", "May"])  # noqa: S101
+    assert len(result.results[0].content) >= 50
+    assert any(v.lower() in str(result.results[0].content).lower() for v in ["Mallori", "May"])
 
 
 @pytest.mark.asyncio
-
 async def test_format_pptx() -> None:
     """PPTX presentation extraction using extract."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_pptx'
-    input_json = "{\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.presentationml.presentation\",\"uri\":\"$mock_url/pptx/simple.pptx\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_pptx"
+    input_json = '{"kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.presentationml.presentation","uri":"$mock_url/pptx/simple.pptx"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
-    await extract(input, None)
+    _ = await extract(input, None)
 
 
 @pytest.mark.asyncio
-
 async def test_format_xlsx() -> None:
     """XLSX spreadsheet extraction using extract."""
-    input_mock_base_url = os.environ['MOCK_SERVER_URL'] + '/fixtures/format_xlsx'
-    input_json = "{\"kind\":\"uri\",\"mime_type\":\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\",\"uri\":\"$mock_url/xlsx/stanley_cups.xlsx\"}".replace("$mock_url", input_mock_base_url)
+    input_mock_base_url = os.environ["MOCK_SERVER_URL"] + "/fixtures/format_xlsx"
+    input_json = '{"kind":"uri","mime_type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","uri":"$mock_url/xlsx/stanley_cups.xlsx"}'.replace(
+        "$mock_url", input_mock_base_url
+    )
     input = ExtractInput(**json.loads(input_json))
 
-    await extract(input, None)
+    _ = await extract(input, None)

@@ -29,9 +29,9 @@ def _alef_e2e_item_texts(item: object) -> tuple[str, ...]:
 
 def test_embedding_backends_clear() -> None:
     """Clear all embedding backends and verify list is empty."""
-    clear_embedding_backends()
+    _ = clear_embedding_backends()
 
 
 def test_embedding_backends_list() -> None:
     """List all registered embedding backends."""
-    list_embedding_backends()
+    _ = list_embedding_backends()

@@ -3,139 +3,158 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'plugin_api' do
-  it 'register_embedding_backend_trait_bridge: register_embedding_backend: trait bridge' do
-    stub_register_embedding_backend_trait_bridge = Class.new do
-      def name = 'test-embedding-backend'
-      def initialize
-        nil
-      end
-      def shutdown
-        nil
-      end
-      def version = '1.0.0'
-      def dimensions = 1
-      def embed(texts) = []
-    end.new
-    Xberg.register_embedding_backend(stub_register_embedding_backend_trait_bridge, 'test-embedding-backend')
+RSpec.describe "plugin_api" do
+  it "register_embedding_backend_trait_bridge: register_embedding_backend: trait bridge" do
+    stub_register_embedding_backend_trait_bridge = Class
+      .new do
+        def name = "test-embedding-backend"
+        def initialize
+          nil
+        end
 
-    Xberg.unregister_embedding_backend('test-embedding-backend')
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def dimensions = 1
+        def embed(texts) = []
+      end
+      .new
+    Xberg.register_embedding_backend(stub_register_embedding_backend_trait_bridge, "test-embedding-backend")
+
+    Xberg.unregister_embedding_backend("test-embedding-backend")
   end
 
-  it 'register_ocr_backend_trait_bridge: register_ocr_backend: trait bridge' do
-    stub_register_ocr_backend_trait_bridge = Class.new do
-      def name = 'test-backend'
-      def initialize
-        nil
-      end
-      def shutdown
-        nil
-      end
-      def version = '1.0.0'
-      def process_image(image_bytes, config) = '{}'
-      def supports_language(lang) = false
-      def backend_type = '{}'
-    end.new
-    Xberg.register_ocr_backend(stub_register_ocr_backend_trait_bridge, 'test-backend')
+  it "register_ocr_backend_trait_bridge: register_ocr_backend: trait bridge" do
+    stub_register_ocr_backend_trait_bridge = Class
+      .new do
+        def name = "test-backend"
+        def initialize
+          nil
+        end
 
-    Xberg.unregister_ocr_backend('test-backend')
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def process_image(image_bytes, config) = "{}"
+        def supports_language(lang) = false
+        def backend_type = "{}"
+      end
+      .new
+    Xberg.register_ocr_backend(stub_register_ocr_backend_trait_bridge, "test-backend")
+
+    Xberg.unregister_ocr_backend("test-backend")
   end
 
-  it 'register_post_processor_trait_bridge: register_post_processor: trait bridge' do
-    stub_register_post_processor_trait_bridge = Class.new do
-      def name = 'test-processor'
-      def initialize
-        nil
-      end
-      def shutdown
-        nil
-      end
-      def version = '1.0.0'
-      def process(result, config) = nil
-      def processing_stage = '{}'
-    end.new
-    Xberg.register_post_processor(stub_register_post_processor_trait_bridge, 'test-processor')
+  it "register_post_processor_trait_bridge: register_post_processor: trait bridge" do
+    stub_register_post_processor_trait_bridge = Class
+      .new do
+        def name = "test-processor"
+        def initialize
+          nil
+        end
 
-    Xberg.unregister_post_processor('test-processor')
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def process(result, config) = nil
+        def processing_stage = "{}"
+      end
+      .new
+    Xberg.register_post_processor(stub_register_post_processor_trait_bridge, "test-processor")
+
+    Xberg.unregister_post_processor("test-processor")
   end
 
-  it 'register_reranker_backend_trait_bridge: register_reranker_backend: trait bridge' do
-    stub_register_reranker_backend_trait_bridge = Class.new do
-      def name = 'test-reranker-backend'
-      def initialize
-        nil
+  it "register_reranker_backend_trait_bridge: register_reranker_backend: trait bridge" do
+    stub_register_reranker_backend_trait_bridge = Class
+      .new do
+        def name = "test-reranker-backend"
+        def initialize
+          nil
+        end
+
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def rerank(query, documents) = []
       end
-      def shutdown
-        nil
+      .new
+    Xberg.register_reranker_backend(stub_register_reranker_backend_trait_bridge, "test-reranker-backend")
+
+    Xberg.unregister_reranker_backend("test-reranker-backend")
+  end
+
+  it "register_tokenizer_backend_trait_bridge: register_tokenizer_backend: trait bridge" do
+    stub_register_tokenizer_backend_trait_bridge = Class
+      .new do
+        def name = "test-tokenizer-backend"
+        def initialize
+          nil
+        end
+
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def count_tokens(text) = 1
       end
-      def version = '1.0.0'
-      def rerank(query, documents) = []
-    end.new
-    Xberg.register_reranker_backend(stub_register_reranker_backend_trait_bridge, 'test-reranker-backend')
+      .new
+    Xberg.register_tokenizer_backend(stub_register_tokenizer_backend_trait_bridge, "test-tokenizer-backend")
 
-    Xberg.unregister_reranker_backend('test-reranker-backend')
+    Xberg.unregister_tokenizer_backend("test-tokenizer-backend")
   end
 
-  it 'register_tokenizer_backend_trait_bridge: register_tokenizer_backend: trait bridge' do
-    stub_register_tokenizer_backend_trait_bridge = Class.new do
-      def name = 'test-tokenizer-backend'
-      def initialize
-        nil
+  it "register_validator_trait_bridge: register_validator: trait bridge" do
+    stub_register_validator_trait_bridge = Class
+      .new do
+        def name = "test-validator"
+        def initialize
+          nil
+        end
+
+        def shutdown
+          nil
+        end
+
+        def version = "1.0.0"
+        def validate(result, config) = nil
       end
-      def shutdown
-        nil
-      end
-      def version = '1.0.0'
-      def count_tokens(text) = 1
-    end.new
-    Xberg.register_tokenizer_backend(stub_register_tokenizer_backend_trait_bridge, 'test-tokenizer-backend')
+      .new
+    Xberg.register_validator(stub_register_validator_trait_bridge, "test-validator")
 
-    Xberg.unregister_tokenizer_backend('test-tokenizer-backend')
+    Xberg.unregister_validator("test-validator")
   end
 
-  it 'register_validator_trait_bridge: register_validator: trait bridge' do
-    stub_register_validator_trait_bridge = Class.new do
-      def name = 'test-validator'
-      def initialize
-        nil
-      end
-      def shutdown
-        nil
-      end
-      def version = '1.0.0'
-      def validate(result, config) = nil
-    end.new
-    Xberg.register_validator(stub_register_validator_trait_bridge, 'test-validator')
-
-    Xberg.unregister_validator('test-validator')
+  it "unregister_embedding_backend_after_register: unregister_embedding_backend" do
+    Xberg.unregister_embedding_backend("test-embedding-backend")
   end
 
-  it 'unregister_embedding_backend_after_register: unregister_embedding_backend' do
-    Xberg.unregister_embedding_backend('test-embedding-backend')
-
+  it "unregister_post_processor_after_register: unregister_post_processor" do
+    Xberg.unregister_post_processor("test-processor")
   end
 
-  it 'unregister_post_processor_after_register: unregister_post_processor' do
-    Xberg.unregister_post_processor('test-processor')
-
+  it "unregister_reranker_backend: unregister_reranker_backend" do
+    Xberg.unregister_reranker_backend("test-reranker-backend")
   end
 
-  it 'unregister_reranker_backend: unregister_reranker_backend' do
-    Xberg.unregister_reranker_backend('test-reranker-backend')
-
+  it "unregister_tokenizer_backend_after_register: unregister_tokenizer_backend" do
+    Xberg.unregister_tokenizer_backend("test-tokenizer-backend")
   end
 
-  it 'unregister_tokenizer_backend_after_register: unregister_tokenizer_backend' do
-    Xberg.unregister_tokenizer_backend('test-tokenizer-backend')
-
-  end
-
-  it 'unregister_validator_after_register: unregister_validator' do
-    Xberg.unregister_validator('test-validator')
-
+  it "unregister_validator_after_register: unregister_validator" do
+    Xberg.unregister_validator("test-validator")
   end
 end

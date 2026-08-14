@@ -14,35 +14,30 @@ using Xunit;
 using Xberg;
 using static Xberg.XbergConverter;
 
-namespace Xberg
-{
-    /// <summary>E2e tests for category: ocr_backend_management.</summary>
-    public class OcrBackendManagementTests
-    {
-            private static readonly JsonSerializerOptions ConfigOptions = new() { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
+namespace Xberg {
+/// <summary>E2e tests for category: ocr_backend_management.</summary>
+public class OcrBackendManagementTests {
+  private static readonly JsonSerializerOptions ConfigOptions =
+      new() { Converters = { new JsonStringEnumConverter(
+                  JsonNamingPolicy.SnakeCaseLower) },
+              DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault };
 
-        [Fact]
-        public void Test_OcrBackendsClear()
-        {
-            // Clear all OCR backends and verify list is empty
-            XbergConverter.ClearOcrBackends();
-        }
+  [Fact]
+  public void Test_OcrBackendsClear() {
+    // Clear all OCR backends and verify list is empty
+    XbergConverter.ClearOcrBackends();
+  }
 
-        [Fact]
-        public void Test_OcrBackendsList()
-        {
-            // List all registered OCR backends
-            var result = XbergConverter.ListOcrBackends();
+  [Fact]
+  public void Test_OcrBackendsList() {
+    // List all registered OCR backends
+    var result = XbergConverter.ListOcrBackends();
+  }
 
-        }
-
-        [Fact]
-        public void Test_OcrBackendsUnregister()
-        {
-            // Unregister nonexistent OCR backend gracefully
-            XbergConverter.UnregisterOcrBackend("nonexistent-backend-xyz");
-        }
-
-
-    }
+  [Fact]
+  public void Test_OcrBackendsUnregister() {
+    // Unregister nonexistent OCR backend gracefully
+    XbergConverter.UnregisterOcrBackend("nonexistent-backend-xyz");
+  }
+}
 }

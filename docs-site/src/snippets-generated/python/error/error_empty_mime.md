@@ -19,7 +19,7 @@ async def main() -> None:
     try:
         input = ExtractInput(bytes=Path("test_documents/text/plain.txt").read_bytes(), config={}, filename="plain.txt", kind=ExtractInputKind("bytes"), mime_type="")
         config = ExtractionConfig()
-        await extract(input, config)
+        _ = await extract(input, config)
     except XbergError as error:
         print(f"{type(error).__name__}: {error}")
 

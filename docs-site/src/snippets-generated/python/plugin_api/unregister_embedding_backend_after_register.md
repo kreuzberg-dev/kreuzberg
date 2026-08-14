@@ -14,7 +14,7 @@ from xberg import unregister_embedding_backend, ExtractionConfig
 
 def main() -> None:
     name = "test-embedding-backend"
-    unregister_embedding_backend(name)
+    _ = unregister_embedding_backend(name)
 
 main()
 

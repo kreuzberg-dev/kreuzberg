@@ -3,17 +3,25 @@
 # To verify freshness: alef verify
 # frozen_string_literal: true
 
-require 'spec_helper'
-require 'xberg'
-require 'json'
+require "spec_helper"
+require "xberg"
+require "json"
 
-RSpec.describe 'summarization' do
-  it 'summarization_extractive_smoke: TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required.' do
-    input_mock_base_url = ENV.fetch('MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE', nil) || "#{ENV.fetch('MOCK_SERVER_URL')}/fixtures/summarization_extractive_smoke"
-    result = Xberg.extract(ExtractInput.new(kind: 'uri', uri: '$mock_url/text/book_war_and_peace_1p.txt'.gsub('$mock_url', input_mock_base_url)), Xberg::ExtractionConfig.new(summarization: { 'max_tokens' => 80, 'strategy' => 'extractive' }))
-    expect(result.results[0].mime_type.to_s.strip).to eq('text/plain'.strip)
-    expect(result.results[0].summary.text.to_s).not_to be_empty
-    expect(result.results[0].summary.strategy.to_s.strip).to eq('extractive'.strip)
-
+RSpec.describe "summarization" do
+  it(
+    "summarization_extractive_smoke: TextRank extractive summary over a multi-paragraph plain text document. Pure-Rust, deterministic, no external services required."
+  ) do
+    input_mock_base_url = ENV.fetch("MOCK_SERVER_SUMMARIZATION_EXTRACTIVE_SMOKE", nil) ||
+      "#{ENV.fetch("MOCK_SERVER_URL")}/fixtures/summarization_extractive_smoke"
+    result = Xberg.extract(
+      ExtractInput.new(
+        kind: "uri",
+        uri: "$mock_url/text/book_war_and_peace_1p.txt".gsub("$mock_url", input_mock_base_url)
+      ),
+      Xberg::ExtractionConfig.new(summarization: {"max_tokens" => 80, "strategy" => "extractive"})
+    )
+    expect(result.results[0].mime_type.to_s.strip).to(eq("text/plain".strip))
+    expect(result.results[0].summary.text.to_s).not_to(be_empty)
+    expect(result.results[0].summary.strategy.to_s.strip).to(eq("extractive".strip))
   end
 end

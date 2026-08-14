@@ -3,82 +3,227 @@
 // To verify freshness: alef verify
 
 import { describe, expect, it } from "vitest";
-import { extract, WasmExtractInput, WasmExtractionConfig, WasmAccelerationConfig, WasmBedrockConfig, WasmBrowserConfig, WasmCaptioningConfig, WasmChunkClassificationConfig, WasmChunkClassificationDefinition, WasmChunkingConfig, WasmContentConfig, WasmContentFilterConfig, WasmConversionOptions, WasmCrawlConfig, WasmCsvConfig, WasmEmailConfig, WasmEmbeddingConfig, WasmFileExtractionConfig, WasmHierarchyConfig, WasmHtmlOutputConfig, WasmImageExtractionConfig, WasmImagePreprocessingConfig, WasmKeywordConfig, WasmLanguageDetectionConfig, WasmLateInteractionConfig, WasmLayoutDetectionConfig, WasmLlmBudgetConfig, WasmLlmCacheConfig, WasmLlmConfig, WasmLlmProviderConfig, WasmLlmRateLimitConfig, WasmNerConfig, WasmOcrConfig, WasmOcrElementConfig, WasmOcrPipelineConfig, WasmOcrPipelineStage, WasmOcrQualityThresholds, WasmPageClassificationConfig, WasmPageConfig, WasmPdfConfig, WasmPostProcessorConfig, WasmPreprocessingOptions, WasmProxyConfig, WasmRakeParams, WasmRedactionConfig, WasmRedactionPattern, WasmRedactionTerm, WasmSecurityLimits, WasmSparseEmbeddingConfig, WasmSsrfPolicy, WasmStructuredExtractionConfig, WasmSummarizationConfig, WasmSvgOptions, WasmTesseractConfig, WasmTokenReductionOptions, WasmTranscriptionConfig, WasmTranslationConfig, WasmTreeSitterConfig, WasmTreeSitterProcessConfig, WasmUrlExtractionConfig, WasmYakeParams } from "@xberg-io/xberg-wasm";
+import {
+  extract,
+  WasmExtractInput,
+  WasmExtractionConfig,
+  WasmAccelerationConfig,
+  WasmBedrockConfig,
+  WasmBrowserConfig,
+  WasmCaptioningConfig,
+  WasmChunkClassificationConfig,
+  WasmChunkClassificationDefinition,
+  WasmChunkingConfig,
+  WasmContentConfig,
+  WasmContentFilterConfig,
+  WasmConversionOptions,
+  WasmCrawlConfig,
+  WasmCsvConfig,
+  WasmEmailConfig,
+  WasmEmbeddingConfig,
+  WasmFileExtractionConfig,
+  WasmHierarchyConfig,
+  WasmHtmlOutputConfig,
+  WasmImageExtractionConfig,
+  WasmImagePreprocessingConfig,
+  WasmKeywordConfig,
+  WasmLanguageDetectionConfig,
+  WasmLateInteractionConfig,
+  WasmLayoutDetectionConfig,
+  WasmLlmBudgetConfig,
+  WasmLlmCacheConfig,
+  WasmLlmConfig,
+  WasmLlmProviderConfig,
+  WasmLlmRateLimitConfig,
+  WasmNerConfig,
+  WasmOcrConfig,
+  WasmOcrElementConfig,
+  WasmOcrPipelineConfig,
+  WasmOcrPipelineStage,
+  WasmOcrQualityThresholds,
+  WasmPageClassificationConfig,
+  WasmPageConfig,
+  WasmPdfConfig,
+  WasmPostProcessorConfig,
+  WasmPreprocessingOptions,
+  WasmProxyConfig,
+  WasmRakeParams,
+  WasmRedactionConfig,
+  WasmRedactionPattern,
+  WasmRedactionTerm,
+  WasmSecurityLimits,
+  WasmSparseEmbeddingConfig,
+  WasmSsrfPolicy,
+  WasmStructuredExtractionConfig,
+  WasmSummarizationConfig,
+  WasmSvgOptions,
+  WasmTesseractConfig,
+  WasmTokenReductionOptions,
+  WasmTranscriptionConfig,
+  WasmTranslationConfig,
+  WasmTreeSitterConfig,
+  WasmTreeSitterProcessConfig,
+  WasmUrlExtractionConfig,
+  WasmYakeParams,
+} from "@xberg-io/xberg-wasm";
 
 process.env.CRAWLBERG_ALLOW_PRIVATE_NETWORK ??= "true";
 
-
 async function _alefE2eDecompressAndParseJson(response: Response): Promise<unknown> {
-	const contentEncoding = response.headers.get("content-encoding");
-	let buffer = await response.arrayBuffer();
+  const contentEncoding = response.headers.get("content-encoding");
+  let buffer = await response.arrayBuffer();
 
-	if (contentEncoding === "gzip") {
-		const { gunzipSync } = await import("zlib");
-		buffer = gunzipSync(new Uint8Array(buffer)).buffer;
-	} else if (contentEncoding === "br") {
-		const { brotliDecompressSync } = await import("zlib");
-		buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
-	}
+  if (contentEncoding === "gzip") {
+    const { gunzipSync } = await import("zlib");
+    buffer = gunzipSync(new Uint8Array(buffer)).buffer;
+  } else if (contentEncoding === "br") {
+    const { brotliDecompressSync } = await import("zlib");
+    buffer = brotliDecompressSync(new Uint8Array(buffer)).buffer;
+  }
 
-	const text = new TextDecoder().decode(buffer);
-	return JSON.parse(text);
+  const text = new TextDecoder().decode(buffer);
+  return JSON.parse(text);
 }
 
 function _alefE2eText(value: unknown): string {
-	return value == null ? "" : String(value);
+  return value == null ? "" : String(value);
 }
 
 function _alefE2eItemTexts(item: unknown): string[] {
-	if (item == null || typeof item !== "object") {
-		return [_alefE2eText(item)];
-	}
-	const record = item as Record<string, unknown>;
-	const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
-	return [_alefE2eText(item), _alefE2eText(record.kind), _alefE2eText(record.name), _alefE2eText(record.source), _alefE2eText(record.alias), _alefE2eText(record.text), _alefE2eText(record.signature), itemsText];
+  if (item == null || typeof item !== "object") {
+    return [_alefE2eText(item)];
+  }
+  const record = item as Record<string, unknown>;
+  const itemsText = Array.isArray(record.items) ? record.items.map(_alefE2eText).join(" ") : "";
+  return [
+    _alefE2eText(item),
+    _alefE2eText(record.kind),
+    _alefE2eText(record.name),
+    _alefE2eText(record.source),
+    _alefE2eText(record.alias),
+    _alefE2eText(record.text),
+    _alefE2eText(record.signature),
+    itemsText,
+  ];
 }
 
 function _alefE2eFormatMetadataDisplay(fm: unknown): string {
-	if (fm == null) return "";
-	if (typeof fm !== "object") return String(fm);
-	const record = fm as Record<string, unknown>;
-	const formatType = record.format_type;
+  if (fm == null) return "";
+  if (typeof fm !== "object") return String(fm);
+  const record = fm as Record<string, unknown>;
+  const formatType = record.format_type;
 
-	// FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
-	// Extract the display string based on the variant type
-	if (formatType === "image" && typeof record.image === "object") {
-		const imageData = record.image as Record<string, unknown>;
-		if (typeof imageData.format === "string") return imageData.format;
-	}
+  // FormatMetadata is a tagged union: { format_type: 'image', image: { format: 'PNG', ... }, ... }
+  // Extract the display string based on the variant type
+  if (formatType === "image" && typeof record.image === "object") {
+    const imageData = record.image as Record<string, unknown>;
+    if (typeof imageData.format === "string") return imageData.format;
+  }
 
-	// Fallback: return format_type variant name
-	if (typeof record.format_type === "string") return record.format_type;
-	return "";
+  // Fallback: return format_type variant name
+  if (typeof record.format_type === "string") return record.format_type;
+  return "";
 }
 
-
 describe("error", () => {
-
-	it("error_empty_bytes: Graceful handling of empty bytes (should not error)", async () => {
-		await extract((() => { const _u0 = WasmExtractInput.default(); _u0.bytes = Uint8Array.from([]); _u0.config = (() => { const _u1 = WasmFileExtractionConfig.default(); return _u1; })(); _u0.filename = "empty.txt"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = "text/plain"; return _u0; })(), undefined);
-	}, 30000);
-	it("error_empty_mime: Error when extracting with empty MIME type", async () => {
-		await expect(async () => {
-			await extract(await (async () => { const _u0 = WasmExtractInput.default(); _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt"); _u0.config = await (async () => { const _u1 = WasmFileExtractionConfig.default(); return _u1; })(); _u0.filename = "plain.txt"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = ""; return _u0; })(), undefined);
-		}).rejects.toThrow();
-	}, 30000);
-	it("error_extract_input_conflicting_ocr: extract force+disable OCR", async () => {
-		await expect(async () => {
-			await extract(await (async () => { const _u0 = WasmExtractInput.default(); _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/fake_text.txt"); _u0.config = await (async () => { const _u1 = WasmFileExtractionConfig.default(); _u1.disableOcr = true; _u1.forceOcr = true; return _u1; })(); _u0.filename = "fake_text.txt"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = "text/plain"; return _u0; })(), (() => { const _u0 = WasmExtractionConfig.default(); _u0.disableOcr = true; _u0.forceOcr = true; return _u0; })());
-		}).rejects.toThrow();
-	}, 30000);
-	it("error_invalid_mime_format: Error when extracting with invalid MIME type format", async () => {
-		await expect(async () => {
-			await extract(await (async () => { const _u0 = WasmExtractInput.default(); _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt"); _u0.config = await (async () => { const _u1 = WasmFileExtractionConfig.default(); return _u1; })(); _u0.filename = "plain.txt"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = "not-a-mime"; return _u0; })(), undefined);
-		}).rejects.toThrow();
-	}, 30000);
-	it("error_unsupported_mime: Error when extracting with unsupported MIME type", async () => {
-		await expect(async () => {
-			await extract(await (async () => { const _u0 = WasmExtractInput.default(); _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt"); _u0.config = await (async () => { const _u1 = WasmFileExtractionConfig.default(); return _u1; })(); _u0.filename = "plain.txt"; _u0.kind = WasmExtractInputKind.Bytes; _u0.mimeType = "application/x-nonexistent"; return _u0; })(), undefined);
-		}).rejects.toThrow();
-	}, 30000);
+  it("error_empty_bytes: Graceful handling of empty bytes (should not error)", async () => {
+    await extract(
+      (() => {
+        const _u0 = WasmExtractInput.default();
+        _u0.bytes = [];
+        _u0.config = (() => {
+          const _u1 = WasmFileExtractionConfig.default();
+          return _u1;
+        })();
+        _u0.filename = "empty.txt";
+        _u0.kind = "bytes";
+        _u0.mimeType = "text/plain";
+        return _u0;
+      })(),
+      undefined,
+    );
+  }, 30000);
+  it("error_empty_mime: Error when extracting with empty MIME type", async () => {
+    await expect(async () => {
+      await extract(
+        await (async () => {
+          const _u0 = WasmExtractInput.default();
+          _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt");
+          _u0.config = await (async () => {
+            const _u1 = WasmFileExtractionConfig.default();
+            return _u1;
+          })();
+          _u0.filename = "plain.txt";
+          _u0.kind = "bytes";
+          _u0.mimeType = "";
+          return _u0;
+        })(),
+        undefined,
+      );
+    }).rejects.toThrow();
+  }, 30000);
+  it("error_extract_input_conflicting_ocr: extract force+disable OCR", async () => {
+    await expect(async () => {
+      await extract(
+        await (async () => {
+          const _u0 = WasmExtractInput.default();
+          _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/fake_text.txt");
+          _u0.config = await (async () => {
+            const _u1 = WasmFileExtractionConfig.default();
+            _u1.disableOcr = true;
+            _u1.forceOcr = true;
+            return _u1;
+          })();
+          _u0.filename = "fake_text.txt";
+          _u0.kind = "bytes";
+          _u0.mimeType = "text/plain";
+          return _u0;
+        })(),
+        (() => {
+          const _u0 = WasmExtractionConfig.default();
+          _u0.disableOcr = true;
+          _u0.forceOcr = true;
+          return _u0;
+        })(),
+      );
+    }).rejects.toThrow();
+  }, 30000);
+  it("error_invalid_mime_format: Error when extracting with invalid MIME type format", async () => {
+    await expect(async () => {
+      await extract(
+        await (async () => {
+          const _u0 = WasmExtractInput.default();
+          _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt");
+          _u0.config = await (async () => {
+            const _u1 = WasmFileExtractionConfig.default();
+            return _u1;
+          })();
+          _u0.filename = "plain.txt";
+          _u0.kind = "bytes";
+          _u0.mimeType = "not-a-mime";
+          return _u0;
+        })(),
+        undefined,
+      );
+    }).rejects.toThrow();
+  }, 30000);
+  it("error_unsupported_mime: Error when extracting with unsupported MIME type", async () => {
+    await expect(async () => {
+      await extract(
+        await (async () => {
+          const _u0 = WasmExtractInput.default();
+          _u0.bytes = await (await import("node:fs/promises")).readFile("test_documents/text/plain.txt");
+          _u0.config = await (async () => {
+            const _u1 = WasmFileExtractionConfig.default();
+            return _u1;
+          })();
+          _u0.filename = "plain.txt";
+          _u0.kind = "bytes";
+          _u0.mimeType = "application/x-nonexistent";
+          return _u0;
+        })(),
+        undefined,
+      );
+    }).rejects.toThrow();
+  }, 30000);
 });

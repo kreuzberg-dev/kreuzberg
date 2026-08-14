@@ -16,7 +16,7 @@ from xberg import extract, ExtractInput, ExtractionConfig, ExtractInputKind
 async def main() -> None:
     input = ExtractInput(kind=ExtractInputKind("uri"), uri="https://example.com")
     config = ExtractionConfig(url={"crawl": {"document_url_depth": 1, "follow_document_urls": True, "respect_robots_txt": False}, "mode": "document"})
-    await extract(input, config)
+    _ = await extract(input, config)
     print(result)
 
 asyncio.run(main())
