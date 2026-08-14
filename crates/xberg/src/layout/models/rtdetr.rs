@@ -121,7 +121,11 @@ impl RtDetrModel {
 
         let input_tensor = preprocessing::preprocess_rescale(img, INPUT_SIZE);
 
-        let sizes = Array::from_shape_vec((1, 2), vec![orig_height as i64, orig_width as i64])
+        // The official RT-DETR postprocessor multiplies xyxy boxes by
+        // `orig_target_sizes.repeat(1, 2)`, so the tensor order is (w, h).
+        // Passing (h, w) inflates x by H/W and compresses y by W/H on
+        // portrait pages, which misplaces every region crop.
+        let sizes = Array::from_shape_vec((1, 2), vec![orig_width as i64, orig_height as i64])
             .map_err(|e| LayoutError::InvalidOutput(format!("Failed to create sizes tensor: {e}")))?;
 
         let preprocess_ms = preprocess_start.elapsed().as_secs_f64() * 1000.0;
@@ -275,9 +279,10 @@ impl RtDetrModel {
         let images_array = Array4::from_shape_vec((batch, 3, ts, ts), all_pixel_data)
             .map_err(|e| LayoutError::InvalidOutput(format!("Failed to build batch images tensor: {e}")))?;
 
+        // (w, h) per image; see the single-image path for the contract.
         let sizes_flat: Vec<i64> = images
             .iter()
-            .flat_map(|img| [img.height() as i64, img.width() as i64])
+            .flat_map(|img| [img.width() as i64, img.height() as i64])
             .collect();
         let sizes_array = Array2::from_shape_vec((batch, 2), sizes_flat)
             .map_err(|e| LayoutError::InvalidOutput(format!("Failed to build batch sizes tensor: {e}")))?;
