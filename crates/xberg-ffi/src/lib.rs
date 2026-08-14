@@ -17,7 +17,9 @@
     clippy::unnecessary_fallible_conversions,
     clippy::useless_conversion,
     clippy::type_complexity,
-    clippy::clone_on_copy
+    clippy::clone_on_copy,
+    clippy::collapsible_if,
+    clippy::vec_init_then_push
 )]
 #![allow(
     clippy::missing_safety_doc,
