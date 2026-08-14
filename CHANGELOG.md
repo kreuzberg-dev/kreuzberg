@@ -39,7 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- PDF OCR formulas now report their bounding boxes in PDF point coordinates (origin bottom-left),
+- Scanned PDFs now produce formulas. A page whose OCR backend emits plain text only (tesseract on
+  a rasterized page) had its layout-detected formula regions silently dropped, because recognition
+  only replaced existing formula text and skipped any page whose counts differed. Regions now pair
+  with existing formula text by bounding-box overlap when the counts differ, and a region with no
+  matching text becomes a new formula with its bounding box in PDF points (#1385).
+- RT-DETR layout detections are no longer misplaced on non-square pages. The model's
+  `orig_target_sizes` input takes `(width, height)`; passing `(height, width)` stretched every box
+  x by the page aspect ratio and compressed y by its inverse, so region crops (formulas, tables)
+  cut the wrong page area on portrait pages.
+- Recognized formula LaTeX no longer carries raw BPE markers (`Ġ`) or special tokens. The
+  RapidLaTeXOCR tokenizer file declares a ByteLevel pre-tokenizer but no decoder; the loader now
+  attaches the matching decoder and skips special tokens when decoding.
   comparable to native PDF geometry, instead of rendered-image pixels whose DPI varied per page.
   Image inputs, and PDF pages whose geometry is unavailable, keep pixel coordinates and say so.
 - The RST text path now renders `.. math::` directives inside `$$` display-math delimiters instead

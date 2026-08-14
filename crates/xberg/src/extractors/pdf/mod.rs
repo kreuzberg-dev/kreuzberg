@@ -678,6 +678,7 @@ async fn run_ocr_with_layout(
                 images,
                 detections,
                 layout,
+                content,
             )
             .await;
         }
@@ -713,7 +714,7 @@ async fn run_ocr_with_layout(
     let (mut ocr_doc, mut formulas) = (ocr_doc, formulas);
     #[cfg(feature = "formula-recognition")]
     if let (Some((images, detections)), Some(layout)) = (prepared_layout_inputs.as_ref(), config.layout.as_ref()) {
-        recognize_pdf_formula_regions(ocr_doc.as_mut(), &mut formulas, images, detections, layout).await;
+        recognize_pdf_formula_regions(ocr_doc.as_mut(), &mut formulas, images, detections, layout, content).await;
     }
     Ok((
         text,
@@ -795,6 +796,60 @@ mod formula_region_tests {
         };
         assert!(formula_regions_in_reading_order(&page).is_empty());
     }
+
+    fn pt_box(x0: f64, y0: f64, x1: f64, y1: f64) -> crate::types::BoundingBox {
+        crate::types::BoundingBox { x0, y0, x1, y1 }
+    }
+
+    #[test]
+    fn matching_counts_pair_positionally() {
+        let assigned = super::assign_formula_slots(2, &[None, None], None);
+        assert_eq!(assigned, vec![Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn mismatched_counts_pair_by_overlap_and_leave_the_rest_unassigned() {
+        // Three regions, two slots; slots overlap regions 0 and 2.
+        let regions = [
+            pt_box(10.0, 100.0, 200.0, 130.0),
+            pt_box(10.0, 50.0, 200.0, 80.0),
+            pt_box(10.0, 10.0, 200.0, 40.0),
+        ];
+        let slots = [
+            Some(pt_box(12.0, 12.0, 190.0, 38.0)),
+            Some(pt_box(12.0, 102.0, 190.0, 128.0)),
+        ];
+        let assigned = super::assign_formula_slots(3, &slots, Some(&regions));
+        assert_eq!(assigned, vec![Some(1), None, Some(0)]);
+    }
+
+    #[test]
+    fn mismatched_counts_without_geometry_assign_nothing() {
+        let slots = [Some(pt_box(0.0, 0.0, 10.0, 10.0))];
+        let assigned = super::assign_formula_slots(3, &slots, None);
+        assert_eq!(assigned, vec![None, None, None]);
+    }
+
+    #[test]
+    fn slots_without_bboxes_stay_unassigned_on_mismatch() {
+        let regions = [pt_box(0.0, 0.0, 100.0, 30.0)];
+        let assigned = super::assign_formula_slots(1, &[None, None], Some(&regions));
+        assert_eq!(assigned, vec![None]);
+    }
+
+    #[test]
+    fn overlap_ratio_is_intersection_over_smaller_area() {
+        let big = pt_box(0.0, 0.0, 100.0, 100.0);
+        let small = pt_box(50.0, 50.0, 150.0, 150.0);
+        // Intersection 50x50 = 2500; both areas 10000 -> 0.25.
+        assert!((super::bbox_overlap_ratio(&big, &small) - 0.25).abs() < 1e-9);
+        let contained = pt_box(10.0, 10.0, 20.0, 20.0);
+        assert!((super::bbox_overlap_ratio(&big, &contained) - 1.0).abs() < 1e-9);
+        assert_eq!(
+            super::bbox_overlap_ratio(&big, &pt_box(200.0, 200.0, 300.0, 300.0)),
+            0.0
+        );
+    }
 }
 
 /// A page raster the formula recognizer can crop, however the flow stores it.
@@ -815,84 +870,230 @@ impl AsPageRgb for image::RgbImage {
     }
 }
 
-/// Recognize layout-detected formula regions on rendered PDF pages, replacing
-/// the region text (element and side-channel formula) with model LaTeX.
+/// Intersection area over the smaller box's area, in a shared coordinate
+/// space. 0.0 when either box is degenerate.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+fn bbox_overlap_ratio(a: &crate::types::BoundingBox, b: &crate::types::BoundingBox) -> f64 {
+    let ix = (a.x1.min(b.x1) - a.x0.max(b.x0)).max(0.0);
+    let iy = (a.y1.min(b.y1) - a.y0.max(b.y0)).max(0.0);
+    let min_area = ((a.x1 - a.x0) * (a.y1 - a.y0)).min((b.x1 - b.x0) * (b.y1 - b.y0));
+    if min_area <= 0.0 { 0.0 } else { (ix * iy) / min_area }
+}
+
+/// A detection must cover a slot's box (or vice versa) by at least this
+/// fraction of the smaller area to pair with it geometrically.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+const FORMULA_PAIR_MIN_OVERLAP: f64 = 0.5;
+
+/// Assign each detected region to at most one formula slot on one side
+/// (side-channel formulas or formula elements).
 ///
-/// Detections and formulas are matched per page in reading order; a page
-/// whose formula-detection count differs from its formula count is skipped
-/// with a warning rather than guessed at. Failures keep the existing text.
+/// When the counts match, pairing is positional in reading order — the
+/// OCR side channel emits its formulas in the same sort, and that invariant
+/// must hold (see [`formula_regions_in_reading_order`]). When the counts
+/// differ, each region pairs with the unused slot whose bounding box it
+/// overlaps most (both in PDF points); regions and slots without a
+/// sufficient overlap stay unassigned. Without region geometry
+/// (`regions_pts` is `None`), a count mismatch assigns nothing.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+fn assign_formula_slots(
+    region_count: usize,
+    slot_bboxes: &[Option<crate::types::BoundingBox>],
+    regions_pts: Option<&[crate::types::BoundingBox]>,
+) -> Vec<Option<usize>> {
+    if slot_bboxes.len() == region_count {
+        return (0..region_count).map(Some).collect();
+    }
+    let Some(regions_pts) = regions_pts else {
+        return vec![None; region_count];
+    };
+    let mut used = vec![false; slot_bboxes.len()];
+    regions_pts
+        .iter()
+        .map(|region| {
+            let mut best: Option<(usize, f64)> = None;
+            for (index, slot) in slot_bboxes.iter().enumerate() {
+                if used[index] {
+                    continue;
+                }
+                let Some(slot) = slot else { continue };
+                let overlap = bbox_overlap_ratio(region, slot);
+                if overlap >= FORMULA_PAIR_MIN_OVERLAP && best.is_none_or(|(_, b)| overlap > b) {
+                    best = Some((index, overlap));
+                }
+            }
+            best.map(|(index, _)| {
+                used[index] = true;
+                index
+            })
+        })
+        .collect()
+}
+
+/// Per-page MediaBox sizes in points, for mapping detection bboxes into PDF
+/// point space. `None` when the document cannot be opened (for example an
+/// encrypted PDF); synthesized formulas then keep pixel coordinates, the
+/// documented fallback for pages whose geometry is unavailable.
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+fn pdf_page_sizes_pt(content: &[u8], page_count: usize) -> Option<Vec<(f32, f32)>> {
+    let doc = pdf_oxide::PdfDocument::from_bytes(content.to_vec()).ok()?;
+    Some(
+        (0..page_count)
+            .map(|index| crate::pdf::render::get_page_dimensions_pt(&doc, index))
+            .collect(),
+    )
+}
+
+/// Recognize layout-detected formula regions on rendered PDF pages.
+///
+/// Each detected region pairs with the formula text the extraction side
+/// already produced (side-channel formulas and formula elements), per page:
+/// positionally in reading order when the counts match, by bounding-box
+/// overlap in PDF points when they differ. Recognized LaTeX replaces the
+/// text of paired slots. A region paired with nothing — for example on a
+/// scanned page whose OCR backend emits plain text only — becomes a new
+/// formula with its bbox in PDF points. Failures keep the existing text.
 #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
 async fn recognize_pdf_formula_regions(
     ocr_doc: Option<&mut crate::types::internal::InternalDocument>,
-    formulas: &mut [crate::types::Formula],
+    formulas: &mut Vec<crate::types::Formula>,
     images: &[impl AsPageRgb],
     detections: &[crate::layout::DetectionResult],
     layout: &crate::core::config::LayoutDetectionConfig,
+    content: &[u8],
 ) {
     if layout.formula_model.is_none() {
         return;
     }
-    let mut element_slots: Vec<Vec<&mut String>> = (0..images.len()).map(|_| Vec::new()).collect();
+    let mut element_slots: Vec<Vec<(Option<crate::types::BoundingBox>, &mut String)>> =
+        (0..images.len()).map(|_| Vec::new()).collect();
     if let Some(doc) = ocr_doc {
         for element in doc.elements.iter_mut() {
             if matches!(element.kind, crate::types::internal::ElementKind::Formula)
                 && let Some(page) = element.page
                 && let Some(slot) = element_slots.get_mut((page as usize).saturating_sub(1))
             {
-                slot.push(&mut element.text);
+                slot.push((element.bbox, &mut element.text));
             }
         }
     }
+    // Page MediaBox sizes, parsed once on first need (geometric pairing or a
+    // synthesized bbox); fully positional pages never pay for the parse.
+    let mut page_sizes_pt: Option<Option<Vec<(f32, f32)>>> = None;
     for (page_idx, (image, detection)) in images.iter().zip(detections).enumerate() {
         let regions = formula_regions_in_reading_order(detection);
+        let page_number = (page_idx + 1) as u32;
         if regions.is_empty() {
+            tracing::debug!(
+                page = page_number,
+                detections = detection.detections.len(),
+                "layout detected no formula regions on this page; formula recognition skipped"
+            );
             continue;
         }
 
-        let page_number = (page_idx + 1) as u32;
-        let mut formula_slots: Vec<&mut crate::types::Formula> =
-            formulas.iter_mut().filter(|f| f.page == Some(page_number)).collect();
-        let elements = element_slots
-            .get_mut(page_idx)
-            .map(Vec::as_mut_slice)
-            .unwrap_or(&mut []);
+        let mut synthesized: Vec<crate::types::Formula> = Vec::new();
+        {
+            let mut formula_slots: Vec<&mut crate::types::Formula> =
+                formulas.iter_mut().filter(|f| f.page == Some(page_number)).collect();
+            let elements = element_slots
+                .get_mut(page_idx)
+                .map(Vec::as_mut_slice)
+                .unwrap_or(&mut []);
 
-        let matched_formulas = formula_slots.len() == regions.len();
-        let matched_elements = elements.len() == regions.len();
-        if !matched_formulas && !matched_elements {
-            if !formula_slots.is_empty() || !elements.is_empty() {
+            let rgb = image.page_rgb();
+            let rgb: &image::RgbImage = &rgb;
+
+            let need_geometry = formula_slots.len() != regions.len() || elements.len() != regions.len();
+            let page_size = if need_geometry {
+                page_sizes_pt
+                    .get_or_insert_with(|| pdf_page_sizes_pt(content, images.len()))
+                    .as_ref()
+                    .and_then(|sizes| sizes.get(page_idx).copied())
+            } else {
+                None
+            };
+            let regions_pts: Option<Vec<crate::types::BoundingBox>> = page_size.map(|(page_w_pt, page_h_pt)| {
+                regions
+                    .iter()
+                    .map(|region| {
+                        let pixel = crate::types::BoundingBox {
+                            x0: f64::from(region.bbox.x1),
+                            y0: f64::from(region.bbox.y1),
+                            x1: f64::from(region.bbox.x2),
+                            y1: f64::from(region.bbox.y2),
+                        };
+                        crate::pdf::render::pixel_bbox_to_pdf_points(
+                            pixel,
+                            rgb.width(),
+                            rgb.height(),
+                            page_w_pt,
+                            page_h_pt,
+                        )
+                    })
+                    .collect()
+            });
+            if need_geometry && (!formula_slots.is_empty() || !elements.is_empty()) {
                 tracing::warn!(
                     page = page_number,
                     detections = regions.len(),
                     formulas = formula_slots.len(),
                     elements = elements.len(),
-                    "formula region count mismatch; keeping OCR text on this page"
+                    "formula counts differ from detections; pairing regions by bounding-box overlap"
                 );
             }
-            continue;
-        }
+            let formula_boxes: Vec<Option<crate::types::BoundingBox>> = formula_slots.iter().map(|f| f.bbox).collect();
+            let element_boxes: Vec<Option<crate::types::BoundingBox>> =
+                elements.iter().map(|(bbox, _)| *bbox).collect();
+            let formula_assign = assign_formula_slots(regions.len(), &formula_boxes, regions_pts.as_deref());
+            let element_assign = assign_formula_slots(regions.len(), &element_boxes, regions_pts.as_deref());
 
-        let rgb = image.page_rgb();
-        let rgb: &image::RgbImage = &rgb;
-        for (region_idx, region) in regions.iter().enumerate() {
-            let Some((x, y, w, h)) = region.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
-                continue;
-            };
-            let crop = image::imageops::crop_imm(rgb, x, y, w, h).to_image();
-            match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
-                Ok(Some(latex)) => {
-                    if matched_formulas && let Some(slot) = formula_slots.get_mut(region_idx) {
-                        slot.latex = latex.clone();
+            for (region_idx, region) in regions.iter().enumerate() {
+                let Some((x, y, w, h)) = region.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
+                    continue;
+                };
+                let crop = image::imageops::crop_imm(rgb, x, y, w, h).to_image();
+                match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
+                    Ok(Some(latex)) => {
+                        let mut replaced = false;
+                        if let Some(slot) = formula_assign[region_idx].and_then(|i| formula_slots.get_mut(i)) {
+                            slot.latex = latex.clone();
+                            replaced = true;
+                        }
+                        if let Some(entry) = element_assign[region_idx].and_then(|i| elements.get_mut(i)) {
+                            *entry.1 = latex.clone();
+                            replaced = true;
+                        }
+                        if !replaced {
+                            let bbox = regions_pts.as_ref().map(|pts| pts[region_idx]).unwrap_or_else(|| {
+                                crate::types::BoundingBox {
+                                    x0: f64::from(x),
+                                    y0: f64::from(y),
+                                    x1: f64::from(x + w),
+                                    y1: f64::from(y + h),
+                                }
+                            });
+                            synthesized.push(crate::types::Formula {
+                                latex,
+                                bbox: Some(bbox),
+                                page: Some(page_number),
+                            });
+                        }
                     }
-                    if matched_elements && let Some(text) = elements.get_mut(region_idx) {
-                        **text = latex;
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::warn!(error = %error, page = page_number, "pdf formula recognition failed; keeping OCR text");
                     }
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    tracing::warn!(error = %error, page = page_number, "pdf formula recognition failed; keeping OCR text");
                 }
             }
+        }
+        if !synthesized.is_empty() {
+            tracing::info!(
+                page = page_number,
+                formulas = synthesized.len(),
+                "recognized formulas from layout regions with no extracted formula text"
+            );
+            formulas.extend(synthesized);
         }
     }
 }
@@ -1888,7 +2089,7 @@ impl PdfExtractor {
             config.layout.as_ref(),
         ) {
             let mut side_channel = std::mem::take(&mut doc.formulas);
-            recognize_pdf_formula_regions(Some(&mut doc), &mut side_channel, images, detections, layout).await;
+            recognize_pdf_formula_regions(Some(&mut doc), &mut side_channel, images, detections, layout, content).await;
             doc.formulas = side_channel;
         }
 
