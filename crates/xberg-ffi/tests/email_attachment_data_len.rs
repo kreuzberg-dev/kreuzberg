@@ -77,7 +77,7 @@ fn email_attachment_data_none_returns_null_pointer() {
     // SAFETY: json is valid null-terminated UTF-8.
     let handle = unsafe { xberg_email_attachment_from_json(json.as_ptr() as *const c_char) };
     assert!(
-        !handle.is_null(),
+        handle != 0,
         "from_json should succeed (last_error_code={})",
         // SAFETY: no precondition; reads a thread-local.
         unsafe { xberg_last_error_code() }
@@ -107,7 +107,7 @@ fn email_attachment_data_with_out_len_returns_full_buffer_including_embedded_nul
     // SAFETY: json is a valid null-terminated CString we just created.
     let handle = unsafe { xberg_email_attachment_from_json(json.as_ptr() as *const c_char) };
     assert!(
-        !handle.is_null(),
+        handle != 0,
         "from_json should succeed for our well-formed test attachment (last_error_code={})",
         // SAFETY: no precondition; reads a thread-local.
         unsafe { xberg_last_error_code() }
@@ -158,7 +158,7 @@ fn email_attachment_data_null_out_len_is_safe() {
 
     // SAFETY: json is valid.
     let handle = unsafe { xberg_email_attachment_from_json(json.as_ptr() as *const c_char) };
-    assert!(!handle.is_null());
+    assert!(handle != 0);
 
     // SAFETY: handle is valid; passing null for out_len is a defined contract
     // (the accessor null-checks before writing). ~keep
