@@ -838,6 +838,17 @@ mod formula_region_tests {
     }
 
     #[test]
+    fn synthesis_needs_geometry_when_the_page_carries_formula_text() {
+        // No geometry, no text: a scanned page OCR'd to plain text synthesizes.
+        assert!(super::formula_synthesis_allowed(false, 0, 0));
+        // No geometry, text present: synthesis would duplicate it.
+        assert!(!super::formula_synthesis_allowed(false, 1, 0));
+        assert!(!super::formula_synthesis_allowed(false, 0, 2));
+        // With geometry, unpaired regions synthesize regardless of text.
+        assert!(super::formula_synthesis_allowed(true, 3, 1));
+    }
+
+    #[test]
     fn overlap_ratio_is_intersection_over_smaller_area() {
         let big = pt_box(0.0, 0.0, 100.0, 100.0);
         let small = pt_box(50.0, 50.0, 150.0, 150.0);
@@ -928,6 +939,17 @@ fn assign_formula_slots(
             })
         })
         .collect()
+}
+
+/// Whether an unpaired detection may become a new formula on this page.
+///
+/// Without region geometry, a count mismatch cannot pair regions with the
+/// existing formula text, so a synthesized formula would duplicate one the
+/// page already carries. Synthesis is safe when geometry exists, or when the
+/// page carries no formula text at all (then there is nothing to duplicate).
+#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
+fn formula_synthesis_allowed(has_region_geometry: bool, formula_slot_count: usize, element_slot_count: usize) -> bool {
+    has_region_geometry || (formula_slot_count == 0 && element_slot_count == 0)
 }
 
 /// Per-page MediaBox sizes in points, for mapping detection bboxes into PDF
@@ -1034,14 +1056,26 @@ async fn recognize_pdf_formula_regions(
                     .collect()
             });
             if need_geometry && (!formula_slots.is_empty() || !elements.is_empty()) {
-                tracing::warn!(
-                    page = page_number,
-                    detections = regions.len(),
-                    formulas = formula_slots.len(),
-                    elements = elements.len(),
-                    "formula counts differ from detections; pairing regions by bounding-box overlap"
-                );
+                if regions_pts.is_some() {
+                    tracing::warn!(
+                        page = page_number,
+                        detections = regions.len(),
+                        formulas = formula_slots.len(),
+                        elements = elements.len(),
+                        "formula counts differ from detections; pairing regions by bounding-box overlap"
+                    );
+                } else {
+                    tracing::warn!(
+                        page = page_number,
+                        detections = regions.len(),
+                        formulas = formula_slots.len(),
+                        elements = elements.len(),
+                        "formula counts differ from detections and the page geometry is unavailable; keeping OCR text on this page"
+                    );
+                }
             }
+            let allow_synthesis =
+                formula_synthesis_allowed(regions_pts.is_some(), formula_slots.len(), elements.len());
             let formula_boxes: Vec<Option<crate::types::BoundingBox>> = formula_slots.iter().map(|f| f.bbox).collect();
             let element_boxes: Vec<Option<crate::types::BoundingBox>> =
                 elements.iter().map(|(bbox, _)| *bbox).collect();
@@ -1049,6 +1083,9 @@ async fn recognize_pdf_formula_regions(
             let element_assign = assign_formula_slots(regions.len(), &element_boxes, regions_pts.as_deref());
 
             for (region_idx, region) in regions.iter().enumerate() {
+                if formula_assign[region_idx].is_none() && element_assign[region_idx].is_none() && !allow_synthesis {
+                    continue;
+                }
                 let Some((x, y, w, h)) = region.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
                     continue;
                 };
@@ -1064,7 +1101,7 @@ async fn recognize_pdf_formula_regions(
                             *entry.1 = latex.clone();
                             replaced = true;
                         }
-                        if !replaced {
+                        if !replaced && allow_synthesis {
                             let bbox = regions_pts.as_ref().map(|pts| pts[region_idx]).unwrap_or_else(|| {
                                 crate::types::BoundingBox {
                                     x0: f64::from(x),
