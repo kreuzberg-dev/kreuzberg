@@ -1020,7 +1020,8 @@ pub(crate) async fn extract_mixed_ocr_native(
         ocr_config_resolved.acceleration = config.acceleration.clone();
     }
 
-    let batch_size = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
+    let batch_size =
+        crate::core::config::concurrency::resolve_ocr_concurrency(&ocr_config_resolved, config.concurrency.as_ref());
 
     let capture_rasters = config.images.as_ref().is_some_and(|c| c.include_page_rasters);
     let ocr_config_owned = ensure_elements_enabled(&ocr_config_resolved);
@@ -2401,7 +2402,8 @@ pub(crate) async fn extract_with_ocr(
     #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
     use tokio::task::JoinSet;
 
-    let configured_batch_size = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
+    let configured_batch_size =
+        crate::core::config::concurrency::resolve_ocr_concurrency(ocr_config, config.concurrency.as_ref());
 
     let batch_size = if images.is_none() {
         adapt_batch_size_to_memory(configured_batch_size, content.map(|b| b.len()).unwrap_or(0))

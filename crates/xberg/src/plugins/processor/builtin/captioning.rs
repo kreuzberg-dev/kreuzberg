@@ -83,10 +83,11 @@ impl PostProcessor for CaptioningProcessor {
         use std::collections::VecDeque;
         use tokio::task::JoinSet;
 
-        // Bound VLM captioning concurrency by the configured thread budget so an
-        // image-heavy document does not spawn an unbounded number of in-flight VLM
-        // requests. Mirrors the image-OCR path's replenished task set (#1378).
-        let max_tasks = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
+        // Bound VLM captioning concurrency by the per-LLM request limit when set,
+        // falling back to the configured thread budget for backward compatibility.
+        // Mirrors the image-OCR path's replenished task set (#1378).
+        let max_tasks =
+            crate::core::config::concurrency::resolve_llm_concurrency(&caption_config.llm, config.concurrency.as_ref());
 
         type CaptionOutcome = crate::Result<(String, Option<crate::types::LlmUsage>)>;
         type PendingCaptionTask = (usize, bytes::Bytes, &'static str);

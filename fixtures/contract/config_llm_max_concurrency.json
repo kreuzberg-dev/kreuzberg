@@ -1,0 +1,53 @@
+{
+	"id": "config_llm_max_concurrency",
+	"description": "Tests that LLM max_concurrency is accepted independently of the extraction thread budget",
+	"docs": {
+		"topic": "contract",
+		"title": "Configure per-LLM concurrency",
+		"description": "Tests that LLM max_concurrency is accepted independently of the extraction thread budget",
+		"side_effects": "server"
+	},
+	"tags": ["contract", "config", "llm", "concurrency"],
+	"call": "extract",
+	"input": {
+		"mock_responses": [
+			{
+				"path": "/text/report.txt",
+				"status_code": 200,
+				"headers": {
+					"content-type": "application/octet-stream"
+				},
+				"body_file": "../test_documents/text/report.txt"
+			}
+		],
+		"extract_input": {
+			"kind": "uri",
+			"uri": "$mock_url/text/report.txt",
+			"mime_type": "text/plain"
+		}
+	},
+	"assertions": [
+		{
+			"type": "equals",
+			"field": "results[0].mime_type",
+			"value": "text/plain"
+		},
+		{
+			"type": "min_length",
+			"field": "results[0].content",
+			"value": 5
+		}
+	],
+	"config": {
+		"concurrency": {
+			"max_threads": 8
+		},
+		"captioning": {
+			"llm": {
+				"model": "openai/gpt-4o",
+				"max_concurrency": 2
+			},
+			"min_image_area": 1000
+		}
+	}
+}

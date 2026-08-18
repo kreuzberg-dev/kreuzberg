@@ -286,6 +286,22 @@ pub struct LlmConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub credential_provider: Option<Box<CredentialProviderConfig>>,
+
+    /// Maximum number of in-flight VLM requests spawned by one extraction operation.
+    ///
+    /// VLM OCR and image captioning use this value to bound their asynchronous
+    /// request fan-out independently of [`super::ConcurrencyConfig::max_threads`].
+    /// Concurrent document extractions each receive their own allowance; combine
+    /// this with [`super::ExtractionConfig::max_concurrent_extractions`] or a
+    /// deployment-level worker limit when aggregate provider concurrency must also
+    /// be bounded. When `None`, those features retain the existing behavior and use
+    /// the extraction thread budget. Values below 1 are clamped to 1.
+    ///
+    /// This field is intentionally last to preserve positional constructor
+    /// compatibility in generated language bindings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "alef-meta", alef(since = "1.2.0"))]
+    pub max_concurrency: Option<usize>,
 }
 
 impl LlmConfig {
@@ -602,6 +618,7 @@ impl std::fmt::Debug for LlmConfig {
             .field("health_check_secs", &self.health_check_secs)
             .field("bedrock", &self.bedrock)
             .field("credential_provider", &self.credential_provider)
+            .field("max_concurrency", &self.max_concurrency)
             .finish()
     }
 }
@@ -743,6 +760,7 @@ mod tests {
         assert!(cfg.base_url.is_none());
         assert!(cfg.timeout_secs.is_none());
         assert!(cfg.max_retries.is_none());
+        assert!(cfg.max_concurrency.is_none());
         assert!(cfg.temperature.is_none());
         assert!(cfg.max_tokens.is_none());
         assert!(cfg.top_p.is_none());
@@ -779,6 +797,7 @@ mod tests {
         assert!(cfg.base_url.is_none());
         assert!(cfg.timeout_secs.is_none());
         assert!(cfg.max_retries.is_none());
+        assert!(cfg.max_concurrency.is_none());
         assert!(cfg.temperature.is_none());
         assert!(cfg.max_tokens.is_none());
         assert!(cfg.top_p.is_none());
@@ -820,6 +839,22 @@ load_env = true
         let headers = cfg.headers.as_ref().expect("headers present");
         assert_eq!(headers.get("X-Gateway-Key").map(String::as_str), Some("abc123"));
         assert_eq!(headers.get("X-Tenant").map(String::as_str), Some("acme"));
+
+        let round_tripped: LlmConfig =
+            serde_json::from_str(&serde_json::to_string(&cfg).expect("serialize")).expect("deserialize");
+        assert_eq!(round_tripped, cfg);
+    }
+
+    #[test]
+    fn test_llm_config_max_concurrency_round_trip() {
+        let cfg: LlmConfig = toml::from_str(
+            r#"
+model = "openai/gpt-4o"
+max_concurrency = 3
+"#,
+        )
+        .expect("deserialize LlmConfig from TOML");
+        assert_eq!(cfg.max_concurrency, Some(3));
 
         let round_tripped: LlmConfig =
             serde_json::from_str(&serde_json::to_string(&cfg).expect("serialize")).expect("deserialize");
