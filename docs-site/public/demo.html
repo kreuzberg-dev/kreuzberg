@@ -636,7 +636,7 @@
               // externally-injected JS backend and has no in-binary fallback, and the
               // injection point is only reachable through XbergEngine::new(config,
               // injection) -- not the free extract() this worker calls. A previous
-              // `if (typeof mod.enableOcr === 'function')` probe was dead code: no
+              // if (typeof mod.enableOcr === 'function') probe was dead code: no
               // such export has ever existed. Scanned PDFs and images therefore
               // return whatever text layer they already carry, and nothing more.
               self.postMessage({ type: 'progress', msg: 'Extracting content…' });
