@@ -123,6 +123,17 @@ pub(crate) async fn openweb_docling_handler(
 ) -> Result<Json<DoclingCompatResponse>, ApiError> {
     let mut file_data: Option<(Vec<u8>, String)> = None;
     let mut config_json: Option<String> = None;
+    let mut flat_config = serde_json::Map::new();
+
+    // OpenWebUI's Docling client sends one form field per parameter rather than a JSON blob,
+    // so the keys of the serialized base config are what identify a field as configuration.
+    // Matching on them keeps Docling's own knobs (`image_export_mode`,
+    // `md_page_break_placeholder`) ignored instead of failing the whole request against
+    // `ExtractionConfig`'s `deny_unknown_fields`.
+    let config_keys = match serde_json::to_value(&*state.default_config) {
+        Ok(serde_json::Value::Object(keys)) => keys,
+        _ => serde_json::Map::new(),
+    };
 
     while let Some(field) = multipart
         .next_field()
@@ -152,8 +163,8 @@ pub(crate) async fn openweb_docling_handler(
 
                 file_data = Some((data.to_vec(), mime_type));
             }
-            // OpenWebUI's Docling engine sends extraction parameters as a form field. Accept
-            // the /extract field name "config" as well as OpenWebUI's own "parameters" label.
+            // A client that sends the whole config as one JSON blob: the /extract field name
+            // "config", or the "parameters" label.
             "config" | "parameters" => {
                 let text = field
                     .text()
@@ -163,8 +174,19 @@ pub(crate) async fn openweb_docling_handler(
                     config_json = Some(text);
                 }
             }
+            name if config_keys.contains_key(name) => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::validation(crate::error::XbergError::validation(e.to_string())))?;
+                flat_config.insert(name.to_string(), form_value_to_json(&text));
+            }
             _ => {}
         }
+    }
+
+    if config_json.is_none() && !flat_config.is_empty() {
+        config_json = Some(serde_json::Value::Object(flat_config).to_string());
     }
 
     let (data, mime_type) = file_data.ok_or_else(|| {
@@ -195,6 +217,18 @@ pub(crate) async fn openweb_docling_handler(
         },
         status: "success".to_string(),
     }))
+}
+
+/// Convert one multipart form value into JSON for the config merge.
+///
+/// Form values are always strings, and OpenWebUI's Python client renders booleans as
+/// `True`/`False`, which no JSON parser accepts.
+fn form_value_to_json(raw: &str) -> serde_json::Value {
+    match raw.trim() {
+        "True" => serde_json::Value::Bool(true),
+        "False" => serde_json::Value::Bool(false),
+        trimmed => serde_json::from_str(trimmed).unwrap_or_else(|_| serde_json::Value::String(raw.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -254,6 +288,52 @@ mod tests {
         }
         body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
         body
+    }
+
+    /// A body in the shape OpenWebUI's `DoclingLoader` actually sends: the file plus one
+    /// form field per parameter, rather than a single JSON blob.
+    fn docling_body_with_fields(boundary: &str, fields: &[(&str, &str)]) -> Vec<u8> {
+        let mut body = Vec::new();
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"plain.txt\"\r\nContent-Type: text/plain\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(&fixture_bytes());
+        body.extend_from_slice(b"\r\n");
+        for (name, value) in fields {
+            body.extend_from_slice(
+                format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n")
+                    .as_bytes(),
+            );
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        body
+    }
+
+    async fn docling_flat_response(fields: &[(&str, &str)]) -> (StatusCode, String) {
+        let app = test_router();
+        let boundary = "flatboundary";
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(docling_body_with_fields(boundary, fields)))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let content = serde_json::from_slice::<DoclingCompatResponse>(&bytes)
+            .map(|parsed| parsed.document.md_content)
+            .unwrap_or_default();
+        (status, content)
     }
 
     async fn docling_md_content(config: Option<&str>) -> String {
@@ -448,6 +528,99 @@ mod tests {
             markdown, json,
             "config output_format should change the rendered content"
         );
+    }
+
+    /// OpenWebUI flattens its parameters into one form field per key, so a flattened field
+    /// has to reach the config instead of being dropped.
+    #[tokio::test]
+    async fn openweb_docling_flat_form_field_changes_output() {
+        let markdown = docling_md_content(None).await;
+        let (status, json) = docling_flat_response(&[("output_format", "json")]).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(markdown, json, "a flattened output_format field must reach the config");
+    }
+
+    /// `image_export_mode` and `md_page_break_placeholder` are Docling's own parameters and
+    /// are sent on every OpenWebUI request. They have no xberg equivalent, so they must stay
+    /// ignored rather than failing the request.
+    #[tokio::test]
+    async fn openweb_docling_ignores_docling_only_form_fields() {
+        let markdown = docling_md_content(None).await;
+        let (status, json) = docling_flat_response(&[
+            ("image_export_mode", "placeholder"),
+            ("md_page_break_placeholder", "\u{c}"),
+            ("output_format", "json"),
+        ])
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_ne!(markdown, json);
+    }
+
+    /// The parameter set from the report, in the encoding OpenWebUI's Python client produces:
+    /// every value a string, booleans rendered `True`/`False`. `output_format` carries the
+    /// assertion because the reporter's own values all render identically to the defaults,
+    /// which is why the bug was invisible from the response alone.
+    #[tokio::test]
+    async fn openweb_docling_accepts_python_rendered_form_values() {
+        let markdown = docling_md_content(None).await;
+        let (status, json) = docling_flat_response(&[
+            ("image_export_mode", "placeholder"),
+            ("force_ocr", "False"),
+            ("output_format", "json"),
+            ("extraction_timeout_secs", "7200"),
+            ("disable_ocr", "True"),
+        ])
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "Python-rendered values must coerce, not 400");
+        assert_ne!(markdown, json, "the flattened parameters must reach the config");
+    }
+
+    /// An explicit JSON blob keeps precedence over flattened fields.
+    #[tokio::test]
+    async fn openweb_docling_config_blob_wins_over_flat_fields() {
+        let app = test_router();
+        let boundary = "bothboundary";
+        let mut body = docling_body_with_fields(boundary, &[("output_format", "json")]);
+        let closing = format!("--{boundary}--\r\n");
+        body.truncate(body.len() - closing.len());
+        body.extend_from_slice(
+            format!("--{boundary}\r\nContent-Disposition: form-data; name=\"config\"\r\n\r\n{{\"output_format\":\"markdown\"}}\r\n")
+                .as_bytes(),
+        );
+        body.extend_from_slice(closing.as_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/convert/file")
+                    .header("content-type", format!("multipart/form-data; boundary={boundary}"))
+                    .body(Body::from(body))
+                    .expect("valid request"),
+            )
+            .await
+            .expect("handler responded");
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body bytes readable");
+        let content = serde_json::from_slice::<DoclingCompatResponse>(&bytes)
+            .expect("response parses")
+            .document
+            .md_content;
+
+        assert_eq!(content, docling_md_content(None).await, "the blob must win");
+    }
+
+    #[test]
+    fn form_values_coerce_python_literals_and_numbers() {
+        assert_eq!(form_value_to_json("True"), serde_json::json!(true));
+        assert_eq!(form_value_to_json("False"), serde_json::json!(false));
+        assert_eq!(form_value_to_json("7200"), serde_json::json!(7200));
+        assert_eq!(form_value_to_json("markdown"), serde_json::json!("markdown"));
     }
 
     /// The Docling endpoint honors the server's user config as the base when no per-request
