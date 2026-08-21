@@ -368,6 +368,7 @@ mod tests {
         let baseline = create_test_config();
         let baseline_hash = hash_config(&baseline);
 
+        #[allow(clippy::type_complexity)]
         let flips: Vec<(&str, Box<dyn Fn(&mut TesseractConfig)>)> = vec![
             (
                 "classify_use_pre_adapted_templates",

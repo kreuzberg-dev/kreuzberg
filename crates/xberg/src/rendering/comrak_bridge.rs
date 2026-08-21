@@ -512,13 +512,13 @@ const BULLET_MARKER_CHARS: &[char] = &['-', '*', '•', '‣', '◦'];
 /// marker is present, leaving genuine content untouched.
 fn redundant_list_marker_len(text: &str) -> usize {
     let mut chars = text.chars();
-    if let Some(first) = chars.next() {
-        if BULLET_MARKER_CHARS.contains(&first) {
-            let bullet_len = first.len_utf8();
-            let rest = &text[bullet_len..];
-            let space_len = rest.len() - rest.trim_start_matches(' ').len();
-            return if space_len > 0 { bullet_len + space_len } else { 0 };
-        }
+    if let Some(first) = chars.next()
+        && BULLET_MARKER_CHARS.contains(&first)
+    {
+        let bullet_len = first.len_utf8();
+        let rest = &text[bullet_len..];
+        let space_len = rest.len() - rest.trim_start_matches(' ').len();
+        return if space_len > 0 { bullet_len + space_len } else { 0 };
     }
 
     let digits_len = text.find(|c: char| !c.is_ascii_digit()).unwrap_or(text.len());

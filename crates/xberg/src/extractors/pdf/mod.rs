@@ -294,6 +294,7 @@ fn select_native_pdf_document(
 }
 
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[allow(clippy::too_many_arguments)]
 fn select_pdf_document(
     extraction_method: ExtractionMethod,
     text: &str,

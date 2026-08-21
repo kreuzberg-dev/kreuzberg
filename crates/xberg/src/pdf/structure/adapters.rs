@@ -1719,6 +1719,7 @@ fn make_ocr_paragraph(
 }
 
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[allow(clippy::too_many_arguments)]
 fn make_ocr_pdf_line(
     text: &str,
     x: f32,
