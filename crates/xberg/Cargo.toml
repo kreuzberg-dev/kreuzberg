@@ -164,6 +164,12 @@ ocr = [
 # so the runtime tessdata resolver can materialize English OCR offline without a
 # network download. Forwarded to xberg-tesseract.
 bundle-tessdata-eng = ["xberg-tesseract/bundle-tessdata-eng"]
+# Link the host's Tesseract and Leptonica instead of downloading and building vendored copies.
+# The vendored path fetches sources over the network at build time, so it cannot run in a
+# network-isolated build such as a conda-forge recipe or a distro package. Additive: it takes
+# precedence inside xberg-tesseract's build script rather than needing the default switched off,
+# which a dependent cannot do. Forwarded to xberg-tesseract.
+tesseract-dynamic = ["xberg-tesseract?/system-linking"]
 # WASM OCR: Minimal Tesseract backend without html-to-markdown (which has WASI imports)
 # Includes only the core OCR processing dependencies needed for Tesseract on WASM
 ocr-wasm = [

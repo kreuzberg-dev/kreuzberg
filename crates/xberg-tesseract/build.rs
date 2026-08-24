@@ -1873,12 +1873,21 @@ Installation instructions:
 }
 
 fn main() {
-    #[cfg(any(feature = "build-tesseract", feature = "build-tesseract-wasm"))]
+    // `dynamic-linking` is an explicit opt out of the vendored build, so it outranks the
+    // default `build-tesseract` rather than being ignored beside it. Cargo features are
+    // additive and a dependent cannot switch off a dependency's defaults, so precedence here
+    // is the only way a network-isolated build -- a conda-forge recipe, a distro package --
+    // can ask for the system libraries. `build-tesseract-wasm` still wins: that target has no
+    // system Tesseract to link against. ~keep
+    #[cfg(any(
+        feature = "build-tesseract-wasm",
+        all(feature = "build-tesseract", not(feature = "dynamic-linking"))
+    ))]
     {
         build_tesseract::build();
     }
 
-    #[cfg(all(feature = "dynamic-linking", not(feature = "build-tesseract")))]
+    #[cfg(all(feature = "dynamic-linking", not(feature = "build-tesseract-wasm")))]
     {
         eprintln!("Using dynamic linking with system-installed Tesseract libraries");
         println!("cargo:rustc-link-lib=dylib=tesseract");
