@@ -66,10 +66,14 @@ pub(super) struct ManifestItem {
 
 #[allow(dead_code)]
 impl ManifestItem {
+    /// `text/html` is not an EPUB core media type, but real-world EPUB 3 files
+    /// (Internet Archive builds, for one) declare every page with it while the
+    /// payload is XHTML. The spine loop parses the payload as XML either way, so
+    /// accepting the label costs nothing and rescues whole books. ~keep
     pub(super) fn is_renderable_body_document(&self) -> bool {
         matches!(
             self.media_type.as_deref(),
-            Some("application/xhtml+xml") | Some("application/x-dtbook+xml")
+            Some("application/xhtml+xml") | Some("application/x-dtbook+xml") | Some("text/html")
         ) || self.media_type.is_none() && has_renderable_extension(&self.raw_href)
     }
 
@@ -401,5 +405,19 @@ mod tests {
             .expect_err("an OPF deeper than the configured limit should be rejected");
 
         assert!(error.to_string().contains("Nesting too deep"));
+    }
+
+    #[test]
+    fn should_treat_text_html_manifest_items_as_renderable() {
+        let xml = r#"<package><metadata><title>Book</title></metadata><manifest>
+            <item id="page" href="page_0.html" media-type="text/html"/>
+            <item id="css" href="style.css" media-type="text/css"/>
+        </manifest></package>"#;
+        let mut budget = SecurityBudget::from_limits(&SecurityLimits::default());
+
+        let (package, _) = parse_opf(xml, "EPUB", &mut budget).expect("OPF should parse");
+
+        assert!(package.manifest["page"].is_renderable_body_document());
+        assert!(!package.manifest["css"].is_renderable_body_document());
     }
 }
