@@ -79,7 +79,7 @@ fn build_internal_document(content: &[u8], mime_type: &str, budget: &mut Securit
                     }
                 }
 
-                let level = ((depth as u8) + 1).min(6);
+                let level = depth.saturating_add(1).min(6) as u8;
                 let mut elem =
                     InternalElement::text(ElementKind::Heading { level }, &name_owned, depth).with_index(index);
                 if !attrs.is_empty() {
@@ -130,7 +130,7 @@ fn build_internal_document(content: &[u8], mime_type: &str, budget: &mut Securit
                     }
                 }
 
-                let level = ((depth as u8) + 1).min(6);
+                let level = depth.saturating_add(1).min(6) as u8;
                 let mut elem = InternalElement::text(ElementKind::Heading { level }, &name, depth).with_index(index);
                 if !attrs.is_empty() {
                     elem = elem.with_attributes(attrs);
@@ -316,6 +316,43 @@ mod tests {
         assert_eq!(xml_meta.element_count, 3);
         assert!(xml_meta.unique_elements.contains(&"root".to_string()));
         assert!(xml_meta.unique_elements.contains(&"item".to_string()));
+    }
+
+    /// `depth` is a `u16` and the heading level a `u8`, so casting before the `min(6)`
+    /// overflowed at depth 255: a panic in debug, a wrapped level 0 in release. The default
+    /// `max_nesting_depth` is 1024, so that depth is reachable by a valid document.
+    #[test]
+    fn should_clamp_heading_levels_for_xml_nested_past_the_u8_boundary() {
+        const DEPTH: usize = 300;
+        let mut content = String::new();
+        for i in 0..DEPTH {
+            content.push_str(&format!("<e{i}>"));
+        }
+        content.push_str("leaf");
+        for i in (0..DEPTH).rev() {
+            content.push_str(&format!("</e{i}>"));
+        }
+
+        let config = ExtractionConfig::default();
+        let mut budget = SecurityBudget::from_config(&config);
+        let doc = build_internal_document(content.as_bytes(), "application/xml", &mut budget)
+            .expect("a document within max_nesting_depth must extract");
+
+        let levels: Vec<u8> = doc
+            .elements
+            .iter()
+            .filter_map(|element| match element.kind {
+                ElementKind::Heading { level } => Some(level),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(levels.len(), DEPTH, "every element should yield a heading");
+        assert!(
+            levels.iter().all(|level| (1..=6).contains(level)),
+            "heading levels must stay within 1..=6, saw {:?}",
+            levels.iter().collect::<std::collections::BTreeSet<_>>()
+        );
     }
 
     #[test]
