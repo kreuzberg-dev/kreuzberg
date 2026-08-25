@@ -312,6 +312,15 @@ pub struct ZipBombValidator {
     feature = "excel"
 ))]
 impl ZipBombValidator {
+    /// Smallest uncompressed member size the per-member ratio cap applies to.
+    ///
+    /// The ratio cap guards against one member that inflates to hundreds of
+    /// megabytes. A member measured in kilobytes cannot exhaust memory whatever
+    /// its ratio, and blank-page JPEGs, empty stylesheets and whitespace-padded
+    /// pages routinely deflate past 100:1 (GH#1496). The total-size cap and the
+    /// whole-archive ratio cap still bound the aggregate.
+    const MEMBER_RATIO_FLOOR: u64 = 1024 * 1024;
+
     /// Create a new ZIP bomb validator.
     pub(crate) fn new(limits: SecurityLimits) -> Self {
         Self { limits }
@@ -367,7 +376,7 @@ impl ZipBombValidator {
             total_uncompressed = total_uncompressed.saturating_add(uncompressed_size);
             total_compressed = total_compressed.saturating_add(compressed_size);
 
-            if uncompressed_size > 0 {
+            if uncompressed_size > 0 && (compressed_size == 0 || uncompressed_size >= Self::MEMBER_RATIO_FLOOR) {
                 // A zero compressed size paired with a non-zero uncompressed size cannot be
                 // produced by any compressor; treating it as an unbounded ratio stops the
                 // entry from slipping past this check on a division it never performs. ~keep
@@ -1171,5 +1180,59 @@ mod tests {
             resolve_container_entry("word", "/media/image1.png"),
             Ok("media/image1.png".to_string())
         );
+    }
+
+    /// Bytes that deflate to about their own size, like a photograph.
+    #[cfg(feature = "office")]
+    fn incompressible(len: usize) -> Vec<u8> {
+        let mut state = 0x9E37_79B9u32;
+        (0..len)
+            .map(|_| {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                (state >> 24) as u8
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "office")]
+    fn deflated_archive(members: &[(&str, Vec<u8>)]) -> zip::ZipArchive<std::io::Cursor<Vec<u8>>> {
+        use std::io::Write;
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            for (name, bytes) in members {
+                writer.start_file(*name, options).expect("start_file");
+                writer.write_all(bytes).expect("write");
+            }
+            writer.finish().expect("finish");
+        }
+        cursor.set_position(0);
+        zip::ZipArchive::new(cursor).expect("archive")
+    }
+
+    #[cfg(feature = "office")]
+    #[test]
+    fn zip_bomb_ratio_cap_ignores_small_members_and_keeps_large_ones() {
+        let validator = ZipBombValidator::new(SecurityLimits::default());
+
+        // A blank-page image that deflates past 100:1 next to a real photograph:
+        // the whole-archive ratio stays near 1:1, so only the per-member cap decides.
+        let mut small = deflated_archive(&[
+            ("blank.jpg", vec![b'A'; 200 * 1024]),
+            ("photo.jpg", incompressible(2 * 1024 * 1024)),
+        ]);
+        validator
+            .validate(&mut small)
+            .expect("a 200 KiB member past the ratio cap is not a bomb");
+
+        let mut large = deflated_archive(&[
+            ("bomb.bin", vec![b'A'; 8 * 1024 * 1024]),
+            ("photo.jpg", incompressible(2 * 1024 * 1024)),
+        ]);
+        let error = validator
+            .validate(&mut large)
+            .expect_err("an 8 MiB member past the ratio cap is rejected");
+        assert!(matches!(error, SecurityError::ZipBombDetected { .. }), "{error}");
     }
 }
