@@ -602,18 +602,23 @@ async fn test_epub_manifest_fallback_resolves_renderable_body_document() {
 }
 
 #[tokio::test]
-async fn test_epub_rejects_manifest_paths_that_escape_package_root() {
+async fn test_epub_skips_manifest_paths_that_escape_package_root_with_a_warning() {
     let bytes = build_epub_with_root_escaping_manifest_href();
     let extractor = EpubExtractor;
 
-    let err = extractor
+    let result = extractor
         .extract_content(&bytes, "application/epub+zip", &ExtractionConfig::default())
         .await
-        .expect_err("EPUB extraction should reject root-escaping manifest paths");
+        .expect("one unsafe spine href must not fail the whole book");
 
+    assert!(content(&result).trim().is_empty(), "the escaping item must not be read");
     assert!(
-        err.to_string().contains("escapes the package root"),
-        "Expected root-escape validation error, got: {err}"
+        result
+            .processing_warnings
+            .iter()
+            .any(|warning| warning.message.contains("escapes the package root")),
+        "Expected a root-escape warning, got: {:?}",
+        result.processing_warnings
     );
 }
 

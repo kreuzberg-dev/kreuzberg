@@ -66,17 +66,19 @@ pub(super) fn read_body_documents(
             }
         };
 
-        let file_path =
-            render_item
-                .resolved_path()
-                .map(str::to_owned)
-                .map_err(|message| crate::XbergError::Parsing {
-                    message: format!(
-                        "Unsafe manifest href for spine item '{}' (href '{}'): {}",
+        let file_path = match render_item.resolved_path() {
+            Ok(path) => path.to_owned(),
+            Err(message) => {
+                warnings.push(ProcessingWarning {
+                    source: std::borrow::Cow::Borrowed("epub"),
+                    message: std::borrow::Cow::Owned(format!(
+                        "Skipping spine item '{}' (href '{}'): unsafe manifest href: {}",
                         spine_item.idref, render_item.raw_href, message
-                    ),
-                    source: None,
-                })?;
+                    )),
+                });
+                continue;
+            }
+        };
         let guide_toc_candidate = source_item
             .path
             .as_deref()
