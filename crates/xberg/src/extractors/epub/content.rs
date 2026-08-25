@@ -36,9 +36,11 @@ pub(super) struct EpubSpineDocument {
 pub(super) fn read_body_documents(
     archive: &mut ZipArchive<Cursor<Vec<u8>>>,
     package: &EpubPackageDocument,
+    encrypted_members: &std::collections::BTreeSet<String>,
 ) -> crate::Result<(Vec<EpubSpineDocument>, Vec<ProcessingWarning>)> {
     let mut documents = Vec::new();
     let mut warnings = Vec::new();
+    let mut encrypted_count = 0usize;
 
     for spine_item in &package.spine_items {
         let Some(source_item) = package.manifest.get(&spine_item.idref) else {
@@ -95,6 +97,11 @@ pub(super) fn read_body_documents(
                 .as_deref()
                 .is_some_and(|path| package.is_guide_toc_candidate_path(path));
 
+        if encrypted_members.contains(&file_path) {
+            encrypted_count += 1;
+            continue;
+        }
+
         match read_file_from_zip(archive, &file_path) {
             Ok(raw_xhtml) => {
                 let normalized_xhtml = normalize_xhtml(&raw_xhtml);
@@ -135,6 +142,17 @@ pub(super) fn read_body_documents(
                 });
             }
         }
+    }
+
+    if encrypted_count > 0 {
+        warnings.push(ProcessingWarning {
+            source: std::borrow::Cow::Borrowed("epub"),
+            message: std::borrow::Cow::Owned(format!(
+                "The EPUB is encrypted (DRM): {} of {} spine items are listed in META-INF/encryption.xml and were skipped",
+                encrypted_count,
+                package.spine_items.len()
+            )),
+        });
     }
 
     Ok((documents, warnings))
