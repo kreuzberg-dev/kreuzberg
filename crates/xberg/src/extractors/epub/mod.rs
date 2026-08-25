@@ -766,9 +766,12 @@ impl InternalDocumentExtractor for EpubExtractor {
         doc.processing_warnings.extend(processing_warnings);
 
         let output_format = doc.metadata.output_format.take();
+        let creators = package.metadata.creators;
+        let subjects = package.metadata.subjects;
         doc.metadata = Metadata {
             title: package.metadata.title,
-            authors: package.metadata.creator.map(|c| vec![c]),
+            authors: (!creators.is_empty()).then_some(creators),
+            keywords: (!subjects.is_empty()).then_some(subjects),
             language: package.metadata.language,
             created_at: package.metadata.date,
             format: Some(epub_format_metadata),
