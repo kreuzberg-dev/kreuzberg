@@ -762,7 +762,7 @@ impl InternalDocumentExtractor for EpubExtractor {
             Default::default()
         };
         let (spine_documents, mut body_warnings) =
-            content::read_body_documents(&mut archive, &package, &encrypted_members)?;
+            content::read_body_documents(&mut archive, &package, &encrypted_members, budget.depth_limit())?;
         processing_warnings.append(&mut body_warnings);
 
         let metadata_map: AHashMap<Cow<'static, str>, serde_json::Value> = additional_metadata
