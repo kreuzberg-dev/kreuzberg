@@ -410,6 +410,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- EPUB chapters that use HTML named entities such as `&nbsp;` next to a `style` or `script`
+  substring in any tag are extracted again. The entities are expanded before the XML parse, a
+  leading byte order mark no longer defeats the prelude stripper, and a chapter that is still not
+  well-formed XML now emits a warning that names the file instead of vanishing silently (#1488).
+- EPUB navigation documents are identified from the package (`properties="nav"` and the EPUB 2
+  guide `toc` reference) instead of a link-count heuristic, so bibliographies, endnotes, licence
+  pages and chapter overview pages stay in plain-text output. Image-only spine pages such as covers,
+  plates and fixed-layout pages now reach the image pipeline, and SVG spine documents render their
+  text (#1489).
+- A deeply nested EPUB chapter no longer overflows the stack and ends the process; the text walks
+  stop at the configured XML depth limit (#1490).
+- One EPUB spine item with an unsafe manifest href no longer fails the whole book; it is skipped with
+  a warning. Markdown conversion warnings are now reported, and a warning names the skipped items
+  when the iteration limit stops the spine loop (#1491).
+- EPUB metadata keeps every creator as an author and every subject as a keyword, keeps the main
+  title instead of the last one, prefers the publication date over the modification date, and finds
+  EPUB 3 `cover-image` covers while ignoring cover references that point at an XHTML page (#1492).
+- EPUB rendering keeps the rows of a table that contains a nested table, removes the line-break
+  sentinel from headings that contain `<br>`, strips the serialised MathML comment from Markdown
+  output, and renders the alt text of an image that cannot be resolved (#1493).
+- EPUB members declared in a non-UTF-8 encoding or written in UTF-16 are decoded instead of skipped,
+  and books with DRM listed in `META-INF/encryption.xml` report one warning instead of blaming the
+  encoding or emitting ciphertext as text (#1494).
 - Benchmark Tesseract cache isolation now preserves automatic page-segmentation and sparse-image
   fallback behavior, preventing valid receipt OCR from being reclassified as zero-overlap output.
 - Windows Ruby gem builds now keep MSVC-only C++ flags out of the MinGW toolchain when compiling
