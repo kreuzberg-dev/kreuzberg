@@ -2,7 +2,8 @@ name: Validate PR
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+    branches: [main]
 
 permissions:
   contents: read
@@ -11,5 +12,6 @@ permissions:
 
 jobs:
   validate:
+    if: github.event.pull_request.draft != true
     uses: xberg-io/actions/.github/workflows/reusable-validate-pr.yml@v1
     secrets: inherit

@@ -15,6 +15,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/ci-mobile.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "crates/xberg/**"
@@ -46,7 +47,7 @@ permissions:
 jobs:
   android-check:
     name: Android cargo check (${{ matrix.abi }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -67,7 +68,7 @@ jobs:
 
   ios-check:
     name: iOS cargo check (${{ matrix.target }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: macos-latest
     timeout-minutes: 30
     strategy:

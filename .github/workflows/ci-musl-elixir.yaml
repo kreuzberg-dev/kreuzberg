@@ -38,6 +38,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/ci-musl-elixir.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths: *musl-elixir-paths
   schedule:
@@ -56,7 +57,7 @@ permissions:
 jobs:
   musl-elixir-nif:
     name: Build + smoke-test Elixir NIF (linux-musl-${{ matrix.arch }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:

@@ -25,6 +25,7 @@ on:
       - ".agents/plugins/**"
       - "test_documents"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "crates/**"
@@ -58,6 +59,7 @@ permissions:
 
 jobs:
   benchmark-scripts:
+    if: github.event.pull_request.draft != true
     name: Benchmark script regressions
     runs-on: ubuntu-latest
     steps:
@@ -68,6 +70,7 @@ jobs:
         run: task benchmark:validate:scripts
 
   plugin-freshness:
+    if: github.event.pull_request.draft != true
     name: Plugin bundle freshness
     runs-on: ubuntu-latest
     steps:
@@ -87,6 +90,7 @@ jobs:
         run: uvx ai-rulez==4.11.0 verify --recursive --plugin --if-configured
 
   submodule-gitlinks:
+    if: github.event.pull_request.draft != true
     name: Submodule gitlinks reachable
     runs-on: ubuntu-latest
     steps:
@@ -104,6 +108,7 @@ jobs:
         run: scripts/ci/check-submodule-gitlinks.sh --on-fetch-failure=fail
 
   alef-readme-paths:
+    if: github.event.pull_request.draft != true
     name: Alef readme/docs paths resolve
     runs-on: ubuntu-latest
     steps:
@@ -152,6 +157,7 @@ jobs:
         run: task docs:verify:changelog
 
   alef-bindings-freshness:
+    if: github.event.pull_request.draft != true
     name: Alef-generated bindings freshness
     runs-on: ubuntu-latest
     steps:
@@ -219,6 +225,7 @@ jobs:
         run: task alef:verify
 
   e2e-freshness:
+    if: github.event.pull_request.draft != true
     name: Generated e2e suites freshness
     runs-on: ubuntu-latest
     steps:
@@ -291,6 +298,7 @@ jobs:
         run: task e2e:verify
 
   docs-snippets:
+    if: github.event.pull_request.draft != true
     name: Docs snippets gate
     runs-on: ubuntu-latest
     steps:
@@ -357,6 +365,7 @@ jobs:
         run: task docs:snippets:all
 
   validate:
+    if: github.event.pull_request.draft != true
     uses: xberg-io/actions/.github/workflows/reusable-validate.yml@v1
     with:
       # Left empty, the reusable workflow asks the GitHub API for the newest poly

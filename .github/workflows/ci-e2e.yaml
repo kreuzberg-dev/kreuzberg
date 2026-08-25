@@ -16,6 +16,7 @@ on:
       - "scripts/ci/wasm/**"
       - ".github/workflows/ci-e2e.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "crates/**"
@@ -53,7 +54,7 @@ permissions:
 jobs:
   build-ffi:
     name: Build FFI (${{ matrix.target }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:
@@ -144,7 +145,7 @@ jobs:
 
   e2e-tests:
     name: E2E (${{ matrix.lang }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     needs: [build-ffi]
     runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 180

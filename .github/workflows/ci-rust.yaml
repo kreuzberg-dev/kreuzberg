@@ -18,6 +18,7 @@ on:
       # pin bump changes what this workflow actually verifies. ~keep
       - "test_documents"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "crates/**"
@@ -56,7 +57,7 @@ permissions:
 jobs:
   rust:
     name: Rust (${{ matrix.os }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -265,7 +266,7 @@ jobs:
   # time actually running the (fixture-heavy) test suite. ~keep
   windows-static-embeddings-link:
     name: Rust (windows-latest, static-embeddings link)
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -303,7 +304,7 @@ jobs:
   # Also the only job that builds/tests xberg-libwpd on Windows.
   clippy-windows:
     name: Rust (windows-latest)
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -360,7 +361,7 @@ jobs:
   # CI time for no new coverage. ~keep
   rust-tract-no-ort:
     name: Rust tract-only (no-ORT)
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     env:
@@ -452,7 +453,7 @@ jobs:
   # reuse each other's dependency graph, on cached sccache artifacts.
   narrow-feature-legs:
     name: Narrow feature leg (${{ matrix.name }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -493,7 +494,7 @@ jobs:
   # tesseract-wasm's C sources against it, same as publish.yaml's wasm-bindings job).
   wasm-target-check:
     name: Narrow feature leg (wasm-target, wasm32)
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -534,7 +535,7 @@ jobs:
   # introspection with no include_bytes! fixtures, so no test_documents fetch is needed.
   xberg-cli-feature-legs:
     name: xberg-cli feature leg (${{ matrix.name }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -649,7 +650,7 @@ jobs:
   # copy anywhere. ~keep
   pdfium-engine:
     name: Rust pdfium engine (real library)
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -698,7 +699,7 @@ jobs:
 
   live-hf:
     name: Live HF preset tests
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     steps:

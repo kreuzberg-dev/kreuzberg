@@ -36,6 +36,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/ci-musl-csharp.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths: *musl-csharp-paths
   schedule:
@@ -54,7 +55,7 @@ permissions:
 jobs:
   musl-csharp-native:
     name: Build + smoke-test C# native (linux-musl-${{ matrix.arch }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:

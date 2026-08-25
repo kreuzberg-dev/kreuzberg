@@ -35,6 +35,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/ci-musl-java.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths: *musl-java-paths
   schedule:
@@ -53,7 +54,7 @@ permissions:
 jobs:
   musl-java-native:
     name: Build + smoke-test Java native (linux-musl-${{ matrix.arch }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:

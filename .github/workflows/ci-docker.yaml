@@ -11,6 +11,7 @@ on:
       - "crates/xberg-cli/Cargo.toml"
       - ".github/workflows/ci-docker.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths: *docker-paths
   workflow_dispatch:
@@ -29,7 +30,7 @@ permissions:
 jobs:
   docker:
     name: Docker (${{ matrix.variant }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:

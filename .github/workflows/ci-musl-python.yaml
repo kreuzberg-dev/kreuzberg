@@ -42,6 +42,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/ci-musl-python.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths: *musl-python-paths
   schedule:
@@ -60,7 +61,7 @@ permissions:
 jobs:
   musl-python-wheel:
     name: Build + smoke-test Python wheel (musl-${{ matrix.arch }})
-    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]'
+    if: github.repository == 'xberg-io/xberg' && github.actor != 'dependabot[bot]' && github.event.pull_request.draft != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:

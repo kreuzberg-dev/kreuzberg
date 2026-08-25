@@ -8,6 +8,7 @@ on:
       - "alef.toml"
       - ".github/workflows/ci-docs.yaml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "docs-site/**"
@@ -26,6 +27,7 @@ concurrency:
 
 jobs:
   docs:
+    if: github.event.pull_request.draft != true
     uses: xberg-io/actions/.github/workflows/reusable-docs-deploy.yml@v1
     with:
       deploy: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' }}
