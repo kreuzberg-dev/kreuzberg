@@ -131,6 +131,12 @@ pub(crate) fn render_plain(doc: &InternalDocument) -> String {
                         out.push_str(&ocr_result.content);
                         out.push_str("\n\n");
                     }
+                } else if !elem.text.trim().is_empty() {
+                    // An image the extractor could not resolve (a missing archive
+                    // member) still carries its alt text or caption.
+                    out.push_str("[Image: ");
+                    out.push_str(elem.text.trim());
+                    out.push_str("]\n\n");
                 }
             }
             ElementKind::FootnoteRef => {}

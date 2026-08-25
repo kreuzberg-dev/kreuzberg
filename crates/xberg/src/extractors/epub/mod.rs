@@ -548,6 +548,10 @@ impl EpubExtractor {
 
         if all_converted_successfully && !pre_rendered_fragments.is_empty() {
             let mut combined = pre_rendered_fragments.join("\n\n");
+            // html-to-markdown-rs serialises each <math> element into a comment
+            // next to its rendered text; the HTML extractor strips the same
+            // comment once the equation is recovered as LaTeX.
+            combined = super::html::MATHML_COMMENT_RE.replace_all(&combined, "").into_owned();
 
             combined = combined
                 .lines()

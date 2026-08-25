@@ -174,6 +174,10 @@ struct HtmlWalker<'a, 'b> {
     in_pre: bool,
     pre_block: Option<PreBlock>,
     table: Option<TableAccumulator>,
+    /// Number of `<table>` elements open inside the accumulated table. A nested
+    /// table is flattened into the enclosing cell instead of replacing the
+    /// enclosing table.
+    nested_table_depth: usize,
     list_stack: Vec<ListContext>,
     in_list_item: bool,
     list_item_text: String,
@@ -201,6 +205,7 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
             in_pre: false,
             pre_block: None,
             table: None,
+            nested_table_depth: 0,
             list_stack: Vec::new(),
             in_list_item: false,
             list_item_text: String::new(),
@@ -415,14 +420,25 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
                 }
             }
             "table" => {
-                self.flush_paragraph();
-                self.table = Some(TableAccumulator::new());
+                if let Some(ref mut table) = self.table {
+                    self.nested_table_depth += 1;
+                    table.push_text(" ");
+                } else {
+                    self.flush_paragraph();
+                    self.table = Some(TableAccumulator::new());
+                }
             }
             "tr" | "thead" | "tbody" | "tfoot" => {
                 if tag == "tr"
+                    && self.nested_table_depth == 0
                     && let Some(ref mut table) = self.table
                 {
                     table.open_row();
+                }
+            }
+            "th" | "td" if self.nested_table_depth > 0 => {
+                if let Some(ref mut table) = self.table {
+                    table.push_text(" ");
                 }
             }
             "th" | "td" => {
@@ -574,7 +590,7 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
         match tag {
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 let level: u8 = tag[1..].parse().unwrap_or(1);
-                let text = self.text_buf.trim().to_string();
+                let text = normalize_whitespace(&self.text_buf).trim().to_string();
                 if !text.is_empty() {
                     let idx = self.builder.push_heading(level, &text, None, None);
                     if let Some(classes) = self.pending_classes.take() {
@@ -634,6 +650,9 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
                     ctx.item_open = false;
                 }
             }
+            "table" if self.nested_table_depth > 0 => {
+                self.nested_table_depth -= 1;
+            }
             "table" => {
                 if let Some(mut table) = self.table.take() {
                     table.close_cell();
@@ -643,6 +662,7 @@ impl<'a, 'b> HtmlWalker<'a, 'b> {
                     }
                 }
             }
+            "tr" | "th" | "td" if self.nested_table_depth > 0 => {}
             "tr" => {
                 if let Some(ref mut table) = self.table {
                     table.close_cell();
@@ -1602,6 +1622,44 @@ mod tests {
             }
             other => panic!("Expected Table, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_nested_table_is_flattened_into_the_enclosing_cell() {
+        let html = "<table><tr><td>A1</td><td>A2</td></tr><tr><td><table><tr><td>N1</td><td>N2</td></tr></table></td><td>B2</td></tr><tr><td>C1</td><td>C2</td></tr></table>";
+        let doc = build_document_structure(html);
+        assert!(doc.validate().is_ok());
+        assert_eq!(doc.nodes.len(), 1, "got {:?}", doc.nodes);
+        match &doc.nodes[0].content {
+            NodeContent::Table { grid } => {
+                assert_eq!(grid.rows, 3);
+                assert_eq!(grid.cols, 2);
+                let texts: Vec<&str> = grid.cells.iter().map(|c| c.content.as_str()).collect();
+                assert!(texts.contains(&"A1"), "got {texts:?}");
+                assert!(texts.contains(&"C2"), "got {texts:?}");
+                assert!(
+                    texts.iter().any(|t| t.contains("N1") && t.contains("N2")),
+                    "got {texts:?}"
+                );
+            }
+            other => panic!("Expected Table, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_heading_line_breaks_become_newlines_without_sentinels() {
+        let html = "<h2><br/><br/>CHAPTER I.</h2><h1>PRIDE<br/>and<br/>PREJUDICE</h1>";
+        let doc = build_document_structure(html);
+        let headings: Vec<String> = doc
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.content {
+                NodeContent::Heading { text, .. } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(headings, vec!["CHAPTER I.", "PRIDE\nand\nPREJUDICE"]);
+        assert!(headings.iter().all(|h| !h.contains('\x01')));
     }
 
     #[test]
