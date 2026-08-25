@@ -318,7 +318,17 @@ async fn test_deeply_nested_chapter_does_not_end_the_process() {
 
     for config in [ExtractionConfig::default(), markdown_config()] {
         let document = extract(&bytes, &config).await;
-        assert!(plain_text(&document).contains("lead"));
+        let text = plain_text(&document);
+        assert!(text.contains("lead"), "got: {text}");
+        assert!(text.contains("tail"), "text after the deep subtree was lost: {text}");
+        assert!(
+            document
+                .processing_warnings
+                .iter()
+                .any(|warning| warning.message.contains("is nested deeper than")),
+            "got: {:?}",
+            document.processing_warnings
+        );
     }
 }
 

@@ -729,7 +729,7 @@ impl InternalDocumentExtractor for EpubExtractor {
         })?;
 
         let security_limits = config.security_limits.clone().unwrap_or_default();
-        ZipBombValidator::new(security_limits)
+        ZipBombValidator::new(security_limits.clone())
             .validate(&mut archive)
             .map_err(|e| crate::XbergError::validation(e.to_string()))?;
 
@@ -754,15 +754,21 @@ impl InternalDocumentExtractor for EpubExtractor {
             cover_image: package.metadata.cover_image_href.clone(),
         });
 
-        let encrypted_members = if archive.index_for_name("META-INF/encryption.xml").is_some() {
-            read_file_from_zip(&mut archive, "META-INF/encryption.xml")
-                .map(|xml| parse_encrypted_members(&xml))
-                .unwrap_or_default()
-        } else {
-            Default::default()
-        };
+        let mut encrypted_members = std::collections::BTreeSet::new();
+        if archive.index_for_name("META-INF/encryption.xml").is_some() {
+            match read_file_from_zip(&mut archive, "META-INF/encryption.xml") {
+                Ok(xml) => encrypted_members = parse_encrypted_members(&xml),
+                Err(error) => processing_warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed(EPUB_WARNING_SOURCE),
+                    message: Cow::Owned(format!(
+                        "META-INF/encryption.xml could not be read ({}); encrypted members are not detected",
+                        error
+                    )),
+                }),
+            }
+        }
         let (spine_documents, mut body_warnings) =
-            content::read_body_documents(&mut archive, &package, &encrypted_members)?;
+            content::read_body_documents(&mut archive, &package, &encrypted_members, &security_limits)?;
         processing_warnings.append(&mut body_warnings);
 
         let metadata_map: AHashMap<Cow<'static, str>, serde_json::Value> = additional_metadata

@@ -686,6 +686,12 @@ impl SecurityBudget {
         self.depth.pop();
     }
 
+    /// The element depth at which [`SecurityBudget::enter`] starts to fail.
+    #[cfg(feature = "office")]
+    pub(crate) fn depth_limit(&self) -> usize {
+        self.depth.max_depth
+    }
+
     /// Account for `len` bytes of emitted text. Returns `Err(ContentTooLarge)`
     /// once total output exceeds `max_content_size`.
     pub(crate) fn account_text(&mut self, len: usize) -> Result<(), SecurityError> {
