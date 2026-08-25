@@ -33,7 +33,7 @@ use zip::ZipArchive;
 use crate::extractors::security::{SecurityBudget, ZipBombValidator};
 use content::{extract_text_from_xhtml, extract_text_from_xhtml_budgeted};
 use metadata::{build_additional_metadata, parse_opf};
-use parsing::{MAX_EPUB_MEMBER_SIZE, parse_container_xml, read_file_from_zip, resolve_path};
+use parsing::{MAX_EPUB_MEMBER_SIZE, parse_container_xml, parse_encrypted_members, read_file_from_zip, resolve_path};
 
 const MARKUP_SWITCH_NAMESPACES: &[&str] = &[content::XHTML_NAMESPACE, content::MATHML_NAMESPACE];
 const PLAIN_SWITCH_NAMESPACES: &[&str] = &[content::XHTML_NAMESPACE];
@@ -754,7 +754,15 @@ impl InternalDocumentExtractor for EpubExtractor {
             cover_image: package.metadata.cover_image_href.clone(),
         });
 
-        let (spine_documents, mut body_warnings) = content::read_body_documents(&mut archive, &package)?;
+        let encrypted_members = if archive.index_for_name("META-INF/encryption.xml").is_some() {
+            read_file_from_zip(&mut archive, "META-INF/encryption.xml")
+                .map(|xml| parse_encrypted_members(&xml))
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        let (spine_documents, mut body_warnings) =
+            content::read_body_documents(&mut archive, &package, &encrypted_members)?;
         processing_warnings.append(&mut body_warnings);
 
         let metadata_map: AHashMap<Cow<'static, str>, serde_json::Value> = additional_metadata

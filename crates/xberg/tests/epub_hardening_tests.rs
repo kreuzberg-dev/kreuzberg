@@ -56,9 +56,13 @@ fn build_epub(metadata: &str, items: &[(&str, &str, &str, &str)], members: &[(&s
         let options = FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
         writer.start_file("mimetype", options).expect("zip start_file failed");
         writer.write_all(b"application/epub+zip").expect("zip write failed");
-        writer.start_file("META-INF/container.xml", options).expect("zip start_file failed");
+        writer
+            .start_file("META-INF/container.xml", options)
+            .expect("zip start_file failed");
         writer.write_all(CONTAINER_XML.as_bytes()).expect("zip write failed");
-        writer.start_file("OEBPS/content.opf", options).expect("zip start_file failed");
+        writer
+            .start_file("OEBPS/content.opf", options)
+            .expect("zip start_file failed");
         writer.write_all(opf.as_bytes()).expect("zip write failed");
         for (path, bytes) in members {
             writer.start_file(*path, options).expect("zip start_file failed");
@@ -126,25 +130,61 @@ async fn test_link_list_chapters_are_kept_in_plain_and_markdown_output() {
             ("c1", "c1.xhtml", "application/xhtml+xml", ""),
             ("bib", "bib.xhtml", "application/xhtml+xml", ""),
         ],
-        &[("OEBPS/c1.xhtml", body.as_bytes()), ("OEBPS/bib.xhtml", further_reading.as_bytes())],
+        &[
+            ("OEBPS/c1.xhtml", body.as_bytes()),
+            ("OEBPS/bib.xhtml", further_reading.as_bytes()),
+        ],
     );
 
     let plain = extract(&bytes, &ExtractionConfig::default()).await;
     let text = plain_text(&plain);
     assert!(text.contains("Real chapter one text."), "got: {text}");
-    assert!(text.contains("Smith, Alpha"), "link-list chapter dropped from plain output: {text}");
+    assert!(
+        text.contains("Smith, Alpha"),
+        "link-list chapter dropped from plain output: {text}"
+    );
 
     let markdown = extract(&bytes, &markdown_config()).await;
     let text = plain_text(&markdown);
-    assert!(text.contains("Smith, Alpha"), "link-list chapter dropped from markdown output: {text}");
+    assert!(
+        text.contains("Smith, Alpha"),
+        "link-list chapter dropped from markdown output: {text}"
+    );
 }
 
 #[tokio::test]
-async fn test_nav_property_excludes_the_navigation_document_without_a_heuristic() {
-    let nav = chapter(
-        r#"<h1>Contents</h1><p>Intro paragraph.</p><p>Another.</p><p>Third.</p><ol><li><a href="c1.xhtml">One</a></li><li><a href="c2.xhtml">Two</a></li></ol>"#,
-    );
+async fn test_nav_property_gates_the_navigation_heuristic() {
+    // A pure link list is navigation only when the package says so.
+    let link_list =
+        chapter(r#"<h1>Contents</h1><ol><li><a href="c1.xhtml">One</a></li><li><a href="c2.xhtml">Two</a></li></ol>"#);
     let body = chapter("<p>Body text.</p>");
+    for (properties, expect_present) in [(r#"properties="nav""#, false), ("", true)] {
+        let bytes = build_epub(
+            BASIC_METADATA,
+            &[
+                ("toc", "toc.xhtml", "application/xhtml+xml", properties),
+                ("c1", "c1.xhtml", "application/xhtml+xml", ""),
+            ],
+            &[
+                ("OEBPS/toc.xhtml", link_list.as_bytes()),
+                ("OEBPS/c1.xhtml", body.as_bytes()),
+            ],
+        );
+        let document = extract(&bytes, &ExtractionConfig::default()).await;
+        let text = plain_text(&document);
+        assert!(text.contains("Body text."), "got: {text}");
+        assert_eq!(
+            text.contains("One"),
+            expect_present,
+            "properties={properties:?}: {text}"
+        );
+    }
+
+    // A navigation document keeps the prose it carries next to its <nav>.
+    let nav = chapter(
+        r#"<h1>Front</h1><p>Intro paragraph.</p><nav epub:type="toc"><ol><li><a href="c1.xhtml">One</a></li><li><a href="c2.xhtml">Two</a></li></ol></nav>"#,
+    )
+    .replace("<html xmlns=", r#"<html xmlns:epub="http://www.idpf.org/2007/ops" xmlns="#);
     let bytes = build_epub(
         BASIC_METADATA,
         &[
@@ -153,11 +193,10 @@ async fn test_nav_property_excludes_the_navigation_document_without_a_heuristic(
         ],
         &[("OEBPS/nav.xhtml", nav.as_bytes()), ("OEBPS/c1.xhtml", body.as_bytes())],
     );
-
     let document = extract(&bytes, &ExtractionConfig::default()).await;
     let text = plain_text(&document);
-    assert!(text.contains("Body text."), "got: {text}");
-    assert!(!text.contains("Intro paragraph."), "nav document leaked into content: {text}");
+    assert!(text.contains("Intro paragraph."), "nav prose dropped: {text}");
+    assert!(!text.contains("Two"), "toc entries leaked: {text}");
 }
 
 #[tokio::test]
@@ -201,7 +240,11 @@ async fn test_svg_spine_document_text_is_extracted() {
     let document = extract(&bytes, &ExtractionConfig::default()).await;
     let text = plain_text(&document);
     assert!(text.contains("SVG spine text"), "got: {text}");
-    assert!(document.processing_warnings.is_empty(), "got: {:?}", document.processing_warnings);
+    assert!(
+        document.processing_warnings.is_empty(),
+        "got: {:?}",
+        document.processing_warnings
+    );
 }
 
 // ---- #1488: entities and byte order marks --------------------------------
@@ -221,10 +264,16 @@ async fn test_chapter_with_html_entity_and_style_attribute_is_extracted() {
     for config in [ExtractionConfig::default(), markdown_config()] {
         let document = extract(&bytes, &config).await;
         let text = plain_text(&document);
-        assert!(text.contains("First\u{a0}para \u{2014} dash"), "got: {text}");
+        // Paragraph normalisation may turn the no-break space into a plain space.
+        let text = text.replace('\u{a0}', " ");
+        assert!(text.contains("First para \u{2014} dash"), "got: {text}");
         assert!(text.contains("Second para"), "got: {text}");
         assert!(!text.contains("HEADTITLE"), "head title leaked: {text}");
-        assert!(document.processing_warnings.is_empty(), "got: {:?}", document.processing_warnings);
+        assert!(
+            document.processing_warnings.is_empty(),
+            "got: {:?}",
+            document.processing_warnings
+        );
     }
 }
 
@@ -436,4 +485,106 @@ async fn test_unresolved_image_keeps_its_alt_text_in_plain_output() {
     let document = extract(&bytes, &ExtractionConfig::default()).await;
     let text = rendered_content(document, OutputFormat::Plain);
     assert!(text.contains("A lost plate"), "got: {text}");
+}
+
+// ---- #1494: encoding and DRM ------------------------------------------------
+
+#[tokio::test]
+async fn test_latin1_and_utf16_chapters_are_decoded() {
+    let latin1 = b"<?xml version=\"1.0\" encoding=\"iso-8859-1\"?><html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>caf\xe9 latin</p></body></html>".to_vec();
+    let mut utf16 = vec![0xFF, 0xFE];
+    for unit in "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>caf\u{e9} utf16</p></body></html>".encode_utf16()
+    {
+        utf16.extend_from_slice(&unit.to_le_bytes());
+    }
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[
+            ("c1", "c1.xhtml", "application/xhtml+xml", ""),
+            ("c2", "c2.xhtml", "application/xhtml+xml", ""),
+        ],
+        &[("OEBPS/c1.xhtml", &latin1), ("OEBPS/c2.xhtml", &utf16)],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    let text = plain_text(&document);
+    assert!(text.contains("caf\u{e9} latin"), "got: {text}");
+    assert!(text.contains("caf\u{e9} utf16"), "got: {text}");
+    assert!(
+        document.processing_warnings.is_empty(),
+        "got: {:?}",
+        document.processing_warnings
+    );
+}
+
+#[tokio::test]
+async fn test_drm_encrypted_spine_items_are_skipped_with_one_warning() {
+    let encryption_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+  <enc:EncryptedData>
+    <enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <enc:CipherData><enc:CipherReference URI="OEBPS/fonts/a.otf"/></enc:CipherData>
+  </enc:EncryptedData>
+  <enc:EncryptedData>
+    <enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
+    <enc:CipherData><enc:CipherReference URI="OEBPS/c1.xhtml"/></enc:CipherData>
+  </enc:EncryptedData>
+</encryption>"#;
+    let ciphertext: Vec<u8> = (0..256u32).map(|i| (i * 73 % 251) as u8).collect();
+    let body = chapter("<p>Clear chapter.</p>");
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[
+            ("c1", "c1.xhtml", "application/xhtml+xml", ""),
+            ("c2", "c2.xhtml", "application/xhtml+xml", ""),
+        ],
+        &[
+            ("META-INF/encryption.xml", encryption_xml.as_bytes()),
+            ("OEBPS/c1.xhtml", &ciphertext),
+            ("OEBPS/c2.xhtml", body.as_bytes()),
+        ],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    let text = plain_text(&document);
+    assert!(text.contains("Clear chapter."), "got: {text}");
+    let drm_warnings: Vec<_> = document
+        .processing_warnings
+        .iter()
+        .filter(|warning| warning.message.contains("encrypted (DRM)"))
+        .collect();
+    assert_eq!(drm_warnings.len(), 1, "got: {:?}", document.processing_warnings);
+    assert!(
+        !document
+            .processing_warnings
+            .iter()
+            .any(|w| w.message.contains("valid UTF-8")),
+        "encoding warning blamed DRM bytes: {:?}",
+        document.processing_warnings
+    );
+}
+
+#[tokio::test]
+async fn test_font_obfuscation_only_encryption_is_not_drm() {
+    let encryption_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+  <enc:EncryptedData>
+    <enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+    <enc:CipherData><enc:CipherReference URI="OEBPS/fonts/a.otf"/></enc:CipherData>
+  </enc:EncryptedData>
+</encryption>"#;
+    let body = chapter("<p>Clear chapter.</p>");
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[("c1", "c1.xhtml", "application/xhtml+xml", "")],
+        &[
+            ("META-INF/encryption.xml", encryption_xml.as_bytes()),
+            ("OEBPS/c1.xhtml", body.as_bytes()),
+        ],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    assert!(plain_text(&document).contains("Clear chapter."));
+    assert!(
+        document.processing_warnings.is_empty(),
+        "got: {:?}",
+        document.processing_warnings
+    );
 }
