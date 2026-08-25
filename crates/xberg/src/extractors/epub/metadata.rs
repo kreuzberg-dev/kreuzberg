@@ -66,11 +66,28 @@ pub(super) struct ManifestItem {
 
 #[allow(dead_code)]
 impl ManifestItem {
+    /// `text/html` is not an EPUB core media type, but real-world EPUB 3 files
+    /// (Internet Archive builds, for one) declare every page with it while the
+    /// payload is XHTML. The spine loop parses the payload as XML either way, so
+    /// accepting the label costs nothing and rescues whole books. ~keep
     pub(super) fn is_renderable_body_document(&self) -> bool {
-        matches!(
-            self.media_type.as_deref(),
-            Some("application/xhtml+xml") | Some("application/x-dtbook+xml")
-        ) || self.media_type.is_none() && has_renderable_extension(&self.raw_href)
+        match self.normalized_media_type() {
+            Some(media_type) => matches!(
+                media_type.as_str(),
+                "application/xhtml+xml" | "application/x-dtbook+xml" | "text/html" | "text/xml" | "application/xml"
+            ),
+            None => has_renderable_extension(&self.raw_href),
+        }
+    }
+
+    /// The media type without parameters, whitespace, or case. `None` when the
+    /// attribute is missing or empty, so the extension decides.
+    fn normalized_media_type(&self) -> Option<String> {
+        self.media_type
+            .as_deref()
+            .and_then(|media_type| media_type.split(';').next())
+            .map(|media_type| media_type.trim().to_ascii_lowercase())
+            .filter(|media_type| !media_type.is_empty())
     }
 
     /// Returns true if this manifest item has the EPUB3 `nav` property.
@@ -402,4 +419,58 @@ mod tests {
 
         assert!(error.to_string().contains("Nesting too deep"));
     }
+
+    #[test]
+    fn should_treat_text_html_manifest_items_as_renderable() {
+        let xml = r#"<package><metadata><title>Book</title></metadata><manifest>
+            <item id="page" href="page_0.html" media-type="text/html"/>
+            <item id="css" href="style.css" media-type="text/css"/>
+        </manifest></package>"#;
+        let mut budget = SecurityBudget::from_limits(&SecurityLimits::default());
+
+        let (package, _) = parse_opf(xml, "EPUB", &mut budget).expect("OPF should parse");
+
+        assert!(package.manifest["page"].is_renderable_body_document());
+        assert!(!package.manifest["css"].is_renderable_body_document());
+    }
+
+    #[test]
+    fn should_normalise_media_types_before_matching() {
+        let item = |media_type: Option<&str>, href: &str| ManifestItem {
+            raw_href: href.to_string(),
+            path: Some(href.to_string()),
+            path_resolution_error: None,
+            media_type: media_type.map(str::to_string),
+            fallback: None,
+            properties: None,
+        };
+        for accepted in [
+            "application/xhtml+xml",
+            "application/xhtml+xml; charset=utf-8",
+            "Application/XHTML+XML",
+            " application/xhtml+xml ",
+            "text/html",
+            "text/xml",
+            "application/xml",
+            "application/x-dtbook+xml",
+        ] {
+            assert!(
+                item(Some(accepted), "x.bin").is_renderable_body_document(),
+                "{accepted:?}"
+            );
+        }
+        for rejected in ["text/css", "image/jpeg", "image/svg+xml", "application/octet-stream"] {
+            assert!(
+                !item(Some(rejected), "x.xhtml").is_renderable_body_document(),
+                "{rejected:?}"
+            );
+        }
+        assert!(
+            item(Some(""), "x.xhtml").is_renderable_body_document(),
+            "empty attribute uses the extension"
+        );
+        assert!(!item(Some(""), "x.css").is_renderable_body_document());
+        assert!(item(None, "x.html").is_renderable_body_document());
+    }
+
 }
