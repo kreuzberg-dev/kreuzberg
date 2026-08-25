@@ -31,7 +31,7 @@ use std::io::{Cursor, Read};
 use zip::ZipArchive;
 
 use crate::extractors::security::{SecurityBudget, ZipBombValidator};
-use content::{extract_text_from_xhtml, extract_text_from_xhtml_budgeted, looks_like_navigation_document};
+use content::{extract_text_from_xhtml, extract_text_from_xhtml_budgeted};
 use metadata::{build_additional_metadata, parse_opf};
 use parsing::{MAX_EPUB_MEMBER_SIZE, parse_container_xml, read_file_from_zip, resolve_path};
 
@@ -320,13 +320,9 @@ impl EpubExtractor {
                 }
             }
 
-            if looks_like_navigation_document(sanitized) {
-                continue;
-            }
-
             let _ = budget.account_text(sanitized.len());
 
-            if extract_text_from_xhtml_budgeted(sanitized, budget).is_empty() {
+            if extract_text_from_xhtml_budgeted(sanitized, budget).is_empty() && !content::has_image_markup(sanitized) {
                 continue;
             }
 
