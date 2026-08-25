@@ -235,6 +235,7 @@ impl EpubExtractor {
         );
         let mut pre_rendered_fragments = Vec::new();
         let mut all_converted_successfully = wants_markup;
+        let mut warnings: Vec<ProcessingWarning> = Vec::new();
 
         if let Some(cover_path) = cover_image_path
             && !Self::spine_references_asset(spine_documents, cover_path)
@@ -288,6 +289,15 @@ impl EpubExtractor {
 
         for (index, spine_doc) in spine_documents.iter().enumerate() {
             if budget.step().is_err() {
+                warnings.push(ProcessingWarning {
+                    source: Cow::Borrowed(EPUB_WARNING_SOURCE),
+                    message: Cow::Owned(format!(
+                        "Iteration limit reached; {} of {} spine items were not extracted (first skipped: '{}')",
+                        spine_documents.len() - index,
+                        spine_documents.len(),
+                        spine_doc.file_path
+                    )),
+                });
                 break;
             }
 
@@ -302,6 +312,7 @@ impl EpubExtractor {
 
             if wants_markup {
                 let rendered = Self::render_spine_document(spine_doc, sanitized, index, config);
+                warnings.extend(rendered.warnings);
                 if rendered.content_fully_converted {
                     pre_rendered_fragments.push(rendered.content_fragment);
                 } else {
@@ -537,6 +548,7 @@ impl EpubExtractor {
         }
 
         let mut doc = builder.build();
+        doc.processing_warnings.extend(warnings);
 
         if all_converted_successfully && !pre_rendered_fragments.is_empty() {
             let mut combined = pre_rendered_fragments.join("\n\n");
