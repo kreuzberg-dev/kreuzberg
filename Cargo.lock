@@ -11820,6 +11820,7 @@ dependencies = [
  "hayro-jpeg2000",
  "hex",
  "hf-hub",
+ "html-escape",
  "html-to-markdown-rs",
  "icu_provider",
  "icu_segmenter",

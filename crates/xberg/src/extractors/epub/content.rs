@@ -99,7 +99,17 @@ pub(super) fn read_body_documents(
                     continue;
                 }
 
-                if extract_text_from_xhtml(&render_xhtml).is_empty() {
+                let (text, parse_error) = extract_text_from_xhtml_reporting(&render_xhtml);
+                if let Some(error) = parse_error {
+                    warnings.push(ProcessingWarning {
+                        source: std::borrow::Cow::Borrowed("epub"),
+                        message: std::borrow::Cow::Owned(format!(
+                            "Spine item '{}' is not well-formed XML ({}); its text was recovered by stripping tags",
+                            file_path, error
+                        )),
+                    });
+                }
+                if text.is_empty() {
                     continue;
                 }
 
@@ -387,6 +397,14 @@ const SKIP_ELEMENTS: &[&str] = &["head", "script", "style", "video", "audio", "s
 /// pure drawing geometry with no meaningful text of its own.
 const SVG_TEXT_ELEMENTS: &[&str] = &["title", "desc", "text", "tspan", "textpath"];
 
+/// Element depth at which the recursive text walks stop descending.
+///
+/// `roxmltree` builds its tree without recursion, so a chapter nested tens of
+/// thousands of elements deep parses fine and then overflows the stack in the
+/// walks below. The unbudgeted walk uses this constant; the budgeted walk uses
+/// `SecurityBudget::enter`, whose default limit is the same value.
+const MAX_WALK_DEPTH: usize = 1024;
+
 /// Walk an `<svg>` subtree, extracting text only from [`SVG_TEXT_ELEMENTS`] descendants.
 ///
 /// Unlike the generic block-element walk, this never emits text from arbitrary elements —
@@ -398,7 +416,11 @@ fn visit_svg_node(
     output: &mut String,
     in_text_context: bool,
     budget: Option<&mut SecurityBudget>,
+    depth: usize,
 ) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     let mut budget = budget;
     match node.node_type() {
         roxmltree::NodeType::Text if in_text_context => {
@@ -435,7 +457,7 @@ fn visit_svg_node(
                 output.push('\n');
             }
             for child in node.children() {
-                visit_svg_node(child, output, child_in_text_context, budget.as_deref_mut());
+                visit_svg_node(child, output, child_in_text_context, budget.as_deref_mut(), depth + 1);
             }
             if entering_text_tag && !output.is_empty() && !output.ends_with('\n') {
                 output.push('\n');
@@ -477,62 +499,42 @@ fn render_math_element(node: roxmltree::Node<'_, '_>, output: &mut String, budge
 ///
 /// When `budget` is provided, entity and growth limits are enforced during traversal.
 pub(super) fn extract_text_from_xhtml(xhtml: &str) -> String {
+    extract_text_from_xhtml_with_budget(xhtml, None).0
+}
+
+/// Like [`extract_text_from_xhtml`], but also returns the XML parse error when
+/// the chapter is not well-formed and the text came from the tag stripper.
+pub(super) fn extract_text_from_xhtml_reporting(xhtml: &str) -> (String, Option<String>) {
     extract_text_from_xhtml_with_budget(xhtml, None)
 }
 
 pub(super) fn extract_text_from_xhtml_budgeted(xhtml: &str, budget: &mut SecurityBudget) -> String {
-    extract_text_from_xhtml_with_budget(xhtml, Some(budget))
+    extract_text_from_xhtml_with_budget(xhtml, Some(budget)).0
 }
 
-fn extract_text_from_xhtml_with_budget(xhtml: &str, budget: Option<&mut SecurityBudget>) -> String {
-    let result = match budget {
-        Some(b) => try_extract_via_roxmltree_budgeted(xhtml, b),
-        None => try_extract_via_roxmltree_unbounded(xhtml),
+/// Walk the parsed chapter and collect its text. When `budget` is given, entity
+/// and growth violations stop the walk early and the partial output is kept.
+/// When the chapter is not well-formed XML, or the walk yields no text, the
+/// tag stripper runs instead. The second value is the parse error, if any.
+fn extract_text_from_xhtml_with_budget(xhtml: &str, budget: Option<&mut SecurityBudget>) -> (String, Option<String>) {
+    let sanitized = normalize_xhtml(xhtml);
+
+    let parsed = match roxmltree::Document::parse(&sanitized) {
+        Ok(doc) => {
+            let mut output = String::with_capacity(xhtml.len() / 2);
+            match budget {
+                Some(budget) => visit_node_budgeted(doc.root(), &mut output, budget),
+                None => visit_node_unbounded(doc.root(), &mut output, 0),
+            }
+            Ok(collapse_blank_lines(&output).trim().to_string())
+        }
+        Err(err) => Err(err.to_string()),
     };
-    if let Some(text) = result {
-        return text;
-    }
 
-    let normalized = normalize_xhtml(xhtml);
-    strip_html_tags(&normalized)
-}
-
-/// Attempt to extract plain text via `roxmltree` XML parsing (no security budget).
-///
-/// Returns `None` if the document cannot be parsed as XML/XHTML.
-fn try_extract_via_roxmltree_unbounded(xhtml: &str) -> Option<String> {
-    let sanitized = normalize_xhtml(xhtml);
-
-    match roxmltree::Document::parse(&sanitized) {
-        Ok(doc) => {
-            let root = doc.root();
-            let mut output = String::with_capacity(xhtml.len() / 2);
-            visit_node_unbounded(root, &mut output);
-            let result = collapse_blank_lines(&output);
-            let result = result.trim().to_string();
-            if result.is_empty() { None } else { Some(result) }
-        }
-        Err(_) => None,
-    }
-}
-
-/// Attempt to extract plain text via `roxmltree` XML parsing with a security budget.
-///
-/// Entity and growth violations stop traversal early; partial output is returned.
-/// Returns `None` if the document cannot be parsed as XML/XHTML.
-fn try_extract_via_roxmltree_budgeted(xhtml: &str, budget: &mut SecurityBudget) -> Option<String> {
-    let sanitized = normalize_xhtml(xhtml);
-
-    match roxmltree::Document::parse(&sanitized) {
-        Ok(doc) => {
-            let root = doc.root();
-            let mut output = String::with_capacity(xhtml.len() / 2);
-            visit_node_budgeted(root, &mut output, budget);
-            let result = collapse_blank_lines(&output);
-            let result = result.trim().to_string();
-            if result.is_empty() { None } else { Some(result) }
-        }
-        Err(_) => None,
+    match parsed {
+        Ok(text) if !text.is_empty() => (text, None),
+        Ok(_) => (strip_html_tags(&sanitized), None),
+        Err(err) => (strip_html_tags(&sanitized), Some(err)),
     }
 }
 
@@ -542,7 +544,51 @@ fn try_extract_via_roxmltree_budgeted(xhtml: &str, budget: &mut SecurityBudget) 
 /// This strips XML declarations and doctypes, which are valid in EPUB chapter
 /// files but should not surface in extracted Markdown or interfere with safe parsing.
 pub(super) fn normalize_xhtml(xml: &str) -> String {
-    strip_serialized_mathml_comments(&strip_xml_prelude(xml))
+    expand_named_entities(&strip_serialized_mathml_comments(&strip_xml_prelude(xml)))
+}
+
+/// Replace HTML named character references that XML does not predefine.
+///
+/// XHTML 1.1 declares `&nbsp;`, `&mdash;`, `&eacute;` and the other HTML
+/// entities in its external DTD. The prelude stripper removes the DOCTYPE and
+/// `roxmltree` resolves no external entities, so one such reference makes the
+/// whole chapter unparseable. Each known reference becomes its character before
+/// parsing. The five XML references stay as written, and unknown references are
+/// left in place so the parser reports them.
+pub(super) fn expand_named_entities(xhtml: &str) -> String {
+    if !xhtml.contains('&') {
+        return xhtml.to_string();
+    }
+
+    let mut output = String::with_capacity(xhtml.len());
+    let mut rest = xhtml;
+    while let Some(start) = rest.find('&') {
+        output.push_str(&rest[..start]);
+        let candidate = &rest[start..];
+        let name_len = candidate[1..]
+            .bytes()
+            .take_while(|byte| byte.is_ascii_alphanumeric())
+            .count();
+        let replacement = (name_len > 0 && candidate.as_bytes().get(name_len + 1) == Some(&b';'))
+            .then(|| &candidate[..name_len + 2])
+            .filter(|reference| !matches!(*reference, "&amp;" | "&lt;" | "&gt;" | "&quot;" | "&apos;"))
+            .and_then(|reference| {
+                let decoded = html_escape::decode_html_entities(reference);
+                (decoded != reference).then(|| (decoded.into_owned(), reference.len()))
+            });
+        match replacement {
+            Some((decoded, consumed)) => {
+                output.push_str(&decoded);
+                rest = &candidate[consumed..];
+            }
+            None => {
+                output.push('&');
+                rest = &candidate[1..];
+            }
+        }
+    }
+    output.push_str(rest);
+    output
 }
 
 /// Some EPUB fixtures carry a readable MathML fallback immediately after a
@@ -577,7 +623,7 @@ fn strip_serialized_mathml_comments(xhtml: &str) -> String {
 /// EPUB chapter files often begin with an XML declaration followed by a DOCTYPE.
 /// Those are packaging details, not body content, and `roxmltree` rejects DTDs.
 fn strip_xml_prelude(xml: &str) -> String {
-    let mut rest = xml.trim_start();
+    let mut rest = xml.trim_start_matches('\u{FEFF}').trim_start();
 
     loop {
         if let Some(tail) = rest.strip_prefix("<?xml")
@@ -616,7 +662,10 @@ fn find_doctype_end(tail: &str) -> Option<usize> {
 }
 
 /// Recursively visit an XML node and append its text to `output` (no security budget).
-fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String) {
+fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String, depth: usize) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     match node.node_type() {
         roxmltree::NodeType::Text => {
             let text = node.text().unwrap_or("");
@@ -645,7 +694,7 @@ fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String) {
             // `<title>`/`<desc>` alt-text along with the (harmless to lose) drawing
             // geometry. Walk it selectively instead of skipping outright.
             if tag == "svg" {
-                visit_svg_node(node, output, false, None);
+                visit_svg_node(node, output, false, None, depth + 1);
                 return;
             }
             if SKIP_ELEMENTS.iter().any(|&s| s == tag) {
@@ -666,7 +715,7 @@ fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String) {
                 output.push('\n');
             }
             for child in node.children() {
-                visit_node_unbounded(child, output);
+                visit_node_unbounded(child, output, depth + 1);
             }
             if is_block && !output.is_empty() && !output.ends_with('\n') {
                 output.push('\n');
@@ -674,7 +723,7 @@ fn visit_node_unbounded(node: roxmltree::Node<'_, '_>, output: &mut String) {
         }
         roxmltree::NodeType::Root => {
             for child in node.children() {
-                visit_node_unbounded(child, output);
+                visit_node_unbounded(child, output, depth + 1);
             }
         }
         _ => {}
@@ -713,7 +762,7 @@ fn visit_node_budgeted(node: roxmltree::Node<'_, '_>, output: &mut String, budge
                 return;
             }
             if tag == "svg" {
-                visit_svg_node(node, output, false, Some(budget));
+                visit_svg_node(node, output, false, Some(budget), 0);
                 return;
             }
             if SKIP_ELEMENTS.iter().any(|&s| s == tag) {
@@ -733,9 +782,13 @@ fn visit_node_budgeted(node: roxmltree::Node<'_, '_>, output: &mut String, budge
             if is_block && !output.is_empty() && !output.ends_with('\n') {
                 output.push('\n');
             }
+            if budget.enter().is_err() {
+                return;
+            }
             for child in node.children() {
                 visit_node_budgeted(child, output, budget);
             }
+            budget.leave();
             if is_block && !output.is_empty() && !output.ends_with('\n') {
                 output.push('\n');
             }
@@ -790,7 +843,8 @@ fn collapse_blank_lines(text: &str) -> String {
     result
 }
 
-/// Fallback: strip HTML tags without using specialized libraries
+/// Fallback for chapters that are not well-formed XML: strip tags, skip
+/// `<script>`/`<style>` bodies, and decode character references.
 pub(super) fn strip_html_tags(html: &str) -> String {
     let mut text = String::new();
     let mut in_tag = false;
@@ -807,9 +861,15 @@ pub(super) fn strip_html_tags(html: &str) -> String {
         if ch == '>' {
             in_tag = false;
 
-            let tag_lower = tag_name.to_lowercase();
-            if tag_lower.contains("script") || tag_lower.contains("style") {
-                in_script_style = !tag_name.starts_with('/');
+            let is_closing = tag_name.starts_with('/');
+            let name = tag_name
+                .trim_start_matches('/')
+                .split(|c: char| c.is_ascii_whitespace() || c == '/')
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if name == "script" || name == "style" {
+                in_script_style = !is_closing;
             }
             continue;
         }
@@ -846,7 +906,7 @@ pub(super) fn strip_html_tags(html: &str) -> String {
         }
     }
 
-    result.trim().to_string()
+    html_escape::decode_html_entities(result.trim()).into_owned()
 }
 
 #[cfg(test)]
@@ -1118,5 +1178,84 @@ mod tests {
 
         let input2 = "a\n\nb";
         assert_eq!(collapse_blank_lines(input2), "a\n\nb");
+    }
+
+    #[test]
+    fn test_expand_named_entities_replaces_html_references_and_keeps_xml_ones() {
+        let xhtml = "<p>A&nbsp;B &mdash; C &amp; D &lt;E&gt; &#169; &unknown; &</p>";
+        let expanded = expand_named_entities(xhtml);
+        assert_eq!(
+            expanded,
+            "<p>A\u{a0}B \u{2014} C &amp; D &lt;E&gt; &#169; &unknown; &</p>"
+        );
+    }
+
+    #[test]
+    fn test_extract_text_from_xhtml_with_html_entities_keeps_structure() {
+        let xhtml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><link rel="stylesheet" href="s.css"/><title></title></head>
+  <body>
+    <p style="text-indent:0">First&nbsp;para</p>
+    <p>Second &eacute;</p>
+  </body>
+</html>"#;
+        let result = extract_text_from_xhtml(xhtml);
+        assert_eq!(result, "First\u{a0}para\nSecond \u{e9}", "got: {result}");
+    }
+
+    #[test]
+    fn test_strip_xml_prelude_removes_a_byte_order_mark() {
+        let xhtml = "\u{FEFF}<?xml version=\"1.0\"?><!DOCTYPE html><html><body><p>Bom body</p></body></html>";
+        let result = extract_text_from_xhtml(xhtml);
+        assert_eq!(result, "Bom body", "got: {result}");
+    }
+
+    #[test]
+    fn test_strip_html_tags_only_skips_real_script_and_style_elements() {
+        let html = r#"<body><link rel="stylesheet" href="s.css"/><p style="x">Keep &amp; <span class="subscript">this</span></p> <noscript>also</noscript> <style>p{}</style> <p>end</p>"#;
+        let text = strip_html_tags(html);
+        assert_eq!(text, "Keep & this also end", "got: {text}");
+    }
+
+    #[test]
+    fn test_deeply_nested_xhtml_does_not_overflow_the_stack() {
+        let depth = 50_000;
+        let mut xhtml = String::from("<html><body><p>lead</p>");
+        for _ in 0..depth {
+            xhtml.push_str("<span>");
+        }
+        xhtml.push_str("deep");
+        for _ in 0..depth {
+            xhtml.push_str("</span>");
+        }
+        xhtml.push_str("<p>tail</p></body></html>");
+
+        let text = extract_text_from_xhtml(&xhtml);
+        assert!(text.contains("lead"), "got: {text}");
+        assert!(text.contains("tail"), "got: {text}");
+
+        let mut budget = SecurityBudget::from_limits(&crate::extractors::security::SecurityLimits::default());
+        let text = extract_text_from_xhtml_budgeted(&xhtml, &mut budget);
+        assert!(text.contains("lead"), "got: {text}");
+        assert!(text.contains("tail"), "got: {text}");
+    }
+
+    #[test]
+    fn test_deeply_nested_svg_does_not_overflow_the_stack() {
+        let depth = 50_000;
+        let mut xhtml = String::from("<html><body><svg>");
+        for _ in 0..depth {
+            xhtml.push_str("<g>");
+        }
+        xhtml.push_str("<text>deep</text>");
+        for _ in 0..depth {
+            xhtml.push_str("</g>");
+        }
+        xhtml.push_str("</svg><p>tail</p></body></html>");
+
+        let text = extract_text_from_xhtml(&xhtml);
+        assert!(text.contains("tail"), "got: {text}");
     }
 }
