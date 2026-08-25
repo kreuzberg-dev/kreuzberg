@@ -307,3 +307,67 @@ async fn test_iteration_limit_reports_skipped_spine_items() {
         document.processing_warnings
     );
 }
+
+// ---- #1492: metadata --------------------------------------------------------
+
+#[tokio::test]
+async fn test_metadata_keeps_first_title_all_creators_and_epub3_cover() {
+    let metadata = r#"
+    <dc:title>Main Title</dc:title>
+    <dc:title>Subtitle</dc:title>
+    <dc:creator opf:role="aut">Alice Author</dc:creator>
+    <dc:creator opf:role="ill">Ivan Illustrator</dc:creator>
+    <dc:date opf:event="modification">2020-02-02</dc:date>
+    <dc:date opf:event="publication">1999-01-01</dc:date>
+    <dc:subject>Fiction</dc:subject>
+    <dc:subject>Adventure</dc:subject>
+    <dc:language>en</dc:language>"#;
+    let body = chapter("<p>Body text.</p>");
+    let png = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+    let bytes = build_epub_with_cover_item(metadata, body.as_bytes(), &png);
+
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    assert_eq!(document.metadata.title.as_deref(), Some("Main Title"));
+    assert_eq!(
+        document.metadata.authors.as_deref(),
+        Some(&["Alice Author".to_string(), "Ivan Illustrator".to_string()][..])
+    );
+    assert_eq!(document.metadata.created_at.as_deref(), Some("1999-01-01"));
+    assert_eq!(
+        document.metadata.keywords.as_deref(),
+        Some(&["Fiction".to_string(), "Adventure".to_string()][..])
+    );
+    assert_eq!(document.images.len(), 1, "EPUB 3 cover-image property was ignored");
+    assert_eq!(document.images[0].description.as_deref(), Some("Cover"));
+}
+
+fn build_epub_with_cover_item(metadata: &str, chapter_bytes: &[u8], png: &[u8]) -> Vec<u8> {
+    let opf = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="bookid" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">{metadata}</metadata>
+  <manifest>
+    <item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>"#
+    );
+    let mut cursor = Cursor::new(Vec::<u8>::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut cursor);
+        let options = FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+        for (path, bytes) in [
+            ("mimetype", b"application/epub+zip".as_slice()),
+            ("META-INF/container.xml", CONTAINER_XML.as_bytes()),
+            ("OEBPS/content.opf", opf.as_bytes()),
+            ("OEBPS/c1.xhtml", chapter_bytes),
+            ("OEBPS/cover.png", png),
+        ] {
+            writer.start_file(path, options).expect("zip start_file failed");
+            writer.write_all(bytes).expect("zip write failed");
+        }
+        writer.finish().expect("zip finish failed");
+    }
+    cursor.into_inner()
+}
