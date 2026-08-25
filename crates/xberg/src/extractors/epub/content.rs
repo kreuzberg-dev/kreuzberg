@@ -79,6 +79,13 @@ pub(super) fn read_body_documents(
                 continue;
             }
         };
+        // The package names its navigation documents: `properties="nav"` in
+        // EPUB 3, `<guide><reference type="toc">` in EPUB 2. Only a guide target
+        // is checked against the content heuristic, because EPUB 2 guides often
+        // point at a front-matter file that also carries body text.
+        if source_item.is_nav() || render_item.is_nav() {
+            continue;
+        }
         let guide_toc_candidate = source_item
             .path
             .as_deref()
@@ -109,7 +116,7 @@ pub(super) fn read_body_documents(
                         )),
                     });
                 }
-                if text.is_empty() {
+                if text.is_empty() && !has_image_markup(&render_xhtml) {
                     continue;
                 }
 
@@ -269,6 +276,24 @@ pub(super) fn resolve_epub_switch_elements(xhtml: &str, supported_namespaces: &[
         resolved.replace_range(range, "");
     }
     resolved
+}
+
+/// True when the document carries an image element. A cover page, a plate, or
+/// a fixed-layout page has no text but still contributes images and alt text.
+pub(super) fn has_image_markup(xhtml: &str) -> bool {
+    match roxmltree::Document::parse(xhtml) {
+        Ok(doc) => doc.descendants().any(|node| {
+            node.is_element()
+                && matches!(
+                    node.tag_name().name().to_ascii_lowercase().as_str(),
+                    "img" | "svg" | "image" | "picture"
+                )
+        }),
+        Err(_) => {
+            let lower = xhtml.to_ascii_lowercase();
+            lower.contains("<img") || lower.contains("<svg") || lower.contains("<image") || lower.contains("<picture")
+        }
+    }
 }
 
 fn is_epub_element(node: roxmltree::Node<'_, '_>, local_name: &str) -> bool {

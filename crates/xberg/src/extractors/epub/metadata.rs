@@ -80,6 +80,13 @@ impl ManifestItem {
             .is_some_and(|p| p.split_ascii_whitespace().any(|v| v.eq_ignore_ascii_case("nav")))
     }
 
+    /// True when the item is an SVG content document.
+    pub(super) fn is_svg(&self) -> bool {
+        self.media_type
+            .as_deref()
+            .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case("image/svg+xml"))
+    }
+
     pub(super) fn resolved_path(&self) -> std::result::Result<&str, String> {
         self.path.as_deref().ok_or_else(|| {
             self.path_resolution_error
