@@ -317,7 +317,7 @@ static ALT_ATTR_RE: std::sync::LazyLock<regex::Regex> =
 /// serializes the raw MathML XML and leaks straight into `pre_rendered_content`/plain text
 /// output; it carries no value once the equation has been recovered as LaTeX below, so it
 /// is stripped.
-static MATHML_COMMENT_RE: std::sync::LazyLock<regex::Regex> =
+pub(crate) static MATHML_COMMENT_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(r"(?is)<!--\s*MathML:.*?-->\s*").unwrap());
 
 /// Recover MathML equations as LaTeX `Formula` elements (issue #129).

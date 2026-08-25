@@ -376,3 +376,89 @@ fn build_epub_with_cover_item(metadata: &str, chapter_bytes: &[u8], png: &[u8]) 
     }
     cursor.into_inner()
 }
+
+// ---- #1493: rendering ------------------------------------------------------
+
+fn rendered_content(document: InternalDocument, output_format: OutputFormat) -> String {
+    xberg::extraction::derive::derive_extraction_result(document, false, output_format).content
+}
+
+#[tokio::test]
+async fn test_markdown_output_has_no_mathml_comment() {
+    let body = chapter(
+        r#"<p>Inline <math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow></math> here</p>"#,
+    );
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[("c1", "c1.xhtml", "application/xhtml+xml", "")],
+        &[("OEBPS/c1.xhtml", body.as_bytes())],
+    );
+    let document = extract(&bytes, &markdown_config()).await;
+    let text = plain_text(&document);
+    assert!(!text.contains("<!--"), "MathML comment leaked: {text}");
+    assert!(text.contains("Inline"), "got: {text}");
+    assert!(text.contains("here"), "text after the formula was lost: {text}");
+    assert!(
+        text.contains('x') && text.contains('+') && text.contains('1'),
+        "formula content was removed with the comment: {text}"
+    );
+}
+
+#[tokio::test]
+async fn test_heading_line_breaks_do_not_leak_control_characters() {
+    let body = chapter("<h2><br/><br/>CHAPTER I.</h2><p>Body text.</p>");
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[("c1", "c1.xhtml", "application/xhtml+xml", "")],
+        &[("OEBPS/c1.xhtml", body.as_bytes())],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    let text = rendered_content(document, OutputFormat::Plain);
+    assert!(!text.contains('\x01'), "got: {text:?}");
+    assert!(text.contains("CHAPTER I."), "got: {text}");
+}
+
+#[tokio::test]
+async fn test_nested_table_keeps_the_enclosing_table_rows() {
+    let body = chapter(
+        "<table><tr><td>A1</td><td>A2</td></tr><tr><td><table><tr><td>N1</td></tr></table></td><td>B2</td></tr><tr><td>C1</td><td>C2</td></tr></table>",
+    );
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[("c1", "c1.xhtml", "application/xhtml+xml", "")],
+        &[("OEBPS/c1.xhtml", body.as_bytes())],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    let text = rendered_content(document, OutputFormat::Plain);
+    for cell in ["A1", "A2", "N1", "B2", "C1", "C2"] {
+        assert!(text.contains(cell), "cell {cell} missing from: {text}");
+    }
+}
+
+#[tokio::test]
+async fn test_unresolved_image_keeps_its_alt_text_in_plain_output() {
+    let body = chapter(r#"<p>Before.</p><img src="missing.png" alt="A lost plate"/><p>After.</p>"#);
+    let bytes = build_epub(
+        BASIC_METADATA,
+        &[("c1", "c1.xhtml", "application/xhtml+xml", "")],
+        &[("OEBPS/c1.xhtml", body.as_bytes())],
+    );
+    let document = extract(&bytes, &ExtractionConfig::default()).await;
+    let text = rendered_content(document, OutputFormat::Plain);
+    assert!(text.contains("A lost plate"), "got: {text}");
+}
+
+// ---- #1493: the unresolved-image rendering reaches every format ------------
+
+#[tokio::test]
+async fn test_djot_plain_output_renders_alt_text_of_a_remote_image() {
+    use xberg::extractors::DjotExtractor;
+    let djot = b"Before.\n\n![A photo](https://example.com/remote.png)\n\nAfter.\n";
+    let document = DjotExtractor
+        .extract_content(djot, "text/djot", &ExtractionConfig::default())
+        .await
+        .expect("djot extraction failed");
+    let text = rendered_content(document, OutputFormat::Plain);
+    assert!(text.contains("[Image: A photo]"), "got: {text}");
+    assert!(text.contains("Before.") && text.contains("After."), "got: {text}");
+}
