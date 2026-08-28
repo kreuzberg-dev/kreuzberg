@@ -118,6 +118,7 @@ Any liter-llm vision-capable provider works as a VLM OCR backend:
 | Anthropic         | `anthropic/claude-3-5-sonnet-20241022` |
 | Google            | `google/gemini-2.0-flash`              |
 | Groq              | `groq/llama-3.2-90b-vision-preview`    |
+| OrcaRouter        | `orcarouter/fusion`                    |
 | Ollama (local)    | `ollama/llama3.2-vision`               |
 | LM Studio (local) | `lmstudio/llava-1.5`                   |
 | vLLM (local)      | `vllm/llava-next`                      |
@@ -513,6 +514,23 @@ model_prefixes = ["my-provider/"]
 `auth_header` is the header name carrying the key. Leave it unset (or set it to `Authorization`) for `Authorization: Bearer <key>`; any other name sends the raw key under that header, with no scheme prefix.
 
 Registration failures surface as a validation error rather than being ignored. The liter-llm registry is process-global and keyed by `name`, so the most recently built client wins for a given provider name — use distinct names across every `LlmConfig` in one process.
+
+#### Example: OrcaRouter
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible AI gateway that exposes a single provider/model namespace across many models, including its own adaptive-routing models (`orcarouter/fusion`, `orcarouter/fusion-flash`, `orcarouter/free`). Register it as a custom provider and route the `orcarouter/` prefix to its API:
+
+```toml title="xberg.toml"
+[structured_extraction.llm]
+model = "orcarouter/fusion"
+api_key = "..."
+
+[[structured_extraction.llm.providers]]
+name = "orcarouter"
+base_url = "https://api.orcarouter.ai/v1"
+model_prefixes = ["orcarouter/"]
+```
+
+Any `orcarouter/*` model can be swapped into `model` — the gateway routes it to an underlying model with automatic failover. The same provider registration also applies to VLM OCR and provider-hosted embeddings, so one `LlmConfig.providers` entry covers every feature that calls liter-llm.
 
 For a single custom or self-hosted endpoint that needs no prefix routing, set `base_url` on `LlmConfig` directly instead (see [Custom Base URL](#local-llm-support) above).
 
