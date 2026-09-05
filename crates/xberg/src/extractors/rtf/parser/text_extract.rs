@@ -62,16 +62,19 @@ fn close_listtext_group(
     }
     *in_listtext = false;
     let lt = listtext_buf.trim();
-    let is_ordered = lt.strip_suffix('.').or_else(|| lt.strip_suffix(')')).is_some_and(|prefix| {
-        let p = prefix.trim();
-        if p.chars().all(|c| c.is_ascii_digit()) && !p.is_empty() {
-            return true;
-        }
-        if p.chars().all(|c| c.is_ascii_alphabetic()) && !p.is_empty() {
-            return true;
-        }
-        false
-    });
+    let is_ordered = lt
+        .strip_suffix('.')
+        .or_else(|| lt.strip_suffix(')'))
+        .is_some_and(|prefix| {
+            let p = prefix.trim();
+            if p.chars().all(|c| c.is_ascii_digit()) && !p.is_empty() {
+                return true;
+            }
+            if p.chars().all(|c| c.is_ascii_alphabetic()) && !p.is_empty() {
+                return true;
+            }
+            false
+        });
     if is_ordered {
         *cur_ordered = true;
     }
@@ -134,7 +137,10 @@ fn close_annotation_group(
     *in_annotation = false;
     let comment = annotation_buf.trim().to_string();
     if !comment.is_empty() {
-        let label = pending_atnid.take().map(|id| id.to_string()).unwrap_or_else(|| (comments.len() + 1).to_string());
+        let label = pending_atnid
+            .take()
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| (comments.len() + 1).to_string());
         comments.push(format!("[Comment {label}]: {comment}"));
     } else {
         *pending_atnid = None;
@@ -315,8 +321,20 @@ pub(crate) fn extract_text_from_rtf(
                         hyperlinks: &mut hyperlinks,
                     },
                 );
-                close_footnote_group(group_depth, &mut in_footnote, footnote_depth, &mut footnote_buf, &mut footnotes);
-                close_shptxt_group(group_depth, &mut in_shptxt, shptxt_depth, &mut shptxt_buf, &mut text_boxes);
+                close_footnote_group(
+                    group_depth,
+                    &mut in_footnote,
+                    footnote_depth,
+                    &mut footnote_buf,
+                    &mut footnotes,
+                );
+                close_shptxt_group(
+                    group_depth,
+                    &mut in_shptxt,
+                    shptxt_depth,
+                    &mut shptxt_buf,
+                    &mut text_boxes,
+                );
                 close_annotation_group(
                     group_depth,
                     &mut in_annotation,

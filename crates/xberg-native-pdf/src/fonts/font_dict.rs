@@ -1777,7 +1777,10 @@ impl FontInfo {
         }
 
         let Some(cidtogid_obj) = cidfont_dict.get("CIDToGIDMap") else {
-            tracing::debug!("Font '{}': CIDToGIDMap not specified, defaulting to Identity", base_font);
+            tracing::debug!(
+                "Font '{}': CIDToGIDMap not specified, defaulting to Identity",
+                base_font
+            );
             return Some(CIDToGIDMap::Identity);
         };
 
@@ -2765,8 +2768,7 @@ impl FontInfo {
             let mut multi_char_map: HashMap<u8, String> = HashMap::new();
             let mut diff_glyph_names: HashMap<u8, String> = HashMap::new();
 
-            let mut encoding_map: HashMap<u8, char> =
-                Self::resolve_base_encoding_map(dict, doc, font_program_encoding);
+            let mut encoding_map: HashMap<u8, char> = Self::resolve_base_encoding_map(dict, doc, font_program_encoding);
 
             Self::apply_differences_array(dict, doc, &mut encoding_map, &mut multi_char_map, &mut diff_glyph_names);
 

@@ -196,7 +196,8 @@ fn handle_table_or_formatting_control_word(control_word: &str, param: Option<i32
             ctx.fmt_tracker.update_italic(ctx.result.len(), param.unwrap_or(1) != 0);
         }
         "ul" => {
-            ctx.fmt_tracker.update_underline(ctx.result.len(), param.unwrap_or(1) != 0);
+            ctx.fmt_tracker
+                .update_underline(ctx.result.len(), param.unwrap_or(1) != 0);
         }
         "ulnone" => {
             ctx.fmt_tracker.update_underline(ctx.result.len(), false);
@@ -206,7 +207,8 @@ fn handle_table_or_formatting_control_word(control_word: &str, param: Option<i32
                 .update_strikethrough(ctx.result.len(), param.unwrap_or(1) != 0);
         }
         "cf" => {
-            ctx.fmt_tracker.update_color(ctx.result.len(), param.unwrap_or(0) as u16);
+            ctx.fmt_tracker
+                .update_color(ctx.result.len(), param.unwrap_or(0) as u16);
         }
         "plain" => {
             if let Some(h) = ctx.hidden_stack.last_mut() {

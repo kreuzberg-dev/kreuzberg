@@ -537,7 +537,10 @@ fn handle_graphics_region_step_buffered(
             }
             true
         }
-        ScanResult::NeedFullParse { operand_start, after_op } => {
+        ScanResult::NeedFullParse {
+            operand_start,
+            after_op,
+        } => {
             match parse_operator_with_operands(operand_start) {
                 Ok((rest2, op)) => {
                     operators.push(op);
@@ -1813,7 +1816,10 @@ where
             }
             Ok(true)
         }
-        ScanResult::NeedFullParse { operand_start, after_op } => {
+        ScanResult::NeedFullParse {
+            operand_start,
+            after_op,
+        } => {
             match parse_operator_with_operands(operand_start) {
                 Ok((rest2, op)) => {
                     handler(op)?;
@@ -2018,7 +2024,10 @@ where
             }
             Ok(true)
         }
-        ScanResult::NeedFullParse { operand_start, after_op } => {
+        ScanResult::NeedFullParse {
+            operand_start,
+            after_op,
+        } => {
             match parse_operator_with_operands(operand_start) {
                 Ok((rest2, op)) => {
                     call(op, handler)?;
