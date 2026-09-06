@@ -141,7 +141,7 @@ tracing = "0.1"
 # and WASM-safe; the top-level `tract` facade instead defaults to CUDA and bundles
 # GPU backends, so it is unusable here. See issue #1275.
 tract-onnx = { version = "0.23.6", default-features = false }
-tree-sitter-language-pack = { version = "1.16.1", default-features = false, features = ["serde"] }
+tree-sitter-language-pack = { version = "1.16.2", default-features = false, features = ["serde"] }
 url = "2.5.8"
 # usvg (re-exported by resvg) with only the `writer` feature so `Tree::to_string`
 # / `WriteOptions` are available for SVG sanitize re-serialization. `writer` pulls
