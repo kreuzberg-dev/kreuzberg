@@ -164,7 +164,13 @@ mod build_libwpd {
     /// dev builds, so the debug zlib (`-MDd`) would trip LNK2038 RuntimeLibrary
     /// mismatches; the debug dir is only a last-resort fallback.
     fn link_zlib() {
-        if !targeting_windows() {
+        // ~keep The vcpkg probe below is MSVC-only. `x64-windows-static-md` is MSVC-toolchain
+        // output, and handing an MSVC archive to the GNU/MinGW linker fails with repeated
+        // `corrupt .drectve at end of def file` and `ld returned 5` -- the Ruby gem's Windows
+        // leg builds against RubyInstaller's UCRT/MinGW ABI, so it took that path and could not
+        // link. Every non-MSVC target links the static zlib `libz-sys` already builds from
+        // source for the target, the same one whose headers `DEP_Z_INCLUDE` supplies below.
+        if !targeting_windows() || target_env() != "msvc" {
             println!("cargo:rustc-link-lib=static=z");
             return;
         }

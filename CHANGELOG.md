@@ -180,6 +180,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the Windows Ruby gem failing to build. `xberg-libwpd`'s build script chose its zlib by
+  operating system alone, so the gem's MinGW/UCRT toolchain was handed vcpkg's MSVC-built
+  `x64-windows-static-md` archive and the link died with `corrupt .drectve`/`ld returned 5`. The
+  vcpkg path is now taken only for genuinely MSVC targets; every other target links the static
+  zlib `libz-sys` already builds from source.
 - Fixed `XbergLoader` ignoring chunking and per-page splitting whenever the LangChain
   integration was given an `ExtractionConfig` object. Both settings were read only when the
   config was a `dict`, so after `ExtractionConfig` became a frozen dataclass the documented
