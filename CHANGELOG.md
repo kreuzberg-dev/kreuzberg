@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-09-06
+
+> **This release contains breaking public API changes.** Entries prefixed **Breaking:** below remove
+> or change public API — notably `OutputFormat::Structured`, the `ElementId` wrapper,
+> `ExtractedDocument.formatted_content` in the language bindings, and the `core::batch_mode`,
+> `core::formats`, and `core::io` modules — and configuration deserialization now rejects unknown
+> fields rather than ignoring them. Review them before upgrading.
 
 ### Added
 
@@ -86,6 +92,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route decoding images under a hardcoded `SecurityLimits::default()`
   ([#1554](https://github.com/xberg-io/xberg/issues/1554)).
 
+- Added `detected_language_confidences`, carrying each detected language's confidence, proportion,
+  script, and reliability alongside the existing `detected_languages` codes, so a document that is
+  95% English and 5% French is distinguishable from an even mix
+  ([#261](https://github.com/xberg-io/xberg/issues/261)). The existing field keeps its type and ordering.
+- DOCX reviewer comments now emit their own `NodeContent::Comment` node instead of riding the
+  footnote reference and definition machinery, so consumers can tell a comment from a footnote.
+- PDF annotations now preserve their subtype (Ink, Square, Circle, Polygon, PolyLine, Line, Squiggly,
+  Caret, FileAttachment, Sound, Movie) instead of collapsing to `Other`, carry author, modification
+  date, colour, subject, and QuadPoints, recover the text a Highlight marks, and are emitted by the
+  Markdown, Djot, plain, HTML, and JSON renderers — previously no renderer emitted annotations at all
+  ([#63](https://github.com/xberg-io/xberg/issues/63)).
+- PDF extraction now reads image alt text from the structure tree, falls back to XMP for title,
+  author, and subject when the Info dictionary is empty, surfaces `/PageLabels` (roman-numeral front
+  matter, per-section numbering) through `metadata.additional`, excludes content on optional-content
+  layers that are off by default, and renders filled AcroForm values. Unencodable images, annotation
+  failures, and form failures now emit a `ProcessingWarning` instead of being dropped at log level
+  ([#62](https://github.com/xberg-io/xberg/issues/62), [#71](https://github.com/xberg-io/xberg/issues/71)).
+- The OOXML `DocSecurity` bit field is decoded into named protection flags on `Metadata.additional`
+  for DOCX, XLSX, and PPTX, so a password-protected or read-only-recommended document is
+  distinguishable from an unrestricted one.
+- Added PaddleOCR on the tract backend, so classical PaddleOCR (DBNet, CRNN, AngleNet) is available on
+  `wasm32` and the Android x86_64 emulator, where ONNX Runtime cannot link.
+- Added `top_p`, `stop`, `seed`, `presence_penalty`, and `frequency_penalty` to `LlmConfig`, validated
+  and applied to every outgoing request. They were previously accepted by every config file and
+  language binding and then dropped before reaching a provider.
+- Added `LlmConfig.max_concurrency` to bound VLM OCR and image-captioning requests in flight
+  independently of `ConcurrencyConfig.max_threads`, which represents local CPU capacity
+  ([#1453](https://github.com/xberg-io/xberg/issues/1453)).
+- Every error variant now carries a stable FFI error code, so typed error handling works in the C-ABI
+  bindings; `errors.Is(err, ErrOcr)` in Go, Java's `checkLastError` switch, and Zig's error set
+  previously collapsed all variants to a single unknown constant.
+- Exposed `html_to_markdown_rs::ConversionOptions` at the Rust crate root, so callers configuring
+  `ExtractionConfig::html_options` no longer need a direct dependency on the upstream crate, and made
+  `DocumentNode`'s text and node-type accessors public so `DocumentStructure.nodes` can be read as
+  documented.
+- Added `FormatMetadata::html()`, returning the HTML metadata when the variant is `Html`, matching the
+  accessors already exposed for the other formats.
+- Added an opt-in Pdfium PDF extraction backend behind the `pdf-pdfium` feature, selectable with
+  `PdfConfig.backend` or `--pdf-backend pdfium`, providing page count, per-page text, and Info
+  dictionary metadata. Its scope is deliberately narrower than the native engine — no table detection,
+  layout integration, form fields, or OCR fallback — and every result carries a `ProcessingWarning`
+  naming the gap. The feature is not part of `full`, so it reaches source builders only.
+- Added a Scoop manifest published to the `xberg-io/scoop-bucket` on release, so the Windows CLI can be
+  installed with `scoop install xberg`.
+- Extraction now reports a `ProcessingWarning` when a document decodes lossily or degrades silently.
+  Decode provenance is captured before mojibake cleanup strips the replacement characters that used to
+  be the only evidence, and archive, AsciiDoc, WebVTT, XML, and plain-text extraction warn on replaced
+  characters. Unresolved ODT image hrefs, unparseable `styles.xml`, collapsed repeated table cells,
+  skipped LaTeX, Typst, RST, and Org includes, OPML without a body, links past the per-document URI
+  cap, truncated XML, and words Tesseract failed to extract now warn instead of failing silently
+  ([#171](https://github.com/xberg-io/xberg/issues/171), [#133](https://github.com/xberg-io/xberg/issues/133)).
+- A PDF page whose raster render comes back blank now falls back to OCR'ing the page's embedded image
+  XObjects, and that recovery preserves the tables, formulas, LLM usage records, and image
+  preprocessing metadata the backend produced instead of keeping only the text, with every recovered
+  payload accounted against `security_limits`.
+
 ### Changed
 
 - **Breaking (Python binding):** `ExtractionConfig` and `DoctorReport` are now frozen dataclasses
@@ -160,6 +222,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extraction completeness; inspect `processing_warnings` for known partial or degraded results.
 - The default `security_limits.max_table_cells` remains 100,000 aggregate cells per document;
   limit errors now explain how to raise it for trusted inputs or reduce the source table.
+
+- `TesseractConfig.language_model_ngram_on` now defaults to `true` on both the PDF and standalone
+  image OCR paths. Tesseract previously applied no penalty to output that does not look like a word of
+  the target language, the dominant failure mode on scanned line art. Set the field to `false` to
+  restore the previous behaviour.
+- Tesseract Markdown-format OCR now drops hOCR lines whose dictionary-checkable words are more than
+  60% invalid, removing recognition noise such as `OWATS DNDEVET` while keeping labels like `EXHIBIT`
+  and `LEGEND`. A line needs at least two checkable words to be scored, and the removed-line count is
+  reported as a `ProcessingWarning`.
+- Undecodable-text OCR routing is now decided per page rather than for the whole document, so a single
+  unreadable page no longer sends every page of a PDF through OCR and discards good native text. The
+  previous document-wide fallback still applies when page boundaries are unavailable or inconsistent.
+- With `max_threads` unset the thread budget is `min(num_cpus, 8)` and now ceilings Rayon, ONNX Runtime
+  intra-op threads, and batch workers alike. A cgroup CPU quota is honoured in place of the hardcoded 8
+  where one exists, and a host with more than 8 cores and no `max_threads` is warned once per process
+  ([#1392](https://github.com/xberg-io/xberg/issues/1392)).
+- PaddleOCR inference now uses the resolved thread budget instead of a hardcoded single thread. The
+  session is serialized behind a mutex, so exactly one worker runs and can claim the whole budget
+  without oversubscribing.
 
 ### Removed
 
@@ -538,6 +619,190 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed the `excel-wasm` feature so spreadsheet extraction builds for WebAssembly.
 - Fixed WebAssembly configuration so unsupported managed credential providers are rejected explicitly.
 
+- Fixed the Swift package failing to link on Linux. `Package.swift` linked `libxberg_ffi.a` alongside
+  `libxberg_swift.a`, but the Swift static library already folds the entire compiled `xberg-ffi` crate
+  in, so every Rust core, std, and alloc symbol existed twice and the linker reported hundreds of
+  duplicate symbols. It also never asked for ONNX Runtime, leaving `OrtGetApiBase` undefined.
+- Fixed the public `clear_ocr_backends()` and `clear_renderers()` leaving their process-global
+  registries permanently empty. After `clear_ocr_backends()` every later extraction failed with "No
+  available OCR backends"; after `clear_renderers()` the `Custom` output-format path silently
+  downgraded DOT renders to plain text for the life of the process. Both now re-seed the built-ins
+  non-destructively, keeping user-registered entries.
+- Fixed nested lists rendering as flat, blank-line-separated bullets in `pages[N].content`: container
+  list markers are never page-tagged, so a page subset dropped them and every item was rewrapped in
+  its own single-item list. Also fixed figure alt text being dropped whenever a caption was present,
+  the VLM OCR probe reporting availability without checking credentials, and the PDF margin filter
+  judging rotated text runs by baseline origin.
+- Fixed HEIC-enabled builds requiring a libheif newer than current stable distributions ship. The
+  prebuilt artifacts link libheif dynamically and were built against 1.21 APIs, so the PHP extension
+  failed to load on Debian 13 with `undefined symbol: heif_image_get_plane_readonly2`. The floor is now
+  1.19, with version-gated fallbacks ([#1541](https://github.com/xberg-io/xberg/issues/1541)).
+- Fixed PDF text collapsing on itself when a font's `/Widths` array declares 0 for an ordinary glyph.
+  Extraction now falls back to the embedded font's own advance for such codes, while an explicit `TJ`
+  displacement stays authoritative and genuine zero-width combining marks remain overlays.
+- Fixed automatic PDF OCR replacing a page's native text with a substantially poorer recognition. OCR
+  output for a page whose native text was independently judged healthy is now rejected when it retains
+  under half that page's alphanumeric characters.
+- Fixed OCR of a single detached page image being attributed to page 1. Local image indices were used
+  as document page numbers, so warnings named the wrong page and the rejected-page filter discarded
+  OCR elements, tables, and formulas belonging to a different page than the one rejected.
+- Fixed XML extraction narrowing element depth to `u8` before clamping, so an element nested more than
+  255 levels deep wrapped to a low heading level in release builds and panicked in debug builds, before
+  the configured `max_xml_depth` limit ever applied
+  ([#1474](https://github.com/xberg-io/xberg/issues/1474)).
+- Fixed PDF XMP metadata losing text fragments split around an entity boundary: named and numeric XML
+  references in XMP scalar and sequence values are preserved instead of the surrounding text being
+  truncated ([#1475](https://github.com/xberg-io/xberg/issues/1475)).
+- Fixed image-level OCR running again over a page-sized PDF XObject on a page whose native text had
+  already been extracted, which duplicated the page's content and paid for a second OCR pass
+  ([#1479](https://github.com/xberg-io/xberg/issues/1479)).
+- Fixed the musl (Alpine) native artifacts failing to load. The published Java, C#, Zig, C, and Elixir
+  artifacts shipped without ONNX Runtime's transitive closure — libprotobuf-lite, the `libabsl_*` set,
+  libre2, and libicu. Both musl images now vendor the full `ldd` closure and hard-fail the build if
+  anything is unresolved. A host runtime that links libstdc++ itself still needs libstdc++ 15 or newer
+  in the process, because a bundled copy cannot win once the soname is already mapped.
+- Fixed a DOCX or PPTX relationship targeting `../media/image1.png` — the ordinary OPC shape for an
+  image at the package root — being rejected by the traversal check and dropped, so the image went
+  missing from extraction. Container-relative names now resolve boundary-relative.
+- Fixed OCR of rendered PDF pages assuming a 72 DPI raster when pages render at 150 DPI, so DPI
+  normalisation computed a 2.48x upscale, hit the dimension clamp, and reported a resolution hint of
+  179 for what was really a 372 DPI image. Also fixed image DPI normalisation being skipped entirely in
+  candle-backend and VLM-only builds.
+- Fixed layout detection marking real figure and drawing text as page furniture, which the renderer
+  then discarded, so labels such as `SITE PLAN` and `LEGEND` disappeared from scanned documents. A
+  `Picture` hint now means a figure was detected, not that the text is decoration, and furniture hints
+  only match short text.
+- Fixed the Docling-compatible endpoint discarding OpenWebUI's extraction parameters. OpenWebUI sends
+  one form field per key rather than a JSON blob, so settings made in its admin UI produced identical
+  output with or without them ([#1462](https://github.com/xberg-io/xberg/issues/1462)).
+- Fixed CLI flags being silently discarded. `--ocr-backend`, `--ocr-language`, `--ocr-auto-rotate`, and
+  `--ocr-backend-options` were dropped unless `--ocr true` was also passed, so `--ocr-scanned-pages
+  --ocr-backend sceptre` ran Tesseract with no error; `--ocr-scanned-pages` alone returned an empty
+  document at exit status 0; and `--chunk-size` was a no-op without `--chunk true`.
+- Fixed legacy `.doc` extraction emitting every field's instruction — its URL, switches, and
+  screen-tips — verbatim as prose, and the non-breaking hyphen being dropped with the other control
+  characters, fusing `twenty-one` into `twentyone`.
+- Fixed paragraph grouping only breaking when a line starts a numbered section and never when the
+  previous line was one, so a subsection heading followed by unnumbered lines at the same size and
+  weight was merged into the following prose
+  ([#1467](https://github.com/xberg-io/xberg/issues/1467)). Consecutive numbered headings are likewise
+  no longer welded into a single paragraph
+  ([#1386](https://github.com/xberg-io/xberg/issues/1386)).
+- Fixed the PDF pipeline stripping a list item's printed marker and discarding it, leaving renderers to
+  synthesize a position, so a document whose clauses are cross-referenced by their printed label was
+  renumbered — `B.` rendering as `1.` and `(a)` as `1.`.
+- Fixed `candle-trocr` accepting a whole page and returning invented text. TrOCR is trained on single
+  cropped lines and force-resizes any input, so a multi-page document exited successfully with text
+  appearing nowhere in it. Input taller than a plausible line crop is now rejected.
+- Fixed inline `<svg>` elements being discarded during HTML extraction even with `extract_images`
+  enabled ([#745](https://github.com/xberg-io/xberg/issues/745)).
+- Fixed an explicitly requested GPU execution provider silently running on CPU. `is_available()`
+  reports only compile-time support and ORT's session builder defaults to not erroring on failure, so
+  an explicit CUDA, TensorRT, or CoreML request that failed to load was swallowed. Explicit requests
+  now fail; `Auto` keeps its silent fallback.
+- Fixed DOCX documents with legacy VML picture markup being rejected as `NestingTooDeep`, and the
+  inverse hole where content inside drawings, table property helpers, the table grid, and streaming
+  section properties was never measured against the depth cap at all. A flat 600-row table of real
+  depth 8 previously leaked over a thousand levels and was rejected outright
+  ([#1395](https://github.com/xberg-io/xberg/issues/1395)).
+- Fixed `XBERG_LLM_API_KEY` and `XBERG_LLM_BASE_URL` fabricating a structured-extraction config with an
+  empty model and schema, so any deployment that merely had an LLM key in its environment ran the
+  post-processor on every document and failed every one
+  ([#1421](https://github.com/xberg-io/xberg/issues/1421)).
+- Fixed two PDF paths aborting or failing the whole request: a `/ModDate` whose raw bytes decode to a
+  replacement character sliced a `str` off a char boundary and panicked, which across the Go FFI
+  boundary aborts the process before any `catch_unwind` frame is consulted; and a rasterizer panic on a
+  page with damaged content streams unwound through the async boundary and lost every other page's text
+  ([#1422](https://github.com/xberg-io/xberg/issues/1422), [#1408](https://github.com/xberg-io/xberg/issues/1408)).
+- Fixed keyword extraction panicking on a language hint whose first character is multi-byte.
+- Fixed legacy `.ppt` slide numbering and image extraction. Slide numbers were the ordinal of a text
+  block in a joined string, so a trailing paragraph mark cut one slide into several; they now come from
+  the slide containers in persist order. The OLE `/Pictures` stream was never opened, so `.ppt`
+  extraction never produced an image ([#1418](https://github.com/xberg-io/xberg/issues/1418),
+  [#1417](https://github.com/xberg-io/xberg/issues/1417)).
+- Fixed PPTX slides without a title losing their page number
+  ([#1413](https://github.com/xberg-io/xberg/issues/1413)).
+- Fixed URL extraction reporting no crawled URLs, because the result field is no longer populated
+  upstream. The URLs are now derived from the crawled pages, deduped in first-seen order.
+- Fixed PDF page-number stripping deleting real table data. The decision was made from one paragraph's
+  text, so any short numeric cell matched; it now requires a margin band, a stable horizontal slot
+  across pages, and a progressive sequence to agree
+  ([#1411](https://github.com/xberg-io/xberg/issues/1411)).
+- Fixed PDF paragraph breaks never being detected on a normally-set page, so a whole memo — date,
+  salutation, body, sign-off — came back as one line. The vertical advance is now compared against the
+  body leading, which is scale-free.
+- Fixed detected PDF tables being injected on top of native text that already contained them, so the
+  same content was rendered twice.
+- Fixed non-HTML raw blocks being written verbatim into styled HTML output. ODP speaker notes and
+  master-page text, Org source, script and style bodies, and Djot raw blocks all reached the page
+  unescaped, so any `<` in them corrupted the document structure.
+- Fixed the PyPI `xberg-cli` wheels shipping without their native libraries. The build hook
+  force-included siblings with a macOS-only glob, so every Linux shared object staged beside the binary
+  was dropped, and the musl wheel shipped only the launcher script. An incomplete platform payload now
+  fails the build instead of publishing a wheel that installs and cannot run.
+- Fixed OCR'd PDF pages reporting bounding boxes in raster pixels while digital pages report PDF
+  points, with nothing in the response distinguishing the two spaces. Node, hierarchy block, chunk page
+  span, and table bounding boxes are now converted to page points with a bottom-left origin
+  ([#1423](https://github.com/xberg-io/xberg/issues/1423)).
+- Fixed OCR on pages carrying a `/Rotate` entry. Backends now declare how they cope with a rotated
+  raster, so a backend that requires an upright page is handed one with its geometry mapped back, and
+  PaddleOCR receives the page rotation as a sort key. Auto-rotation composes with the page hint instead
+  of double-correcting it.
+- Fixed PDF text and tables on rotated pages. Rotated-text repair reconstructs the reading frame but
+  only when rotated spans are at least 20% of a page's characters, so a single rotated caption no
+  longer costs the upright majority of the page its whitespace structure, and heuristic table
+  reconstruction clusters cells on the table's own axes rather than raw page space
+  ([#1358](https://github.com/xberg-io/xberg/issues/1358)).
+- Fixed the OpenAPI document omitting types that client generators need: second-order nested component
+  schemas are now registered, along with the PDF, office, and transcription schema groups and the `415`
+  and `429` responses the extraction endpoints can return
+  ([#1424](https://github.com/xberg-io/xberg/issues/1424)).
+- Fixed `code_intelligence` being hardcoded to `None`, so the documented metrics, imports and exports,
+  comments, docstrings, symbols, and diagnostics never reached callers
+  ([#259](https://github.com/xberg-io/xberg/issues/259)).
+- Fixed Whisper timestamp tokens leaking into transcripts as literal text. They are not marked special
+  in the tokenizer vocabulary, so they survived decoding; they are now paired into segments, emitting
+  one paragraph per segment with start and end times.
+- Fixed `cargo add xberg --features full` failing to link on Windows MSVC, where a transitive build
+  script forces `/MT` while Rust defaults to `/MD`, killing the build with `LNK2038`
+  ([#1389](https://github.com/xberg-io/xberg/issues/1389)).
+- Fixed `show_download_progress` having no readers anywhere on the embedding, sparse-embedding,
+  reranker, and late-interaction model configs, so the documented option did nothing.
+- Fixed `split_and_extract` rebuilding each segment from a handful of fields, dropping keywords,
+  entities, summaries, chunks, warnings, and the rest of the enrichment that extraction produced, and
+  an off-by-one in the chunk image-index remap that pointed chunks at the wrong image.
+- Fixed `target_dpi`, `max_image_dimension`, `auto_adjust_dpi`, `min_dpi`, and `max_dpi` having no
+  readers: every preprocessing config was built with defaults, so these settings were dropped
+  ([#209](https://github.com/xberg-io/xberg/issues/209)).
+- Fixed declared telemetry that never emitted. The cache-hit, cache-miss, and batch instruments were
+  declared but never recorded, and the pipeline and batch operations, five of the eight pipeline stage
+  spans, and the extractor-priority and batch attributes were likewise never recorded, so filtering on
+  them returned nothing ([#332](https://github.com/xberg-io/xberg/issues/332),
+  [#282](https://github.com/xberg-io/xberg/issues/282)).
+- Fixed an injected cache backend never being consulted and `ProgressSink::emit` having no caller on
+  single extraction; `extract_batch` was already correct. A bytes-input cache hit now short-circuits
+  extraction and coarse start, complete, error, and cache-hit events are emitted.
+- Fixed renderer output completeness: JSON silently dropped page breaks, footnote references and
+  definitions, citations, slides, definition terms, admonitions, raw blocks, and metadata blocks
+  through a catch-all arm; styled HTML opened a section for each slide that was never closed and never
+  rendered the slide title; and formulas rendered as preformatted code, which KaTeX and MathJax cannot
+  pick up, and are now delimited display math.
+- Fixed footnote definitions never appearing in JSON output, and a definition present in the document
+  but never referenced being dropped from rendered output entirely
+  ([#68](https://github.com/xberg-io/xberg/issues/68)).
+- Fixed plugin-produced documents losing content at the bridge. The conversion into the internal
+  document dropped `uris`, `children`, `annotations`, `processing_warnings`, `llm_usage`, `pages`, and
+  `ocr_elements`; native renderers reached through the public entry point emitted an empty shell; and
+  `pre_rendered_content` was ignored for HTML and JSON output.
+- Fixed CRLF documents collapsing into a single paragraph. Ten call sites split paragraphs on a bare
+  double newline without normalising line endings first, affecting email and PST bodies, OCR backend
+  output, plain text, and Djot conversion ([#227](https://github.com/xberg-io/xberg/issues/227)).
+- Fixed MIME aliases that were advertised as supported and then failed as `UnsupportedFormat`, because
+  the registry looks up by exact string with no alias resolution. `application/wordperfect`,
+  `application/x-quarto`, and four audio and video transcription aliases now route to the same
+  extractor as their canonical type.
+- Fixed three internal OCR plumbing keys being copied into user-visible document metadata.
+
 ### Security
 
 - Bounded DOCX image and iWork archive member reads by the member's declared uncompressed size
@@ -560,6 +825,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache namespaces are validated before directories are created.
 - Redaction now reports only content that was actually removed, never exposes pre-redaction element
   text, and rejects invalid strategies instead of silently falling back to masking.
+
+- Hardened the native PDF engine against crafted documents that abort or hang the host process. A
+  self-referencing `/Names /EmbeddedFiles` tree and deeply nested array or dictionary brackets each
+  recursed until the stack overflowed, which is an abort no `catch_unwind` can contain; a negative
+  `/W` element in an xref stream, a reversed `bfrange`, a non-hex `ToUnicode` destination, an all-NaN
+  font-size set, and unchecked `/Width`x`/Height`, `/N`, and `/VerticesPerRow` products each panicked
+  or allocated without bound; and `decode_stream_with_params`, the entry point every production call
+  site uses, applied no ratio or size guard at all. All were reachable from `extract_bytes` under
+  default configuration.
+- Bounded every ZIP, TAR, and 7z member read against `SecurityLimits` rather than against the size the
+  archive declares for itself, since a declared uncompressed size is not a bound and the aggregate
+  check previously ran only after the member was fully resident. Covers generic archives, ODT, ODP,
+  EPUB, HWPX, PPTX, XLSX, and OOXML embedded objects, and adds the compression-ratio and aggregate-size
+  validation that PPTX, XLSX, and DOCX were missing. A nested ZIP no longer overflows the stack.
+- Clamped or rejected document-declared counts that reached an allocation or a slice unchecked: HWP
+  table row and column counts, HTML and EPUB `colspan`/`rowspan`, DOCX `w:ilvl`, `w:gridSpan`, and
+  `w:outlineLvl`, PPTX `a:pPr lvl`, RST simple-table column ranges, JATS `date-type`, EPUB link-label
+  offsets, PPTX relationship targets, and the hOCR parser's and annotated-text renderer's byte-offset
+  slices. Each was an out-of-bounds or char-boundary panic, or an allocation abort, on ordinary
+  untrusted input.
+- `security_limits.max_files_in_archive` is now enforced by every OOXML container. XLSX never checked
+  it, DOCX enforced a hardcoded 10,000-entry cap instead of the configured one, PPTX had no entry check
+  at all, and embedded-object extraction walked embeddings uncapped
+  ([#1449](https://github.com/xberg-io/xberg/issues/1449)).
+- EPUB packaging XML now counts real OPF nesting depth against the configured limit and accepts legacy
+  DTD declarations without resolving external or amplified entities, so a crafted package can neither
+  bypass the depth budget nor pull in outside content
+  ([#1477](https://github.com/xberg-io/xberg/issues/1477), [#1478](https://github.com/xberg-io/xberg/issues/1478)).
+- Native PDF tracing no longer carries document content. Decoded page text was emitted verbatim at
+  TRACE, embedded font names appeared in trace events and in the glyph-drop `ProcessingWarning`
+  message, and parser, xref, and recovery failures were logged by formatting the underlying error
+  string. Failure paths now emit a structured `error_code` with an optional byte `error_offset`, and
+  font names are redacted in the warning text.
+- Bounded the native PDF reader's internal caches so a malformed or hostile document cannot grow them
+  without limit: the object-stream cache evicts to a byte budget and rejects oversized entries, font
+  identity hashing stops at a byte budget and a reference-depth cap (both recorded in the hash so
+  distinct fonts stay distinct), and the xref recovery-marker set is capped.
 
 ## [1.0.14] - 2026-08-04
 
