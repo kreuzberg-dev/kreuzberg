@@ -208,6 +208,17 @@ jobs:
             images/**
             doc/**
 
+      # fetch-test-documents stages every object through `mktemp` (mode 0600) and
+      # copies it into place with plain `cp`, so the corpus lands readable only by
+      # the runner user. The core and full images run as the unprivileged `xberg`
+      # user (`USER xberg`), which then cannot read the /data:ro mount at all --
+      # both failed with `Cache error: Failed to open file for hashing: Permission
+      # denied (os error 13)` while the cli image, which has no USER directive and
+      # so runs as root, passed. The durable fix belongs upstream in
+      # xberg-io/actions/fetch-test-documents; this keeps the mount readable meanwhile.
+      - name: Make fetched fixtures readable inside the container
+        run: chmod -R a+rX test_documents
+
       - name: Decide whether to build
         id: gate
         env:

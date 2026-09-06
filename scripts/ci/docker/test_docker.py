@@ -107,15 +107,25 @@ class TestRunner:
         for c in self.containers:
             self.docker_rm(c)
 
-    def run_cli_output(self, *extra_args: str, volumes: bool = False) -> str:
-        """Run a CLI command against the image and return combined stdout+stderr."""
+    def run_cli(self, *extra_args: str, volumes: bool = False) -> tuple[int, str]:
+        """Run a CLI command against the image; return its exit code and combined stdout+stderr.
+
+        ~keep The exit code is load-bearing: a failing extraction still writes a multi-line
+        error to stderr, so a length-only assertion passes on the error message itself. That
+        masked the /data permission failures in run 34029053935, where DOCX and OCR were
+        reported as PASS while printing `Permission denied (os error 13)`.
+        """
         args: list[str] = ["--name", self.container_name()]
         if volumes:
             args += ["-v", f"{TEST_DOCS_DIR}:/data:ro"]
         args.append(self.image)
         args.extend(extra_args)
         r = self.docker_run(*args)
-        return (r.stdout + r.stderr).strip()
+        return r.returncode, (r.stdout + r.stderr).strip()
+
+    def run_cli_output(self, *extra_args: str, volumes: bool = False) -> str:
+        """Run a CLI command against the image and return combined stdout+stderr."""
+        return self.run_cli(*extra_args, volumes=volumes)[1]
 
     def write_results(self) -> None:
         rate = (self.passed * 100 // self.total) if self.total else 0
@@ -213,9 +223,11 @@ def test_extract_pdf(t: TestRunner) -> None:
 
 def test_extract_html(t: TestRunner) -> None:
     t.start("Extract HTML file")
-    out = t.run_cli_output("extract", "/data/html/simple_table.html", volumes=True)
+    code, out = t.run_cli("extract", "/data/html/simple_table.html", volumes=True)
     t.debug(f"HTML extraction output (first 100 chars): {out[:100]}")
-    if len(out) > 10:
+    if code != 0:
+        t.fail_test("HTML extraction", f"Exit code {code}: {out[:300]}")
+    elif len(out) > 10:
         t.pass_test()
     else:
         t.fail_test("HTML extraction", f"Output too short: {len(out)} chars")
@@ -223,9 +235,11 @@ def test_extract_html(t: TestRunner) -> None:
 
 def test_extract_docx(t: TestRunner) -> None:
     t.start("Extract DOCX file")
-    out = t.run_cli_output("extract", "/data/docx/extraction_test.docx", volumes=True)
+    code, out = t.run_cli("extract", "/data/docx/extraction_test.docx", volumes=True)
     t.debug(f"DOCX extraction output (first 100 chars): {out[:100]}")
-    if len(out) > 100:
+    if code != 0:
+        t.fail_test("DOCX extraction", f"Exit code {code}: {out[:300]}")
+    elif len(out) > 100:
         t.pass_test()
     else:
         t.fail_test("DOCX extraction", f"Output too short ({len(out)} chars)")
@@ -233,14 +247,16 @@ def test_extract_docx(t: TestRunner) -> None:
 
 def test_batch_cli(t: TestRunner) -> None:
     t.start("CLI batch extraction (multiple files)")
-    out = t.run_cli_output(
+    code, out = t.run_cli(
         "batch",
         "/data/text/contract.txt",
         "/data/html/simple_table.html",
         volumes=True,
     )
     t.debug(f"Batch output (first 200 chars): {out[:200]}")
-    if len(out) > 20:
+    if code != 0:
+        t.fail_test("Batch extraction", f"Exit code {code}: {out[:300]}")
+    elif len(out) > 20:
         t.pass_test()
     else:
         t.fail_test("Batch extraction", f"Output too short: {len(out)} chars")
@@ -384,7 +400,9 @@ def test_ocr_extraction(t: TestRunner) -> None:
     )
     out = (r.stdout + r.stderr).strip()
     t.debug(f"OCR extraction output (first 100 chars): {out[:100]}")
-    if len(out) > 10:
+    if r.returncode != 0:
+        t.fail_test("OCR extraction", f"Exit code {r.returncode}: {out[:300]}")
+    elif len(out) > 10:
         t.pass_test()
     else:
         t.fail_test("OCR extraction", "Output too short or OCR failed")
@@ -450,7 +468,9 @@ def test_doc_extraction(t: TestRunner) -> None:
     )
     out = (r.stdout + r.stderr).strip()
     t.debug(f"DOC extraction output (first 100 chars): {out[:100]}")
-    if len(out) > 20:
+    if r.returncode != 0:
+        t.fail_test("DOC extraction", f"Exit code {r.returncode}: {out[:300]}")
+    elif len(out) > 20:
         t.pass_test()
     else:
         t.fail_test("DOC extraction", f"Output too short: {len(out)} chars")
