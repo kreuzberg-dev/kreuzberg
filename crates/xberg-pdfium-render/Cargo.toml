@@ -48,7 +48,7 @@ vecmath = "1"
 libloading = "0.9"
 
 [build-dependencies]
-bindgen = { version = "0.72", optional = true }
+bindgen = { version = "0.73", optional = true }
 
 [lints.rust.unexpected_cfgs]
 level = "allow"

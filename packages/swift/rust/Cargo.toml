@@ -69,7 +69,7 @@ xml = ["xberg/xml"]
 [dependencies]
 ahash = "0.8"
 async-trait = "0.1"
-crawlberg = { default-features = false, version = "1.5.0" }
+crawlberg = { default-features = false, version = "1.5.2" }
 html-to-markdown-rs = { default-features = false, version = "3.12" }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }

@@ -1262,7 +1262,7 @@ codepage = "0.1.2"
 comrak = { workspace = true }
 crawlberg = { workspace = true, optional = true }
 dbase = { workspace = true, optional = true }
-dirs = "6"
+dirs = "7"
 either = { version = "1", optional = true }
 encoding_rs = { version = "0.8.35" }
 fast_image_resize = { version = "6.1.0", optional = true }
@@ -1285,11 +1285,11 @@ image = { workspace = true, default-features = false, features = [
     "rayon",
 ], optional = true }
 include_dir = { version = "0.7", optional = true }
-indexmap = "2.14.1"
+indexmap = "2.14.2"
 infer = "0.22.0"
 itertools = { workspace = true, optional = true }
 jotdown = "0.10"
-jsonschema = { version = "0.53", optional = true, default-features = false }
+jsonschema = { version = "0.54", optional = true, default-features = false }
 libc = { workspace = true }
 # lofty: pure-Rust audio tag reader (ID3v1/v2, MP4 atoms, Vorbis comments, FLAC, etc.)
 # MIT license. Used for metadata extraction independent of the inference backend.
@@ -1679,7 +1679,7 @@ dotenvy = "0.15"
 filetime = "0.2"
 image = { workspace = true, default-features = false, features = ["png"] }
 # Test retrieval features prove runtime compilation stays offline under Cargo feature unification. ~keep
-jsonschema = { version = "0.53", default-features = false, features = ["resolve-file", "resolve-http", "tls-ring"] }
+jsonschema = { version = "0.54", default-features = false, features = ["resolve-file", "resolve-http", "tls-ring"] }
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
 # Test-only: builds an in-memory model2vec fixture (safetensors bytes) for the
 # static_engine unit tests, without a network fetch.

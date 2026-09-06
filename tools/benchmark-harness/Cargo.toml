@@ -57,11 +57,11 @@ blake3 = { workspace = true }
 chrono = { workspace = true }
 
 clap = { workspace = true }
-dirs = "6"
+dirs = "7"
 futures = { workspace = true }
 
 inferno = { version = "0.12.8", default-features = false, features = ["nameattr"], optional = true }
-jsonschema = "0.53"
+jsonschema = "0.54"
 libc = { workspace = true }
 num_cpus = { workspace = true }
 pprof = { version = "0.15", optional = true }
