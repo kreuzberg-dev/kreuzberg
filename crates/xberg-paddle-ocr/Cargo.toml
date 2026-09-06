@@ -23,10 +23,13 @@ name = "xberg_paddle_ocr"
 crate-type = ["lib"]
 
 [features]
-# No default backend: consumers pick `ort` or `tract` explicitly, and `lib.rs` fails the
-# build with a `compile_error!` if neither is set. First-party crate, so there is no
-# external-consumer default to preserve. ~keep
-default = []
+# Native ONNX Runtime is the default backend so that a bare `cargo build` -- and in
+# particular the `cargo publish` verify build, which always uses default features and
+# cannot be passed `--features` by xberg-io/actions/publish-crates -- compiles. wasm32
+# and Android x86_64 consumers set `default-features = false` and select `tract`; every
+# in-workspace consumer already does. `lib.rs` still fails the build with a
+# `compile_error!` when a no-default-features build selects no backend at all. ~keep
+default = ["ort"]
 # Native ONNX Runtime backend (desktop/server; today's only path). ~keep
 ort = ["dep:ort"]
 # Pure-Rust ONNX backend (wasm32, and the Android x86_64 emulator where `ort` cannot link). ~keep
