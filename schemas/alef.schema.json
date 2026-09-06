@@ -2262,7 +2262,7 @@
             "$ref": "#/$defs/CallConfig"
           },
           "default": {},
-          "description": "Named additional call configurations for multi-function testing.\nFixtures reference these via the `call` field, e.g. `\"call\": \"embed\"`.",
+          "description": "Named additional call configurations for multi-function testing.\nFixtures reference these via the `call` field, e.g. `\"call\": \"embed\"`.\n\n`BTreeMap` so call selection (`select_best_matching_call`, which returns the first\nsatisfying entry) and any other iteration over this map is deterministic across process\nruns without every consumer having to sort a copy first. ~keep",
           "type": "object"
         },
         "env": {
@@ -2270,7 +2270,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Environment variables every generated e2e suite's setup must set\nbefore the binding's engine is constructed. Keyed by env-var name;\nvalues are passed through verbatim.\n\nEach per-language test-harness emitter consumes this map at\nsuite-setup time (conftest.py for Python, spec_helper.rb for Ruby,\nTestMain for Go, bootstrap.php for PHP, test_helper.exs for Elixir,\nglobalSetup.ts for WASM, assembly fixture for C#, XCTestCase\nclassSetUp for Swift, etc.). The injection point sits next to where\n`MOCK_SERVER_URL` is exported so the binding's first call already\nsees the configured environment.\n\nMotivating use case: a binding may require an environment flag to\nallow loopback mock-server calls in e2e tests while keeping production\nURL validation strict by default. The map is intentionally generic so\nconsumers can pass any binding-side env-var (feature flags,\nobservability toggles, etc.) the same way.\n\nExample:\n```toml\n[crates.e2e.env]\nALLOW_PRIVATE_NETWORK = \"true\"\n```",
+          "description": "Environment variables every generated e2e suite's setup must set\nbefore the binding's engine is constructed. Keyed by env-var name;\nvalues are passed through verbatim.\n\nEach per-language test-harness emitter consumes this map at\nsuite-setup time (conftest.py for Python, spec_helper.rb for Ruby,\nTestMain for Go, bootstrap.php for PHP, test_helper.exs for Elixir,\nglobalSetup.ts for WASM, assembly fixture for C#, XCTestCase\nclassSetUp for Swift, etc.). The injection point sits next to where\n`MOCK_SERVER_URL` is exported so the binding's first call already\nsees the configured environment.\n\nMotivating use case: a binding may require an environment flag to\nallow loopback mock-server calls in e2e tests while keeping production\nURL validation strict by default. The map is intentionally generic so\nconsumers can pass any binding-side env-var (feature flags,\nobservability toggles, etc.) the same way.\n\nExample:\n```toml\n[crates.e2e.env]\nALLOW_PRIVATE_NETWORK = \"true\"\n```\n\n`BTreeMap` so every emitter that forwards these into generated setup code (Go's\n`TestMain`, Python's `conftest.py`, `.cargo/config.toml`, etc.) iterates in key order\nwithout each one having to sort a copy first. ~keep",
           "type": "object"
         },
         "error_field_aliases": {
@@ -7926,7 +7926,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Workspace-wide opaque types — types from external crates that alef can't\nextract. Map of type name → fully-qualified Rust path. These get opaque\nwrapper structs across all language backends, in every crate that\nreferences them.",
+          "description": "Workspace-wide opaque types — types from external crates that alef can't\nextract. Map of type name → fully-qualified Rust path. These get opaque\nwrapper structs across all language backends, in every crate that\nreferences them.\n\n`BTreeMap` so every emit site that iterates it (module registration, opaque\nwrapper generation) produces the same generated-crate ordering across runs\nwithout each consumer having to sort it independently. ~keep",
           "type": "object"
         },
         "output_template": {
@@ -8216,7 +8216,7 @@
       "type": "object"
     }
   },
-  "$id": "https://github.com/xberg-io/alef/releases/download/v0.83.0/alef.schema.json",
+  "$id": "https://github.com/xberg-io/alef/releases/download/v0.84.2/alef.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "JSON Schema for the JSON representation of alef.toml.",
@@ -8335,6 +8335,6 @@
   ],
   "title": "Alef configuration",
   "type": "object",
-  "version": "0.83.0",
-  "x-alef-version": "0.83.0"
+  "version": "0.84.2",
+  "x-alef-version": "0.84.2"
 }

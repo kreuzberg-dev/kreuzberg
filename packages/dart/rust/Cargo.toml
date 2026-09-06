@@ -17,7 +17,7 @@ ignored = ["async-trait", "crawlberg", "html-to-markdown-rs", "tracing", "xberg"
 [lib]
 crate-type = ["cdylib", "staticlib"]
 [features]
-default = ["api", "api-types", "auto-rotate-types", "candle-ocr", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction-presets", "layout-types", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker-presets", "sparse-embedding-presets", "svg", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml", "late-interaction", "reranker"]
+default = ["api", "api-types", "auto-rotate-types", "candle-ocr", "chunking-tokenizers", "classification", "diff", "embedding-presets", "heuristics", "html", "keywords-rake", "keywords-yake", "late-interaction-presets", "layout-types", "markdown-footnotes", "ocr", "ocr-wasm", "office", "paddle-ocr-types", "pdf", "presets", "quality", "redaction", "reranker-presets", "sparse-embedding-presets", "svg", "transcription-types", "tree-sitter", "url-config-types", "url-ingestion", "xml"]
 api = ["xberg/api"]
 api-types = ["xberg/api-types"]
 auto-rotate-types = ["xberg/auto-rotate-types"]
