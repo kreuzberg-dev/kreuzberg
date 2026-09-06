@@ -292,6 +292,8 @@ jobs:
       libheif_exists: ${{ steps.check.outputs.libheif_exists }}
       gliner_exists: ${{ steps.check.outputs.gliner_exists }}
       libwpd_exists: ${{ steps.check.outputs.libwpd_exists }}
+      native_pdf_exists: ${{ steps.check.outputs.native_pdf_exists }}
+      pdfium_exists: ${{ steps.check.outputs.pdfium_exists }}
       cli_exists: ${{ steps.check.outputs.cli_exists }}
       all_exist: ${{ steps.derive.outputs.all_exist }}
     steps:
@@ -309,6 +311,7 @@ jobs:
             gliner_exists=xberg-gliner
             libwpd_exists=xberg-libwpd
             native_pdf_exists=xberg-native-pdf
+            pdfium_exists=xberg-pdfium-render
             cli_exists=xberg-cli
 
       - id: derive
@@ -321,6 +324,7 @@ jobs:
             && "${{ steps.check.outputs.gliner_exists }}" == "true" \
             && "${{ steps.check.outputs.libwpd_exists }}" == "true" \
             && "${{ steps.check.outputs.native_pdf_exists }}" == "true" \
+            && "${{ steps.check.outputs.pdfium_exists }}" == "true" \
             && "${{ steps.check.outputs.cli_exists }}" == "true" ]]; then
             echo "all_exist=true" >> "$GITHUB_OUTPUT"
           else
@@ -3191,7 +3195,7 @@ jobs:
 
       - uses: xberg-io/actions/publish-crates@v1
         with:
-          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg-native-pdf xberg xberg-cli
+          crates: xberg-libheif xberg-tesseract xberg-paddle-ocr xberg-candle-ocr xberg-gliner xberg-libwpd xberg-native-pdf xberg-pdfium-render xberg xberg-cli
           version: ${{ needs.prepare.outputs.version }}
           dry-run: ${{ needs.prepare.outputs.dry_run }}
 
