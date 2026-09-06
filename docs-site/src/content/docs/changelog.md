@@ -182,6 +182,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `XbergLoader` ignoring chunking and per-page splitting whenever the LangChain
+  integration was given an `ExtractionConfig` object. Both settings were read only when the
+  config was a `dict`, so after `ExtractionConfig` became a frozen dataclass the documented
+  `ExtractionConfig(pages=PageConfig(extract_pages=True))` and `chunking=ChunkingConfig(...)`
+  forms silently produced one Document per file instead of one per page or chunk. The config
+  is now read as an object or a mapping.
 - Fixed a ruled troubleshooting page collapsing into one table, taking its section headings
   down with it as cell text. `split_rows_by_text_positions` subdivides a producer-drawn row
   band by the Y positions of the text inside it, and since the #1555 fix a candidate split was

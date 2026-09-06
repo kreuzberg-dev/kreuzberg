@@ -67,7 +67,7 @@ def test_custom_config_passthrough() -> None:
     )
     loader = XbergLoader(file_path="test.pdf", config=custom_config)
     assert loader._config is custom_config
-    assert loader._config["output_format"] == "html"
+    assert loader._config.output_format == "html"
 
 
 def test_per_page_flag_from_config() -> None:

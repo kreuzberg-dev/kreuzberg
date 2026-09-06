@@ -144,24 +144,34 @@ class XbergLoader(BaseLoader):
         self._glob = glob
         self._config = config
 
+    def _config_field(self, name: str) -> Any:
+        """Read a top-level config field regardless of how the config was supplied.
+
+        ``ExtractionConfig`` is a frozen dataclass, so its fields are attributes and
+        mapping access raises. ``extract()`` also accepts a plain ``dict``, which
+        reaches the loader unchanged, so both shapes are read here.
+        """
+        config = self._config
+        if config is None:
+            return None
+        if isinstance(config, dict):
+            return config.get(name)
+        return getattr(config, name, None)
+
     @property
     def _per_page(self) -> bool:
         """Whether per-page splitting is enabled in the config."""
-        config = self._config or {}
-        pages = config.get("pages") if isinstance(config, dict) else None
+        pages = self._config_field("pages")
         if pages is None:
             return False
-        extract_pages = getattr(pages, "extract_pages", None)
-        if extract_pages is None and isinstance(pages, dict):
-            extract_pages = pages.get("extract_pages")
-        return bool(extract_pages)
+        if isinstance(pages, dict):
+            return bool(pages.get("extract_pages"))
+        return bool(getattr(pages, "extract_pages", None))
 
     @property
     def _chunking(self) -> bool:
         """Whether chunking is enabled in the config."""
-        config = self._config or {}
-        chunking = config.get("chunking") if isinstance(config, dict) else None
-        return chunking is not None
+        return self._config_field("chunking") is not None
 
     def _resolve_paths(self) -> Iterator[Path]:
         """Yield concrete file paths for the configured source."""
