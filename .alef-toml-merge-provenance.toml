@@ -2249,11 +2249,6 @@ values = ["function-too-long"]
 
 [[entries]]
 relative_path = "poly.toml"
-key_path = "per-file-ignores.crates/xberg/src/image/preprocessing.rs"
-values = ["too-many-parameters"]
-
-[[entries]]
-relative_path = "poly.toml"
 key_path = "per-file-ignores.crates/xberg/src/keywords/yake/mod.rs"
 values = ["nesting-too-deep"]
 

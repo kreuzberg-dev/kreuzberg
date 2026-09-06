@@ -1150,7 +1150,6 @@ traineddata = "traineddata"
 "crates/xberg/src/extractors/wordperfect.rs" = ["file-too-long", "function-too-long"]
 "crates/xberg/src/extractors/xml.rs" = ["function-too-long"]
 "crates/xberg/src/heuristics/analyzer.rs" = ["function-too-long"]
-"crates/xberg/src/image/preprocessing.rs" = ["too-many-parameters"]
 "crates/xberg/src/keywords/yake/mod.rs" = ["nesting-too-deep"]
 "crates/xberg/src/keywords/yake/preprocessor.rs" = ["cyclomatic-complexity"]
 "crates/xberg/src/language_detection/mod.rs" = ["file-too-long"]

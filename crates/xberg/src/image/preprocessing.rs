@@ -111,37 +111,34 @@ pub(crate) fn normalize_image_dpi_owned(
     );
 
     let scale_factor = f64::from(target_dpi) / current_dpi;
+    let plan = DpiPlan {
+        original_dpi,
+        target_dpi,
+        scale_factor,
+        auto_adjusted,
+        calculated_dpi,
+    };
 
     if !needs_resize(width as u32, height as u32, scale_factor, config) {
-        return Ok(create_skip_result(
-            rgb_data,
-            width,
-            height,
-            original_dpi,
-            config,
-            target_dpi,
-            scale_factor,
-            auto_adjusted,
-            calculated_dpi,
-        ));
+        return Ok(create_skip_result(rgb_data, width, height, config, &plan));
     }
 
     let (new_width, new_height, final_scale, dimension_clamped) =
         calculate_new_dimensions(width as u32, height as u32, scale_factor, config);
 
+    // The resize path records the clamped scale where the skip path records the unclamped one.
+    let plan = DpiPlan {
+        scale_factor: final_scale,
+        ..plan
+    };
+
     match perform_resize(
         &rgb_data,
-        width as u32,
-        height as u32,
-        new_width,
-        new_height,
-        final_scale,
-        original_dpi,
-        target_dpi,
-        auto_adjusted,
+        (width as u32, height as u32),
+        (new_width, new_height),
         dimension_clamped,
-        calculated_dpi,
         config,
+        &plan,
     ) {
         Ok(result) => Ok(result),
         Err(error) => Err((error, rgb_data)),
@@ -162,6 +159,15 @@ pub(crate) fn normalized_image_dimensions(
     }
     let (new_width, new_height, _, _) = calculate_new_dimensions(width, height, scale_factor, config);
     (new_width, new_height)
+}
+
+/// The DPI decision both outcomes of `normalize_image_dpi_owned` record in their metadata.
+struct DpiPlan {
+    original_dpi: (f64, f64),
+    target_dpi: i32,
+    scale_factor: f64,
+    auto_adjusted: bool,
+    calculated_dpi: Option<i32>,
 }
 
 /// Calculate target DPI based on configuration
@@ -226,32 +232,27 @@ fn calculate_new_dimensions(
 }
 
 /// Create result when resize is skipped
-#[allow(clippy::too_many_arguments)]
 fn create_skip_result(
     rgb_data: Vec<u8>,
     width: usize,
     height: usize,
-    original_dpi: (f64, f64),
     config: &ExtractionConfig,
-    target_dpi: i32,
-    scale_factor: f64,
-    auto_adjusted: bool,
-    calculated_dpi: Option<i32>,
+    plan: &DpiPlan,
 ) -> NormalizeResult {
     NormalizeResult {
         rgb_data,
         dimensions: (width, height),
         metadata: ImagePreprocessingMetadata {
             original_dimensions: (width, height).into(),
-            original_dpi: original_dpi.into(),
+            original_dpi: plan.original_dpi.into(),
             target_dpi: config.target_dpi,
-            scale_factor,
-            auto_adjusted,
-            final_dpi: target_dpi,
+            scale_factor: plan.scale_factor,
+            auto_adjusted: plan.auto_adjusted,
+            final_dpi: plan.target_dpi,
             new_dimensions: None,
             resample_method: "NONE".to_string(),
             dimension_clamped: false,
-            calculated_dpi,
+            calculated_dpi: plan.calculated_dpi,
             skipped_resize: true,
             resize_error: None,
         },
@@ -259,21 +260,17 @@ fn create_skip_result(
 }
 
 /// Perform the actual resize operation
-#[allow(clippy::too_many_arguments)]
 fn perform_resize(
     rgb_data: &[u8],
-    original_width: u32,
-    original_height: u32,
-    new_width: u32,
-    new_height: u32,
-    final_scale: f64,
-    original_dpi: (f64, f64),
-    target_dpi: i32,
-    auto_adjusted: bool,
+    original: (u32, u32),
+    new: (u32, u32),
     dimension_clamped: bool,
-    calculated_dpi: Option<i32>,
     config: &ExtractionConfig,
+    plan: &DpiPlan,
 ) -> Result<NormalizeResult> {
+    let (original_width, original_height) = original;
+    let (new_width, new_height) = new;
+    let final_scale = plan.scale_factor;
     let result_rgb_data = resize_rgb(
         rgb_data,
         original_width,
@@ -285,15 +282,15 @@ fn perform_resize(
 
     let metadata = ImagePreprocessingMetadata {
         original_dimensions: (original_width as usize, original_height as usize).into(),
-        original_dpi: original_dpi.into(),
+        original_dpi: plan.original_dpi.into(),
         target_dpi: config.target_dpi,
         scale_factor: final_scale,
-        auto_adjusted,
-        final_dpi: target_dpi,
+        auto_adjusted: plan.auto_adjusted,
+        final_dpi: plan.target_dpi,
         new_dimensions: Some((new_width as usize, new_height as usize).into()),
         resample_method: if final_scale < 1.0 { "LANCZOS3" } else { "CATMULLROM" }.to_string(),
         dimension_clamped,
-        calculated_dpi,
+        calculated_dpi: plan.calculated_dpi,
         skipped_resize: false,
         resize_error: None,
     };
