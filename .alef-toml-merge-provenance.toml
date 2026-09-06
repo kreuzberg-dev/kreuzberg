@@ -136,6 +136,7 @@ values = [
   ".agents/plugins/marketplace.json",
   ".ai-rulez-generated.json",
   "tools/benchmark-harness/cohorts/**",
+  "packages/swift/Sources/RustBridge/xberg-swift.swift",
 ]
 
 [[entries]]

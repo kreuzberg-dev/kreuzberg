@@ -403,6 +403,14 @@ exclude = [
   "tools/benchmark-harness/cohorts/**",
 ]
 
+# Appended only to poly's `file_safety` builtin hook. swift-bridge emits its
+# whole-module glue as a single 1.3 MiB file with no split option, tripping the
+# 500 KiB `check-added-large-files` limit. It has been committed at that size
+# since 4b6453ab18, and only fails the hook on a regen that actually changes it,
+# which is why it was missed when the sibling Xberg.swift was excluded. This is
+# generator output, not a size regression to fix. ~keep
+file-safety-exclude = ["packages/swift/Sources/RustBridge/xberg-swift.swift"]
+
 # Opt-in comment-removal sweep. Preserve doc comments (rustdoc is required on
 # public items), TODO/FIXME (actionable), and SAFETY/license markers. Generated
 # binding output is exempted via per-file-ignores below. ~keep
