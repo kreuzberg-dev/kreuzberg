@@ -260,6 +260,38 @@ pub struct PageContent {
     /// formats and for sheets with an empty name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet_name: Option<String>,
+
+    /// Aggregate OCR confidence for this page. `None` when the page was not OCR'd.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ocr_confidence: Option<PageOcrConfidence>,
+}
+
+/// Aggregate OCR legibility score for a page, reported by the backend that produced its text.
+///
+/// This is distinct from [`OcrConfidence`], which scores a single detected element (a word or
+/// line) using detection/recognition confidence from the OCR engine itself. `PageOcrConfidence`
+/// is a page-level summary computed after noise filtering, intended for triage of which pages
+/// are worth a closer look, not for comparing OCR engines against each other.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+pub struct PageOcrConfidence {
+    /// Aggregate legibility score in `0.0..=1.0`, or `None` when the backend that
+    /// produced this page does not report a calibrated legibility scale.
+    ///
+    /// Backends differ in what their confidence numbers mean (see `OcrConfidence`'s
+    /// per-backend normalization), and not every backend maps onto a 0.0-1.0 legibility
+    /// scale at all. When a backend has no such calibrated scale, this is `None` rather
+    /// than a misleading number, and scores must never be compared across backends.
+    pub score: Option<f64>,
+
+    /// Number of words the score was averaged over, AFTER noise filtering.
+    ///
+    /// A small `word_count` means the average is based on little evidence, so a high
+    /// `score` next to a small `word_count` is not representative of the whole page.
+    pub word_count: u32,
+
+    /// Name of the OCR backend that produced the page text.
+    pub backend: String,
 }
 
 /// A detected layout region on a page.
@@ -430,7 +462,7 @@ fn is_default_bool(v: &bool) -> bool {
 
 #[cfg(test)]
 mod binding_value_serde_tests {
-    use super::{HierarchicalBlock, HierarchicalBoundingBox, PageDimensions, PageInfo};
+    use super::{HierarchicalBlock, HierarchicalBoundingBox, PageContent, PageDimensions, PageInfo, PageOcrConfidence};
     use serde_json::json;
 
     #[cfg(feature = "api")]
@@ -564,6 +596,69 @@ mod binding_value_serde_tests {
                 "level": "h1",
                 "bbox": {"left": 1.0, "top": 2.0, "right": 101.0, "bottom": 22.0}
             })
+        );
+    }
+
+    fn page_content_without_ocr_confidence() -> PageContent {
+        PageContent {
+            page_number: 1,
+            content: "hello".to_string(),
+            tables: Vec::new(),
+            image_indices: Vec::new(),
+            image_preprocessing: None,
+            hierarchy: None,
+            is_blank: None,
+            layout_regions: None,
+            speaker_notes: None,
+            section_name: None,
+            sheet_name: None,
+            ocr_confidence: None,
+        }
+    }
+
+    #[test]
+    fn should_omit_ocr_confidence_key_when_page_was_not_ocrd() {
+        let page = page_content_without_ocr_confidence();
+
+        let value = serde_json::to_value(page).expect("page content must serialize");
+
+        assert!(
+            value
+                .as_object()
+                .expect("page content must serialize as an object")
+                .get("ocr_confidence")
+                .is_none(),
+            "ocr_confidence must be omitted entirely, not serialized as null"
+        );
+    }
+
+    #[test]
+    fn should_deserialize_legacy_page_content_missing_ocr_confidence_field() {
+        let legacy = json!({
+            "page_number": 1,
+            "content": "hello",
+        });
+
+        let page: PageContent =
+            serde_json::from_value(legacy).expect("page content without ocr_confidence must deserialize");
+
+        assert_eq!(page.ocr_confidence, None);
+    }
+
+    #[test]
+    fn should_round_trip_ocr_confidence_when_present() {
+        let mut page = page_content_without_ocr_confidence();
+        page.ocr_confidence = Some(PageOcrConfidence {
+            score: Some(0.87),
+            word_count: 42,
+            backend: "tesseract".to_string(),
+        });
+
+        let value = serde_json::to_value(page).expect("page content with ocr_confidence must serialize");
+
+        assert_eq!(
+            value["ocr_confidence"],
+            json!({"score": 0.87, "word_count": 42, "backend": "tesseract"})
         );
     }
 }

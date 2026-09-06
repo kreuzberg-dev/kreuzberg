@@ -1871,6 +1871,17 @@ typedef struct XBERGPageDimensions XBERGPageDimensions;
 typedef struct XBERGPageHierarchy XBERGPageHierarchy;
 typedef struct XBERGPageInfo XBERGPageInfo;
 /**
+ * Aggregate OCR legibility score for a page, reported by the backend that
+ * produced its text.
+ *
+ * This is distinct from `OcrConfidence`, which scores a single detected element
+ * (a word or line) using detection/recognition confidence from the OCR engine
+ * itself. `PageOcrConfidence` is a page-level summary computed after noise
+ * filtering, intended for triage of which pages are worth a closer look, not
+ * for comparing OCR engines against each other.
+ */
+typedef struct XBERGPageOcrConfidence XBERGPageOcrConfidence;
+/**
  * How a backend copes with a page raster whose text is not upright.
  *
  * Rotated-page handling is a backend capability, not a universal guarantee. An
@@ -19236,6 +19247,15 @@ char *xberg_page_content_section_name(XBERGAlefHandle handle);
 char *xberg_page_content_sheet_name(XBERGAlefHandle handle);
 
 /**
+ * Get the `ocr_confidence` field from a `PageContent`.
+ * A non-null returned handle is owned by the caller.
+ * It must be freed with `xberg_page_ocr_confidence_free`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+XBERGAlefHandle xberg_page_content_ocr_confidence(XBERGAlefHandle handle);
+
+/**
  * Create a `PageDimensions` from a JSON string. Returns null on failure.
  * # Safety
  * JSON string must be valid UTF-8 and null-terminated.
@@ -19445,6 +19465,65 @@ int32_t xberg_page_info_has_is_blank(XBERGAlefHandle handle);
  * Pointer must be a valid handle returned by this library.
  */
 int32_t xberg_page_info_has_vector_graphics(XBERGAlefHandle handle);
+
+/**
+ * Create a `PageOcrConfidence` from a JSON string. Returns null on failure.
+ * # Safety
+ * JSON string must be valid UTF-8 and null-terminated.
+ * Returned handle must be freed with `xberg_page_ocr_confidence_free`.
+ */
+XBERGAlefHandle xberg_page_ocr_confidence_from_json(const char *json);
+
+/**
+ * Serialize a `PageOcrConfidence` to a JSON string. Returns null on failure.
+ * # Safety
+ * `handle` must be a valid, non-zero handle returned by a `xberg` function.
+ * The returned string must be freed with `xberg_free_string`.
+ */
+char *xberg_page_ocr_confidence_to_json(XBERGAlefHandle handle);
+
+/**
+ * Free a `PageOcrConfidence` handle.
+ * # Safety
+ * Handle must have been returned by this library, or be zero.
+ */
+void xberg_page_ocr_confidence_free(XBERGAlefHandle handle);
+
+/**
+ * Get the `score` field from a `PageOcrConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+double xberg_page_ocr_confidence_score(XBERGAlefHandle handle);
+
+/**
+ * Report whether the `score` field on a `PageOcrConfidence` is `Some`.
+ *
+ * `xberg_page_ocr_confidence_score` cannot distinguish a `None` field from a
+ * legitimate zero-valued `Some` at the C ABI boundary -- there is no null
+ * representation for a numeric return, so both collapse to the same sentinel.
+ * Call this function first: `1` means the field getter's return value is
+ * meaningful, `0` means the field is absent and the getter's sentinel must be
+ * ignored, `-1` reports an invalid handle (see `xberg_last_error_code`). #
+ * Safety Pointer must be a valid handle returned by this library.
+ */
+int32_t xberg_page_ocr_confidence_has_score(XBERGAlefHandle handle);
+
+/**
+ * Get the `word_count` field from a `PageOcrConfidence`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+uint32_t xberg_page_ocr_confidence_word_count(XBERGAlefHandle handle);
+
+/**
+ * Get the `backend` field from a `PageOcrConfidence`.
+ * A non-null returned pointer is owned by the caller.
+ * It must be freed with `xberg_free_string`.
+ * # Safety
+ * Pointer must be a valid handle returned by this library.
+ */
+char *xberg_page_ocr_confidence_backend(XBERGAlefHandle handle);
 
 #if defined(XBERG_FEATURE_HEURISTICS)
 /**

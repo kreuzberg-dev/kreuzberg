@@ -1620,6 +1620,11 @@ file_safety = { exclude = [
   "packages/go/include/**",
   "packages/ruby/ext/xberg_rb/src/lib.rs",
   "packages/swift/Sources/Xberg/Xberg.swift",
+  # ~keep swift-bridge emits this whole-module glue as one 1.3 MiB file and has no split
+  # option; it has been committed at that size since 4b6453ab18 and only trips the 500 KiB
+  # large-file check on the regens that actually change it, which is why it was missed when
+  # its sibling above was excluded. Not a size regression to fix -- a generator output.
+  "packages/swift/Sources/RustBridge/xberg-swift.swift",
   "packages/swift/rust/src/lib.rs",
   "**/*.freezed.dart",
   "**/*.g.dart",

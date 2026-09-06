@@ -2693,7 +2693,7 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(called.load(Ordering::SeqCst), "process_document was not called");
-        let (_, _, _, _, _, llm_usage, _, _, _, _) = result.unwrap();
+        let (_, _, _, _, _, llm_usage, _, _, _, _, _) = result.unwrap();
         assert!(llm_usage.is_empty(), "No LLM usage expected for mock backend");
 
         crate::plugins::unregister_ocr_backend("mock").unwrap();
@@ -3013,7 +3013,7 @@ mod tests {
 
         crate::plugins::unregister_ocr_backend("vlm-mock").unwrap();
 
-        let (_, _, tables, _, _, llm_usage, _, _, formulas, preprocessing) =
+        let (_, _, tables, _, _, llm_usage, _, _, formulas, preprocessing, _) =
             result.expect("extract_with_ocr should succeed");
         assert_eq!(
             llm_usage.len(),
@@ -3185,7 +3185,7 @@ mod tests {
         crate::plugins::unregister_ocr_backend(FAILED_BACKEND).unwrap();
         crate::plugins::unregister_ocr_backend(FALLBACK_BACKEND).unwrap();
 
-        let (text, _, _, doc, _, _, _, _, _) = result.expect("fallback stage must be accepted");
+        let (text, _, _, doc, _, _, _, _, _, _) = result.expect("fallback stage must be accepted");
         assert_eq!(text, FALLBACK_TEXT);
         let warnings = doc
             .expect("accepted fallback diagnostics require an internal document")
@@ -3647,7 +3647,7 @@ Buffers:           50000 kB
         let result = extract_mixed_ocr_native(&native_text, &boundaries, &[2], &pdf, &config, None)
             .await
             .unwrap();
-        let warnings = result.7;
+        let warnings = result.8;
 
         assert_eq!(
             result.0, native_text,
@@ -3782,7 +3782,7 @@ Buffers:           50000 kB
         assert_eq!(result.0, SUSPECTED_NOISE);
         assert_eq!(result.1.get(&1).map(String::as_str), Some(SUSPECTED_NOISE));
         let warnings = result
-            .7
+            .8
             .iter()
             .filter(|warning| warning.message.contains("suspected OCR recognition noise"))
             .collect::<Vec<_>>();
@@ -3887,7 +3887,7 @@ Buffers:           50000 kB
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let verdicts = result.11;
+        let verdicts = result.12;
         assert_eq!(
             verdicts.len(),
             1,
@@ -4092,7 +4092,8 @@ Buffers:           50000 kB
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, tables, _, doc, usage, _, _, formulas, preprocessing) = result.expect("pipeline run must succeed");
+        let (text, tables, _, doc, usage, _, _, formulas, preprocessing, _) =
+            result.expect("pipeline run must succeed");
         assert_eq!(
             text, RECOVERED_TEXT,
             "recovered fallback text must replace the blank OCR result in the pipeline route"
@@ -4215,7 +4216,7 @@ Buffers:           50000 kB
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, _, _, doc, _, _, _, _, _) = result.expect("pipeline run must succeed");
+        let (text, _, _, doc, _, _, _, _, _, _) = result.expect("pipeline run must succeed");
         assert_eq!(text, "", "a page with no recoverable images must not fabricate content");
         assert!(
             doc.is_none(),
@@ -4312,7 +4313,7 @@ Buffers:           50000 kB
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, _, _, doc, _, _, _, _, _) = result.expect("pipeline run must succeed");
+        let (text, _, _, doc, _, _, _, _, _, _) = result.expect("pipeline run must succeed");
         assert_eq!(
             text, "",
             "an unrecovered blank page must not fabricate content even though the warning fires"
@@ -4434,7 +4435,7 @@ Buffers:           50000 kB
 
         crate::plugins::unregister_ocr_backend("formula-mock-mixed-ocr").unwrap();
 
-        let (_, _, _, _, _, _, _, _, formulas, _) = result.expect("extract_with_ocr should succeed");
+        let (_, _, _, _, _, _, _, _, formulas, _, _) = result.expect("extract_with_ocr should succeed");
 
         assert_eq!(formulas.len(), 2, "one formula per page, got {}", formulas.len());
 
@@ -7748,7 +7749,7 @@ Name: ___
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, _, _, _, doc, _, _, _, _, _) =
+        let (text, _, _, _, doc, _, _, _, _, _, _) =
             result.expect("a per-page backend failure must degrade to the XObject fallback, not abort the document");
         assert_eq!(
             text, XOBJECT_RECOVERED_TEXT,
@@ -7863,7 +7864,7 @@ Name: ___
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, _, _, _, _, _, _, _, _, _) = result.expect("OCR must succeed");
+        let (text, _, _, _, _, _, _, _, _, _, _) = result.expect("OCR must succeed");
         assert_eq!(
             text, XOBJECT_RECOVERED_TEXT,
             "a description of a blank raster must not be accepted as that page's transcription"
@@ -7969,7 +7970,7 @@ Name: ___
 
         crate::plugins::unregister_ocr_backend(BACKEND_NAME).unwrap();
 
-        let (text, tables, _, doc, usage, _, _, formulas, preprocessing) =
+        let (text, tables, _, doc, usage, _, _, formulas, preprocessing, _) =
             result.expect("the pipeline must try the pages' embedded images before reporting total failure");
         assert_eq!(text, XOBJECT_RECOVERED_TEXT);
         assert_eq!(
@@ -8117,5 +8118,85 @@ Name: ___
             &encode_png(&white),
             &limits,
         ));
+    }
+
+    /// Tesseract-shaped input: a calibrated `Legibility` scale with an in-range raw mean.
+    /// The upstream mean is an integer percent, so 0.85 is exactly representable and an
+    /// exact `assert_eq!` (rather than an epsilon comparison) is valid here.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_normalizes_legibility_score_by_scale_max() {
+        let semantics = crate::plugins::ConfidenceSemantics::Legibility { scale_max: 100.0 };
+        let result = page_ocr_confidence(semantics, Some(85.0), 120, "tesseract").unwrap();
+        assert_eq!(result.score, Some(0.85));
+        assert_eq!(result.word_count, 120);
+        assert_eq!(result.backend, "tesseract");
+    }
+
+    /// `Uncalibrated` semantics never yield a score, no matter what raw number is reported,
+    /// but the caller must still learn the page was OCR'd and by which backend.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_is_none_for_uncalibrated_semantics_but_keeps_word_count() {
+        let result = page_ocr_confidence(
+            crate::plugins::ConfidenceSemantics::Uncalibrated,
+            Some(0.93),
+            42,
+            "sceptre",
+        )
+        .unwrap();
+        assert!(result.score.is_none());
+        assert_eq!(result.word_count, 42);
+        assert_eq!(result.backend, "sceptre");
+    }
+
+    /// `None` semantics (no page-level confidence reported at all) never yield a score.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_is_none_for_none_semantics() {
+        let result = page_ocr_confidence(crate::plugins::ConfidenceSemantics::None, Some(0.5), 10, "paddle").unwrap();
+        assert!(result.score.is_none());
+    }
+
+    /// A missing raw mean (no words to average over) must yield `score: None`, never a
+    /// substituted `Some(0.0)` -- zero words and zero confidence are different facts.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_is_none_not_zero_when_raw_confidence_is_missing() {
+        let semantics = crate::plugins::ConfidenceSemantics::Legibility { scale_max: 100.0 };
+        let result = page_ocr_confidence(semantics, None, 0, "tesseract").unwrap();
+        assert!(result.score.is_none());
+        assert_ne!(result.score, Some(0.0));
+    }
+
+    /// A non-positive `scale_max` must not divide into NaN or infinity; it is treated as
+    /// having no calibrated scale, same as `Uncalibrated`.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_is_none_when_scale_max_is_non_positive() {
+        let semantics = crate::plugins::ConfidenceSemantics::Legibility { scale_max: 0.0 };
+        let result = page_ocr_confidence(semantics, Some(50.0), 30, "tesseract").unwrap();
+        assert!(result.score.is_none());
+    }
+
+    /// A raw value above `scale_max` is clamped to exactly `1.0`, not left over-range.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_clamps_raw_value_above_scale_max_to_one() {
+        let semantics = crate::plugins::ConfidenceSemantics::Legibility { scale_max: 100.0 };
+        let result = page_ocr_confidence(semantics, Some(105.0), 5, "tesseract").unwrap();
+        assert_eq!(result.score, Some(1.0));
+    }
+
+    /// Survivor-bias pin: a tiny `word_count` must not be hidden behind a confident-looking
+    /// score. The score is computed exactly as for a large sample, but `word_count` still
+    /// reports the true (small) sample size so a caller can discount it accordingly.
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn page_ocr_confidence_preserves_tiny_word_count_alongside_a_high_score() {
+        let semantics = crate::plugins::ConfidenceSemantics::Legibility { scale_max: 100.0 };
+        let result = page_ocr_confidence(semantics, Some(94.0), 3, "tesseract").unwrap();
+        assert_eq!(result.score, Some(0.94));
+        assert_eq!(result.word_count, 3);
     }
 }

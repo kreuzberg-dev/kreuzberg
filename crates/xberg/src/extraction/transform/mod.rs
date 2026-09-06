@@ -558,6 +558,7 @@ mod tests {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: None,
+                    ocr_confidence: None,
                 },
                 PageContent {
                     page_number: 2,
@@ -571,6 +572,7 @@ mod tests {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: None,
+                    ocr_confidence: None,
                 },
             ]),
             ..Default::default()
@@ -669,6 +671,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             }]),
             ..Default::default()
         };
@@ -854,6 +857,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             }]),
             ..Default::default()
         };
@@ -920,6 +924,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             }]),
             ..Default::default()
         };

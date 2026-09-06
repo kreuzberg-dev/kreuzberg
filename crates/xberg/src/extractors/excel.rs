@@ -248,6 +248,7 @@ impl ExcelExtractor {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: name_opt,
+                    ocr_confidence: None,
                 });
             } else {
                 let content = match name_opt.as_deref() {
@@ -267,6 +268,7 @@ impl ExcelExtractor {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: name_opt,
+                    ocr_confidence: None,
                 });
             }
         }

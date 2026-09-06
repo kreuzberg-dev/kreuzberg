@@ -1180,6 +1180,7 @@ impl InternalDocumentExtractor for DocxExtractor {
                         speaker_notes: None,
                         section_name: None,
                         sheet_name: None,
+                        ocr_confidence: None,
                     });
                 }
                 Some(pages)
@@ -1196,6 +1197,7 @@ impl InternalDocumentExtractor for DocxExtractor {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: None,
+                    ocr_confidence: None,
                 }])
             }
         };

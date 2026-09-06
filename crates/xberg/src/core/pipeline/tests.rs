@@ -2338,6 +2338,7 @@ mod document_counts {
             speaker_notes: None,
             section_name: None,
             sheet_name: None,
+            ocr_confidence: None,
         }
     }
 

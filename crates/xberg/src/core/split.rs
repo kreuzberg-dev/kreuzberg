@@ -464,6 +464,7 @@ mod tests {
             speaker_notes: None,
             section_name: None,
             sheet_name: None,
+            ocr_confidence: None,
         }
     }
 
@@ -636,6 +637,7 @@ mod enrichment_preservation_tests {
             speaker_notes: None,
             section_name: None,
             sheet_name: None,
+            ocr_confidence: None,
         }
     }
 

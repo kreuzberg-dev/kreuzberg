@@ -19,6 +19,12 @@ mod scoring;
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 pub(crate) use scoring::{OcrGateOutcome, evaluate_ocr_skip_gate, evaluate_per_page_ocr};
 
+// ~keep The standalone-image extractor builds the same `PageContent.ocr_confidence` summary
+// from its own single OCR run (#1568), so these three leave `ocr` rather than staying
+// `pub(super)`. They are pure readers/builders with no PDF dependency of their own.
+#[cfg(feature = "ocr")]
+pub(crate) use scoring::{mean_text_conf_of, page_ocr_confidence, word_count_of};
+
 // ~keep These three are reachable only from `extractors::pdf`'s own `#[cfg(test)]` unit tests,
 // so a non-test build of this crate never exercises the re-export itself (the underlying items
 // are not dead code -- `scoring` uses `NativeTextStats` and `evaluate_native_text_for_ocr`

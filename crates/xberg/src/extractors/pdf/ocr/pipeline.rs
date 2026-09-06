@@ -62,7 +62,7 @@ use super::rendering::{
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
 use super::scoring::{
     NativeTextStats, OcrPageNoiseVerdict, accept_or_reject_ocr_page, compute_quality_score, mean_text_conf_of,
-    pipeline_stage_score, repair_ocr_list_markers,
+    page_ocr_confidence, pipeline_stage_score, repair_ocr_list_markers, word_count_of,
 };
 #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
@@ -100,6 +100,7 @@ pub(crate) async fn extract_mixed_ocr_native(
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
     Vec<crate::types::ProcessingWarning>,
 )> {
     let ocr_set: std::collections::HashSet<u32> = ocr_page_numbers
@@ -124,6 +125,7 @@ pub(crate) async fn extract_mixed_ocr_native(
             None,
             Vec::new(),
             ahash::AHashMap::new(),
+            ahash::AHashMap::new(),
             Vec::new(),
         ));
     }
@@ -140,6 +142,7 @@ pub(crate) async fn extract_mixed_ocr_native(
             Vec::new(),
             None,
             Vec::new(),
+            ahash::AHashMap::new(),
             ahash::AHashMap::new(),
             Vec::new(),
         ));
@@ -295,6 +298,11 @@ pub(crate) async fn extract_mixed_ocr_native(
     // the per-page metadata is gone by the time `ocr_results` is judged.
     let mut page_mean_confidence: ahash::AHashMap<u32, f64> = ahash::AHashMap::new();
     let mut page_dictionary_invalid_word_ratio: ahash::AHashMap<u32, f64> = ahash::AHashMap::new();
+    // Collected next to `page_mean_confidence` for the same reason: the per-page metadata is
+    // gone by the time the summary attached to `PageContent.ocr_confidence` is built (#1568). ~keep
+    let mut page_word_count: ahash::AHashMap<u32, u32> = ahash::AHashMap::new();
+    let mut ocr_confidence_by_page: ahash::AHashMap<u32, crate::types::page::PageOcrConfidence> =
+        ahash::AHashMap::new();
     let mut structured_ocr_pages: ahash::AHashMap<u32, crate::types::internal::InternalDocument> =
         ahash::AHashMap::with_capacity(total);
     // Bare, unclassified per-page paragraphs for every OCR'd page, real 1-indexed page
@@ -418,8 +426,10 @@ pub(crate) async fn extract_mixed_ocr_native(
                         formulas,
                         mut page_raw_paragraphs,
                         preprocessing,
+                        page_ocr_confidences,
                     ) = result?;
                     accumulated_llm_usage.extend(usage);
+                    ocr_confidence_by_page.extend(page_ocr_confidences);
                     let page_number = (page_idx + 1) as u32;
                     if let Some(metadata) = preprocessing.into_values().next() {
                         preprocessing_by_page.insert(page_number, metadata);
@@ -502,6 +512,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                         formulas,
                         mut page_raw_paragraphs,
                         preprocessing,
+                        page_ocr_confidences,
                     ) = Box::pin(run_ocr_pipeline_for_page(
                         None,
                         Some(std::slice::from_ref(image.as_ref())),
@@ -517,6 +528,7 @@ pub(crate) async fn extract_mixed_ocr_native(
                     ))
                     .await?;
                     accumulated_llm_usage.extend(usage);
+                    ocr_confidence_by_page.extend(page_ocr_confidences);
                     let page_number = (*page_idx + 1) as u32;
                     if let Some(metadata) = preprocessing.into_values().next() {
                         preprocessing_by_page.insert(page_number, metadata);
@@ -736,6 +748,9 @@ pub(crate) async fn extract_mixed_ocr_native(
                 if let Some(conf) = mean_text_conf_of(&extraction_result.metadata.additional) {
                     page_mean_confidence.insert((page_idx + 1) as u32, conf);
                 }
+                if let Some(words) = word_count_of(&extraction_result.metadata.additional) {
+                    page_word_count.insert((page_idx + 1) as u32, words);
+                }
                 if let Some(ratio) = extraction_result
                     .metadata
                     .additional
@@ -816,6 +831,9 @@ pub(crate) async fn extract_mixed_ocr_native(
                 if let Some(conf) = mean_text_conf_of(&extraction_result.metadata.additional) {
                     page_mean_confidence.insert((*page_idx + 1) as u32, conf);
                 }
+                if let Some(words) = word_count_of(&extraction_result.metadata.additional) {
+                    page_word_count.insert((*page_idx + 1) as u32, words);
+                }
                 if let Some(ratio) = extraction_result
                     .metadata
                     .additional
@@ -846,10 +864,22 @@ pub(crate) async fn extract_mixed_ocr_native(
         .unwrap_or_default();
     if let Some(producing_backend) = backend.as_ref() {
         let confidence_semantics = producing_backend.confidence_semantics();
+        let producing_backend_name = producing_backend.name().to_string();
         for (page_number, text) in &mut ocr_results {
             let confidence = page_mean_confidence.get(page_number).copied();
             let dictionary_ratio = page_dictionary_invalid_word_ratio.get(page_number).copied();
             tracing::debug!(page = *page_number, ?confidence, "OCR page mean confidence");
+            // Recorded before the accept/reject call below, and never retracted afterwards: a
+            // page the noise gate discards was still OCR'd, and its confidence is exactly the
+            // evidence a caller needs to understand why it was discarded (#1568). ~keep
+            if let Some(summary) = page_ocr_confidence(
+                confidence_semantics,
+                confidence,
+                page_word_count.get(page_number).copied().unwrap_or(0),
+                &producing_backend_name,
+            ) {
+                ocr_confidence_by_page.insert(*page_number, summary);
+            }
             let acceptance = accept_or_reject_ocr_page(
                 (*page_number as usize).saturating_sub(1),
                 std::mem::take(text),
@@ -974,6 +1004,7 @@ pub(crate) async fn extract_mixed_ocr_native(
         if capture_rasters { Some(captured_rasters) } else { None },
         accumulated_formulas,
         preprocessing_by_page,
+        ocr_confidence_by_page,
         accumulated_warnings,
     ))
 }
@@ -1021,6 +1052,7 @@ pub(crate) async fn extract_with_ocr(
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
 )> {
     let (
         text,
@@ -1034,6 +1066,7 @@ pub(crate) async fn extract_with_ocr(
         formulas,
         _raw_page_paragraphs,
         preprocessing,
+        ocr_confidence,
         _recognition_noise_verdicts,
     ) = Box::pin(extract_with_ocr_for_page(
         content,
@@ -1059,6 +1092,7 @@ pub(crate) async fn extract_with_ocr(
         rasters,
         formulas,
         preprocessing,
+        ocr_confidence,
     ))
 }
 /// Same as [`extract_with_ocr`], but `page_rotation_override` -- when non-zero -- is used as
@@ -1125,6 +1159,7 @@ pub(super) async fn extract_with_ocr_for_page(
     Vec<crate::types::Formula>,
     Vec<Vec<crate::pdf::structure::types::PdfParagraph>>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
     Vec<OcrPageNoiseVerdict>,
 )> {
     use crate::plugins::registry::get_ocr_backend_registry;
@@ -1178,6 +1213,9 @@ pub(super) async fn extract_with_ocr_for_page(
     // normalized confidence, or a page-rejection gate downstream would compare it against an
     // absolute floor it was never calibrated against (see `resolve_confidence_semantics`).
     let backend_confidence_semantics = backend.confidence_semantics();
+    // Owned up front: the per-page summaries below outlive the borrow-heavy OCR loop, and
+    // the backend that actually produced a page is part of what `ocr_confidence` reports. ~keep
+    let backend_name = backend.name().to_string();
     let backend_confidence_scale = match backend_confidence_semantics {
         crate::plugins::ConfidenceSemantics::Legibility { scale_max } if scale_max > 0.0 => Some(scale_max),
         _ => None,
@@ -1255,6 +1293,10 @@ pub(super) async fn extract_with_ocr_for_page(
             // cluster over here.
             Vec::new(),
             preprocessing,
+            // The backend judged the document as a whole, so there is no per-page confidence
+            // to report. An empty map keeps every page's `ocr_confidence` absent rather than
+            // pinning a document-wide number onto page 1 and leaving the rest bare (#1568). ~keep
+            ahash::AHashMap::new(),
             // Same reasoning: this route never calls `accept_or_reject_ocr_page` per page.
             Vec::new(),
         ));
@@ -1350,6 +1392,11 @@ pub(super) async fn extract_with_ocr_for_page(
     let mut accumulated_formulas: Vec<crate::types::Formula> = Vec::new();
     let mut conf_sum: f64 = 0.0;
     let mut conf_count: usize = 0;
+    // Per-page OCR confidence summaries, keyed by 1-based document page number (#1568).
+    // Only pages this route actually OCR'd get an entry, so an absent key downstream means
+    // "not OCR'd" rather than "OCR'd with nothing to report". ~keep
+    let mut ocr_confidence_by_page: ahash::AHashMap<u32, crate::types::page::PageOcrConfidence> =
+        ahash::AHashMap::new();
     // Warnings from the force_ocr image-XObject fallback (#1355): a page rendered
     // blank by xberg_native_pdf but carrying image XObjects the renderer couldn't paint.
     #[cfg(feature = "pdf")]
@@ -1941,6 +1988,14 @@ pub(super) async fn extract_with_ocr_for_page(
                     .get(crate::ocr_metadata_keys::OCR_TESSERACT_DICT_INVALID_WORD_RATIO_METADATA_KEY)
                     .and_then(|v| v.as_f64());
                 let confidence = mean_text_conf_of(&ocr_result.metadata.additional);
+                if let Some(summary) = page_ocr_confidence(
+                    backend_confidence_semantics,
+                    confidence,
+                    word_count_of(&ocr_result.metadata.additional).unwrap_or(0),
+                    &backend_name,
+                ) {
+                    ocr_confidence_by_page.insert(document_page_number, summary);
+                }
                 #[cfg(feature = "pdf")]
                 if (page_margins.top != 0.0 || page_margins.bottom != 0.0)
                     && !margin_filter_complete
@@ -2017,6 +2072,14 @@ pub(super) async fn extract_with_ocr_for_page(
                 .get(crate::ocr_metadata_keys::OCR_TESSERACT_DICT_INVALID_WORD_RATIO_METADATA_KEY)
                 .and_then(|v| v.as_f64());
             let confidence = mean_text_conf_of(&ocr_result.metadata.additional);
+            if let Some(summary) = page_ocr_confidence(
+                backend_confidence_semantics,
+                confidence,
+                word_count_of(&ocr_result.metadata.additional).unwrap_or(0),
+                &backend_name,
+            ) {
+                ocr_confidence_by_page.insert(document_page_number, summary);
+            }
             #[cfg(feature = "pdf")]
             if (page_margins.top != 0.0 || page_margins.bottom != 0.0)
                 && !margin_filter_complete
@@ -2230,6 +2293,7 @@ pub(super) async fn extract_with_ocr_for_page(
         accumulated_formulas,
         raw_page_paragraphs,
         preprocessing_by_page,
+        ocr_confidence_by_page,
         recognition_noise_verdicts,
     ))
 }
@@ -2801,22 +2865,34 @@ pub(crate) async fn run_ocr_pipeline(
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
 )> {
-    let (text, tables, elements, doc, usage, page_texts, rasters, formulas, _raw_page_paragraphs, preprocessing) =
-        Box::pin(run_ocr_pipeline_for_page(
-            content,
-            images,
-            #[cfg(feature = "layout-detection")]
-            layout_detections,
-            config,
-            pipeline,
-            path,
-            0,
-            false,
-            None,
-            0,
-        ))
-        .await?;
+    let (
+        text,
+        tables,
+        elements,
+        doc,
+        usage,
+        page_texts,
+        rasters,
+        formulas,
+        _raw_page_paragraphs,
+        preprocessing,
+        ocr_confidence,
+    ) = Box::pin(run_ocr_pipeline_for_page(
+        content,
+        images,
+        #[cfg(feature = "layout-detection")]
+        layout_detections,
+        config,
+        pipeline,
+        path,
+        0,
+        false,
+        None,
+        0,
+    ))
+    .await?;
     Ok((
         text,
         tables,
@@ -2827,6 +2903,7 @@ pub(crate) async fn run_ocr_pipeline(
         rasters,
         formulas,
         preprocessing,
+        ocr_confidence,
     ))
 }
 /// Same as [`run_ocr_pipeline`], but `page_rotation_degrees` -- the page's known PDF
@@ -2876,6 +2953,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
     Vec<crate::types::Formula>,
     Vec<Vec<crate::pdf::structure::types::PdfParagraph>>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
 )> {
     use crate::plugins::registry::get_ocr_backend_registry;
 
@@ -2933,6 +3011,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
         Vec<crate::types::Formula>,
         Vec<Vec<crate::pdf::structure::types::PdfParagraph>>,
         ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+        ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
     )> = None;
 
     let mut accumulated_usage: Vec<crate::types::LlmUsage> = Vec::new();
@@ -2995,6 +3074,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
                 stage_formulas,
                 stage_raw_paragraphs,
                 stage_preprocessing,
+                stage_ocr_confidence,
                 stage_recognition_noise_verdicts,
             )) => {
                 let text_score = compute_quality_score(&text, &pipeline.quality_thresholds);
@@ -3046,6 +3126,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
                         stage_formulas,
                         stage_raw_paragraphs,
                         stage_preprocessing,
+                        stage_ocr_confidence,
                     ));
                 }
 
@@ -3084,6 +3165,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
                         stage_formulas,
                         stage_raw_paragraphs,
                         stage_preprocessing,
+                        stage_ocr_confidence,
                     ));
                 }
             }
@@ -3110,6 +3192,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
             formulas,
             raw_page_paragraphs,
             preprocessing,
+            ocr_confidence,
         )) => {
             let threshold = pipeline.quality_thresholds.pipeline_min_quality;
             tracing::warn!(
@@ -3158,6 +3241,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
                 formulas,
                 raw_page_paragraphs,
                 preprocessing,
+                ocr_confidence,
             ))
         }
         None => {
@@ -3191,6 +3275,7 @@ pub(super) async fn run_ocr_pipeline_for_page(
                     recovery.formulas,
                     Vec::new(),
                     recovery.preprocessing,
+                    ahash::AHashMap::new(),
                 ));
             }
 

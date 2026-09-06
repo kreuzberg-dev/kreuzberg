@@ -940,6 +940,7 @@ fn build_pages(doc: &InternalDocument) -> Option<Vec<PageContent>> {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             }
         })
         .collect();
@@ -2195,6 +2196,7 @@ mod tests {
             speaker_notes: None,
             section_name: None,
             sheet_name: None,
+            ocr_confidence: None,
         }]);
 
         let raw = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Markdown);
@@ -2239,6 +2241,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             },
             crate::types::page::PageContent {
                 page_number: 2,
@@ -2252,6 +2255,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             },
         ]);
 

@@ -659,13 +659,57 @@ pub(super) fn ocr_recognition_noise_decision(
 /// Written by `perform_ocr` from `api.mean_text_conf()`. Backends that do not report it
 /// (and Tesseract itself, when it read nothing) simply yield `None`.
 #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-pub(super) fn mean_text_conf_of(
+pub(crate) fn mean_text_conf_of(
     metadata: &ahash::AHashMap<std::borrow::Cow<'_, str>, serde_json::Value>,
 ) -> Option<f64> {
     let value = metadata.get("mean_text_conf")?;
     let conf = value.as_f64().or_else(|| value.as_i64().map(|v| v as f64))?;
     // -1 is Tesseract's "no confidence available" sentinel.
     (conf >= 0.0).then_some(conf)
+}
+/// The number of OCR'd words a backend retained on a page, if it reported one.
+///
+/// Written into the same metadata map as `mean_text_conf` by
+/// `insert_retained_word_confidence_metadata` (`ocr::processor::execution`). Backends that
+/// never report it simply yield `None`, which callers read as "unknown", not as zero words.
+/// The `u64` is narrowed by saturation rather than cast, so an implausibly large count
+/// cannot silently wrap into a small one. ~keep
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+pub(crate) fn word_count_of(metadata: &ahash::AHashMap<std::borrow::Cow<'_, str>, serde_json::Value>) -> Option<u32> {
+    let count = metadata.get("word_count")?.as_u64()?;
+    Some(u32::try_from(count).unwrap_or(u32::MAX))
+}
+/// Build the page-level OCR confidence summary attached to [`crate::types::page::PageContent`].
+///
+/// Only [`crate::plugins::ConfidenceSemantics::Legibility`] yields a `score`: its raw value is
+/// normalized by `scale_max` into `0.0..=1.0` and clamped, mirroring [`confidence_gate_rejects`]'s
+/// normalization. A non-positive `scale_max` would divide into NaN/infinity, so it is guarded
+/// and treated the same as "no calibrated scale" rather than propagating a broken number.
+///
+/// `Uncalibrated` and `None` semantics, and a missing `raw_confidence` (no words were scored),
+/// all yield `score: None` -- but always with the real `word_count` and `backend` populated, so
+/// a caller can still see that the page WAS OCR'd and by whom even without a legibility number.
+/// `Some(0.0)` is never used as a substitute for "no data": zero confidence and no data are
+/// different facts, and collapsing them would make a genuinely illegible page indistinguishable
+/// from one nobody scored.
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+pub(crate) fn page_ocr_confidence(
+    semantics: crate::plugins::ConfidenceSemantics,
+    raw_confidence: Option<f64>,
+    word_count: u32,
+    backend: &str,
+) -> Option<crate::types::page::PageOcrConfidence> {
+    let score = match semantics {
+        crate::plugins::ConfidenceSemantics::Legibility { scale_max } if scale_max > 0.0 => {
+            raw_confidence.map(|raw| (raw / scale_max).clamp(0.0, 1.0))
+        }
+        _ => None,
+    };
+    Some(crate::types::page::PageOcrConfidence {
+        score,
+        word_count,
+        backend: backend.to_string(),
+    })
 }
 /// Statistics for judging an OCR result, scored over prose rather than Markdown scaffolding.
 ///

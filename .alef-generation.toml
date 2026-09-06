@@ -11,4 +11,4 @@
 # Do not hand-edit; it is rewritten by `alef generate`/`alef all` on every successful run.
 
 [crates]
-xberg = "3c1759a4351823538a9bb745eb1d10ae206d4c68312f24c6eab0fe8af6b76ea3"
+xberg = "9cbc637f845e41bbd54ee0a71256c58b3ca70116d6fc93e84774db50d79d5a2b"

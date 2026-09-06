@@ -923,6 +923,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PageHierarchy dco_decode_box_autoadd_page_hierarchy(dynamic raw);
 
   @protected
+  PageOcrConfidence dco_decode_box_autoadd_page_ocr_confidence(dynamic raw);
+
+  @protected
   PageStructure dco_decode_box_autoadd_page_structure(dynamic raw);
 
   @protected
@@ -2257,6 +2260,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PageHierarchy? dco_decode_opt_box_autoadd_page_hierarchy(dynamic raw);
 
   @protected
+  PageOcrConfidence? dco_decode_opt_box_autoadd_page_ocr_confidence(
+    dynamic raw,
+  );
+
+  @protected
   PageStructure? dco_decode_opt_box_autoadd_page_structure(dynamic raw);
 
   @protected
@@ -2490,6 +2498,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PageInfo dco_decode_page_info(dynamic raw);
+
+  @protected
+  PageOcrConfidence dco_decode_page_ocr_confidence(dynamic raw);
 
   @protected
   PageOrientationHandling dco_decode_page_orientation_handling(dynamic raw);
@@ -3676,6 +3687,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PageHierarchy sse_decode_box_autoadd_page_hierarchy(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PageOcrConfidence sse_decode_box_autoadd_page_ocr_confidence(
     SseDeserializer deserializer,
   );
 
@@ -5360,6 +5376,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PageOcrConfidence? sse_decode_opt_box_autoadd_page_ocr_confidence(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PageStructure? sse_decode_opt_box_autoadd_page_structure(
     SseDeserializer deserializer,
   );
@@ -5675,6 +5696,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PageInfo sse_decode_page_info(SseDeserializer deserializer);
+
+  @protected
+  PageOcrConfidence sse_decode_page_ocr_confidence(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PageOrientationHandling sse_decode_page_orientation_handling(
@@ -7245,6 +7271,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_page_hierarchy(
     PageHierarchy self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_page_ocr_confidence(
+    PageOcrConfidence self,
     SseSerializer serializer,
   );
 
@@ -9397,6 +9429,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_page_ocr_confidence(
+    PageOcrConfidence? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_page_structure(
     PageStructure? self,
     SseSerializer serializer,
@@ -9800,6 +9838,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_page_info(PageInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_page_ocr_confidence(
+    PageOcrConfidence self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_page_orientation_handling(

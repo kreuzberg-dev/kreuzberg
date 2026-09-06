@@ -591,6 +591,7 @@ fn finish_cached_layout_document(
         speaker_notes: None,
         section_name: None,
         sheet_name: None,
+        ocr_confidence: None,
         image_preprocessing: whole_image_doc.metadata.image_preprocessing.clone(),
     }]);
     ImageExtractor::mark_ocr_extraction(&mut assembled);
@@ -1684,6 +1685,21 @@ impl ImageExtractor {
         #[cfg(feature = "ocr")]
         let ocr_internal_document = ocr_result.ocr_internal_document;
 
+        // ~keep The whole image is one OCR run, so its confidence describes page 1 and only
+        // page 1. The multi-frame TIFF branch below splits that single run's text by byte
+        // offset into several pages with no per-frame OCR of their own, so those pages keep
+        // `ocr_confidence: None` rather than repeating a figure that was never measured for
+        // them (#1568). Gated on `pdf` because the shared builder lives in that module.
+        #[cfg(all(feature = "ocr", feature = "pdf"))]
+        let whole_image_ocr_confidence = crate::extractors::pdf::ocr::page_ocr_confidence(
+            backend.confidence_semantics(),
+            crate::extractors::pdf::ocr::mean_text_conf_of(&ocr_metadata.additional),
+            crate::extractors::pdf::ocr::word_count_of(&ocr_metadata.additional).unwrap_or(0),
+            backend.name(),
+        );
+        #[cfg(all(feature = "ocr", not(feature = "pdf")))]
+        let whole_image_ocr_confidence: Option<crate::types::page::PageOcrConfidence> = None;
+
         #[cfg(feature = "ocr")]
         {
             let ocr_extraction_result = crate::extraction::image::extract_text_from_image_with_ocr(
@@ -1751,6 +1767,7 @@ impl ImageExtractor {
                         speaker_notes: None,
                         section_name: None,
                         sheet_name: None,
+                        ocr_confidence: whole_image_ocr_confidence,
                     }]);
                 }
             }
@@ -1781,6 +1798,7 @@ impl ImageExtractor {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: None,
+                    ocr_confidence: None,
                 }]);
             }
             Ok(doc)
@@ -1815,17 +1833,27 @@ impl ImageExtractor {
         let image = image::DynamicImage::ImageRgb8(image);
         let images = [image];
 
-        let (text, _tables, ocr_elements, pipeline_doc, llm_usage, _page_texts, _rasters, formulas, _) =
-            Box::pin(crate::extractors::pdf::ocr::run_ocr_pipeline(
-                None,
-                Some(&images),
-                #[cfg(feature = "layout-detection")]
-                None,
-                config,
-                pipeline,
-                None,
-            ))
-            .await?;
+        let (
+            text,
+            _tables,
+            ocr_elements,
+            pipeline_doc,
+            llm_usage,
+            _page_texts,
+            _rasters,
+            formulas,
+            _,
+            mut pipeline_ocr_confidence,
+        ) = Box::pin(crate::extractors::pdf::ocr::run_ocr_pipeline(
+            None,
+            Some(&images),
+            #[cfg(feature = "layout-detection")]
+            None,
+            config,
+            pipeline,
+            None,
+        ))
+        .await?;
 
         // Build a clean image document from the pipeline text (keeping the "image"
         // doc type and shape the rest of the image path produces), then carry over
@@ -1861,6 +1889,9 @@ impl ImageExtractor {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                // ~keep The lone image was handed to the runner as page 0, so the winning
+                // stage keys its summary at page 1 -- the same page this builds (#1568).
+                ocr_confidence: pipeline_ocr_confidence.remove(&1),
             }]);
         }
 
@@ -2939,6 +2970,7 @@ mod tests {
             speaker_notes: None,
             section_name: None,
             sheet_name: None,
+            ocr_confidence: None,
         }]);
         doc.metadata.additional.insert(
             std::borrow::Cow::Borrowed(crate::ocr_metadata_keys::OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY),

@@ -87,6 +87,7 @@ impl ContentBuilder {
                 speaker_notes,
                 section_name,
                 sheet_name: None,
+                ocr_confidence: None,
             });
         }
     }

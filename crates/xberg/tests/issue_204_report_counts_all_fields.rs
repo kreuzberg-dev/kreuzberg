@@ -42,6 +42,7 @@ fn page(content: &str) -> PageContent {
         speaker_notes: None,
         section_name: None,
         sheet_name: None,
+        ocr_confidence: None,
     }
 }
 

@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added per-page OCR confidence to `PageContent.ocr_confidence`, reported as a
+  `PageOcrConfidence { score, word_count, backend }`
+  ([#1568](https://github.com/xberg-io/xberg/issues/1568)). The field is absent for pages that
+  were not OCR'd. `score` is populated only for backends whose confidence is a calibrated
+  legibility scale (normalised to `0.0..=1.0`) and is `None` for uncalibrated ones, so a page
+  OCR'd without a comparable score is still distinguishable from a page nobody scored. It is
+  reported alongside `word_count` because noise filtering runs before the score is computed: a
+  high score over very few surviving words does not mean the page read well.
+
 - Added HWPX (Hangul Word Processor XML) extraction to the WebAssembly package. `unhwp`
   target-gates its ZIP reader to a deflate-only, LZMA-free build under `wasm32`, so the
   native-C dependency that previously kept `hwpx` off `wasm-target` does not apply there.

@@ -77,6 +77,7 @@ fn page(content: &str) -> PageContent {
         speaker_notes: Some(format!("Notes about {SUBJECT}")),
         section_name: None,
         sheet_name: None,
+        ocr_confidence: None,
     }
 }
 

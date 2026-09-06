@@ -988,6 +988,9 @@ public func pageHierarchyFromJson<GenericIntoRustString: IntoRustString>(_ json:
 public func pageInfoFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> PageInfo {
     try { let val = __swift_bridge__$page_info_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return PageInfo(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
 }
+public func pageOcrConfidenceFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> PageOcrConfidence {
+    try { let val = __swift_bridge__$page_ocr_confidence_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return PageOcrConfidence(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
+}
 public func pageRangeFromJson<GenericIntoRustString: IntoRustString>(_ json: GenericIntoRustString) throws -> PageRange {
     try { let val = __swift_bridge__$page_range_from_json({ let rustString = json.intoRustString(); rustString.isOwned = false; return rustString.ptr }()); if val.is_ok { return PageRange(ptr: val.ok_or_err!) } else { throw RustString(ptr: val.ok_or_err!) } }()
 }
@@ -1953,6 +1956,9 @@ public func __alef_phantom_vec_page_hierarchy() -> RustVec<PageHierarchy> {
 }
 public func __alef_phantom_vec_page_info() -> RustVec<PageInfo> {
     RustVec(ptr: __swift_bridge__$__alef_phantom_vec_page_info())
+}
+public func __alef_phantom_vec_page_ocr_confidence() -> RustVec<PageOcrConfidence> {
+    RustVec(ptr: __swift_bridge__$__alef_phantom_vec_page_ocr_confidence())
 }
 public func __alef_phantom_vec_page_span() -> RustVec<PageSpan> {
     RustVec(ptr: __swift_bridge__$__alef_phantom_vec_page_span())
@@ -19591,6 +19597,10 @@ extension PageContentRef {
     public func sheetName() -> Optional<RustString> {
         { let val = __swift_bridge__$PageContent$sheet_name(ptr); if val != nil { return RustString(ptr: val!) } else { return nil } }()
     }
+
+    public func ocrConfidence() -> Optional<PageOcrConfidence> {
+        { let val = __swift_bridge__$PageContent$ocr_confidence(ptr); if val != nil { return PageOcrConfidence(ptr: val!) } else { return nil } }()
+    }
 }
 extension PageContent: Vectorizable {
     public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
@@ -19919,6 +19929,99 @@ extension PageInfo: Vectorizable {
 
     public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
         __swift_bridge__$Vec_PageInfo$len(vecPtr)
+    }
+}
+
+
+public class PageOcrConfidence: PageOcrConfidenceRefMut {
+    public var isOwned: Bool = true
+
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+
+    deinit {
+        if isOwned {
+            __swift_bridge__$PageOcrConfidence$_free(ptr)
+        }
+    }
+}
+extension PageOcrConfidence {
+    public convenience init<GenericIntoRustString: IntoRustString>(_ score: Optional<Double>, _ word_count: UInt32, _ backend: GenericIntoRustString) {
+        self.init(ptr: __swift_bridge__$PageOcrConfidence$new(score.intoFfiRepr(), word_count, { let rustString = backend.intoRustString(); rustString.isOwned = false; return rustString.ptr }()))
+    }
+}
+public class PageOcrConfidenceRefMut: PageOcrConfidenceRef {
+    public override init(ptr: UnsafeMutableRawPointer) {
+        super.init(ptr: ptr)
+    }
+}
+public class PageOcrConfidenceRef {
+    public var ptr: UnsafeMutableRawPointer
+
+    public init(ptr: UnsafeMutableRawPointer) {
+        self.ptr = ptr
+    }
+}
+extension PageOcrConfidenceRef {
+    public func score() -> Optional<Double> {
+        __swift_bridge__$PageOcrConfidence$score(ptr).intoSwiftRepr()
+    }
+
+    public func wordCount() -> UInt32 {
+        __swift_bridge__$PageOcrConfidence$word_count(ptr)
+    }
+
+    public func backend() -> RustString {
+        RustString(ptr: __swift_bridge__$PageOcrConfidence$backend(ptr))
+    }
+}
+extension PageOcrConfidence: Vectorizable {
+    public static func vecOfSelfNew() -> UnsafeMutableRawPointer {
+        __swift_bridge__$Vec_PageOcrConfidence$new()
+    }
+
+    public static func vecOfSelfFree(vecPtr: UnsafeMutableRawPointer) {
+        __swift_bridge__$Vec_PageOcrConfidence$drop(vecPtr)
+    }
+
+    public static func vecOfSelfPush(vecPtr: UnsafeMutableRawPointer, value: PageOcrConfidence) {
+        __swift_bridge__$Vec_PageOcrConfidence$push(vecPtr, {value.isOwned = false; return value.ptr;}())
+    }
+
+    public static func vecOfSelfPop(vecPtr: UnsafeMutableRawPointer) -> Optional<Self> {
+        let pointer = __swift_bridge__$Vec_PageOcrConfidence$pop(vecPtr)
+        if pointer == nil {
+            return nil
+        } else {
+            return (PageOcrConfidence(ptr: pointer!) as! Self)
+        }
+    }
+
+    public static func vecOfSelfGet(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<PageOcrConfidenceRef> {
+        let pointer = __swift_bridge__$Vec_PageOcrConfidence$get(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return PageOcrConfidenceRef(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfGetMut(vecPtr: UnsafeMutableRawPointer, index: UInt) -> Optional<PageOcrConfidenceRefMut> {
+        let pointer = __swift_bridge__$Vec_PageOcrConfidence$get_mut(vecPtr, index)
+        if pointer == nil {
+            return nil
+        } else {
+            return PageOcrConfidenceRefMut(ptr: pointer!)
+        }
+    }
+
+    public static func vecOfSelfAsPtr(vecPtr: UnsafeMutableRawPointer) -> UnsafePointer<PageOcrConfidenceRef> {
+        UnsafePointer<PageOcrConfidenceRef>(OpaquePointer(__swift_bridge__$Vec_PageOcrConfidence$as_ptr(vecPtr)))
+    }
+
+    public static func vecOfSelfLen(vecPtr: UnsafeMutableRawPointer) -> UInt {
+        __swift_bridge__$Vec_PageOcrConfidence$len(vecPtr)
     }
 }
 

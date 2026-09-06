@@ -843,6 +843,7 @@ mod tests {
             section_name: None,
             speaker_notes: None,
             sheet_name: None,
+            ocr_confidence: None,
         }
     }
 

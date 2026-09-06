@@ -806,6 +806,7 @@ async fn run_ocr_with_layout(
     Option<Vec<crate::types::ExtractedImage>>,
     Vec<crate::types::Formula>,
     ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
+    ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
     OcrLayoutGateDecisions,
     Option<crate::types::ProcessingWarning>,
     Vec<crate::types::ProcessingWarning>,
@@ -929,6 +930,7 @@ async fn run_ocr_with_layout(
             pipeline_rasters,
             pipeline_formulas,
             preprocessing,
+            pipeline_ocr_confidence,
         ) = Box::pin(ocr::run_ocr_pipeline(
             Some(content),
             #[cfg(feature = "layout-detection")]
@@ -966,25 +968,37 @@ async fn run_ocr_with_layout(
             pipeline_rasters,
             pipeline_formulas,
             preprocessing,
+            pipeline_ocr_confidence,
             ocr_layout_gate_decisions,
             layout_warning,
             layout_glyph_drop_warnings,
         ));
     }
 
-    let (text, _mean_conf, ocr_tables, ocr_elements, ocr_doc, llm_usage, ocr_pts, ocr_rasters, formulas, preprocessing) =
-        Box::pin(extract_with_ocr(
-            Some(content),
-            #[cfg(feature = "layout-detection")]
-            ocr_images,
-            #[cfg(not(feature = "layout-detection"))]
-            None,
-            #[cfg(feature = "layout-detection")]
-            layout_detections,
-            config,
-            path,
-        ))
-        .await?;
+    let (
+        text,
+        _mean_conf,
+        ocr_tables,
+        ocr_elements,
+        ocr_doc,
+        llm_usage,
+        ocr_pts,
+        ocr_rasters,
+        formulas,
+        preprocessing,
+        ocr_confidence,
+    ) = Box::pin(extract_with_ocr(
+        Some(content),
+        #[cfg(feature = "layout-detection")]
+        ocr_images,
+        #[cfg(not(feature = "layout-detection"))]
+        None,
+        #[cfg(feature = "layout-detection")]
+        layout_detections,
+        config,
+        path,
+    ))
+    .await?;
     #[cfg(feature = "formula-recognition")]
     let (mut ocr_doc, mut formulas) = (ocr_doc, formulas);
     #[cfg(feature = "formula-recognition")]
@@ -1001,6 +1015,7 @@ async fn run_ocr_with_layout(
         ocr_rasters,
         formulas,
         preprocessing,
+        ocr_confidence,
         ocr_layout_gate_decisions,
         layout_warning,
         layout_glyph_drop_warnings,
@@ -1438,6 +1453,26 @@ fn attach_pdf_preprocessing_metadata(
         .map(|(_, metadata)| metadata.clone())
 }
 
+/// Attach each OCR'd page's confidence summary to its [`crate::types::PageContent`] (#1568).
+///
+/// `by_page` is keyed by 1-based page number and only holds pages an OCR route actually ran,
+/// so a natively extracted page keeps `ocr_confidence: None` -- absence means "not OCR'd",
+/// distinct from an entry whose `score` is `None` because the backend has no calibrated
+/// legibility scale. Unlike `attach_pdf_preprocessing_metadata` there is no document-level
+/// aggregate: averaging per-page confidences across pages OCR'd by different backends (the
+/// pipeline route's stages) would compare incomparable scales. ~keep
+#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+fn attach_pdf_ocr_confidence(
+    pages: &mut Option<Vec<crate::types::PageContent>>,
+    by_page: &ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
+) {
+    if let Some(pages) = pages {
+        for page in pages {
+            page.ocr_confidence = by_page.get(&page.page_number).cloned();
+        }
+    }
+}
+
 /// PDF document extractor using xberg_native_pdf.
 #[cfg_attr(alef, alef(skip))]
 pub struct PdfExtractor;
@@ -1761,6 +1796,9 @@ impl PdfExtractor {
         let mut ocr_preprocessing_by_page: ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata> =
             ahash::AHashMap::new();
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        let mut ocr_confidence_by_page: ahash::AHashMap<u32, crate::types::page::PageOcrConfidence> =
+            ahash::AHashMap::new();
+        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let mut ocr_fallback_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         #[allow(unused_assignments)]
@@ -1798,6 +1836,7 @@ impl PdfExtractor {
                 ocr_rstrs,
                 formulas,
                 preprocessing,
+                page_ocr_confidence,
                 gate_audit,
                 layout_warning,
                 layout_glyph_drop_warnings,
@@ -1828,6 +1867,7 @@ impl PdfExtractor {
             ocr_page_rasters = ocr_rstrs;
             ocr_formulas = formulas;
             ocr_preprocessing_by_page = preprocessing;
+            ocr_confidence_by_page = page_ocr_confidence;
             (ocr_text, ExtractionMethod::Ocr)
         } else if let Some(ref ocr_pages) = config.force_ocr_pages {
             if !ocr_pages.is_empty() {
@@ -1841,6 +1881,7 @@ impl PdfExtractor {
                             mixed_rstrs,
                             mixed_formulas,
                             mixed_preprocessing,
+                            mixed_ocr_confidence,
                             mixed_warnings,
                         ) = ocr::extract_mixed_ocr_native(&native_text, bounds, ocr_pages, content, config, path)
                             .await?;
@@ -1853,6 +1894,7 @@ impl PdfExtractor {
                             ocr_formulas = mixed_formulas;
                         }
                         ocr_preprocessing_by_page.extend(mixed_preprocessing);
+                        ocr_confidence_by_page.extend(mixed_ocr_confidence);
                         ocr_fallback_warnings.extend(mixed_warnings);
                         (mixed, extraction_method)
                     } else {
@@ -1882,6 +1924,7 @@ impl PdfExtractor {
                     mixed_rstrs,
                     mixed_formulas,
                     mixed_preprocessing,
+                    mixed_ocr_confidence,
                     mixed_warnings,
                 ) = ocr::extract_mixed_ocr_native(&native_text, bounds, &scanned_pages, content, config, path).await?;
                 // `Mixed` must mean "OCR contributed text", not "OCR was attempted". When
@@ -1906,6 +1949,7 @@ impl PdfExtractor {
                     ocr_formulas = mixed_formulas;
                 }
                 ocr_preprocessing_by_page.extend(mixed_preprocessing);
+                ocr_confidence_by_page.extend(mixed_ocr_confidence);
                 ocr_fallback_warnings.extend(mixed_warnings);
                 if ocr_contributed {
                     (mixed, mixed_method)
@@ -2015,6 +2059,7 @@ impl PdfExtractor {
                                 ocr_rstrs,
                                 formulas,
                                 preprocessing,
+                                page_ocr_confidence,
                                 gate_audit,
                                 layout_warning,
                                 layout_glyph_drop_warnings,
@@ -2034,6 +2079,7 @@ impl PdfExtractor {
                                 ocr_page_rasters = ocr_rstrs;
                                 ocr_formulas = formulas;
                                 ocr_preprocessing_by_page = preprocessing;
+                                ocr_confidence_by_page = page_ocr_confidence;
                                 (ocr_text, ExtractionMethod::Ocr)
                             }
                             Err(e) => {
@@ -2068,6 +2114,7 @@ impl PdfExtractor {
                                 mixed_rstrs,
                                 mixed_formulas,
                                 mixed_preprocessing,
+                                mixed_ocr_confidence,
                                 mixed_warnings,
                             )) => {
                                 let extraction_method = extraction_method_after_mixed_ocr(&results_map);
@@ -2079,6 +2126,7 @@ impl PdfExtractor {
                                     ocr_formulas = mixed_formulas;
                                 }
                                 ocr_preprocessing_by_page.extend(mixed_preprocessing);
+                                ocr_confidence_by_page.extend(mixed_ocr_confidence);
                                 ocr_fallback_warnings.extend(mixed_warnings);
                                 (mixed, extraction_method)
                             }
@@ -2187,6 +2235,7 @@ impl PdfExtractor {
                                     speaker_notes: None,
                                     section_name: None,
                                     sheet_name: None,
+                                    ocr_confidence: None,
                                 }
                             })
                             .collect(),
@@ -2219,6 +2268,8 @@ impl PdfExtractor {
 
         #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
         let image_preprocessing = attach_pdf_preprocessing_metadata(&mut page_contents, &ocr_preprocessing_by_page);
+        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        attach_pdf_ocr_confidence(&mut page_contents, &ocr_confidence_by_page);
         #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
         let image_preprocessing = None;
 
@@ -3776,6 +3827,200 @@ mod tests {
         RegisteredOcrBackendGuard { name }
     }
 
+    /// A backend that reports the two metadata keys `PageContent.ocr_confidence` is built from
+    /// (`mean_text_conf`, `word_count`) on a declared, calibrated scale -- the shape a real
+    /// Tesseract page arrives in, without needing tessdata on the machine running the test.
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    struct ConfidenceReportingOcrBackend {
+        name: &'static str,
+    }
+
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    const CONFIDENCE_MOCK_TEXT: &str = "Ordinance number twenty seventeen authorizes the municipal drainage \
+                                        improvement program described throughout this recorded document";
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    const CONFIDENCE_MOCK_MEAN_TEXT_CONF: i64 = 87;
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    const CONFIDENCE_MOCK_WORD_COUNT: u32 = 16;
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    const CONFIDENCE_MOCK_SCALE_MAX: f64 = 100.0;
+
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    impl crate::plugins::Plugin for ConfidenceReportingOcrBackend {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        fn version(&self) -> String {
+            "1.0.0".to_string()
+        }
+
+        fn initialize(&self) -> crate::Result<()> {
+            Ok(())
+        }
+
+        fn shutdown(&self) -> crate::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    #[async_trait::async_trait]
+    impl crate::plugins::OcrBackend for ConfidenceReportingOcrBackend {
+        fn backend_type(&self) -> crate::plugins::OcrBackendType {
+            crate::plugins::OcrBackendType::Custom
+        }
+
+        fn supports_language(&self, _lang: &str) -> bool {
+            true
+        }
+
+        fn confidence_semantics(&self) -> crate::plugins::ConfidenceSemantics {
+            crate::plugins::ConfidenceSemantics::Legibility {
+                scale_max: CONFIDENCE_MOCK_SCALE_MAX,
+            }
+        }
+
+        async fn process_image(
+            &self,
+            _image_bytes: &[u8],
+            _config: &crate::core::config::OcrConfig,
+        ) -> crate::Result<crate::types::ExtractedDocument> {
+            let mut document = crate::types::ExtractedDocument {
+                content: CONFIDENCE_MOCK_TEXT.to_string(),
+                mime_type: std::borrow::Cow::Borrowed("text/plain"),
+                ..Default::default()
+            };
+            document.metadata.additional.insert(
+                std::borrow::Cow::Borrowed("mean_text_conf"),
+                serde_json::Value::from(CONFIDENCE_MOCK_MEAN_TEXT_CONF),
+            );
+            document.metadata.additional.insert(
+                std::borrow::Cow::Borrowed("word_count"),
+                serde_json::Value::from(CONFIDENCE_MOCK_WORD_COUNT),
+            );
+            Ok(document)
+        }
+    }
+
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    fn register_confidence_reporting_ocr_backend(name: &'static str) -> RegisteredOcrBackendGuard {
+        crate::plugins::register_ocr_backend(std::sync::Arc::new(ConfidenceReportingOcrBackend { name })).unwrap();
+        RegisteredOcrBackendGuard { name }
+    }
+
+    /// Git-tracked, one-page scanned fixture with no native text layer. Embedded rather than
+    /// read at runtime so a missing file is a compile error, not a silently skipped test. ~keep
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    const SCANNED_HELLO_PDF: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/ocr/scanned_hello.pdf"
+    ));
+
+    /// #1568 -- the force-OCR route (`config.force_ocr` -> `run_ocr_with_layout` ->
+    /// `extract_with_ocr`). Fails on unfixed code: `ocr_confidence` was `None` on every page
+    /// because the per-page confidence the OCR loop already computes was never returned.
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    #[tokio::test]
+    #[serial]
+    async fn force_ocr_route_attaches_page_ocr_confidence() {
+        use crate::core::config::{OcrConfig, PageConfig};
+
+        const BACKEND_NAME: &str = "pdf-page-confidence-force-ocr-mock";
+        let _backend = register_confidence_reporting_ocr_backend(BACKEND_NAME);
+
+        let config = ExtractionConfig {
+            use_cache: false,
+            force_ocr: true,
+            ocr: Some(OcrConfig {
+                backend: BACKEND_NAME.to_string(),
+                ..Default::default()
+            }),
+            pages: Some(PageConfig {
+                extract_pages: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let internal = PdfExtractor::new()
+            .extract_content(SCANNED_HELLO_PDF, "application/pdf", &config)
+            .await
+            .expect("force-OCR extraction of the scanned fixture must succeed");
+
+        let pages = internal
+            .prebuilt_pages
+            .as_ref()
+            .expect("extract_pages must produce page contents");
+        assert_eq!(pages.len(), 1, "the fixture is a single-page scan: {pages:?}");
+        let confidence = pages[0]
+            .ocr_confidence
+            .as_ref()
+            .expect("an OCR'd page must carry its confidence summary");
+        assert_eq!(confidence.backend, BACKEND_NAME);
+        assert_eq!(confidence.word_count, CONFIDENCE_MOCK_WORD_COUNT);
+        assert_eq!(
+            confidence.score,
+            Some(CONFIDENCE_MOCK_MEAN_TEXT_CONF as f64 / CONFIDENCE_MOCK_SCALE_MAX),
+            "a calibrated backend's raw confidence must be normalized by its own scale"
+        );
+    }
+
+    /// #1568 -- the mixed / scanned-pages route (`config.force_ocr_pages` ->
+    /// `extract_mixed_ocr_native`). Covered separately from the force-OCR route above because
+    /// the two dispatch through entirely different code paths, and a fix to one leaves the
+    /// other silently reporting `None`. Also pins the "absent means not OCR'd" contract: the
+    /// natively extracted page must keep `ocr_confidence: None`.
+    #[cfg(all(feature = "pdf", feature = "ocr"))]
+    #[tokio::test]
+    #[serial]
+    async fn scanned_pages_route_attaches_page_ocr_confidence_only_to_ocred_pages() {
+        use crate::core::config::{OcrConfig, PageConfig};
+
+        const BACKEND_NAME: &str = "pdf-page-confidence-mixed-mock";
+        let _backend = register_confidence_reporting_ocr_backend(BACKEND_NAME);
+
+        let config = ExtractionConfig {
+            use_cache: false,
+            force_ocr_pages: Some(vec![2]),
+            ocr: Some(OcrConfig {
+                backend: BACKEND_NAME.to_string(),
+                ..Default::default()
+            }),
+            pages: Some(PageConfig {
+                extract_pages: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let internal = PdfExtractor::new()
+            .extract_content(&mixed_native_and_scanned_pdf(), "application/pdf", &config)
+            .await
+            .expect("targeted OCR of page 2 must succeed");
+
+        let pages = internal
+            .prebuilt_pages
+            .as_ref()
+            .expect("extract_pages must produce page contents");
+        assert_eq!(pages.len(), 2, "the fixture has two pages: {pages:?}");
+        assert!(
+            pages[0].ocr_confidence.is_none(),
+            "page 1 was extracted natively and must not carry a fabricated confidence: {:?}",
+            pages[0].ocr_confidence
+        );
+        let confidence = pages[1]
+            .ocr_confidence
+            .as_ref()
+            .expect("the OCR'd page must carry its confidence summary");
+        assert_eq!(confidence.backend, BACKEND_NAME);
+        assert_eq!(confidence.word_count, CONFIDENCE_MOCK_WORD_COUNT);
+        assert_eq!(
+            confidence.score,
+            Some(CONFIDENCE_MOCK_MEAN_TEXT_CONF as f64 / CONFIDENCE_MOCK_SCALE_MAX)
+        );
+    }
+
     #[test]
     fn test_pdf_extractor_plugin_interface() {
         let extractor = PdfExtractor::new();
@@ -5137,7 +5382,7 @@ mod tests {
 
         crate::plugins::unregister_ocr_backend("per-page-ocr-mock-928").unwrap();
 
-        let (_text, _conf, _tables, _elems, _doc, _llm, page_texts, _rasters, _formulas, preprocessing) =
+        let (_text, _conf, _tables, _elems, _doc, _llm, page_texts, _rasters, _formulas, preprocessing, _) =
             result.expect("extract_with_ocr should succeed");
 
         assert_eq!(page_texts.len(), 2, "expected one entry per page");
@@ -5176,6 +5421,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             })
             .collect();
         let pages_len = pages.len();
@@ -5229,6 +5475,7 @@ mod tests {
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             })
             .collect();
         let pages_len = pages.len();
@@ -5284,6 +5531,7 @@ mod tests {
                     speaker_notes: None,
                     section_name: None,
                     sheet_name: None,
+                    ocr_confidence: None,
                 }
             })
             .collect();
@@ -6442,6 +6690,7 @@ BT /F1 12 Tf 30 30 Td (Beta) Tj ET
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             },
             crate::types::PageContent {
                 page_number: 2,
@@ -6455,6 +6704,7 @@ BT /F1 12 Tf 30 30 Td (Beta) Tj ET
                 speaker_notes: None,
                 section_name: None,
                 sheet_name: None,
+                ocr_confidence: None,
             },
         ]);
         let by_page = ahash::AHashMap::from([(1, preprocessing(150, 150)), (2, preprocessing(300, 300))]);
