@@ -1,6 +1,6 @@
 // AI-RULEZ :: GENERATED FILE — DO NOT EDIT
-// Content-Hash: blake3:2380ff0219d0c12a18e22859fe1445061d369937db65645f35550507230edbd9
-// Source-Hash: blake3:507ff4ef87c97ddf9faebfcfc38c84181b8633bbb5b8ec3575c0ebc75be35179
+// Content-Hash: blake3:0c4b20b2428ca03b76e22085bdcc856fbac85091cd3f6d157655d6c25c02714f
+// Source-Hash: blake3:e627b65881d01f835095c09b8ff3f8e15d61895139679b904925a8aa19500a12
 // Schema-Version: v1
 
 import { tool } from "@opencode-ai/plugin";
@@ -33,7 +33,7 @@ function validateJson(value, name) {
   try {
     JSON.parse(value);
   } catch (error) {
-    throw new Error(`${name} must be valid JSON: ${error.message}`);
+    throw new Error(`${name} must be valid JSON: ${error.message}`, { cause: error });
   }
 }
 
@@ -84,48 +84,49 @@ function runCli(args, context) {
   });
 }
 
-export const XbergPlugin = async () => ({
-  tool: {
-    xberg_extract: tool({
-      description: "Extract text, tables, metadata, and images from a local document with the xberg CLI.",
-      args: {
-        path: schema.string().min(1).describe("Path to the local document."),
-        format: wireFormat,
-        content_format: contentFormat,
-        mime_type: schema.string().min(1).optional().describe("Optional MIME type hint."),
-        config_json: schema.string().min(2).optional().describe("Optional ExtractionConfig JSON."),
-      },
-      async execute(args, context) {
-        validateJson(args.config_json, "config_json");
+export const XbergPlugin = () =>
+  Promise.resolve({
+    tool: {
+      xberg_extract: tool({
+        description: "Extract text, tables, metadata, and images from a local document with the xberg CLI.",
+        args: {
+          path: schema.string().min(1).describe("Path to the local document."),
+          format: wireFormat,
+          content_format: contentFormat,
+          mime_type: schema.string().min(1).optional().describe("Optional MIME type hint."),
+          config_json: schema.string().min(2).optional().describe("Optional ExtractionConfig JSON."),
+        },
+        async execute(args, context) {
+          validateJson(args.config_json, "config_json");
 
-        const cliArgs = ["extract", args.path, "--format", args.format];
-        pushOption(cliArgs, "--content-format", args.content_format);
-        pushOption(cliArgs, "--mime-type", args.mime_type);
-        pushOption(cliArgs, "--config-json", args.config_json);
+          const cliArgs = ["extract", args.path, "--format", args.format];
+          pushOption(cliArgs, "--content-format", args.content_format);
+          pushOption(cliArgs, "--mime-type", args.mime_type);
+          pushOption(cliArgs, "--config-json", args.config_json);
 
-        return runCli(cliArgs, context);
-      },
-    }),
-    xberg_detect: tool({
-      description: "Detect the MIME type for a local file with the xberg CLI.",
-      args: {
-        path: schema.string().min(1).describe("Path to the local file."),
-        format: wireFormat,
-      },
-      async execute(args, context) {
-        return runCli(["detect", args.path, "--format", args.format], context);
-      },
-    }),
-    xberg_formats: tool({
-      description: "List document formats supported by the xberg CLI.",
-      args: {
-        format: wireFormat,
-      },
-      async execute(args, context) {
-        return runCli(["formats", "--format", args.format], context);
-      },
-    }),
-  },
-});
+          return await runCli(cliArgs, context);
+        },
+      }),
+      xberg_detect: tool({
+        description: "Detect the MIME type for a local file with the xberg CLI.",
+        args: {
+          path: schema.string().min(1).describe("Path to the local file."),
+          format: wireFormat,
+        },
+        async execute(args, context) {
+          return await runCli(["detect", args.path, "--format", args.format], context);
+        },
+      }),
+      xberg_formats: tool({
+        description: "List document formats supported by the xberg CLI.",
+        args: {
+          format: wireFormat,
+        },
+        async execute(args, context) {
+          return await runCli(["formats", "--format", args.format], context);
+        },
+      }),
+    },
+  });
 
 export default XbergPlugin;
